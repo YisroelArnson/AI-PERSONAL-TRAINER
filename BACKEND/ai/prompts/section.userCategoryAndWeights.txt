@@ -1,0 +1,6 @@
+[SECTION: USER CATEGORIES & WEIGHTS]
+These are user-defined goal categories with weights (importance). Interpret as multi-objective optimization:
+- Treat higher weight as higher priority when trade-offs arise.
+- If some categories are disabled, ignore them.
+- Translate categories into programming constraints (e.g., hypertrophy → 8-15 reps, power → 1-5 reps, endurance → 12-20+ reps, mobility → dedicated slots).
+- When category units are provided, respect their scale/meaning while planning.

@@ -1,0 +1,656 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		12761C452E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C442E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift */; };
+		12761C472E57953800C4F8FE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C462E57953800C4F8FE /* ContentView.swift */; };
+		12761C492E57953B00C4F8FE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 12761C482E57953B00C4F8FE /* Assets.xcassets */; };
+		12761C4C2E57953B00C4F8FE /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 12761C4B2E57953B00C4F8FE /* Preview Assets.xcassets */; };
+		12761C562E57953B00C4F8FE /* AI_Personal_Trainer_AppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C552E57953B00C4F8FE /* AI_Personal_Trainer_AppTests.swift */; };
+		12761C602E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C5F2E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift */; };
+		12761C622E57953C00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */; };
+		12761C702E57984E00C4F8FE /* supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C6F2E57984E00C4F8FE /* supabase.swift */; };
+		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
+		12B5ED962E58C4BB000D7061 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED952E58C4BB000D7061 /* AuthView.swift */; };
+		12B5ED982E58C55C000D7061 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED972E58C55C000D7061 /* ProfileView.swift */; };
+		12B5ED9A2E58C6A2000D7061 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED992E58C6A2000D7061 /* Models.swift */; };
+		12B5ED9C2E58C72D000D7061 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED9B2E58C72D000D7061 /* AppView.swift */; };
+		12B5ED9F2E5911E6000D7061 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED9E2E5911E6000D7061 /* APIService.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		12761C522E57953B00C4F8FE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 12761C392E57953800C4F8FE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 12761C402E57953800C4F8FE;
+			remoteInfo = "AI Personal Trainer App";
+		};
+		12761C5C2E57953B00C4F8FE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 12761C392E57953800C4F8FE /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 12761C402E57953800C4F8FE;
+			remoteInfo = "AI Personal Trainer App";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		12761C412E57953800C4F8FE /* AI Personal Trainer App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Personal Trainer App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		12761C442E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
+		12761C462E57953800C4F8FE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		12761C482E57953B00C4F8FE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		12761C4B2E57953B00C4F8FE /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		12761C512E57953B00C4F8FE /* AI Personal Trainer AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		12761C552E57953B00C4F8FE /* AI_Personal_Trainer_AppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppTests.swift; sourceTree = "<group>"; };
+		12761C5B2E57953B00C4F8FE /* AI Personal Trainer AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		12761C5F2E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppUITests.swift; sourceTree = "<group>"; };
+		12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		12761C6F2E57984E00C4F8FE /* supabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = supabase.swift; sourceTree = "<group>"; };
+		12B5ED952E58C4BB000D7061 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		12B5ED972E58C55C000D7061 /* ProfileView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		12B5ED992E58C6A2000D7061 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		12B5ED9B2E58C72D000D7061 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
+		12B5ED9D2E58CF87000D7061 /* AI-Personal-Trainer-App-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "AI-Personal-Trainer-App-Info.plist"; sourceTree = SOURCE_ROOT; };
+		12B5ED9E2E5911E6000D7061 /* APIService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		12761C3E2E57953800C4F8FE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				12761C732E579CEF00C4F8FE /* Supabase in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		12761C4E2E57953B00C4F8FE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		12761C582E57953B00C4F8FE /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		12761C382E57953800C4F8FE = {
+			isa = PBXGroup;
+			children = (
+				12761C432E57953800C4F8FE /* AI Personal Trainer App */,
+				12761C542E57953B00C4F8FE /* AI Personal Trainer AppTests */,
+				12761C5E2E57953B00C4F8FE /* AI Personal Trainer AppUITests */,
+				12761C422E57953800C4F8FE /* Products */,
+				12761C712E579CEF00C4F8FE /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		12761C422E57953800C4F8FE /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				12761C412E57953800C4F8FE /* AI Personal Trainer App.app */,
+				12761C512E57953B00C4F8FE /* AI Personal Trainer AppTests.xctest */,
+				12761C5B2E57953B00C4F8FE /* AI Personal Trainer AppUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		12761C432E57953800C4F8FE /* AI Personal Trainer App */ = {
+			isa = PBXGroup;
+			children = (
+				12B5ED9D2E58CF87000D7061 /* AI-Personal-Trainer-App-Info.plist */,
+				12761C442E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift */,
+				12761C462E57953800C4F8FE /* ContentView.swift */,
+				12B5ED9E2E5911E6000D7061 /* APIService.swift */,
+				12761C482E57953B00C4F8FE /* Assets.xcassets */,
+				12761C4A2E57953B00C4F8FE /* Preview Content */,
+				12761C6F2E57984E00C4F8FE /* supabase.swift */,
+				12B5ED952E58C4BB000D7061 /* AuthView.swift */,
+				12B5ED972E58C55C000D7061 /* ProfileView.swift */,
+				12B5ED992E58C6A2000D7061 /* Models.swift */,
+				12B5ED9B2E58C72D000D7061 /* AppView.swift */,
+			);
+			path = "AI Personal Trainer App";
+			sourceTree = "<group>";
+		};
+		12761C4A2E57953B00C4F8FE /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				12761C4B2E57953B00C4F8FE /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		12761C542E57953B00C4F8FE /* AI Personal Trainer AppTests */ = {
+			isa = PBXGroup;
+			children = (
+				12761C552E57953B00C4F8FE /* AI_Personal_Trainer_AppTests.swift */,
+			);
+			path = "AI Personal Trainer AppTests";
+			sourceTree = "<group>";
+		};
+		12761C5E2E57953B00C4F8FE /* AI Personal Trainer AppUITests */ = {
+			isa = PBXGroup;
+			children = (
+				12761C5F2E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift */,
+				12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */,
+			);
+			path = "AI Personal Trainer AppUITests";
+			sourceTree = "<group>";
+		};
+		12761C712E579CEF00C4F8FE /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		12761C402E57953800C4F8FE /* AI Personal Trainer App */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 12761C652E57953C00C4F8FE /* Build configuration list for PBXNativeTarget "AI Personal Trainer App" */;
+			buildPhases = (
+				12761C3D2E57953800C4F8FE /* Sources */,
+				12761C3E2E57953800C4F8FE /* Frameworks */,
+				12761C3F2E57953800C4F8FE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "AI Personal Trainer App";
+			packageProductDependencies = (
+				12761C722E579CEF00C4F8FE /* Supabase */,
+			);
+			productName = "AI Personal Trainer App";
+			productReference = 12761C412E57953800C4F8FE /* AI Personal Trainer App.app */;
+			productType = "com.apple.product-type.application";
+		};
+		12761C502E57953B00C4F8FE /* AI Personal Trainer AppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 12761C682E57953C00C4F8FE /* Build configuration list for PBXNativeTarget "AI Personal Trainer AppTests" */;
+			buildPhases = (
+				12761C4D2E57953B00C4F8FE /* Sources */,
+				12761C4E2E57953B00C4F8FE /* Frameworks */,
+				12761C4F2E57953B00C4F8FE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				12761C532E57953B00C4F8FE /* PBXTargetDependency */,
+			);
+			name = "AI Personal Trainer AppTests";
+			productName = "AI Personal Trainer AppTests";
+			productReference = 12761C512E57953B00C4F8FE /* AI Personal Trainer AppTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		12761C5A2E57953B00C4F8FE /* AI Personal Trainer AppUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 12761C6B2E57953C00C4F8FE /* Build configuration list for PBXNativeTarget "AI Personal Trainer AppUITests" */;
+			buildPhases = (
+				12761C572E57953B00C4F8FE /* Sources */,
+				12761C582E57953B00C4F8FE /* Frameworks */,
+				12761C592E57953B00C4F8FE /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				12761C5D2E57953B00C4F8FE /* PBXTargetDependency */,
+			);
+			name = "AI Personal Trainer AppUITests";
+			productName = "AI Personal Trainer AppUITests";
+			productReference = 12761C5B2E57953B00C4F8FE /* AI Personal Trainer AppUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		12761C392E57953800C4F8FE /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1520;
+				LastUpgradeCheck = 1520;
+				TargetAttributes = {
+					12761C402E57953800C4F8FE = {
+						CreatedOnToolsVersion = 15.2;
+					};
+					12761C502E57953B00C4F8FE = {
+						CreatedOnToolsVersion = 15.2;
+						TestTargetID = 12761C402E57953800C4F8FE;
+					};
+					12761C5A2E57953B00C4F8FE = {
+						CreatedOnToolsVersion = 15.2;
+						TestTargetID = 12761C402E57953800C4F8FE;
+					};
+				};
+			};
+			buildConfigurationList = 12761C3C2E57953800C4F8FE /* Build configuration list for PBXProject "AI Personal Trainer App" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 12761C382E57953800C4F8FE;
+			packageReferences = (
+				12761C6E2E5795B400C4F8FE /* XCRemoteSwiftPackageReference "supabase-swift" */,
+			);
+			productRefGroup = 12761C422E57953800C4F8FE /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				12761C402E57953800C4F8FE /* AI Personal Trainer App */,
+				12761C502E57953B00C4F8FE /* AI Personal Trainer AppTests */,
+				12761C5A2E57953B00C4F8FE /* AI Personal Trainer AppUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		12761C3F2E57953800C4F8FE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				12761C4C2E57953B00C4F8FE /* Preview Assets.xcassets in Resources */,
+				12761C492E57953B00C4F8FE /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		12761C4F2E57953B00C4F8FE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		12761C592E57953B00C4F8FE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		12761C3D2E57953800C4F8FE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				12761C702E57984E00C4F8FE /* supabase.swift in Sources */,
+				12761C472E57953800C4F8FE /* ContentView.swift in Sources */,
+				12B5ED982E58C55C000D7061 /* ProfileView.swift in Sources */,
+				12B5ED9C2E58C72D000D7061 /* AppView.swift in Sources */,
+				12B5ED9A2E58C6A2000D7061 /* Models.swift in Sources */,
+				12B5ED962E58C4BB000D7061 /* AuthView.swift in Sources */,
+				12B5ED9F2E5911E6000D7061 /* APIService.swift in Sources */,
+				12761C452E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		12761C4D2E57953B00C4F8FE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				12761C562E57953B00C4F8FE /* AI_Personal_Trainer_AppTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		12761C572E57953B00C4F8FE /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				12761C622E57953C00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift in Sources */,
+				12761C602E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		12761C532E57953B00C4F8FE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 12761C402E57953800C4F8FE /* AI Personal Trainer App */;
+			targetProxy = 12761C522E57953B00C4F8FE /* PBXContainerItemProxy */;
+		};
+		12761C5D2E57953B00C4F8FE /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 12761C402E57953800C4F8FE /* AI Personal Trainer App */;
+			targetProxy = 12761C5C2E57953B00C4F8FE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		12761C632E57953C00C4F8FE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		12761C642E57953C00C4F8FE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		12761C662E57953C00C4F8FE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"AI Personal Trainer App/Preview Content\"";
+				DEVELOPMENT_TEAM = HQKNJY9XYD;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "AI-Personal-Trainer-App-Info.plist";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "AI-PT-ORG.AI-Personal-Trainer-App";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		12761C672E57953C00C4F8FE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"AI Personal Trainer App/Preview Content\"";
+				DEVELOPMENT_TEAM = HQKNJY9XYD;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "AI-Personal-Trainer-App-Info.plist";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "AI-PT-ORG.AI-Personal-Trainer-App";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		12761C692E57953C00C4F8FE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HQKNJY9XYD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "AI-PT-ORG.AI-Personal-Trainer-AppTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AI Personal Trainer App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AI Personal Trainer App";
+			};
+			name = Debug;
+		};
+		12761C6A2E57953C00C4F8FE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HQKNJY9XYD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.2;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "AI-PT-ORG.AI-Personal-Trainer-AppTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/AI Personal Trainer App.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/AI Personal Trainer App";
+			};
+			name = Release;
+		};
+		12761C6C2E57953C00C4F8FE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HQKNJY9XYD;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "AI-PT-ORG.AI-Personal-Trainer-AppUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "AI Personal Trainer App";
+			};
+			name = Debug;
+		};
+		12761C6D2E57953C00C4F8FE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = HQKNJY9XYD;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "AI-PT-ORG.AI-Personal-Trainer-AppUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "AI Personal Trainer App";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		12761C3C2E57953800C4F8FE /* Build configuration list for PBXProject "AI Personal Trainer App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				12761C632E57953C00C4F8FE /* Debug */,
+				12761C642E57953C00C4F8FE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		12761C652E57953C00C4F8FE /* Build configuration list for PBXNativeTarget "AI Personal Trainer App" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				12761C662E57953C00C4F8FE /* Debug */,
+				12761C672E57953C00C4F8FE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		12761C682E57953C00C4F8FE /* Build configuration list for PBXNativeTarget "AI Personal Trainer AppTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				12761C692E57953C00C4F8FE /* Debug */,
+				12761C6A2E57953C00C4F8FE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		12761C6B2E57953C00C4F8FE /* Build configuration list for PBXNativeTarget "AI Personal Trainer AppUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				12761C6C2E57953C00C4F8FE /* Debug */,
+				12761C6D2E57953C00C4F8FE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		12761C6E2E5795B400C4F8FE /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase-community/supabase-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.5.1;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		12761C722E579CEF00C4F8FE /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 12761C6E2E5795B400C4F8FE /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 12761C392E57953800C4F8FE /* Project object */;
+}

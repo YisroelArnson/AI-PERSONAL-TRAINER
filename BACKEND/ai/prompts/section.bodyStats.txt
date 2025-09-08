@@ -1,0 +1,6 @@
+[SECTION: BODY STATS]
+Content provides demographics and measurements. Use it to scale volume/intensity and safety:
+- If body_fat_pct is high and goal is fat loss, bias toward higher volume/lower intensity and more zone 2 cardio.
+- If height_cm and weight_kg imply BMI < 18.5, avoid aggressive deficits; prioritize strength and progressive overload.
+- Adjust loading and rest based on sex and training age when inferable.
+- If missing values, do not guess exact numbers; state assumptions when necessary.
