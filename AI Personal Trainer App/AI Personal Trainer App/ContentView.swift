@@ -17,6 +17,14 @@ struct ContentView: View {
     @State private var errorMessage: String?
     @State private var showProfile = false
     @State private var exerciseCount: Int = 8
+    @State private var useSpecificCount: Bool = true
+    
+    // Agent testing state
+    @State private var agentMessage: String = ""
+    @State private var agentResponse: AgentResponse?
+    @State private var agentError: String?
+    @State private var isAgentLoading = false
+    @State private var useTools = true
     
     var currentLocation: UserLocationRow? {
         locationManager.currentLocation
@@ -33,6 +41,16 @@ struct ContentView: View {
                     Text("AI Personal Trainer")
                         .font(.title)
                         .fontWeight(.bold)
+                    
+                    // Agent Testing Section
+                    AgentTestingView(
+                        apiService: apiService,
+                        agentMessage: $agentMessage,
+                        agentResponse: $agentResponse,
+                        agentError: $agentError,
+                        isAgentLoading: $isAgentLoading,
+                        useTools: $useTools
+                    )
                     
                     // Current Location Display
                     if let currentLocation = currentLocation {
@@ -153,15 +171,33 @@ struct ContentView: View {
                         }
                         .disabled(isLoading)
                         
-                        // Exercise Count Stepper
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("Number of Exercises: \(exerciseCount)")
-                                .font(.headline)
+                        // Exercise Count Control
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Exercise Count")
+                                    .font(.headline)
+                                Spacer()
+                                Toggle("Specify Count", isOn: $useSpecificCount)
+                                    .labelsHidden()
+                            }
                             
-                            Stepper(value: $exerciseCount, in: 1...20) {
-                                Text("Adjust exercise count")
+                            if useSpecificCount {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Number of Exercises: \(exerciseCount)")
+                                        .font(.subheadline)
+                                        .foregroundColor(.primary)
+                                    
+                                    Stepper(value: $exerciseCount, in: 1...20) {
+                                        Text("Adjust exercise count")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                            } else {
+                                Text("Let AI decide the optimal number of exercises")
                                     .font(.subheadline)
                                     .foregroundColor(.secondary)
+                                    .italic()
                             }
                         }
                         .padding()
@@ -175,7 +211,7 @@ struct ContentView: View {
                                     ProgressView()
                                         .scaleEffect(0.8)
                                 }
-                                Text("Get \(exerciseCount) Exercise Recommendations")
+                                Text(useSpecificCount ? "Get \(exerciseCount) Exercise Recommendations" : "Get Exercise Recommendations")
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
@@ -264,7 +300,7 @@ struct ContentView: View {
         
         Task {
             do {
-                let fetchedRecommendations = try await apiService.fetchRecommendations(exerciseCount: exerciseCount)
+                let fetchedRecommendations = try await apiService.fetchRecommendations(exerciseCount: useSpecificCount ? exerciseCount : nil)
                 
                 await MainActor.run {
                     self.exerciseRecommendations = fetchedRecommendations
@@ -290,35 +326,151 @@ struct ExerciseCard: View {
     let exercise: Exercise
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(exercise.name)
-                .font(.headline)
-                .foregroundColor(.primary)
-            
-            HStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Sets: \(exercise.sets)")
+        VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(exercise.name)
+                    .font(.headline)
+                    .foregroundColor(.primary)
+                
+                if let description = exercise.exercise_description, !description.isEmpty {
+                    Text(description)
                         .font(.subheadline)
                         .foregroundColor(.secondary)
+                        .italic()
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                // Exercise Format Information
+                HStack(spacing: 20) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Rounds/Sets
+                        if let rounds = exercise.rounds, rounds > 0 {
+                            Text("Rounds: \(rounds)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        } else if exercise.sets > 1 {
+                            Text("Sets: \(exercise.sets)")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        // Reps
+                        if !exercise.reps.isEmpty {
+                            Text("Reps: \(exercise.reps.map(String.init).joined(separator: ", "))")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        // Distance
+                        if let distance = exercise.distance_km, distance > 0 {
+                            Text("Distance: \(String(format: "%.1f", distance)) km")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                     
-                    if !exercise.reps.isEmpty {
-                        Text("Reps: \(exercise.reps.map(String.init).joined(separator: ", "))")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                    VStack(alignment: .leading, spacing: 4) {
+                        // Duration
+                        if exercise.duration_min > 0 {
+                            Text("Duration: \(exercise.duration_min) min")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
+                        
+                        // Load/Weight
+                        if !exercise.load_kg_each.isEmpty && exercise.load_kg_each.contains(where: { $0 > 0 }) {
+                            Text("Load: \(exercise.load_kg_each.map { String(format: "%.1f", $0) }.joined(separator: ", ")) kg")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                        }
                     }
                 }
                 
-                VStack(alignment: .leading, spacing: 4) {
-                    if exercise.duration_min > 0 {
-                        Text("Duration: \(exercise.duration_min) min")
+                // Intervals Information
+                if let intervals = exercise.intervals, !intervals.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Intervals:")
                             .font(.subheadline)
-                            .foregroundColor(.secondary)
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                        
+                        ForEach(intervals.indices, id: \.self) { index in
+                            let interval = intervals[index]
+                            HStack {
+                                if let workSec = interval.work_sec {
+                                    Text("Work: \(workSec)s")
+                                        .font(.caption)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 2)
+                                        .background(Color.green.opacity(0.2))
+                                        .foregroundColor(.green)
+                                        .cornerRadius(4)
+                                }
+                                
+                                if let restSec = interval.rest_sec {
+                                    Text("Rest: \(restSec)s")
+                                        .font(.caption)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 2)
+                                        .background(Color.blue.opacity(0.2))
+                                        .foregroundColor(.blue)
+                                        .cornerRadius(4)
+                                }
+                                Spacer()
+                            }
+                        }
                     }
+                }
+            }
+            
+            // Display muscle utilization
+            if let muscles = exercise.muscles_utilized, !muscles.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Muscles Targeted:")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
                     
-                    if !exercise.load_kg_each.isEmpty && exercise.load_kg_each.contains(where: { $0 > 0 }) {
-                        Text("Load: \(exercise.load_kg_each.map { String(format: "%.1f", $0) }.joined(separator: ", ")) kg")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120))], spacing: 4) {
+                        ForEach(muscles, id: \.muscle) { muscle in
+                            HStack {
+                                Text(muscle.muscle)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                                Text("\(Int(muscle.share * 100))%")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.blue)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(6)
+                        }
+                    }
+                }
+            }
+            
+            // Display goals addressed
+            if let goals = exercise.goals_addressed, !goals.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Goals Addressed:")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 4) {
+                        ForEach(goals, id: \.self) { goal in
+                            Text(goal)
+                                .font(.caption)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.green.opacity(0.1))
+                                .foregroundColor(.green)
+                                .cornerRadius(6)
+                        }
                     }
                 }
             }

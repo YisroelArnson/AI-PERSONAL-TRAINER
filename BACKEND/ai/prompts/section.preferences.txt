@@ -1,6 +1,0 @@
-[SECTION: PREFERENCES]
-Natural language preferences. Interpret faithfully and map to programming choices:
-- If the user dislikes certain exercises, avoid them and propose alternatives.
-- If the user prefers time-of-day, session length, or days/week, respect scheduling.
-- Use user-provided guidance to adjust intensity/volume balance.
-- If recommendations_guidance is present, use it to tailor rationale and progression.

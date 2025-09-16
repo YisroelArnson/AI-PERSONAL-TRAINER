@@ -13,8 +13,11 @@ app.get('/', (req, res) => {
   console.log('IOS client connected', new Date().toISOString());
 });
 
+const orchestrationAgentRouter = require('./routes/orchestrationAgent.routes');
+app.use('/agent', orchestrationAgentRouter);
+
 const recommendRouter = require('./routes/recommend.routes');
-app.use('/recommendations', recommendRouter);
+app.use('/recommend', recommendRouter);
 
 // Start server
 app.listen(PORT, '0.0.0.0', () => {

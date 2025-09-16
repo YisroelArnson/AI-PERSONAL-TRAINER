@@ -1,5 +1,0 @@
-[SECTION: MUSCLE TARGETS & WEIGHTS]
-A list of muscles with numerical weights indicating emphasis. Use to allocate weekly set volume and exercise selection:
-- Heavier weights → more weekly sets and exercise slots for those muscles.
-- Avoid exceeding safe weekly set thresholds for a single muscle group unless explicitly preferred.
-- Use complementary movements to cover synergists; note recovery when multiple high-priority muscles overlap.

@@ -51,7 +51,18 @@ async function fetchUserData(userId, options = {}) {
                     result.errors = result.errors || {};
                     result.errors.bodyStats = bodyStatsError.message;
                 } else {
-                    result.data.bodyStats = bodyStatsData;
+                    // Filter body stats to only include essential fields for AI prompt
+                    if (bodyStatsData) {
+                        result.data.bodyStats = {
+                            sex: bodyStatsData.sex,
+                            dob: bodyStatsData.dob,
+                            height_cm: bodyStatsData.height_cm,
+                            weight_kg: bodyStatsData.weight_kg,
+                            body_fat_pct: bodyStatsData.body_fat_pct
+                        };
+                    } else {
+                        result.data.bodyStats = null;
+                    }
                 }
             } catch (error) {
                 console.error('Error in body stats fetch:', error);
@@ -76,7 +87,17 @@ async function fetchUserData(userId, options = {}) {
                     result.errors = result.errors || {};
                     result.errors.userCategoryAndWeights = categoryWeightsError.message;
                 } else {
-                    result.data.userCategoryAndWeights = categoryWeightsData || [];
+                    // Filter category and weights to only include essential fields for AI prompt
+                    if (categoryWeightsData && categoryWeightsData.length > 0) {
+                        result.data.userCategoryAndWeights = categoryWeightsData.map(item => ({
+                            category: item.category,
+                            description: item.description,
+                            units: item.units,
+                            weight: item.weight
+                        }));
+                    } else {
+                        result.data.userCategoryAndWeights = [];
+                    }
                 }
             } catch (error) {
                 console.error('Error in user category and weights fetch:', error);
@@ -101,7 +122,15 @@ async function fetchUserData(userId, options = {}) {
                     result.errors = result.errors || {};
                     result.errors.userMuscleAndWeight = muscleWeightError.message;
                 } else {
-                    result.data.userMuscleAndWeight = muscleWeightData || [];
+                    // Filter muscle and weight to only include essential fields for AI prompt
+                    if (muscleWeightData && muscleWeightData.length > 0) {
+                        result.data.userMuscleAndWeight = muscleWeightData.map(item => ({
+                            muscle: item.muscle,
+                            weight: item.weight
+                        }));
+                    } else {
+                        result.data.userMuscleAndWeight = [];
+                    }
                 }
             } catch (error) {
                 console.error('Error in user muscle and weight fetch:', error);
@@ -122,11 +151,25 @@ async function fetchUserData(userId, options = {}) {
 
                 if (locationsError) {
                     console.error('Error fetching user locations:', locationsError);
-                    result.data.locations = [];
+                    result.data.locations = null;
                     result.errors = result.errors || {};
                     result.errors.locations = locationsError.message;
                 } else {
-                    result.data.locations = locationsData || [];
+                    // Filter locations to only include current location with essential fields for AI prompt
+                    if (locationsData && locationsData.length > 0) {
+                        const currentLocation = locationsData.find(location => location.current_location === true);
+                        if (currentLocation) {
+                            result.data.locations = {
+                                name: currentLocation.name,
+                                description: currentLocation.description,
+                                equipment: currentLocation.equipment
+                            };
+                        } else {
+                            result.data.locations = null;
+                        }
+                    } else {
+                        result.data.locations = null;
+                    }
                 }
             } catch (error) {
                 console.error('Error in user locations fetch:', error);
@@ -151,7 +194,17 @@ async function fetchUserData(userId, options = {}) {
                     result.errors = result.errors || {};
                     result.errors.preferences = preferencesError.message;
                 } else {
-                    result.data.preferences = preferencesData || [];
+                    // Filter preferences to only include essential fields for AI prompt
+                    if (preferencesData && preferencesData.length > 0) {
+                        result.data.preferences = preferencesData.map(item => ({
+                            type: item.type,
+                            description: item.description,
+                            user_transcription: item.user_transcription,
+                            recommendations_guidance: item.recommendations_guidance
+                        }));
+                    } else {
+                        result.data.preferences = [];
+                    }
                 }
             } catch (error) {
                 console.error('Error in user preferences fetch:', error);

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		120293872E79B10A00EF2B72 /* AgentTestingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 120293862E79B10900EF2B72 /* AgentTestingView.swift */; };
 		12761C452E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C442E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift */; };
 		12761C472E57953800C4F8FE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C462E57953800C4F8FE /* ContentView.swift */; };
 		12761C492E57953B00C4F8FE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 12761C482E57953B00C4F8FE /* Assets.xcassets */; };
@@ -41,6 +42,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		120293862E79B10900EF2B72 /* AgentTestingView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentTestingView.swift; sourceTree = "<group>"; };
 		12761C412E57953800C4F8FE /* AI Personal Trainer App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Personal Trainer App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		12761C442E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
 		12761C462E57953800C4F8FE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -113,6 +115,7 @@
 				12B5ED9D2E58CF87000D7061 /* AI-Personal-Trainer-App-Info.plist */,
 				12761C442E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift */,
 				12761C462E57953800C4F8FE /* ContentView.swift */,
+				120293862E79B10900EF2B72 /* AgentTestingView.swift */,
 				12B5ED9E2E5911E6000D7061 /* APIService.swift */,
 				12761C482E57953B00C4F8FE /* Assets.xcassets */,
 				12761C4A2E57953B00C4F8FE /* Preview Content */,
@@ -299,6 +302,7 @@
 				12B5ED9C2E58C72D000D7061 /* AppView.swift in Sources */,
 				12B5ED9A2E58C6A2000D7061 /* Models.swift in Sources */,
 				12B5ED962E58C4BB000D7061 /* AuthView.swift in Sources */,
+				120293872E79B10A00EF2B72 /* AgentTestingView.swift in Sources */,
 				12B5ED9F2E5911E6000D7061 /* APIService.swift in Sources */,
 				12761C452E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift in Sources */,
 			);
