@@ -2,7 +2,7 @@ import Foundation
 import Supabase
 
 class APIService: ObservableObject {
-    private let baseURL = "http://192.168.1.4:3000"
+    private let baseURL = "http://192.168.1.171:3000"
     
     // Helper function to get auth token
     private func getAuthToken() async throws -> String {
@@ -83,6 +83,90 @@ class APIService: ObservableObject {
         }
         
         return ExerciseRecommendations(exercises: exercises)
+    }
+    
+    // Streaming exercise recommendations endpoint
+    func streamRecommendations(exerciseCount: Int? = 8, onExercise: @escaping (Exercise) -> Void, onComplete: @escaping (Int) -> Void, onError: @escaping (String) -> Void) async throws {
+        // Get current user ID
+        let session = try await supabase.auth.session
+        let userId = session.user.id.uuidString
+        
+        guard let url = URL(string: "\(baseURL)/recommend/stream/\(userId)") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        
+        // Send request body with exercise count (only if specified)
+        var requestBody: [String: Any] = [:]
+        if let exerciseCount = exerciseCount {
+            requestBody["exerciseCount"] = exerciseCount
+        }
+        let jsonData = try JSONSerialization.data(withJSONObject: requestBody)
+        request.httpBody = jsonData
+        
+        let (asyncBytes, response) = try await URLSession.shared.bytes(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw APIError.unauthorized
+            } else if httpResponse.statusCode == 403 {
+                throw APIError.forbidden
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        var exerciseCount = 0
+        
+        for try await line in asyncBytes.lines {
+            guard !line.isEmpty else { continue }
+            
+            do {
+                let messageData = line.data(using: .utf8) ?? Data()
+                let message = try JSONDecoder().decode(StreamingMessage.self, from: messageData)
+                
+                switch message.type {
+                case "metadata":
+                    print("Streaming started for user: \(message.userId ?? "unknown")")
+                    
+                case "exercise":
+                    if let exerciseData = message.data {
+                        let exercise = Exercise(from: exerciseData)
+                        await MainActor.run {
+                            onExercise(exercise)
+                        }
+                        exerciseCount += 1
+                    }
+                    
+                case "complete":
+                    let totalExercises = message.totalExercises ?? exerciseCount
+                    await MainActor.run {
+                        onComplete(totalExercises)
+                    }
+                    return
+                    
+                case "error":
+                    let errorMessage = message.error ?? "Unknown streaming error"
+                    await MainActor.run {
+                        onError(errorMessage)
+                    }
+                    return
+                    
+                default:
+                    print("Unknown message type: \(message.type)")
+                }
+            } catch {
+                print("Failed to decode streaming message: \(error)")
+                await MainActor.run {
+                    onError("Failed to decode streaming response")
+                }
+            }
+        }
     }
     
     // Agent chat endpoint
@@ -191,6 +275,81 @@ struct RecommendationMetadata: Codable {
     let requestData: [String: AnyCodable]?
     let userDataFetched: Bool?
     let recommendationCount: Int?
+}
+
+// Streaming response models
+struct StreamingMessage: Codable {
+    let type: String
+    let data: StreamingExercise?
+    let index: Int?
+    let success: Bool?
+    let userId: String?
+    let timestamp: String?
+    let metadata: RecommendationMetadata?
+    let totalExercises: Int?
+    let error: String?
+    let details: String?
+}
+
+struct StreamingExercise: Codable {
+    let exercise_type: String
+    let exercise_name: String
+    let aliases: [String]?
+    let muscles_utilized: [MuscleUtilization]
+    let goals_addressed: [String]
+    let reasoning: String
+    let equipment: [String]?
+    let movement_pattern: [String]?
+    let exercise_description: String?
+    let body_region: String?
+    
+    // Type-specific fields (all optional since they depend on exercise_type)
+    let sets: Int?
+    let reps: [Int]?
+    let load_kg_each: [Double]?
+    let rest_seconds: Int?
+    let distance_km: Double?
+    let duration_min: Int?
+    let target_pace: String?
+    let elevation_gain_m: Double?
+    let target_intensity: String?
+    let target_heart_rate_bpm: Int?
+    let rounds: Int?
+    let intervals: [ExerciseInterval]?
+    let total_duration_min: Int?
+    let circuits: Int?
+    let exercises_in_circuit: [CircuitExercise]?
+    let rest_between_circuits_sec: Int?
+    let holds: [FlexibilityHold]?
+    let repetitions: Int?
+    let sequence: [YogaPose]?
+    let progression_level: String?
+    let hold_duration_sec: [Int]?
+    let progression_notes: String?
+    let jump_height_cm: Double?
+    let landing_emphasis: String?
+    let difficulty_level: String?
+    let support_used: String?
+    let sport: String?
+    let drill_name: String?
+    let skill_focus: String?
+}
+
+struct CircuitExercise: Codable {
+    let name: String
+    let duration_sec: Int?
+    let reps: Int?
+}
+
+struct FlexibilityHold: Codable {
+    let position: String
+    let duration_sec: Int
+}
+
+struct YogaPose: Codable {
+    let pose: String
+    let duration_sec: Int?
+    let breaths: Int?
 }
 
 // Agent models
@@ -317,6 +476,77 @@ struct Exercise: Codable, Identifiable {
         self.intervals = recommendation.intervals
         self.distance_km = recommendation.distance_km
         self.rounds = recommendation.rounds
+    }
+    
+    // Custom initializer for streaming format
+    init(from streamingExercise: StreamingExercise) {
+        self.name = streamingExercise.exercise_name
+        
+        // Handle different exercise types appropriately
+        switch streamingExercise.exercise_type {
+        case "strength":
+            self.sets = streamingExercise.sets ?? 1
+            self.reps = streamingExercise.reps ?? []
+            self.load_kg_each = streamingExercise.load_kg_each ?? []
+            self.duration_min = 0
+            self.distance_km = nil
+            self.rounds = nil
+            
+        case "cardio_distance":
+            self.sets = 1
+            self.reps = []
+            self.load_kg_each = []
+            self.duration_min = streamingExercise.duration_min ?? 0
+            self.distance_km = streamingExercise.distance_km
+            self.rounds = nil
+            
+        case "cardio_time":
+            self.sets = 1
+            self.reps = []
+            self.load_kg_each = []
+            self.duration_min = streamingExercise.duration_min ?? 0
+            self.distance_km = nil
+            self.rounds = nil
+            
+        case "hiit":
+            self.sets = 1
+            self.reps = []
+            self.load_kg_each = []
+            self.duration_min = streamingExercise.total_duration_min ?? 0
+            self.distance_km = nil
+            self.rounds = streamingExercise.rounds
+            
+        case "isometric":
+            self.sets = streamingExercise.sets ?? 1
+            self.reps = streamingExercise.hold_duration_sec ?? [] // Use hold durations as "reps"
+            self.load_kg_each = []
+            self.duration_min = 0
+            self.distance_km = nil
+            self.rounds = nil
+            
+        case "bodyweight":
+            self.sets = streamingExercise.sets ?? 1
+            self.reps = streamingExercise.reps ?? []
+            self.load_kg_each = []
+            self.duration_min = 0
+            self.distance_km = nil
+            self.rounds = nil
+            
+        default:
+            // Default fallback
+            self.sets = streamingExercise.sets ?? streamingExercise.rounds ?? 1
+            self.reps = streamingExercise.reps ?? []
+            self.load_kg_each = streamingExercise.load_kg_each ?? []
+            self.duration_min = streamingExercise.duration_min ?? 0
+            self.distance_km = streamingExercise.distance_km
+            self.rounds = streamingExercise.rounds
+        }
+        
+        self.muscles_utilized = streamingExercise.muscles_utilized
+        self.goals_addressed = streamingExercise.goals_addressed
+        self.reasoning = streamingExercise.reasoning
+        self.exercise_description = streamingExercise.exercise_description
+        self.intervals = streamingExercise.intervals
     }
     
     enum CodingKeys: String, CodingKey {

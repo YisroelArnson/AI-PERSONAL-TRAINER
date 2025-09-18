@@ -13,11 +13,16 @@ struct ContentView: View {
     @StateObject private var locationManager = UserLocationManager()
     @State private var message: String = "Loading..."
     @State private var exerciseRecommendations: ExerciseRecommendations?
+    @State private var streamingExercises: [Exercise] = []
     @State private var isLoading = false
+    @State private var isStreaming = false
+    @State private var streamingProgress: String = ""
+    @State private var streamingComplete = false
     @State private var errorMessage: String?
     @State private var showProfile = false
     @State private var exerciseCount: Int = 8
     @State private var useSpecificCount: Bool = true
+    @State private var useStreaming: Bool = true
     
     // Agent testing state
     @State private var agentMessage: String = ""
@@ -199,6 +204,23 @@ struct ContentView: View {
                                     .foregroundColor(.secondary)
                                     .italic()
                             }
+                            
+                            Divider()
+                            
+                            // Streaming Toggle
+                            HStack {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("Streaming Mode")
+                                        .font(.subheadline)
+                                        .fontWeight(.medium)
+                                    Text("See exercises as they're generated")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                                Spacer()
+                                Toggle("Use Streaming", isOn: $useStreaming)
+                                    .labelsHidden()
+                            }
                         }
                         .padding()
                         .background(Color.orange.opacity(0.1))
@@ -207,22 +229,100 @@ struct ContentView: View {
                         // Fetch Exercises Button (Protected)
                         Button(action: fetchRecommendations) {
                             HStack {
-                                if isLoading {
+                                if isLoading || isStreaming {
                                     ProgressView()
                                         .scaleEffect(0.8)
                                 }
-                                Text(useSpecificCount ? "Get \(exerciseCount) Exercise Recommendations" : "Get Exercise Recommendations")
+                                if useStreaming {
+                                    Text(useSpecificCount ? "Stream \(exerciseCount) Exercise Recommendations" : "Stream Exercise Recommendations")
+                                } else {
+                                    Text(useSpecificCount ? "Get \(exerciseCount) Exercise Recommendations" : "Get Exercise Recommendations")
+                                }
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(Color.green)
+                            .background(useStreaming ? Color.purple : Color.green)
                             .foregroundColor(.white)
                             .cornerRadius(10)
                         }
-                        .disabled(isLoading)
+                        .disabled(isLoading || isStreaming)
                         
-                        // Exercises Display
-                        if let recommendations = exerciseRecommendations {
+                        // Streaming Progress
+                        if isStreaming && !streamingProgress.isEmpty {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "waveform.path")
+                                        .foregroundColor(.purple)
+                                    Text("Streaming in progress...")
+                                        .font(.headline)
+                                        .foregroundColor(.primary)
+                                    Spacer()
+                                    if streamingComplete {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundColor(.green)
+                                    }
+                                }
+                                
+                                Text(streamingProgress)
+                                    .font(.subheadline)
+                                    .foregroundColor(.secondary)
+                                
+                                if !streamingExercises.isEmpty {
+                                    Text("\(streamingExercises.count) exercises received")
+                                        .font(.caption)
+                                        .foregroundColor(.purple)
+                                }
+                            }
+                            .padding()
+                            .background(Color.purple.opacity(0.1))
+                            .cornerRadius(10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.purple.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        
+                        // Exercises Display - Streaming
+                        if !streamingExercises.isEmpty {
+                            VStack(alignment: .leading, spacing: 15) {
+                                HStack {
+                                    Text("Your Workout Plan")
+                                        .font(.title2)
+                                        .fontWeight(.bold)
+                                    
+                                    Spacer()
+                                    
+                                    if isStreaming {
+                                        HStack(spacing: 4) {
+                                            ProgressView()
+                                                .scaleEffect(0.6)
+                                            Text("\(streamingExercises.count)")
+                                                .font(.caption)
+                                                .foregroundColor(.purple)
+                                        }
+                                    } else {
+                                        Text("(\(streamingExercises.count) exercises)")
+                                            .font(.title3)
+                                            .foregroundColor(.secondary)
+                                    }
+                                }
+                                .padding(.top)
+                                
+                                ForEach(streamingExercises) { exercise in
+                                    ExerciseCard(exercise: exercise)
+                                        .transition(.asymmetric(
+                                            insertion: .move(edge: .trailing).combined(with: .opacity),
+                                            removal: .opacity
+                                        ))
+                                }
+                            }
+                            .padding()
+                            .background(Color.purple.opacity(0.05))
+                            .cornerRadius(10)
+                        }
+                        
+                        // Exercises Display - Regular (non-streaming)
+                        if let recommendations = exerciseRecommendations, streamingExercises.isEmpty {
                             VStack(alignment: .leading, spacing: 15) {
                                 Text("Your Workout Plan (\(recommendations.exercises.count) exercises)")
                                     .font(.title2)
@@ -295,8 +395,21 @@ struct ContentView: View {
     }
     
     private func fetchRecommendations() {
-        isLoading = true
+        // Clear previous results
+        exerciseRecommendations = nil
+        streamingExercises = []
+        streamingComplete = false
         errorMessage = nil
+        
+        if useStreaming {
+            fetchStreamingRecommendations()
+        } else {
+            fetchRegularRecommendations()
+        }
+    }
+    
+    private func fetchRegularRecommendations() {
+        isLoading = true
         
         Task {
             do {
@@ -310,6 +423,48 @@ struct ContentView: View {
                 await MainActor.run {
                     self.errorMessage = error.localizedDescription
                     self.isLoading = false
+                }
+            }
+        }
+    }
+    
+    private func fetchStreamingRecommendations() {
+        isStreaming = true
+        streamingProgress = "Connecting to AI trainer..."
+        
+        Task {
+            do {
+                try await apiService.streamRecommendations(
+                    exerciseCount: useSpecificCount ? exerciseCount : nil,
+                    onExercise: { exercise in
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            self.streamingExercises.append(exercise)
+                        }
+                        self.streamingProgress = "Generating exercise \(self.streamingExercises.count)..."
+                    },
+                    onComplete: { totalExercises in
+                        self.streamingProgress = "Completed! Generated \(totalExercises) exercises."
+                        self.streamingComplete = true
+                        
+                        // Auto-hide progress after delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            withAnimation {
+                                self.isStreaming = false
+                                self.streamingProgress = ""
+                            }
+                        }
+                    },
+                    onError: { error in
+                        self.errorMessage = "Streaming error: \(error)"
+                        self.isStreaming = false
+                        self.streamingProgress = ""
+                    }
+                )
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = error.localizedDescription
+                    self.isStreaming = false
+                    self.streamingProgress = ""
                 }
             }
         }
