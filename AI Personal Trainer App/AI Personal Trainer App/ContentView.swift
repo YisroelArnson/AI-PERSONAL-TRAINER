@@ -9,639 +9,471 @@ import SwiftUI
 import Supabase
 
 struct ContentView: View {
-    @StateObject private var apiService = APIService()
-    @StateObject private var locationManager = UserLocationManager()
-    @State private var message: String = "Loading..."
-    @State private var exerciseRecommendations: ExerciseRecommendations?
-    @State private var streamingExercises: [Exercise] = []
-    @State private var isLoading = false
-    @State private var isStreaming = false
-    @State private var streamingProgress: String = ""
-    @State private var streamingComplete = false
-    @State private var errorMessage: String?
-    @State private var showProfile = false
-    @State private var exerciseCount: Int = 8
-    @State private var useSpecificCount: Bool = true
-    @State private var useStreaming: Bool = true
-    
-    // Agent testing state
-    @State private var agentMessage: String = ""
-    @State private var agentResponse: AgentResponse?
-    @State private var agentError: String?
-    @State private var isAgentLoading = false
-    @State private var useTools = true
-    
-    var currentLocation: UserLocationRow? {
-        locationManager.currentLocation
-    }
+    @State private var currentExerciseIndex = 0
+    @State private var exercises = UIExercise.sampleExercises
+    @State private var chatMessages: [ChatMessage] = []
+    @State private var messageText = ""
+    @State private var isTextFieldExpanded = false
+    @State private var showingProfile = false
+    @State private var showingInfo = false
+    @State private var showingLocation = false
+    @State private var currentLocation = LocationInfo.sample
     
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 20) {
-                    Image(systemName: "globe")
-                        .imageScale(.large)
-                        .foregroundStyle(.tint)
+        ZStack {
+            Color(.systemBackground)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Top Navigation Bar
+                HStack {
+                    // Profile and Info Buttons (Top Left)
+                    HStack(spacing: 12) {
+                        Button(action: { showingProfile = true }) {
+                            Image(systemName: "person.circle")
+                                .font(.title2)
+                                .foregroundColor(.primary)
+                        }
+                        
+                        Button(action: { showingInfo = true }) {
+                            Image(systemName: "exclamationmark.circle")
+                                .font(.title2)
+                                .foregroundColor(.primary)
+                        }
+                    }
                     
-                    Text("AI Personal Trainer")
-                        .font(.title)
-                        .fontWeight(.bold)
+                    Spacer()
                     
-                    // Agent Testing Section
-                    AgentTestingView(
-                        apiService: apiService,
-                        agentMessage: $agentMessage,
-                        agentResponse: $agentResponse,
-                        agentError: $agentError,
-                        isAgentLoading: $isAgentLoading,
-                        useTools: $useTools
-                    )
-                    
-                    // Current Location Display
-                    if let currentLocation = currentLocation {
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: "location.fill")
-                                    .foregroundColor(.blue)
-                                Text("Current Location")
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                Button(action: {
-                                    Task {
-                                        await locationManager.refreshLocations()
-                                    }
-                                }) {
-                                    Image(systemName: "arrow.clockwise")
-                                        .foregroundColor(.blue)
-                                        .font(.caption)
-                                }
-                            }
-                            
+                    // Location Display (Top Middle)
+                    Button(action: { showingLocation = true }) {
+                        VStack(spacing: 2) {
                             Text(currentLocation.name)
-                                .font(.title3)
-                                .fontWeight(.semibold)
-                            
-                            if let description = currentLocation.description, !description.isEmpty {
-                                Text(description)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            if let equipment = currentLocation.equipment, !equipment.isEmpty {
-                                Text("Equipment: \(equipment.joined(separator: ", "))")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        .padding()
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                        )
-                    } else {
-                        // No current location - show refresh button
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack {
-                                Image(systemName: "location.slash")
-                                    .foregroundColor(.orange)
-                                Text("No Current Location")
-                                    .font(.headline)
-                                    .foregroundColor(.primary)
-                                Spacer()
-                                Button(action: {
-                                    Task {
-                                        await locationManager.refreshLocations()
-                                    }
-                                }) {
-                                    Image(systemName: "arrow.clockwise")
-                                        .foregroundColor(.blue)
-                                        .font(.caption)
-                                }
-                            }
-                            
-                            Text("Set a current location in your profile")
                                 .font(.caption)
-                                .foregroundColor(.secondary)
+                                .fontWeight(.medium)
+                            if let temp = currentLocation.temperature {
+                                Text(temp)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
                         }
-                        .padding()
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                        )
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color(.systemGray6))
+                        .cornerRadius(8)
                     }
+                    .buttonStyle(PlainButtonStyle())
                     
-                    VStack(spacing: 15) {
-                        // API Message
-                        VStack {
-                            Text("API Response:")
-                                .font(.headline)
-                            Text(message)
-                                .foregroundColor(.secondary)
-                                .multilineTextAlignment(.center)
-                        }
-                        .padding()
-                        .background(Color.gray.opacity(0.1))
-                        .cornerRadius(10)
-                        
-                        // Error Message
-                        if let errorMessage = errorMessage {
-                            Text(errorMessage)
-                                .foregroundColor(.red)
-                                .font(.caption)
-                                .multilineTextAlignment(.center)
-                                .padding()
-                                .background(Color.red.opacity(0.1))
-                                .cornerRadius(10)
-                        }
-                        
-                        // Refresh Button
-                        Button(action: fetchData) {
-                            HStack {
-                                if isLoading {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                }
-                                Text("Refresh Data")
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                        }
-                        .disabled(isLoading)
-                        
-                        // Exercise Count Control
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Exercise Count")
-                                    .font(.headline)
-                                Spacer()
-                                Toggle("Specify Count", isOn: $useSpecificCount)
-                                    .labelsHidden()
-                            }
-                            
-                            if useSpecificCount {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text("Number of Exercises: \(exerciseCount)")
-                                        .font(.subheadline)
-                                        .foregroundColor(.primary)
-                                    
-                                    Stepper(value: $exerciseCount, in: 1...20) {
-                                        Text("Adjust exercise count")
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                            } else {
-                                Text("Let AI decide the optimal number of exercises")
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                    .italic()
-                            }
-                            
-                            Divider()
-                            
-                            // Streaming Toggle
-                            HStack {
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text("Streaming Mode")
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                    Text("See exercises as they're generated")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                Spacer()
-                                Toggle("Use Streaming", isOn: $useStreaming)
-                                    .labelsHidden()
-                            }
-                        }
-                        .padding()
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(10)
-                        
-                        // Fetch Exercises Button (Protected)
-                        Button(action: fetchRecommendations) {
-                            HStack {
-                                if isLoading || isStreaming {
-                                    ProgressView()
-                                        .scaleEffect(0.8)
-                                }
-                                if useStreaming {
-                                    Text(useSpecificCount ? "Stream \(exerciseCount) Exercise Recommendations" : "Stream Exercise Recommendations")
-                                } else {
-                                    Text(useSpecificCount ? "Get \(exerciseCount) Exercise Recommendations" : "Get Exercise Recommendations")
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(useStreaming ? Color.purple : Color.green)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                        }
-                        .disabled(isLoading || isStreaming)
-                        
-                        // Streaming Progress
-                        if isStreaming && !streamingProgress.isEmpty {
-                            VStack(alignment: .leading, spacing: 8) {
-                                HStack {
-                                    Image(systemName: "waveform.path")
-                                        .foregroundColor(.purple)
-                                    Text("Streaming in progress...")
-                                        .font(.headline)
-                                        .foregroundColor(.primary)
-                                    Spacer()
-                                    if streamingComplete {
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
-                                    }
-                                }
-                                
-                                Text(streamingProgress)
-                                    .font(.subheadline)
-                                    .foregroundColor(.secondary)
-                                
-                                if !streamingExercises.isEmpty {
-                                    Text("\(streamingExercises.count) exercises received")
-                                        .font(.caption)
-                                        .foregroundColor(.purple)
-                                }
-                            }
-                            .padding()
-                            .background(Color.purple.opacity(0.1))
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.purple.opacity(0.3), lineWidth: 1)
-                            )
-                        }
-                        
-                        // Exercises Display - Streaming
-                        if !streamingExercises.isEmpty {
-                            VStack(alignment: .leading, spacing: 15) {
-                                HStack {
-                                    Text("Your Workout Plan")
-                                        .font(.title2)
-                                        .fontWeight(.bold)
-                                    
-                                    Spacer()
-                                    
-                                    if isStreaming {
-                                        HStack(spacing: 4) {
-                                            ProgressView()
-                                                .scaleEffect(0.6)
-                                            Text("\(streamingExercises.count)")
-                                                .font(.caption)
-                                                .foregroundColor(.purple)
-                                        }
-                                    } else {
-                                        Text("(\(streamingExercises.count) exercises)")
-                                            .font(.title3)
-                                            .foregroundColor(.secondary)
-                                    }
-                                }
-                                .padding(.top)
-                                
-                                ForEach(streamingExercises) { exercise in
-                                    ExerciseCard(exercise: exercise)
-                                        .transition(.asymmetric(
-                                            insertion: .move(edge: .trailing).combined(with: .opacity),
-                                            removal: .opacity
-                                        ))
-                                }
-                            }
-                            .padding()
-                            .background(Color.purple.opacity(0.05))
-                            .cornerRadius(10)
-                        }
-                        
-                        // Exercises Display - Regular (non-streaming)
-                        if let recommendations = exerciseRecommendations, streamingExercises.isEmpty {
-                            VStack(alignment: .leading, spacing: 15) {
-                                Text("Your Workout Plan (\(recommendations.exercises.count) exercises)")
-                                    .font(.title2)
-                                    .fontWeight(.bold)
-                                    .padding(.top)
-                                
-                                ForEach(recommendations.exercises) { exercise in
-                                    ExerciseCard(exercise: exercise)
-                                }
-                            }
-                            .padding()
-                            .background(Color.blue.opacity(0.05))
-                            .cornerRadius(10)
-                        }
-                    }
-                    .padding()
+                    Spacer()
+                    
+                    // AI Trainer Orb (Top Right)
+                    TrainerOrbView()
                 }
-                .padding()
-            }
-            .navigationTitle("Home")
-            .navigationBarTitleDisplayMode(.large)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(action: {
-                        showProfile = true
-                    }) {
-                        Image(systemName: "person.circle.fill")
-                            .font(.title2)
-                            .foregroundColor(.blue)
-                    }
-                }
-            }
-        }
-        .onAppear {
-            fetchData()
-            fetchUserLocations()
-        }
-        .sheet(isPresented: $showProfile) {
-            ProfileView(locationManager: locationManager)
-        }
-        .onChange(of: showProfile) { _, isShowing in
-            if !isShowing {
-                // Refresh locations when profile is dismissed
-                Task {
-                    await locationManager.refreshLocations()
-                }
-            }
-        }
-    }
-    
-    private func fetchData() {
-        isLoading = true
-        errorMessage = nil
-        
-        Task {
-            do {
-                let messageText = try await apiService.fetchMessage()
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
                 
-                await MainActor.run {
-                    self.message = messageText
-                    self.isLoading = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                    self.isLoading = false
-                }
-            }
-        }
-    }
-    
-    private func fetchRecommendations() {
-        // Clear previous results
-        exerciseRecommendations = nil
-        streamingExercises = []
-        streamingComplete = false
-        errorMessage = nil
-        
-        if useStreaming {
-            fetchStreamingRecommendations()
-        } else {
-            fetchRegularRecommendations()
-        }
-    }
-    
-    private func fetchRegularRecommendations() {
-        isLoading = true
-        
-        Task {
-            do {
-                let fetchedRecommendations = try await apiService.fetchRecommendations(exerciseCount: useSpecificCount ? exerciseCount : nil)
+                Spacer()
                 
-                await MainActor.run {
-                    self.exerciseRecommendations = fetchedRecommendations
-                    self.isLoading = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                    self.isLoading = false
-                }
-            }
-        }
-    }
-    
-    private func fetchStreamingRecommendations() {
-        isStreaming = true
-        streamingProgress = "Connecting to AI trainer..."
-        
-        Task {
-            do {
-                try await apiService.streamRecommendations(
-                    exerciseCount: useSpecificCount ? exerciseCount : nil,
-                    onExercise: { exercise in
-                        withAnimation(.easeInOut(duration: 0.5)) {
-                            self.streamingExercises.append(exercise)
-                        }
-                        self.streamingProgress = "Generating exercise \(self.streamingExercises.count)..."
-                    },
-                    onComplete: { totalExercises in
-                        self.streamingProgress = "Completed! Generated \(totalExercises) exercises."
-                        self.streamingComplete = true
-                        
-                        // Auto-hide progress after delay
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                            withAnimation {
-                                self.isStreaming = false
-                                self.streamingProgress = ""
-                            }
-                        }
-                    },
-                    onError: { error in
-                        self.errorMessage = "Streaming error: \(error)"
-                        self.isStreaming = false
-                        self.streamingProgress = ""
-                    }
+                // Exercise Carousel
+                ExerciseCarouselView(
+                    exercises: exercises,
+                    currentIndex: $currentExerciseIndex
                 )
-            } catch {
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                    self.isStreaming = false
-                    self.streamingProgress = ""
-                }
+                
+                Spacer()
+                
+                // Chat Interface
+                ChatInterfaceView(
+                    messages: $chatMessages,
+                    messageText: $messageText,
+                    isExpanded: $isTextFieldExpanded
+                )
+                .padding(.bottom, 20)
             }
         }
-    }
-    
-    private func fetchUserLocations() {
-        Task {
-            await locationManager.refreshLocations()
+        .sheet(isPresented: $showingProfile) {
+            ProfileView()
+        }
+        .sheet(isPresented: $showingInfo) {
+            InfoView()
+        }
+        .sheet(isPresented: $showingLocation) {
+            LocationView(location: currentLocation)
         }
     }
 }
 
-struct ExerciseCard: View {
-    let exercise: Exercise
+// MARK: - Supporting Views
+
+struct TrainerOrbView: View {
+    @State private var isAnimating = false
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(exercise.name)
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                
-                if let description = exercise.exercise_description, !description.isEmpty {
-                    Text(description)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .italic()
-                }
-            }
+        ZStack {
+            Circle()
+                .fill(LinearGradient(
+                    gradient: Gradient(colors: [Color.blue.opacity(0.3), Color.purple.opacity(0.3)]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+                .frame(width: 50, height: 50)
+                .scaleEffect(isAnimating ? 1.2 : 1.0)
+                .opacity(isAnimating ? 0.7 : 1.0)
             
-            VStack(alignment: .leading, spacing: 8) {
-                // Exercise Format Information
-                HStack(spacing: 20) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        // Rounds/Sets
-                        if let rounds = exercise.rounds, rounds > 0 {
-                            Text("Rounds: \(rounds)")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        } else if exercise.sets > 1 {
-                            Text("Sets: \(exercise.sets)")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        // Reps
-                        if !exercise.reps.isEmpty {
-                            Text("Reps: \(exercise.reps.map(String.init).joined(separator: ", "))")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        // Distance
-                        if let distance = exercise.distance_km, distance > 0 {
-                            Text("Distance: \(String(format: "%.1f", distance)) km")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    
-                    VStack(alignment: .leading, spacing: 4) {
-                        // Duration
-                        if exercise.duration_min > 0 {
-                            Text("Duration: \(exercise.duration_min) min")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        // Load/Weight
-                        if !exercise.load_kg_each.isEmpty && exercise.load_kg_each.contains(where: { $0 > 0 }) {
-                            Text("Load: \(exercise.load_kg_each.map { String(format: "%.1f", $0) }.joined(separator: ", ")) kg")
-                                .font(.subheadline)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                }
-                
-                // Intervals Information
-                if let intervals = exercise.intervals, !intervals.isEmpty {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Intervals:")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                        
-                        ForEach(intervals.indices, id: \.self) { index in
-                            let interval = intervals[index]
-                            HStack {
-                                if let workSec = interval.work_sec {
-                                    Text("Work: \(workSec)s")
-                                        .font(.caption)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 2)
-                                        .background(Color.green.opacity(0.2))
-                                        .foregroundColor(.green)
-                                        .cornerRadius(4)
-                                }
-                                
-                                if let restSec = interval.rest_sec {
-                                    Text("Rest: \(restSec)s")
-                                        .font(.caption)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 2)
-                                        .background(Color.blue.opacity(0.2))
-                                        .foregroundColor(.blue)
-                                        .cornerRadius(4)
-                                }
-                                Spacer()
-                            }
-                        }
-                    }
-                }
-            }
+            Circle()
+                .fill(LinearGradient(
+                    gradient: Gradient(colors: [Color.blue, Color.purple]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+                .frame(width: 40, height: 40)
+                .overlay(
+                    Circle()
+                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                )
             
-            // Display muscle utilization
-            if let muscles = exercise.muscles_utilized, !muscles.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Muscles Targeted:")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                    
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120))], spacing: 4) {
-                        ForEach(muscles, id: \.muscle) { muscle in
-                            HStack {
-                                Text(muscle.muscle)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                                Text("\(Int(muscle.share * 100))%")
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.blue)
-                            }
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(6)
-                        }
-                    }
-                }
-            }
-            
-            // Display goals addressed
-            if let goals = exercise.goals_addressed, !goals.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Goals Addressed:")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                    
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 4) {
-                        ForEach(goals, id: \.self) { goal in
-                            Text(goal)
-                                .font(.caption)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.green.opacity(0.1))
-                                .foregroundColor(.green)
-                                .cornerRadius(6)
-                        }
-                    }
-                }
-            }
-            
-            if !exercise.reasoning.isEmpty {
-                Text(exercise.reasoning)
-                    .font(.caption)
-                    .foregroundColor(.blue)
-                    .italic()
-                    .padding(.top, 4)
+            Circle()
+                .fill(LinearGradient(
+                    gradient: Gradient(colors: [Color.white.opacity(0.6), Color.clear]),
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ))
+                .frame(width: 20, height: 20)
+                .offset(x: -5, y: -5)
+        }
+        .onAppear {
+            withAnimation(Animation.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                isAnimating = true
             }
         }
-        .padding()
-        .background(Color.gray.opacity(0.1))
-        .cornerRadius(10)
     }
+}
+
+struct ExerciseCarouselView: View {
+    let exercises: [UIExercise]
+    @Binding var currentIndex: Int
+    
+    @State private var scrollTimer: Timer?
+    @State private var isUserScrolling = false
+    
+    private let cardHeight: CGFloat = 140
+    private let cardSpacing: CGFloat = 4
+    
+    var body: some View {
+        GeometryReader { geometry in
+            let centerY = geometry.size.height / 2
+            
+            ScrollViewReader { proxy in
+                ScrollView(.vertical, showsIndicators: false) {
+                    LazyVStack(spacing: cardSpacing) {
+                        ForEach(Array(exercises.enumerated()), id: \.element.id) { index, exercise in
+                            GeometryReader { cardGeometry in
+                                let cardCenterY = cardGeometry.frame(in: .named("scroll")).midY
+                                let distanceFromCenter = abs(cardCenterY - centerY)
+                                let normalizedDistance = min(distanceFromCenter / (cardHeight + cardSpacing), 1.0)
+                                
+                                let scale = 1.0 - (normalizedDistance * 0.3) // Scale from 1.0 to 0.7
+                                let opacity = 1.0 - (normalizedDistance * 0.6) // Opacity from 1.0 to 0.4
+                                
+                                ExerciseCardView(
+                                    exercise: exercise,
+                                    isCurrent: index == currentIndex
+                                )
+                                .scaleEffect(scale)
+                                .opacity(opacity)
+                                .onTapGesture {
+                                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                        currentIndex = index
+                                        proxy.scrollTo(exercise.id, anchor: .center)
+                                    }
+                                }
+                                .onChange(of: cardCenterY) { _, _ in
+                                    // Detect user scrolling and start snap timer
+                                    isUserScrolling = true
+                                    scrollTimer?.invalidate()
+                                    
+                                    // Update current index to the card closest to center
+                                    if distanceFromCenter < (cardHeight + cardSpacing) / 2 {
+                                        if currentIndex != index {
+                                            currentIndex = index
+                                        }
+                                    }
+                                    
+                                    // Set timer to snap to nearest card when scrolling stops
+                                    scrollTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: false) { _ in
+                                        isUserScrolling = false
+                                        withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
+                                            proxy.scrollTo(exercises[currentIndex].id, anchor: .center)
+                                        }
+                                    }
+                                }
+                                .onChange(of: currentIndex) { _, newIndex in
+                                    if !isUserScrolling && newIndex == index {
+                                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8)) {
+                                            proxy.scrollTo(exercise.id, anchor: .center)
+                                        }
+                                    }
+                                }
+                            }
+                            .frame(height: cardHeight)
+                            .id(exercise.id)
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, geometry.size.height / 2 - cardHeight / 2) // Center the content
+                }
+                .coordinateSpace(name: "scroll")
+                .onAppear {
+                    // Scroll to current index on appear
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        if currentIndex < exercises.count {
+                            proxy.scrollTo(exercises[currentIndex].id, anchor: .center)
+                        }
+                    }
+                }
+            }
+        }
+        .frame(height: 300) // Set a fixed height for the carousel
+        .clipped()
+    }
+}
+
+struct ExerciseCardView: View {
+    let exercise: UIExercise
+    let isCurrent: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(exercise.name)
+                .font(.title2)
+                .fontWeight(.bold)
+            
+            Text(exercise.description)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+            
+            Text(exercise.duration)
+                .font(.caption)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.blue.opacity(0.1))
+                .cornerRadius(4)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding()
+        .background(Color(.systemGray6))
+        .cornerRadius(12)
+    }
+}
+
+struct ChatInterfaceView: View {
+    @Binding var messages: [ChatMessage]
+    @Binding var messageText: String
+    @Binding var isExpanded: Bool
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            if !messages.isEmpty {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 8) {
+                        ForEach(messages) { message in
+                            ChatBubbleView(message: message)
+                        }
+                    }
+                    .padding(.horizontal)
+                }
+                .frame(maxHeight: 200)
+                .background(Color(.systemGray6))
+                .cornerRadius(12)
+                .padding(.horizontal, 20)
+            }
+            
+            HStack {
+                TextField("Ask your trainer anything...", text: $messageText)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .frame(width: isExpanded ? nil : 200)
+                    .onTapGesture {
+                        withAnimation(.spring()) {
+                            isExpanded = true
+                        }
+                    }
+                
+                if isExpanded && !messageText.isEmpty {
+                    Button("Send") {
+                        sendMessage()
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding(.horizontal, 20)
+        }
+    }
+    
+    private func sendMessage() {
+        guard !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        
+        let userMessage = ChatMessage(content: messageText, isFromUser: true)
+        messages.append(userMessage)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            let aiResponse = ChatMessage(content: "Great question! Let me help you with that exercise.", isFromUser: false)
+            messages.append(aiResponse)
+        }
+        
+        messageText = ""
+    }
+}
+
+struct ChatBubbleView: View {
+    let message: ChatMessage
+    
+    var body: some View {
+        HStack {
+            if message.isFromUser {
+                Spacer()
+            }
+            
+            Text(message.content)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(message.isFromUser ? Color.blue : Color(.systemGray5))
+                .foregroundColor(message.isFromUser ? .white : .primary)
+                .cornerRadius(16)
+            
+            if !message.isFromUser {
+                Spacer()
+            }
+        }
+    }
+}
+
+struct ProfileView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                Text("Profile View")
+                    .font(.title)
+                Spacer()
+            }
+            .navigationTitle("Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+struct InfoView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                Text("App Information")
+                    .font(.title)
+                Spacer()
+            }
+            .navigationTitle("Info")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+struct LocationView: View {
+    let location: LocationInfo
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        NavigationView {
+            VStack {
+                Text("Location Settings")
+                    .font(.title)
+                Text(location.name)
+                    .font(.headline)
+                Spacer()
+            }
+            .navigationTitle("Location")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Data Models
+
+struct UIExercise: Identifiable, Codable {
+    let id = UUID()
+    let name: String
+    let description: String
+    let duration: String
+    let difficulty: String
+    let muscleGroups: [String]
+    let instructions: [String]
+    
+    static let sampleExercises = [
+        UIExercise(
+            name: "Push-ups",
+            description: "Classic upper body exercise",
+            duration: "3 sets of 12 reps",
+            difficulty: "Beginner",
+            muscleGroups: ["Chest", "Shoulders", "Triceps"],
+            instructions: ["Start in plank position", "Lower body to ground", "Push back up"]
+        ),
+        UIExercise(
+            name: "Squats",
+            description: "Lower body strength exercise",
+            duration: "3 sets of 15 reps",
+            difficulty: "Beginner",
+            muscleGroups: ["Quadriceps", "Glutes", "Hamstrings"],
+            instructions: ["Stand with feet shoulder-width apart", "Lower into squat position", "Return to standing"]
+        ),
+        UIExercise(
+            name: "Plank",
+            description: "Core strengthening exercise",
+            duration: "Hold for 30 seconds",
+            difficulty: "Intermediate",
+            muscleGroups: ["Core", "Shoulders"],
+            instructions: ["Start in push-up position", "Hold body straight", "Engage core muscles"]
+        )
+    ]
+}
+
+struct ChatMessage: Identifiable {
+    let id = UUID()
+    let content: String
+    let isFromUser: Bool
+    let timestamp: Date
+    
+    init(content: String, isFromUser: Bool) {
+        self.content = content
+        self.isFromUser = isFromUser
+        self.timestamp = Date()
+    }
+}
+
+struct LocationInfo {
+    let name: String
+    let temperature: String?
+    let weatherCondition: String?
+    
+    static let sample = LocationInfo(
+        name: "San Francisco, CA",
+        temperature: "72°F",
+        weatherCondition: "Sunny"
+    )
 }
 
 #Preview {

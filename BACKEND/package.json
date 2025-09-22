@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@ai-sdk/openai": "^2.0.30",
+    "@openrouter/ai-sdk-provider": "^1.2.0",
     "@supabase/supabase-js": "^2.55.0",
     "ai": "^5.0.44",
     "cors": "^2.8.5",

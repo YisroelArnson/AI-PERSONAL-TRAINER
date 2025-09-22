@@ -2,7 +2,7 @@ import Foundation
 import Supabase
 
 class APIService: ObservableObject {
-    private let baseURL = "http://192.168.1.171:3000"
+    private let baseURL = "http://192.168.1.7:3000"
     
     // Helper function to get auth token
     private func getAuthToken() async throws -> String {
@@ -168,58 +168,6 @@ class APIService: ObservableObject {
             }
         }
     }
-    
-    // Agent chat endpoint
-    func sendAgentMessage(_ message: String, useTools: Bool = true) async throws -> AgentResponse {
-        guard let url = URL(string: "\(baseURL)/agent/chat") else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "POST"
-        
-        let requestBody = AgentRequest(message: message, useTools: useTools)
-        let jsonData = try JSONEncoder().encode(requestBody)
-        request.httpBody = jsonData
-        
-        let (data, response) = try await URLSession.shared.data(for: request)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        let agentResponse = try JSONDecoder().decode(AgentResponse.self, from: data)
-        return agentResponse
-    }
-    
-    // Agent health check
-    func checkAgentHealth() async throws -> AgentHealthResponse {
-        guard let url = URL(string: "\(baseURL)/agent/health") else {
-            throw APIError.invalidURL
-        }
-        
-        let (data, response) = try await URLSession.shared.data(from: url)
-        
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw APIError.invalidResponse
-        }
-        
-        guard httpResponse.statusCode == 200 else {
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        let healthResponse = try JSONDecoder().decode(AgentHealthResponse.self, from: data)
-        return healthResponse
-    }
 }
 
 // Response models
@@ -355,29 +303,53 @@ struct YogaPose: Codable {
 // Agent models
 struct AgentRequest: Codable {
     let message: String
-    let useTools: Bool
+    let userId: String
+    let options: RequestOptions?
+    
+    struct RequestOptions: Codable {
+        let maxSteps: Int?
+    }
+    
+    init(message: String, userId: String, maxSteps: Int? = nil) {
+        self.message = message
+        self.userId = userId
+        self.options = maxSteps != nil ? RequestOptions(maxSteps: maxSteps) : nil
+    }
 }
 
 struct AgentResponse: Codable {
     let success: Bool
     let response: String
-    let toolCalls: [ToolCall]?
     let toolResults: [ToolResult]?
+    let ui_events: [UIEvent]?
     let usage: TokenUsage?
+    let steps: Int?
+    let userId: String?
     let timestamp: String
     let error: String?
-    let details: String?
 }
 
-struct ToolCall: Codable {
-    let toolName: String
-    let args: [String: AnyCodable]?
+struct StreamResponse: Codable {
+    let type: String
+    let data: AnyCodable?
+    let message: String?
+    let index: Int?
+    let exerciseCount: Int?
+    let timestamp: String?
+    let success: Bool?
+    let userId: String?
+    let error: String?
+}
+
+struct UIEvent: Codable {
+    let type: String
+    let data: [String: AnyCodable]
 }
 
 struct ToolResult: Codable {
-    let toolName: String?
+    let toolName: String
+    let args: [String: AnyCodable]?
     let result: [String: AnyCodable]?
-    let error: String?
 }
 
 struct TokenUsage: Codable {
@@ -386,12 +358,6 @@ struct TokenUsage: Codable {
     let completionTokens: Int?
 }
 
-struct AgentHealthResponse: Codable {
-    let success: Bool
-    let message: String
-    let timestamp: String
-    let version: String
-}
 
 // Helper for handling dynamic JSON values
 struct AnyCodable: Codable {

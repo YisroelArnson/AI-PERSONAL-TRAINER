@@ -1,7 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const { chat, streamChat } = require('../controllers/orchestrationAgent.controller');
 
-// Placeholder for orchestration agent routes
-// Add your orchestration agent endpoints here
+// Chat endpoint - main agent interaction
+router.post('/chat', chat);
+
+// Streaming chat endpoint - agent interaction with exercise streaming
+router.post('/stream', streamChat);
 
 module.exports = router;

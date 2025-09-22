@@ -179,14 +179,16 @@ async function fetchUserData(userId, options = {}) {
             }
         }
 
-        // Fetch user preferences
+        // Fetch user preferences (only active ones)
         if (preferences) {
             try {
+                const now = new Date().toISOString();
                 const { data: preferencesData, error: preferencesError } = await supabase
                     .from('preferences')
                     .select('*')
                     .eq('user_id', userId)
-                    .order('created_at', { ascending: true });
+                    .or(`expire_time.is.null,expire_time.gt.${now}`)
+                    .order('created_at', { ascending: false });
 
                 if (preferencesError) {
                     console.error('Error fetching user preferences:', preferencesError);
@@ -196,19 +198,39 @@ async function fetchUserData(userId, options = {}) {
                 } else {
                     // Filter preferences to only include essential fields for AI prompt
                     if (preferencesData && preferencesData.length > 0) {
-                        result.data.preferences = preferencesData.map(item => ({
+                        const processedPreferences = preferencesData.map(item => ({
                             type: item.type,
                             description: item.description,
                             user_transcription: item.user_transcription,
-                            recommendations_guidance: item.recommendations_guidance
+                            recommendations_guidance: item.recommendations_guidance,
+                            expire_time: item.expire_time,
+                            created_at: item.created_at
                         }));
+                        
+                        // Separate permanent and temporary preferences for better AI context
+                        const permanent = processedPreferences.filter(p => p.type === 'permanent');
+                        const temporary = processedPreferences.filter(p => p.type === 'temporary');
+                        
+                        result.data.preferences = {
+                            permanent,
+                            temporary,
+                            all: processedPreferences
+                        };
                     } else {
-                        result.data.preferences = [];
+                        result.data.preferences = {
+                            permanent: [],
+                            temporary: [],
+                            all: []
+                        };
                     }
                 }
             } catch (error) {
                 console.error('Error in user preferences fetch:', error);
-                result.data.preferences = [];
+                result.data.preferences = {
+                    permanent: [],
+                    temporary: [],
+                    all: []
+                };
                 result.errors = result.errors || {};
                 result.errors.preferences = error.message;
             }

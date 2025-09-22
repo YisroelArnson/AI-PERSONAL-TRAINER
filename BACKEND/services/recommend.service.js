@@ -2,6 +2,7 @@ const { openai } = require('@ai-sdk/openai');
 const { generateObject, streamObject } = require('ai');
 const { z } = require('zod');
 const { fetchAllUserData } = require('./fetchUserData.service');
+const { cleanupPreferences } = require('../ai/tools/parsePreference');
 
 // Zod schema for exercise recommendations output format
 const ExerciseRecommendationSchema = z.object({
@@ -212,6 +213,7 @@ You must return recommendations that are:
 - Effective for progression over time
 - Optimal for the user's current preferences, equipment, and constraints
 - Properly typed according to the exercise_type field
+- STRICTLY respect all user preferences, especially temporary ones which override everything else
 
 EXERCISE TYPES AND THEIR REQUIRED FORMATS:
 1. "strength" - Weighted exercises: requires sets, reps[], load_kg_each[], optional rest_seconds
@@ -236,8 +238,11 @@ IMPORTANT:
 
 // Process rules for the model
 const PROCESS_RULES = `Follow this process each time:
-1. Check for explicit user preferences in the current data. If present, ignore long-term category/muscle goals and satisfy the preference fully.
-2. If no overriding preference is present, analyze the user's goals, history, equipment, and constraints.
+1. FIRST: Check for stored user preferences (both permanent and temporary). Temporary preferences ALWAYS override everything else.
+   - Permanent preferences: Long-term restrictions/preferences that should always be respected
+   - Temporary preferences: Current session preferences that completely override other goals
+2. SECOND: Check for explicit user preferences in the current request data. If present, combine with stored preferences.
+3. If no overriding preferences are present, analyze the user's goals, history, equipment, and constraints.
 3. Follow the bias signals which category or muscle groups are most under-target or most relevant when recommending exercises.
    3a. When labeling the goals_addressed and muscles_utilized, only select from the provided user's exercise categories and muscles. Do NOT make up your own categories or muscles.
 4. DETERMINE THE CORRECT EXERCISE TYPE for each exercise:
@@ -416,6 +421,14 @@ Please generate exercise recommendations based on this user data and follow the 
     });
 
     console.log('Successfully generated exercise recommendations');
+    
+    // Clean up preferences marked for deletion after call
+    try {
+      await cleanupPreferences(userId);
+    } catch (cleanupError) {
+      console.error('Error cleaning up preferences:', cleanupError);
+      // Don't fail the whole request for cleanup errors
+    }
     
     // Validate exercise count if specified
     const actualCount = result.object.recommendations.length;
