@@ -6,88 +6,87 @@
 //
 
 import SwiftUI
-import Supabase
 
 struct ContentView: View {
     @State private var currentExerciseIndex = 0
     @State private var exercises = UIExercise.sampleExercises
-    @State private var chatMessages: [ChatMessage] = []
-    @State private var messageText = ""
-    @State private var isTextFieldExpanded = false
     @State private var showingProfile = false
     @State private var showingInfo = false
     @State private var showingLocation = false
     @State private var currentLocation = LocationInfo.sample
     
     var body: some View {
-        ZStack {
-            Color(.systemBackground)
-                .ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // Top Navigation Bar
-                HStack {
-                    // Profile and Info Buttons (Top Left)
-                    HStack(spacing: 12) {
-                        Button(action: { showingProfile = true }) {
-                            Image(systemName: "person.circle")
-                                .font(.title2)
-                                .foregroundColor(.primary)
-                        }
-                        
-                        Button(action: { showingInfo = true }) {
-                            Image(systemName: "exclamationmark.circle")
-                                .font(.title2)
-                                .foregroundColor(.primary)
-                        }
-                    }
-                    
-                    Spacer()
-                    
-                    // Location Display (Top Middle)
-                    Button(action: { showingLocation = true }) {
-                        VStack(spacing: 2) {
-                            Text(currentLocation.name)
-                                .font(.caption)
-                                .fontWeight(.medium)
-                            if let temp = currentLocation.temperature {
-                                Text(temp)
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
+        GeometryReader { geometry in
+            ZStack {
+                // Background layer
+                Color.black
+                    .ignoresSafeArea()
+                
+                // Main content layer
+                VStack(spacing: 0) {
+                    // Top Navigation Bar
+                    HStack {
+                        // Profile and Info Buttons (Top Left)
+                        HStack(spacing: 12) {
+                            Button(action: { showingProfile = true }) {
+                                Image(systemName: "person.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.white)
+                            }
+                            
+                            Button(action: { showingInfo = true }) {
+                                Image(systemName: "exclamationmark.circle.fill")
+                                    .font(.title2)
+                                    .foregroundColor(.white)
                             }
                         }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color(.systemGray6))
-                        .cornerRadius(8)
+                        
+                        Spacer()
+                        
+                        // Location Display (Top Middle)
+                        Button(action: { showingLocation = true }) {
+                            VStack(spacing: 2) {
+                                Text(currentLocation.name)
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                                    .foregroundColor(.white)
+                                if let temp = currentLocation.temperature {
+                                    Text(temp)
+                                        .font(.caption2)
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(Color(red: 0.12, green: 0.12, blue: 0.12))
+                            .cornerRadius(12)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color(red: 0.25, green: 0.25, blue: 0.25), lineWidth: 0.5)
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        
+                        Spacer()
+                        
+                        // AI Trainer Orb (Top Right)
+                        TrainerOrbView()
                     }
-                    .buttonStyle(PlainButtonStyle())
+                    .padding(.horizontal, 20)
+                    .padding(.top, 10)
                     
                     Spacer()
                     
-                    // AI Trainer Orb (Top Right)
-                    TrainerOrbView()
+                    // Exercise Carousel
+                    ExerciseCarouselView(
+                        exercises: exercises,
+                        currentIndex: $currentExerciseIndex
+                    )
+                    
+                    Spacer()
+                    
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 10)
-                
-                Spacer()
-                
-                // Exercise Carousel
-                ExerciseCarouselView(
-                    exercises: exercises,
-                    currentIndex: $currentExerciseIndex
-                )
-                
-                Spacer()
-                
-                // Chat Interface
-                ChatInterfaceView(
-                    messages: $chatMessages,
-                    messageText: $messageText,
-                    isExpanded: $isTextFieldExpanded
-                )
-                .padding(.bottom, 20)
+
             }
         }
         .sheet(isPresented: $showingProfile) {
@@ -100,6 +99,7 @@ struct ContentView: View {
             LocationView(location: currentLocation)
         }
     }
+    
 }
 
 // MARK: - Supporting Views
@@ -155,8 +155,8 @@ struct ExerciseCarouselView: View {
     @State private var scrollTimer: Timer?
     @State private var isUserScrolling = false
     
-    private let cardHeight: CGFloat = 140
-    private let cardSpacing: CGFloat = 4
+    private let cardHeight: CGFloat = 160
+    private let cardSpacing: CGFloat = 8
     
     var body: some View {
         GeometryReader { geometry in
@@ -171,8 +171,8 @@ struct ExerciseCarouselView: View {
                                 let distanceFromCenter = abs(cardCenterY - centerY)
                                 let normalizedDistance = min(distanceFromCenter / (cardHeight + cardSpacing), 1.0)
                                 
-                                let scale = 1.0 - (normalizedDistance * 0.3) // Scale from 1.0 to 0.7
-                                let opacity = 1.0 - (normalizedDistance * 0.6) // Opacity from 1.0 to 0.4
+                                let scale = 1.0 - (normalizedDistance * 0.15) // Scale from 1.0 to 0.85
+                                let opacity = 1.0 - (normalizedDistance * 0.3) // Opacity from 1.0 to 0.7
                                 
                                 ExerciseCardView(
                                     exercise: exercise,
@@ -241,110 +241,545 @@ struct ExerciseCardView: View {
     let exercise: UIExercise
     let isCurrent: Bool
     
+    // Function to get color for exercise type
+    private func colorForExerciseType(_ type: String) -> Color {
+        switch type {
+        case "strength":
+            return Color.orange
+        case "cardio_distance", "cardio_time":
+            return Color.blue
+        case "hiit":
+            return Color.red
+        case "bodyweight":
+            return Color.green
+        case "isometric":
+            return Color.purple
+        case "flexibility", "stretching":
+            return Color.pink
+        case "yoga", "pilates":
+            return Color.mint
+        default:
+            return Color.blue
+        }
+    }
+    
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(exercise.name)
-                .font(.title2)
-                .fontWeight(.bold)
+        HStack(spacing: 0) {
+            // Colored vertical stripe indicating exercise type
+            Rectangle()
+                .fill(colorForExerciseType(exercise.type))
+                .frame(width: 4)
             
-            Text(exercise.description)
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            
-            Text(exercise.duration)
-                .font(.caption)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(4)
+            VStack(alignment: .leading, spacing: 8) {
+                // Header section with exercise type and duration
+                HStack {
+                    // Exercise type badge
+                    Text(exercise.type.replacingOccurrences(of: "_", with: " ").uppercased())
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(colorForExerciseType(exercise.type))
+                    
+                    Spacer()
+                    
+                    // Duration/time info
+                    HStack(spacing: 4) {
+                        Text("Anytime")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        if let duration = exercise.duration_min, duration > 0 {
+                            Text("\(duration)min")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        } else if let sets = exercise.sets {
+                            Text("\(sets) sets")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        } else {
+                            Text("Workout")
+                                .font(.title2)
+                                .fontWeight(.bold)
+                                .foregroundColor(.white)
+                        }
+                    }
+                }
+                
+                // Exercise name - most prominent
+                Text(exercise.exercise_name)
+                    .font(.title2)
+                    .fontWeight(.bold)
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                
+                // Distance or key metric
+                if let distance = exercise.distance_km {
+                    Text("\(String(format: "%.1f", distance)) km")
+                        .font(.title3)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                } else if let sets = exercise.sets, let reps = exercise.reps?.first {
+                    Text("\(sets) sets × \(reps) reps")
+                        .font(.title3)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                } else if let rounds = exercise.rounds {
+                    Text("\(rounds) rounds")
+                        .font(.title3)
+                        .fontWeight(.medium)
+                        .foregroundColor(.white)
+                }
+                
+                // Subtitle with instructor/program info
+                HStack(spacing: 4) {
+                    if let muscles = exercise.muscles_utilized?.sorted(by: { $0.share > $1.share }).prefix(2) {
+                        let muscleNames = muscles.map { $0.muscle.capitalized }.joined(separator: " • ")
+                        Text("• \(muscleNames)")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    
+                    if exercise.type == "strength" {
+                        Text("• Strength Training")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    } else if exercise.type.contains("cardio") {
+                        Text("• Cardio")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    } else if exercise.type == "hiit" {
+                        Text("• HIIT")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                }
+            }
+            .padding(.leading, 16)
+            .padding(.trailing, 16)
+            .padding(.vertical, 16)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding()
-        .background(Color(.systemGray6))
+        .background(Color(red: 0.12, green: 0.12, blue: 0.12))
         .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(red: 0.25, green: 0.25, blue: 0.25), lineWidth: 0.5)
+        )
     }
 }
 
-struct ChatInterfaceView: View {
-    @Binding var messages: [ChatMessage]
-    @Binding var messageText: String
-    @Binding var isExpanded: Bool
+struct StatPillView: View {
+    let label: String
+    let value: String
+    let color: Color
     
     var body: some View {
-        VStack(spacing: 12) {
-            if !messages.isEmpty {
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(messages) { message in
-                            ChatBubbleView(message: message)
-                        }
-                    }
-                    .padding(.horizontal)
+        VStack(spacing: 1) {
+            Text(label)
+                .font(.caption2)
+                .foregroundColor(.gray)
+            Text(value)
+                .font(.caption)
+                .fontWeight(.bold)
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.gray.opacity(0.3))
+        .cornerRadius(0)
+    }
+}
+
+// MARK: - Full Exercise Details
+
+struct FullExerciseDetailsView: View {
+    let exercise: UIExercise
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            switch exercise.type {
+            case "strength":
+                if let loads = exercise.load_kg_each, !loads.isEmpty {
+                    DetailRowView(
+                        label: "Weight (kg)",
+                        value: loads.map { "\(Int($0))" }.joined(separator: ", "),
+                        icon: "dumbbell"
+                    )
                 }
-                .frame(maxHeight: 200)
-                .background(Color(.systemGray6))
-                .cornerRadius(12)
-                .padding(.horizontal, 20)
-            }
-            
-            HStack {
-                TextField("Ask your trainer anything...", text: $messageText)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                    .frame(width: isExpanded ? nil : 200)
-                    .onTapGesture {
-                        withAnimation(.spring()) {
-                            isExpanded = true
-                        }
-                    }
                 
-                if isExpanded && !messageText.isEmpty {
-                    Button("Send") {
-                        sendMessage()
-                    }
-                    .buttonStyle(.borderedProminent)
+                if let rest = exercise.rest_seconds {
+                    DetailRowView(
+                        label: "Rest",
+                        value: "\(rest) seconds",
+                        icon: "clock"
+                    )
                 }
+                
+            case "cardio_distance":
+                if let pace = exercise.target_pace {
+                    DetailRowView(
+                        label: "Target Pace",
+                        value: pace,
+                        icon: "speedometer"
+                    )
+                }
+                
+            case "cardio_time":
+                // Additional details already shown in stats pills
+                EmptyView()
+                
+            case "hiit":
+                if let intervals = exercise.intervals, !intervals.isEmpty {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Intervals")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.gray)
+                        
+                        ForEach(intervals.indices, id: \.self) { index in
+                            let interval = intervals[index]
+                            HStack {
+                                Text("Round \(index + 1):")
+                                    .font(.caption2)
+                                    .foregroundColor(.gray)
+                                
+                                if let work = interval.work_sec {
+                                    Text("Work \(work)s")
+                                        .font(.caption2)
+                                        .fontWeight(.medium)
+                                }
+                                
+                                if let rest = interval.rest_sec {
+                                    Text("Rest \(rest)s")
+                                        .font(.caption2)
+                                        .fontWeight(.medium)
+                                }
+                                
+                                Spacer()
+                            }
+                        }
+                    }
+                }
+                
+            case "bodyweight", "isometric":
+                if let holds = exercise.hold_duration_sec, !holds.isEmpty {
+                    DetailRowView(
+                        label: "Hold Duration",
+                        value: holds.map { "\($0)s" }.joined(separator: ", "),
+                        icon: "timer"
+                    )
+                }
+                
+                if let level = exercise.progression_level {
+                    DetailRowView(
+                        label: "Level",
+                        value: level,
+                        icon: "chart.line.uptrend.xyaxis"
+                    )
+                }
+                
+            default:
+                EmptyView()
             }
-            .padding(.horizontal, 20)
         }
-    }
-    
-    private func sendMessage() {
-        guard !messageText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        
-        let userMessage = ChatMessage(content: messageText, isFromUser: true)
-        messages.append(userMessage)
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-            let aiResponse = ChatMessage(content: "Great question! Let me help you with that exercise.", isFromUser: false)
-            messages.append(aiResponse)
-        }
-        
-        messageText = ""
     }
 }
 
-struct ChatBubbleView: View {
-    let message: ChatMessage
+struct DetailRowView: View {
+    let label: String
+    let value: String
+    let icon: String
     
     var body: some View {
-        HStack {
-            if message.isFromUser {
-                Spacer()
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.caption)
+                .foregroundColor(.gray)
+                .frame(width: 12)
+            
+            Text(label)
+                .font(.caption)
+                .foregroundColor(.gray)
+            
+            Spacer()
+            
+            Text(value)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+        }
+    }
+}
+
+// MARK: - Exercise Type Views
+
+struct StrengthExerciseView: View {
+    let exercise: UIExercise
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let sets = exercise.sets {
+                Text("\(sets) sets")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
             }
             
-            Text(message.content)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(message.isFromUser ? Color.blue : Color(.systemGray5))
-                .foregroundColor(message.isFromUser ? .white : .primary)
-                .cornerRadius(16)
+            if let reps = exercise.reps, let loads = exercise.load_kg_each {
+                HStack {
+                    Text("Reps:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(reps.map { "\($0)" }.joined(separator: ", "))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+                
+                HStack {
+                    Text("Weight:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(loads.map { "\(Int($0))kg" }.joined(separator: ", "))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
             
-            if !message.isFromUser {
-                Spacer()
+            if let rest = exercise.rest_seconds {
+                HStack {
+                    Text("Rest:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text("\(rest)s")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
             }
         }
     }
 }
+
+struct CardioDistanceView: View {
+    let exercise: UIExercise
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let distance = exercise.distance_km {
+                HStack {
+                    Text("Distance:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(String(format: "%.1f", distance) + "km")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+            }
+            
+            if let duration = exercise.duration_min, duration > 0 {
+                HStack {
+                    Text("Duration:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text("\(duration) min")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+            
+            if let pace = exercise.target_pace {
+                HStack {
+                    Text("Target Pace:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(pace)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+        }
+    }
+}
+
+struct CardioTimeView: View {
+    let exercise: UIExercise
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let duration = exercise.duration_min {
+                HStack {
+                    Text("Duration:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text("\(duration) min")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+            }
+            
+            if let intensity = exercise.target_intensity {
+                HStack {
+                    Text("Intensity:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(intensity)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+        }
+    }
+}
+
+struct HIITExerciseView: View {
+    let exercise: UIExercise
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let rounds = exercise.rounds {
+                HStack {
+                    Text("Rounds:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text("\(rounds)")
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+            }
+            
+            if let intervals = exercise.intervals {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Intervals:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    
+                    ForEach(intervals.indices, id: \.self) { index in
+                        let interval = intervals[index]
+                        HStack {
+                            if let work = interval.work_sec {
+                                Text("Work: \(work)s")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                            if let rest = interval.rest_sec {
+                                Text("Rest: \(rest)s")
+                                    .font(.caption)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if let duration = exercise.duration_min {
+                HStack {
+                    Text("Total:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text("\(duration) min")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+        }
+    }
+}
+
+struct BodyweightExerciseView: View {
+    let exercise: UIExercise
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let sets = exercise.sets {
+                Text("\(sets) sets")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+            }
+            
+            if let reps = exercise.reps {
+                HStack {
+                    Text("Reps:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(reps.map { "\($0)" }.joined(separator: ", "))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+            
+            if let holds = exercise.hold_duration_sec {
+                HStack {
+                    Text("Hold:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(holds.map { "\($0)s" }.joined(separator: ", "))
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+            
+            if let level = exercise.progression_level {
+                HStack {
+                    Text("Level:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text(level)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+        }
+    }
+}
+
+struct GeneralExerciseView: View {
+    let exercise: UIExercise
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let duration = exercise.duration_min, duration > 0 {
+                HStack {
+                    Text("Duration:")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                    Text("\(duration) min")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                }
+            }
+        }
+    }
+}
+
+struct MuscleUtilizationView: View {
+    let muscles: [MuscleUtilization]
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Muscles:")
+                .font(.caption)
+                .foregroundColor(.gray)
+            
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 80))], spacing: 4) {
+                ForEach(muscles.sorted(by: { $0.share > $1.share }), id: \.muscle) { muscle in
+                    HStack(spacing: 4) {
+                        Text(muscle.muscle.capitalized)
+                            .font(.caption2)
+                            .fontWeight(.medium)
+                            .foregroundColor(.white)
+                        Text("\(Int(muscle.share * 100))%")
+                            .font(.caption2)
+                            .foregroundColor(.gray)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.gray.opacity(0.3))
+                    .cornerRadius(0)
+                }
+            }
+        }
+    }
+}
+
+
 
 struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
@@ -416,51 +851,104 @@ struct LocationView: View {
 
 struct UIExercise: Identifiable, Codable {
     let id = UUID()
-    let name: String
-    let description: String
-    let duration: String
-    let difficulty: String
-    let muscleGroups: [String]
-    let instructions: [String]
+    let exercise_name: String
+    let type: String // exercise type (strength, cardio_distance, etc.)
+    let aliases: [String]?
+    let duration_min: Int?
     
-    static let sampleExercises = [
-        UIExercise(
-            name: "Push-ups",
-            description: "Classic upper body exercise",
-            duration: "3 sets of 12 reps",
-            difficulty: "Beginner",
-            muscleGroups: ["Chest", "Shoulders", "Triceps"],
-            instructions: ["Start in plank position", "Lower body to ground", "Push back up"]
-        ),
-        UIExercise(
-            name: "Squats",
-            description: "Lower body strength exercise",
-            duration: "3 sets of 15 reps",
-            difficulty: "Beginner",
-            muscleGroups: ["Quadriceps", "Glutes", "Hamstrings"],
-            instructions: ["Stand with feet shoulder-width apart", "Lower into squat position", "Return to standing"]
-        ),
-        UIExercise(
-            name: "Plank",
-            description: "Core strengthening exercise",
-            duration: "Hold for 30 seconds",
-            difficulty: "Intermediate",
-            muscleGroups: ["Core", "Shoulders"],
-            instructions: ["Start in push-up position", "Hold body straight", "Engage core muscles"]
+    // For rep-based exercises
+    let reps: [Int]?
+    let load_kg_each: [Double]?
+    let sets: Int?
+    
+    // For distance-based cardio
+    let distance_km: Double?
+    
+    // For interval exercises
+    let intervals: [ExerciseInterval]?
+    let rounds: Int?
+    
+    // Muscle utilization
+    let muscles_utilized: [MuscleUtilization]?
+    
+    // Additional fields for different exercise types
+    let rest_seconds: Int?
+    let target_pace: String?
+    let target_intensity: String?
+    let hold_duration_sec: [Int]?
+    let progression_level: String?
+    
+    static var sampleExercises: [UIExercise] {
+        let benchPress = UIExercise(
+            exercise_name: "Barbell Bench Press",
+            type: "strength",
+            aliases: ["bb_bench_press"],
+            duration_min: 0,
+            reps: [8, 8, 6, 6],
+            load_kg_each: [80, 80, 85, 85],
+            sets: 4,
+            distance_km: nil,
+            intervals: nil,
+            rounds: nil,
+            muscles_utilized: [
+                MuscleUtilization(muscle: "chest", share: 0.5),
+                MuscleUtilization(muscle: "triceps", share: 0.3),
+                MuscleUtilization(muscle: "shoulders", share: 0.2)
+            ],
+            rest_seconds: 90,
+            target_pace: nil,
+            target_intensity: nil,
+            hold_duration_sec: nil,
+            progression_level: nil
         )
-    ]
-}
-
-struct ChatMessage: Identifiable {
-    let id = UUID()
-    let content: String
-    let isFromUser: Bool
-    let timestamp: Date
-    
-    init(content: String, isFromUser: Bool) {
-        self.content = content
-        self.isFromUser = isFromUser
-        self.timestamp = Date()
+        
+        let run5k = UIExercise(
+            exercise_name: "5K Run",
+            type: "cardio_distance",
+            aliases: ["running"],
+            duration_min: 25,
+            reps: nil,
+            load_kg_each: nil,
+            sets: nil,
+            distance_km: 5.0,
+            intervals: nil,
+            rounds: nil,
+            muscles_utilized: [
+                MuscleUtilization(muscle: "legs", share: 0.7),
+                MuscleUtilization(muscle: "core", share: 0.3)
+            ],
+            rest_seconds: nil,
+            target_pace: "5:00/km",
+            target_intensity: nil,
+            hold_duration_sec: nil,
+            progression_level: nil
+        )
+        
+        let hiitCircuit = UIExercise(
+            exercise_name: "HIIT Circuit",
+            type: "hiit",
+            aliases: ["high_intensity_intervals"],
+            duration_min: 20,
+            reps: nil,
+            load_kg_each: nil,
+            sets: nil,
+            distance_km: nil,
+            intervals: [
+                ExerciseInterval(work_sec: 30, rest_sec: nil),
+                ExerciseInterval(work_sec: nil, rest_sec: 60)
+            ],
+            rounds: 10,
+            muscles_utilized: [
+                MuscleUtilization(muscle: "full_body", share: 1.0)
+            ],
+            rest_seconds: nil,
+            target_pace: nil,
+            target_intensity: "High",
+            hold_duration_sec: nil,
+            progression_level: nil
+        )
+        
+        return [benchPress, run5k, hiitCircuit]
     }
 }
 

@@ -203,7 +203,7 @@ struct RecommendationExercise: Codable {
     let muscles_utilized: [MuscleUtilization]
     let goals_addressed: [String]
     let reasoning: String
-    let equiptment: [String]?
+    let equipment: [String]?
     let movement_pattern: [String]?
     let exercise_description: String?
     let body_region: String?
