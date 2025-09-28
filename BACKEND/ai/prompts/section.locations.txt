@@ -1,9 +1,0 @@
-[SECTION: LOCATIONS]
-Available locations and equipment constraints. Use to filter feasible exercises:
-- If home-only or limited equipment, prefer bodyweight, bands, dumbbells, kettlebells.
-- If commercial gym appears, include barbell and machine movements.
-- Check the equipment array for each location to see what's available.
-- Only suggest exercises that can be performed with the available equipment.
-- If current_location is true, prioritize exercises for that location.
-- Provide substitutions per location to keep the plan feasible regardless of where the user trains.
-- Consider equipment limitations when designing sets/reps (e.g., limited weights may require higher reps).
