@@ -8,7 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		12761C452E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C442E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift */; };
-		12761C472E57953800C4F8FE /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C462E57953800C4F8FE /* ContentView.swift */; };
+		12761C472E57953800C4F8FE /* SwipeNavigationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C462E57953800C4F8FE /* SwipeNavigationView.swift */; };
 		12761C492E57953B00C4F8FE /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 12761C482E57953B00C4F8FE /* Assets.xcassets */; };
 		12761C4C2E57953B00C4F8FE /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 12761C4B2E57953B00C4F8FE /* Preview Assets.xcassets */; };
 		12761C562E57953B00C4F8FE /* AI_Personal_Trainer_AppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C552E57953B00C4F8FE /* AI_Personal_Trainer_AppTests.swift */; };
@@ -16,6 +16,7 @@
 		12761C622E57953C00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */; };
 		12761C702E57984E00C4F8FE /* supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C6F2E57984E00C4F8FE /* supabase.swift */; };
 		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
+		12761C742E57953800C4F8FE /* EdgeIconsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C752E57953800C4F8FE /* EdgeIconsView.swift */; };
 		12B5ED962E58C4BB000D7061 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED952E58C4BB000D7061 /* AuthView.swift */; };
 		12B5ED9C2E58C72D000D7061 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED9B2E58C72D000D7061 /* AppView.swift */; };
 		12B5ED9F2E5911E6000D7061 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED9E2E5911E6000D7061 /* APIService.swift */; };
@@ -41,7 +42,7 @@
 /* Begin PBXFileReference section */
 		12761C412E57953800C4F8FE /* AI Personal Trainer App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Personal Trainer App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		12761C442E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
-		12761C462E57953800C4F8FE /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		12761C462E57953800C4F8FE /* SwipeNavigationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwipeNavigationView.swift; sourceTree = "<group>"; };
 		12761C482E57953B00C4F8FE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		12761C4B2E57953B00C4F8FE /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		12761C512E57953B00C4F8FE /* AI Personal Trainer AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -50,6 +51,7 @@
 		12761C5F2E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppUITests.swift; sourceTree = "<group>"; };
 		12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		12761C6F2E57984E00C4F8FE /* supabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = supabase.swift; sourceTree = "<group>"; };
+		12761C752E57953800C4F8FE /* EdgeIconsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EdgeIconsView.swift; sourceTree = "<group>"; };
 		12B5ED952E58C4BB000D7061 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		12B5ED9B2E58C72D000D7061 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
 		12B5ED9D2E58CF87000D7061 /* AI-Personal-Trainer-App-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "AI-Personal-Trainer-App-Info.plist"; sourceTree = SOURCE_ROOT; };
@@ -108,7 +110,8 @@
 			children = (
 				12B5ED9D2E58CF87000D7061 /* AI-Personal-Trainer-App-Info.plist */,
 				12761C442E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift */,
-				12761C462E57953800C4F8FE /* ContentView.swift */,
+				12761C462E57953800C4F8FE /* SwipeNavigationView.swift */,
+				12761C752E57953800C4F8FE /* EdgeIconsView.swift */,
 				12B5ED9E2E5911E6000D7061 /* APIService.swift */,
 				12761C482E57953B00C4F8FE /* Assets.xcassets */,
 				12761C4A2E57953B00C4F8FE /* Preview Content */,
@@ -288,7 +291,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				12761C702E57984E00C4F8FE /* supabase.swift in Sources */,
-				12761C472E57953800C4F8FE /* ContentView.swift in Sources */,
+				12761C472E57953800C4F8FE /* SwipeNavigationView.swift in Sources */,
+				12761C742E57953800C4F8FE /* EdgeIconsView.swift in Sources */,
 				12B5ED9C2E58C72D000D7061 /* AppView.swift in Sources */,
 				12B5ED962E58C4BB000D7061 /* AuthView.swift in Sources */,
 				12B5ED9F2E5911E6000D7061 /* APIService.swift in Sources */,

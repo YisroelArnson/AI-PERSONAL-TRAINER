@@ -13,7 +13,7 @@ struct AppView: View {
   var body: some View {
     Group {
       if isAuthenticated {
-        ContentView()
+        SwipeNavigationView()
       } else {
         AuthView()
       }
