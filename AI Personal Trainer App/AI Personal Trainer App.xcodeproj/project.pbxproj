@@ -19,6 +19,8 @@
 		12B5ED962E58C4BB000D7061 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED952E58C4BB000D7061 /* AuthView.swift */; };
 		12B5ED9C2E58C72D000D7061 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED9B2E58C72D000D7061 /* AppView.swift */; };
 		12B5ED9F2E5911E6000D7061 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5ED9E2E5911E6000D7061 /* APIService.swift */; };
+		12B5EDA12E59120000000001 /* FloatingNavigationBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5EDA02E59120000000001 /* FloatingNavigationBar.swift */; };
+		12B5EDA32E59120000000002 /* NavigationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12B5EDA22E59120000000002 /* NavigationViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,6 +56,8 @@
 		12B5ED9B2E58C72D000D7061 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
 		12B5ED9D2E58CF87000D7061 /* AI-Personal-Trainer-App-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "AI-Personal-Trainer-App-Info.plist"; sourceTree = SOURCE_ROOT; };
 		12B5ED9E2E5911E6000D7061 /* APIService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
+		12B5EDA02E59120000000001 /* FloatingNavigationBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FloatingNavigationBar.swift; sourceTree = "<group>"; };
+		12B5EDA22E59120000000002 /* NavigationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationViews.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -115,6 +119,8 @@
 				12761C6F2E57984E00C4F8FE /* supabase.swift */,
 				12B5ED952E58C4BB000D7061 /* AuthView.swift */,
 				12B5ED9B2E58C72D000D7061 /* AppView.swift */,
+				12B5EDA02E59120000000001 /* FloatingNavigationBar.swift */,
+				12B5EDA22E59120000000002 /* NavigationViews.swift */,
 			);
 			path = "AI Personal Trainer App";
 			sourceTree = "<group>";
@@ -293,6 +299,8 @@
 				12B5ED962E58C4BB000D7061 /* AuthView.swift in Sources */,
 				12B5ED9F2E5911E6000D7061 /* APIService.swift in Sources */,
 				12761C452E57953800C4F8FE /* AI_Personal_Trainer_AppApp.swift in Sources */,
+				12B5EDA12E59120000000001 /* FloatingNavigationBar.swift in Sources */,
+				12B5EDA32E59120000000002 /* NavigationViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

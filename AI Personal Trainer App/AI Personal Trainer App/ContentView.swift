@@ -7,74 +7,47 @@
 
 import SwiftUI
 
+// MARK: - Color Extension for Hex Support
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (1, 1, 1, 0)
+        }
+
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
+    }
+}
+
 struct ContentView: View {
     @State private var currentExerciseIndex = 0
     @State private var exercises = UIExercise.sampleExercises
-    @State private var showingProfile = false
-    @State private var showingInfo = false
-    @State private var showingLocation = false
-    @State private var currentLocation = LocationInfo.sample
     
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Background layer
-                Color.black
+                // Background layer - Light gray #f5f6f7
+                Color(hex: "f5f6f7")
                     .ignoresSafeArea()
                 
                 // Main content layer
                 VStack(spacing: 0) {
-                    // Top Navigation Bar
-                    HStack {
-                        // Profile and Info Buttons (Top Left)
-                        HStack(spacing: 12) {
-                            Button(action: { showingProfile = true }) {
-                                Image(systemName: "person.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                            }
-                            
-                            Button(action: { showingInfo = true }) {
-                                Image(systemName: "exclamationmark.circle.fill")
-                                    .font(.title2)
-                                    .foregroundColor(.white)
-                            }
-                        }
-                        
-                        Spacer()
-                        
-                        // Location Display (Top Middle)
-                        Button(action: { showingLocation = true }) {
-                            VStack(spacing: 2) {
-                                Text(currentLocation.name)
-                                    .font(.caption)
-                                    .fontWeight(.medium)
-                                    .foregroundColor(.white)
-                                if let temp = currentLocation.temperature {
-                                    Text(temp)
-                                        .font(.caption2)
-                                        .foregroundColor(.gray)
-                                }
-                            }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Color(red: 0.12, green: 0.12, blue: 0.12))
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color(red: 0.25, green: 0.25, blue: 0.25), lineWidth: 0.5)
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                        
-                        Spacer()
-                        
-                        // AI Trainer Orb (Top Right)
-                        TrainerOrbView()
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 10)
-                    
                     Spacer()
                     
                     // Exercise Carousel
@@ -88,15 +61,6 @@ struct ContentView: View {
                 }
 
             }
-        }
-        .sheet(isPresented: $showingProfile) {
-            ProfileView()
-        }
-        .sheet(isPresented: $showingInfo) {
-            InfoView()
-        }
-        .sheet(isPresented: $showingLocation) {
-            LocationView(location: currentLocation)
         }
     }
     
@@ -264,107 +228,95 @@ struct ExerciseCardView: View {
     }
     
     var body: some View {
-        HStack(spacing: 0) {
-            // Colored vertical stripe indicating exercise type
-            Rectangle()
-                .fill(colorForExerciseType(exercise.type))
-                .frame(width: 4)
-            
-            VStack(alignment: .leading, spacing: 8) {
-                // Header section with exercise type and duration
-                HStack {
-                    // Exercise type badge
-                    Text(exercise.type.replacingOccurrences(of: "_", with: " ").uppercased())
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(colorForExerciseType(exercise.type))
-                    
-                    Spacer()
-                    
-                    // Duration/time info
-                    HStack(spacing: 4) {
-                        Text("Anytime")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                        if let duration = exercise.duration_min, duration > 0 {
-                            Text("\(duration)min")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                        } else if let sets = exercise.sets {
-                            Text("\(sets) sets")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                        } else {
-                            Text("Workout")
-                                .font(.title2)
-                                .fontWeight(.bold)
-                                .foregroundColor(.white)
-                        }
-                    }
-                }
+        VStack(alignment: .leading, spacing: 12) {
+            // Header section with exercise type and duration
+            HStack {
+                // Exercise type badge with subtle background
+                Text(exercise.type.replacingOccurrences(of: "_", with: " ").uppercased())
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(Color(hex: "212529"))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color(hex: "f5f6f7"))
+                    .cornerRadius(8)
                 
-                // Exercise name - most prominent
-                Text(exercise.exercise_name)
-                    .font(.title2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .lineLimit(2)
+                Spacer()
                 
-                // Distance or key metric
-                if let distance = exercise.distance_km {
-                    Text("\(String(format: "%.1f", distance)) km")
-                        .font(.title3)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                } else if let sets = exercise.sets, let reps = exercise.reps?.first {
-                    Text("\(sets) sets × \(reps) reps")
-                        .font(.title3)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                } else if let rounds = exercise.rounds {
-                    Text("\(rounds) rounds")
-                        .font(.title3)
-                        .fontWeight(.medium)
-                        .foregroundColor(.white)
-                }
-                
-                // Subtitle with instructor/program info
+                // Duration/time info
                 HStack(spacing: 4) {
-                    if let muscles = exercise.muscles_utilized?.sorted(by: { $0.share > $1.share }).prefix(2) {
-                        let muscleNames = muscles.map { $0.muscle.capitalized }.joined(separator: " • ")
-                        Text("• \(muscleNames)")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    }
-                    
-                    if exercise.type == "strength" {
-                        Text("• Strength Training")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    } else if exercise.type.contains("cardio") {
-                        Text("• Cardio")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    } else if exercise.type == "hiit" {
-                        Text("• HIIT")
-                            .font(.caption)
-                            .foregroundColor(.gray)
+                    if let duration = exercise.duration_min, duration > 0 {
+                        Text("\(duration)min")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(Color(hex: "212529"))
+                    } else if let sets = exercise.sets {
+                        Text("\(sets) sets")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(Color(hex: "212529"))
+                    } else {
+                        Text("Workout")
+                            .font(.title2)
+                            .fontWeight(.bold)
+                            .foregroundColor(Color(hex: "212529"))
                     }
                 }
             }
-            .padding(.leading, 16)
-            .padding(.trailing, 16)
-            .padding(.vertical, 16)
+            
+            // Exercise name - most prominent
+            Text(exercise.exercise_name)
+                .font(.system(size: 28, weight: .bold))
+                .foregroundColor(Color(hex: "212529"))
+                .lineLimit(2)
+            
+            // Distance or key metric
+            if let distance = exercise.distance_km {
+                Text("\(String(format: "%.1f", distance)) km")
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .foregroundColor(Color(hex: "212529").opacity(0.7))
+            } else if let sets = exercise.sets, let reps = exercise.reps?.first {
+                Text("\(sets) sets × \(reps) reps")
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .foregroundColor(Color(hex: "212529").opacity(0.7))
+            } else if let rounds = exercise.rounds {
+                Text("\(rounds) rounds")
+                    .font(.title3)
+                    .fontWeight(.medium)
+                    .foregroundColor(Color(hex: "212529").opacity(0.7))
+            }
+            
+            // Subtitle with instructor/program info
+            HStack(spacing: 4) {
+                if let muscles = exercise.muscles_utilized?.sorted(by: { $0.share > $1.share }).prefix(2) {
+                    let muscleNames = muscles.map { $0.muscle.capitalized }.joined(separator: " • ")
+                    Text(muscleNames)
+                        .font(.caption)
+                        .foregroundColor(Color(hex: "212529").opacity(0.5))
+                }
+                
+                if exercise.type == "strength" {
+                    Text("• Strength Training")
+                        .font(.caption)
+                        .foregroundColor(Color(hex: "212529").opacity(0.5))
+                } else if exercise.type.contains("cardio") {
+                    Text("• Cardio")
+                        .font(.caption)
+                        .foregroundColor(Color(hex: "212529").opacity(0.5))
+                } else if exercise.type == "hiit" {
+                    Text("• HIIT")
+                        .font(.caption)
+                        .foregroundColor(Color(hex: "212529").opacity(0.5))
+                }
+            }
         }
+        .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(red: 0.12, green: 0.12, blue: 0.12))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color(red: 0.25, green: 0.25, blue: 0.25), lineWidth: 0.5)
-        )
+        .background(Color(hex: "ffffff"))
+        .cornerRadius(20)
+        .shadow(color: Color.black.opacity(0.08), radius: 10, x: 0, y: 5)
     }
 }
 
@@ -773,50 +725,6 @@ struct MuscleUtilizationView: View {
                     .padding(.vertical, 2)
                     .background(Color.gray.opacity(0.3))
                     .cornerRadius(0)
-                }
-            }
-        }
-    }
-}
-
-
-
-struct ProfileView: View {
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            VStack {
-                Text("Profile View")
-                    .font(.title)
-                Spacer()
-            }
-            .navigationTitle("Profile")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }
-                }
-            }
-        }
-    }
-}
-
-struct InfoView: View {
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        NavigationView {
-            VStack {
-                Text("App Information")
-                    .font(.title)
-                Spacer()
-            }
-            .navigationTitle("Info")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }
                 }
             }
         }
