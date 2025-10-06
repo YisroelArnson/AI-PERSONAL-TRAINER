@@ -64,37 +64,33 @@ struct FloatingNavigationBar: View {
             Button(action: {
                 showingProfile = true
             }) {
-                Image(systemName: "person.crop.circle.fill")
+                Image(systemName: "person.fill")
                     .font(.system(size: 18))
                     .foregroundColor(Color(hex: "ffffff"))
                     .frame(width: 40, height: 40)
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 10)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 40)
-                .fill(Color(hex: "212529"))
-                .shadow(color: Color.black.opacity(0.2), radius: 20, x: 0, y: 10)
+            RoundedRectangle(cornerRadius: 30)
+                .fill(Color.black.opacity(0.5))
+                .blur(radius: 20)
+        )
+        .background(
+            RoundedRectangle(cornerRadius: 30)
+                .fill(Color.black.opacity(0.7))
         )
     }
 }
 
 #Preview {
-    ZStack {
-        Color.black.ignoresSafeArea()
-        
-        VStack {
-            Spacer()
-            FloatingNavigationBar(
-                showingStats: .constant(false),
-                showingInfo: .constant(false),
-                showingAssistant: .constant(false),
-                showingWritingMode: .constant(false),
-                showingProfile: .constant(false)
-            )
-            .padding(.bottom, 30)
-        }
-    }
+    FloatingNavigationBar(
+        showingStats: .constant(false),
+        showingInfo: .constant(false),
+        showingAssistant: .constant(false),
+        showingWritingMode: .constant(false),
+        showingProfile: .constant(false)
+    )
 }
 

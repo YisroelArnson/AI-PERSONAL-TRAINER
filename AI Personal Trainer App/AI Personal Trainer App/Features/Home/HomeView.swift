@@ -1,5 +1,5 @@
 //
-//  ContentView.swift
+//  HomeView.swift
 //  AI Personal Trainer App
 //
 //  Created by ISWA on 8/21/25.
@@ -7,35 +7,7 @@
 
 import SwiftUI
 
-// MARK: - Color Extension for Hex Support
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (1, 1, 1, 0)
-        }
-
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue:  Double(b) / 255,
-            opacity: Double(a) / 255
-        )
-    }
-}
-
-struct ContentView: View {
+struct HomeView: View {
     @State private var currentExerciseIndex = 0
     @State private var exercises = UIExercise.sampleExercises
     
@@ -43,7 +15,7 @@ struct ContentView: View {
         GeometryReader { geometry in
             ZStack {
                 // Background layer - Light gray #f5f6f7
-                Color(hex: "f5f6f7")
+                AppTheme.Colors.background
                     .ignoresSafeArea()
                 
                 // Main content layer
@@ -235,10 +207,10 @@ struct ExerciseCardView: View {
                 Text(exercise.type.replacingOccurrences(of: "_", with: " ").uppercased())
                     .font(.caption)
                     .fontWeight(.semibold)
-                    .foregroundColor(Color(hex: "212529"))
+                    .foregroundColor(AppTheme.Colors.primaryText)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 6)
-                    .background(Color(hex: "f5f6f7"))
+                    .background(AppTheme.Colors.background)
                     .cornerRadius(8)
                 
                 Spacer()
@@ -249,17 +221,17 @@ struct ExerciseCardView: View {
                         Text("\(duration)min")
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundColor(Color(hex: "212529"))
+                            .foregroundColor(AppTheme.Colors.primaryText)
                     } else if let sets = exercise.sets {
                         Text("\(sets) sets")
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundColor(Color(hex: "212529"))
+                            .foregroundColor(AppTheme.Colors.primaryText)
                     } else {
                         Text("Workout")
                             .font(.title2)
                             .fontWeight(.bold)
-                            .foregroundColor(Color(hex: "212529"))
+                            .foregroundColor(AppTheme.Colors.primaryText)
                     }
                 }
             }
@@ -267,7 +239,7 @@ struct ExerciseCardView: View {
             // Exercise name - most prominent
             Text(exercise.exercise_name)
                 .font(.system(size: 28, weight: .bold))
-                .foregroundColor(Color(hex: "212529"))
+                .foregroundColor(AppTheme.Colors.primaryText)
                 .lineLimit(2)
             
             // Distance or key metric
@@ -275,17 +247,17 @@ struct ExerciseCardView: View {
                 Text("\(String(format: "%.1f", distance)) km")
                     .font(.title3)
                     .fontWeight(.medium)
-                    .foregroundColor(Color(hex: "212529").opacity(0.7))
+                    .foregroundColor(AppTheme.Colors.primaryText.opacity(0.7))
             } else if let sets = exercise.sets, let reps = exercise.reps?.first {
                 Text("\(sets) sets × \(reps) reps")
                     .font(.title3)
                     .fontWeight(.medium)
-                    .foregroundColor(Color(hex: "212529").opacity(0.7))
+                    .foregroundColor(AppTheme.Colors.primaryText.opacity(0.7))
             } else if let rounds = exercise.rounds {
                 Text("\(rounds) rounds")
                     .font(.title3)
                     .fontWeight(.medium)
-                    .foregroundColor(Color(hex: "212529").opacity(0.7))
+                    .foregroundColor(AppTheme.Colors.primaryText.opacity(0.7))
             }
             
             // Subtitle with instructor/program info
@@ -294,27 +266,27 @@ struct ExerciseCardView: View {
                     let muscleNames = muscles.map { $0.muscle.capitalized }.joined(separator: " • ")
                     Text(muscleNames)
                         .font(.caption)
-                        .foregroundColor(Color(hex: "212529").opacity(0.5))
+                        .foregroundColor(AppTheme.Colors.primaryText.opacity(0.5))
                 }
                 
                 if exercise.type == "strength" {
                     Text("• Strength Training")
                         .font(.caption)
-                        .foregroundColor(Color(hex: "212529").opacity(0.5))
+                        .foregroundColor(AppTheme.Colors.primaryText.opacity(0.5))
                 } else if exercise.type.contains("cardio") {
                     Text("• Cardio")
                         .font(.caption)
-                        .foregroundColor(Color(hex: "212529").opacity(0.5))
+                        .foregroundColor(AppTheme.Colors.primaryText.opacity(0.5))
                 } else if exercise.type == "hiit" {
                     Text("• HIIT")
                         .font(.caption)
-                        .foregroundColor(Color(hex: "212529").opacity(0.5))
+                        .foregroundColor(AppTheme.Colors.primaryText.opacity(0.5))
                 }
             }
         }
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(hex: "ffffff"))
+        .background(AppTheme.Colors.cardBackground)
         .cornerRadius(20)
         .shadow(color: Color.black.opacity(0.08), radius: 10, x: 0, y: 5)
     }
@@ -758,7 +730,7 @@ struct LocationView: View {
 // MARK: - Data Models
 
 struct UIExercise: Identifiable, Codable {
-    let id = UUID()
+    let id: UUID
     let exercise_name: String
     let type: String // exercise type (strength, cardio_distance, etc.)
     let aliases: [String]?
@@ -785,6 +757,31 @@ struct UIExercise: Identifiable, Codable {
     let target_intensity: String?
     let hold_duration_sec: [Int]?
     let progression_level: String?
+    
+    // Custom initializer to generate UUID
+    init(exercise_name: String, type: String, aliases: [String]? = nil, duration_min: Int? = nil, reps: [Int]? = nil, load_kg_each: [Double]? = nil, sets: Int? = nil, distance_km: Double? = nil, intervals: [ExerciseInterval]? = nil, rounds: Int? = nil, muscles_utilized: [MuscleUtilization]? = nil, rest_seconds: Int? = nil, target_pace: String? = nil, target_intensity: String? = nil, hold_duration_sec: [Int]? = nil, progression_level: String? = nil) {
+        self.id = UUID()
+        self.exercise_name = exercise_name
+        self.type = type
+        self.aliases = aliases
+        self.duration_min = duration_min
+        self.reps = reps
+        self.load_kg_each = load_kg_each
+        self.sets = sets
+        self.distance_km = distance_km
+        self.intervals = intervals
+        self.rounds = rounds
+        self.muscles_utilized = muscles_utilized
+        self.rest_seconds = rest_seconds
+        self.target_pace = target_pace
+        self.target_intensity = target_intensity
+        self.hold_duration_sec = hold_duration_sec
+        self.progression_level = progression_level
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case id, exercise_name, type, aliases, duration_min, reps, load_kg_each, sets, distance_km, intervals, rounds, muscles_utilized, rest_seconds, target_pace, target_intensity, hold_duration_sec, progression_level
+    }
     
     static var sampleExercises: [UIExercise] {
         let benchPress = UIExercise(
@@ -872,6 +869,7 @@ struct LocationInfo {
     )
 }
 
+
 #Preview {
-    ContentView()
+    HomeView()
 }

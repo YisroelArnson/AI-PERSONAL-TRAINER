@@ -9,19 +9,27 @@ import SwiftUI
 
 struct AppView: View {
   @State var isAuthenticated = false
+  @StateObject private var userDataStore = UserDataStore.shared
 
   var body: some View {
     Group {
       if isAuthenticated {
         MainAppView()
+          .environmentObject(userDataStore)
       } else {
-        MainAppView()
+        AuthView()
       }
     }
     .task {
       for await state in supabase.auth.authStateChanges {
         if [.initialSession, .signedIn, .signedOut].contains(state.event) {
           isAuthenticated = state.session != nil
+          
+          // Load user data when authenticated
+          if isAuthenticated {
+            await userDataStore.loadAllUserData()
+            print("✅ User data loaded successfully on open from AppView")
+          }
         }
       }
     }
@@ -39,7 +47,7 @@ struct MainAppView: View {
     var body: some View {
         ZStack {
             // Main content
-            ContentView()
+            HomeView()
             
             // Floating navigation bar - always on top
             VStack {
@@ -72,3 +80,8 @@ struct MainAppView: View {
         }
     }
 }
+
+#Preview {
+    AppView()
+}
+
