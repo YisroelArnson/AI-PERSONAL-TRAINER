@@ -19,6 +19,12 @@ app.use('/agent', orchestrationAgentRouter);
 const recommendRouter = require('./routes/recommend.routes');
 app.use('/recommend', recommendRouter);
 
+const preferenceRouter = require('./routes/preference.routes');
+app.use('/preferences', preferenceRouter);
+
+const categoryGoalsRouter = require('./routes/categoryGoals.routes');
+app.use('/category-goals', categoryGoalsRouter);
+
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);

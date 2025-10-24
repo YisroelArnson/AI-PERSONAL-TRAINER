@@ -30,7 +30,6 @@
 		12FF743E2E942AFF00958D26 /* MuscleGoalsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF74322E942AFF00958D26 /* MuscleGoalsSection.swift */; };
 		12FF743F2E942AFF00958D26 /* CategoryGoalsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF74332E942AFF00958D26 /* CategoryGoalsSection.swift */; };
 		12FF74402E942AFF00958D26 /* EmptyPreferencesState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF74342E942AFF00958D26 /* EmptyPreferencesState.swift */; };
-		12FF74412E942AFF00958D26 /* PreferencesManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF74362E942AFF00958D26 /* PreferencesManagerView.swift */; };
 		12FF74422E942AFF00958D26 /* AddPreferenceSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF74372E942AFF00958D26 /* AddPreferenceSheet.swift */; };
 		12FF74432E942AFF00958D26 /* InfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF74382E942AFF00958D26 /* InfoView.swift */; };
 		12FF74442E942AFF00958D26 /* MuscleGoalSetterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF74392E942AFF00958D26 /* MuscleGoalSetterView.swift */; };
@@ -40,6 +39,7 @@
 		12FF744F2E94466700958D26 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF744D2E94466700958D26 /* AuthView.swift */; };
 		12FF74502E94466700958D26 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF744E2E94466700958D26 /* APIService.swift */; };
 		12FF74522E944B2600958D26 /* UserDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF74512E944B2600958D26 /* UserDataStore.swift */; };
+		12FF74542E9458FC00958D26 /* PreferenceManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF74532E9458FB00958D26 /* PreferenceManagerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -86,7 +86,6 @@
 		12FF74322E942AFF00958D26 /* MuscleGoalsSection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuscleGoalsSection.swift; sourceTree = "<group>"; };
 		12FF74332E942AFF00958D26 /* CategoryGoalsSection.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CategoryGoalsSection.swift; sourceTree = "<group>"; };
 		12FF74342E942AFF00958D26 /* EmptyPreferencesState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = EmptyPreferencesState.swift; sourceTree = "<group>"; };
-		12FF74362E942AFF00958D26 /* PreferencesManagerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreferencesManagerView.swift; sourceTree = "<group>"; };
 		12FF74372E942AFF00958D26 /* AddPreferenceSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AddPreferenceSheet.swift; sourceTree = "<group>"; };
 		12FF74382E942AFF00958D26 /* InfoView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InfoView.swift; sourceTree = "<group>"; };
 		12FF74392E942AFF00958D26 /* MuscleGoalSetterView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuscleGoalSetterView.swift; sourceTree = "<group>"; };
@@ -96,6 +95,7 @@
 		12FF744D2E94466700958D26 /* AuthView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		12FF744E2E94466700958D26 /* APIService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		12FF74512E944B2600958D26 /* UserDataStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UserDataStore.swift; sourceTree = "<group>"; };
+		12FF74532E9458FB00958D26 /* PreferenceManagerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreferenceManagerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -329,7 +329,7 @@
 		12FF74352E942AFF00958D26 /* Views */ = {
 			isa = PBXGroup;
 			children = (
-				12FF74362E942AFF00958D26 /* PreferencesManagerView.swift */,
+				12FF74532E9458FB00958D26 /* PreferenceManagerView.swift */,
 				12FF74372E942AFF00958D26 /* AddPreferenceSheet.swift */,
 				12FF74382E942AFF00958D26 /* InfoView.swift */,
 				12FF74392E942AFF00958D26 /* MuscleGoalSetterView.swift */,
@@ -516,10 +516,10 @@
 				12FF742B2E94280A00958D26 /* WritingModeView.swift in Sources */,
 				12FF743F2E942AFF00958D26 /* CategoryGoalsSection.swift in Sources */,
 				12FF743D2E942AFF00958D26 /* ActivePreferencesSection.swift in Sources */,
-				12FF74412E942AFF00958D26 /* PreferencesManagerView.swift in Sources */,
 				12FF742E2E94280A00958D26 /* StatsView.swift in Sources */,
 				12FF741F2E94280A00958D26 /* AppTheme.swift in Sources */,
 				12FF74472E942AFF00958D26 /* CategoryGoalsAIAssistSheet.swift in Sources */,
+				12FF74542E9458FC00958D26 /* PreferenceManagerView.swift in Sources */,
 				12FF743E2E942AFF00958D26 /* MuscleGoalsSection.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

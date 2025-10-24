@@ -9,7 +9,7 @@ import Foundation
 import Supabase
 
 class APIService: ObservableObject {
-    private let baseURL = "http://192.168.1.7:3000"
+    private let baseURL = "http://192.168.1.171:3000"
     
     // MARK: - Authentication Helpers
     private func getAuthToken() async throws -> String {
@@ -170,6 +170,93 @@ class APIService: ObservableObject {
                 }
             }
         }
+    }
+    
+    func parsePreference(preferenceText: String, currentPreference: CurrentPreferenceContext? = nil) async throws -> ParsedPreference {
+        guard let url = URL(string: "\(baseURL)/preferences/parse") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        
+        let requestBody = ParsePreferenceRequest(
+            preferenceText: preferenceText,
+            currentPreference: currentPreference
+        )
+        let encoder = JSONEncoder()
+        request.httpBody = try encoder.encode(requestBody)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw APIError.unauthorized
+            } else if httpResponse.statusCode == 403 {
+                throw APIError.forbidden
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        let apiResponse = try JSONDecoder().decode(ParsePreferenceResponse.self, from: data)
+        
+        guard apiResponse.success, let parsedPreference = apiResponse.data else {
+            throw APIError.invalidResponse
+        }
+        
+        return parsedPreference
+    }
+    
+    func parseCategoryGoals(goalsText: String, currentGoals: [CategoryGoalItem]? = nil) async throws -> ParsedCategoryGoals {
+        guard let url = URL(string: "\(baseURL)/category-goals/parse") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        
+        let currentGoalsContext = currentGoals?.map { goal in
+            CategoryGoalContext(
+                category: goal.category,
+                description: goal.description,
+                weight: goal.weight,
+                enabled: goal.enabled
+            )
+        }
+        
+        let requestBody = ParseCategoryGoalsRequest(
+            goalsText: goalsText,
+            currentGoals: currentGoalsContext
+        )
+        let encoder = JSONEncoder()
+        request.httpBody = try encoder.encode(requestBody)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw APIError.unauthorized
+            } else if httpResponse.statusCode == 403 {
+                throw APIError.forbidden
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        let apiResponse = try JSONDecoder().decode(ParseCategoryGoalsResponse.self, from: data)
+        
+        guard apiResponse.success, let parsedGoals = apiResponse.data else {
+            throw APIError.invalidResponse
+        }
+        
+        return parsedGoals
     }
 }
 

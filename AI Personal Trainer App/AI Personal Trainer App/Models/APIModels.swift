@@ -222,6 +222,70 @@ struct AnyCodable: Codable {
     }
 }
 
+// MARK: - Preference Models
+struct ParsePreferenceRequest: Codable {
+    let preferenceText: String
+    let currentPreference: CurrentPreferenceContext?
+}
+
+struct CurrentPreferenceContext: Codable {
+    let type: String?
+    let description: String?
+    let userTranscription: String?
+    let recommendationsGuidance: String?
+    let deleteAfterCall: Bool?
+    let hasExpireTime: Bool?
+    let expireTime: String?
+}
+
+struct ParsePreferenceResponse: Codable {
+    let success: Bool
+    let data: ParsedPreference?
+    let timestamp: String
+    let error: String?
+    let details: String?
+}
+
+struct ParsedPreference: Codable {
+    let type: String
+    let description: String
+    let recommendationsGuidance: String
+    let expireTime: String?
+    let deleteAfterCall: Bool
+    let reasoning: String
+}
+
+// MARK: - Category Goal Parsing Models
+struct ParseCategoryGoalsRequest: Codable {
+    let goalsText: String
+    let currentGoals: [CategoryGoalContext]?
+}
+
+struct CategoryGoalContext: Codable {
+    let category: String
+    let description: String
+    let weight: Double
+    let enabled: Bool
+}
+
+struct ParseCategoryGoalsResponse: Codable {
+    let success: Bool
+    let data: ParsedCategoryGoals?
+    let timestamp: String
+    let error: String?
+}
+
+struct ParsedCategoryGoals: Codable {
+    let goals: [ParsedCategoryGoal]
+    let reasoning: String
+}
+
+struct ParsedCategoryGoal: Codable {
+    let category: String
+    let description: String
+    let weight: Double
+}
+
 // MARK: - Error Models
 enum APIError: Error, LocalizedError {
     case invalidURL

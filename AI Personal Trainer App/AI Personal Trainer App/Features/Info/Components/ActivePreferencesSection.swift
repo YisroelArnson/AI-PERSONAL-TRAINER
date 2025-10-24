@@ -9,11 +9,50 @@ import SwiftUI
 
 struct ActivePreferencesSection: View {
     @Binding var showingAddPreference: Bool
-    @Binding var showingPreferencesManager: Bool
+    @Binding var selectedPreference: UserPreference?
     @EnvironmentObject var userDataStore: UserDataStore
     
+    // Delete state
+    @State private var showDeleteError: Bool = false
+    @State private var deleteErrorMessage: String = ""
+    
     var enabledPreferences: [UserPreference] {
-        userDataStore.preferences.filter { $0.enabled }
+        userDataStore.preferences
+    }
+    
+    // Group and sort preferences
+    var groupedAndSortedPreferences: [(String, [UserPreference])] {
+        let grouped = Dictionary(grouping: enabledPreferences) { $0.type }
+        
+        // Sort each group
+        return grouped.map { (type, preferences) in
+            let sorted = preferences.sorted { pref1, pref2 in
+                // Delete after call comes first
+                if pref1.deleteAfterCall && !pref2.deleteAfterCall {
+                    return true
+                } else if !pref1.deleteAfterCall && pref2.deleteAfterCall {
+                    return false
+                }
+                
+                // Then permanent (no expireTime) comes before temporary
+                let isPerm1 = pref1.expireTime == nil && !pref1.deleteAfterCall
+                let isPerm2 = pref2.expireTime == nil && !pref2.deleteAfterCall
+                
+                if isPerm1 && !isPerm2 {
+                    return true
+                } else if !isPerm1 && isPerm2 {
+                    return false
+                }
+                
+                // Among temporary, sort by expiration (earlier expires first)
+                if let exp1 = pref1.expireTime, let exp2 = pref2.expireTime {
+                    return exp1 < exp2
+                }
+                
+                return false
+            }
+            return (type, sorted)
+        }.sorted { $0.0 < $1.0 } // Sort groups alphabetically by type
     }
     
     var body: some View {
@@ -27,16 +66,9 @@ struct ActivePreferencesSection: View {
                 
                 Spacer()
                 
-                HStack(spacing: AppTheme.Spacing.md) {
-                    // Add Preference Button
-                    ActionButton(icon: "plus") {
-                        showingPreferencesManager = true
-                    }
-                    
-                    // AI Assist Button
-                    ActionButton(icon: "sparkles") {
-                        showingAddPreference = true
-                    }
+                // Add Preference Button
+                ActionButton(icon: "plus") {
+                    showingAddPreference = true
                 }
             }
             
@@ -45,10 +77,38 @@ struct ActivePreferencesSection: View {
                 // Empty State
                 EmptyPreferencesState(showingAddPreference: $showingAddPreference)
             } else {
-                // Display Preferences
-                VStack(spacing: AppTheme.Spacing.md) {
-                    ForEach(enabledPreferences) { preference in
-                        PreferenceCard(preference: preference)
+                // Display Preferences grouped by type
+                VStack(spacing: AppTheme.Spacing.lg) {
+                    ForEach(groupedAndSortedPreferences, id: \.0) { (type, preferences) in
+                        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                            // Type header
+                            Text(type.capitalized.replacingOccurrences(of: "_", with: " "))
+                                .font(.headline)
+                                .fontWeight(.semibold)
+                                .foregroundColor(AppTheme.Colors.secondaryText)
+                                .padding(.horizontal, AppTheme.Spacing.sm)
+                            
+                            // Preferences in this type
+                            ForEach(preferences) { preference in
+                                PreferenceCard(preference: preference)
+                                    .onTapGesture {
+                                        selectedPreference = preference
+                                    }
+                                    .contextMenu {
+                                        Button(action: {
+                                            selectedPreference = preference
+                                        }) {
+                                            Label("Edit", systemImage: "pencil")
+                                        }
+                                        
+                                        Button(role: .destructive, action: {
+                                            deletePreference(preference)
+                                        }) {
+                                            Label("Delete", systemImage: "trash")
+                                        }
+                                    }
+                            }
+                        }
                     }
                 }
             }
@@ -62,6 +122,39 @@ struct ActivePreferencesSection: View {
             x: AppTheme.Shadow.cardOffset.width,
             y: AppTheme.Shadow.cardOffset.height
         )
+        .alert("Error", isPresented: $showDeleteError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(deleteErrorMessage)
+        }
+    }
+    
+    // MARK: - Delete Preference
+    private func deletePreference(_ preference: UserPreference) {
+        Task {
+            do {
+                // Delete from Supabase
+                try await supabase
+                    .from("preferences")
+                    .delete()
+                    .eq("id", value: preference.id)
+                    .execute()
+                
+                // Update local state
+                await MainActor.run {
+                    userDataStore.removePreference(id: preference.id)
+                }
+                
+                print("✅ Preference deleted successfully")
+                
+            } catch {
+                await MainActor.run {
+                    deleteErrorMessage = "Failed to delete preference: \(error.localizedDescription)"
+                    showDeleteError = true
+                }
+                print("❌ Error deleting preference: \(error)")
+            }
+        }
     }
 }
 
@@ -180,14 +273,15 @@ private struct PreferenceCard: View {
         }
         .padding(AppTheme.Spacing.md)
         .background(AppTheme.Colors.background)
-        .cornerRadius(AppTheme.CornerRadius.medium)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
+        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }
 }
 
 #Preview {
     ActivePreferencesSection(
         showingAddPreference: .constant(false),
-        showingPreferencesManager: .constant(false)
+        selectedPreference: .constant(nil)
     )
     .environmentObject(UserDataStore.shared)
     .padding()

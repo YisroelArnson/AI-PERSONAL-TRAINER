@@ -69,6 +69,8 @@ struct CategoryGoalsAIAssistSheet: View {
                                         RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
                                             .stroke(AppTheme.Colors.border, lineWidth: 1)
                                     )
+                                    .scrollContentBackground(.hidden)
+                                    .colorScheme(.light)
                             }
                             .padding(.horizontal, AppTheme.Spacing.xl)
                             

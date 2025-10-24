@@ -13,7 +13,7 @@ struct InfoView: View {
     
     // Active Preferences state
     @State private var showingAddPreference = false
-    @State private var showingPreferencesManager = false
+    @State private var selectedPreference: UserPreference? = nil
     
     // Category Goals state
     @State private var showingCategoryAIAssist = false
@@ -34,7 +34,7 @@ struct InfoView: View {
                         // Section 1: Active Preferences
                         ActivePreferencesSection(
                             showingAddPreference: $showingAddPreference,
-                            showingPreferencesManager: $showingPreferencesManager
+                            selectedPreference: $selectedPreference
                         )
                         
                         // Section 2: Category Goals
@@ -64,9 +64,10 @@ struct InfoView: View {
             // Active Preferences sheets
             .sheet(isPresented: $showingAddPreference) {
                 AddPreferenceSheet()
+                    .environmentObject(userDataStore)
             }
-            .sheet(isPresented: $showingPreferencesManager) {
-                PreferencesManagerView()
+            .sheet(item: $selectedPreference) { preference in
+                PreferenceManagerView(preference: preference)
             }
             // Category Goals sheets
             .sheet(isPresented: $showingCategoryAIAssist) {

@@ -175,8 +175,7 @@ class UserDataStore: ObservableObject {
                 userTranscription: db.user_transcription ?? "",
                 recommendationsGuidance: db.recommendations_guidance ?? "",
                 expireTime: db.expire_time,
-                deleteAfterCall: db.delete_after_call ?? false,
-                enabled: db.enabled ?? true
+                deleteAfterCall: db.delete_after_call ?? false
             )
         }
     }
@@ -303,12 +302,10 @@ struct UserPreferenceDB: Codable {
     let recommendations_guidance: String?
     let expire_time: Date?
     let delete_after_call: Bool?
-    let enabled: Bool?
     let created_at: Date?
-    let updated_at: Date?
     
     enum CodingKeys: String, CodingKey {
-        case id, user_id, type, description, user_transcription, recommendations_guidance, expire_time, delete_after_call, enabled, created_at, updated_at
+        case id, user_id, type, description, user_transcription, recommendations_guidance, expire_time, delete_after_call, created_at
     }
 }
 
@@ -322,9 +319,8 @@ struct UserPreference: Identifiable, Codable {
     var recommendationsGuidance: String
     var expireTime: Date?
     var deleteAfterCall: Bool
-    var enabled: Bool
     
-    init(id: Int, type: String, description: String, userTranscription: String = "", recommendationsGuidance: String = "", expireTime: Date? = nil, deleteAfterCall: Bool = false, enabled: Bool = true) {
+    init(id: Int, type: String, description: String, userTranscription: String = "", recommendationsGuidance: String = "", expireTime: Date? = nil, deleteAfterCall: Bool = false) {
         self.id = id
         self.type = type
         self.description = description
@@ -332,7 +328,6 @@ struct UserPreference: Identifiable, Codable {
         self.recommendationsGuidance = recommendationsGuidance
         self.expireTime = expireTime
         self.deleteAfterCall = deleteAfterCall
-        self.enabled = enabled
     }
 }
 

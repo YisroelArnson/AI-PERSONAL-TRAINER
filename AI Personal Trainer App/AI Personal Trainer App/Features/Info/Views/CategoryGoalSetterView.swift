@@ -10,11 +10,20 @@ import SwiftUI
 struct CategoryGoalSetterView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var userDataStore: UserDataStore
+    @StateObject private var apiService = APIService()
     
     // Local editable copy of category goals
     @State private var categoryGoals: [CategoryGoalItem] = []
     @State private var showingAddCategory = false
     @State private var showingPresets = false
+    
+    // AI State variables
+    @State private var aiInputText: String = ""
+    @State private var isProcessingAI: Bool = false
+    
+    // UI State
+    @State private var errorMessage: String?
+    @State private var showError: Bool = false
     
     var enabledGoals: [CategoryGoalItem] {
         categoryGoals.filter { $0.enabled }
@@ -98,7 +107,6 @@ struct CategoryGoalSetterView: View {
                                         ForEach(enabledGoals) { goal in
                                             CategoryGoalRow(
                                                 goal: binding(for: goal.id),
-                                                onEdit: { editCategory(goal) },
                                                 onDelete: { deleteCategory(goal.id) }
                                             )
                                         }
@@ -118,7 +126,6 @@ struct CategoryGoalSetterView: View {
                                             ForEach(disabledGoals) { goal in
                                                 CategoryGoalRow(
                                                     goal: binding(for: goal.id),
-                                                    onEdit: { editCategory(goal) },
                                                     onDelete: { deleteCategory(goal.id) }
                                                 )
                                                 .opacity(0.5)
@@ -186,45 +193,58 @@ struct CategoryGoalSetterView: View {
                             .padding(.top, AppTheme.Spacing.lg)
                         }
                         .padding(.top, AppTheme.Spacing.xl)
-                        .padding(.bottom, 100)
+                        .padding(.bottom, 80)
                     }
+                    .simultaneousGesture(
+                        DragGesture().onChanged { _ in
+                            hideKeyboard()
+                        }
+                    )
                 }
                 
-                // Save button (fixed at bottom)
+                // Floating AI Input Field
                 VStack {
                     Spacer()
                     
-                    Button(action: saveGoals) {
-                        Text("Save Goals")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(AppTheme.Colors.cardBackground)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background((isValidTotal || categoryGoals.isEmpty) ? AppTheme.Colors.primaryText : AppTheme.Colors.border)
-                            .cornerRadius(AppTheme.CornerRadius.small)
-                    }
-                    .disabled(!isValidTotal && !categoryGoals.isEmpty)
-                    .padding(.horizontal, AppTheme.Spacing.xl)
-                    .padding(.bottom, AppTheme.Spacing.xl)
-                    .background(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                AppTheme.Colors.background.opacity(0),
-                                AppTheme.Colors.background
-                            ]),
-                            startPoint: .top,
-                            endPoint: .bottom
+                    HStack(spacing: AppTheme.Spacing.md) {
+                        TextField("Describe your fitness goals...", text: $aiInputText)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .padding(AppTheme.Spacing.md)
+                            .background(AppTheme.Colors.cardBackground)
+                            .cornerRadius(AppTheme.CornerRadius.medium)
+                            .disabled(isProcessingAI)
+                        
+                        SendButton(
+                            isProcessing: isProcessingAI,
+                            isEnabled: !aiInputText.isEmpty,
+                            action: handleSendTap
                         )
-                        .frame(height: 100)
-                    )
+                    }
+                    .padding(AppTheme.Spacing.md)
+                    .background(AppTheme.Colors.background)
+                    .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: -2)
                 }
             }
             .navigationTitle("Category Goals")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { 
+                        dismiss() 
+                    }
+                    .disabled(isProcessingAI)
                 }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        saveGoals()
+                    }
+                    .disabled((!isValidTotal && !categoryGoals.isEmpty) || isProcessingAI)
+                }
+            }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "An unknown error occurred")
             }
         }
         .onAppear {
@@ -249,10 +269,6 @@ struct CategoryGoalSetterView: View {
                 }
             }
         )
-    }
-    
-    private func editCategory(_ goal: CategoryGoalItem) {
-        // Will be implemented with edit sheet
     }
     
     private func deleteCategory(_ id: UUID) {
@@ -346,6 +362,53 @@ struct CategoryGoalSetterView: View {
                 dismiss()
             } catch {
                 print("❌ Error saving goals: \(error)")
+            }
+        }
+    }
+    
+    private func handleSendTap() {
+        guard !aiInputText.isEmpty else { return }
+        processWithAI()
+    }
+    
+    private func processWithAI() {
+        isProcessingAI = true
+        errorMessage = nil
+        showError = false
+        
+        let inputText = aiInputText
+        let currentGoalsContext = categoryGoals.isEmpty ? nil : categoryGoals
+        
+        Task {
+            do {
+                // Call the API to parse category goals
+                let parsedGoals = try await apiService.parseCategoryGoals(
+                    goalsText: inputText,
+                    currentGoals: currentGoalsContext
+                )
+                
+                await MainActor.run {
+                    // Replace current goals with AI-generated goals
+                    categoryGoals = parsedGoals.goals.map { goal in
+                        CategoryGoalItem(
+                            category: goal.category,
+                            description: goal.description,
+                            weight: goal.weight,
+                            enabled: true
+                        )
+                    }
+                    
+                    // Clear the input after successful processing
+                    aiInputText = ""
+                    isProcessingAI = false
+                }
+                
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Failed to parse goals: \(error.localizedDescription)"
+                    showError = true
+                    isProcessingAI = false
+                }
             }
         }
     }
@@ -466,21 +529,64 @@ private struct PresetButton: View {
 // MARK: - Category Goal Row
 private struct CategoryGoalRow: View {
     @Binding var goal: CategoryGoalItem
-    let onEdit: () -> Void
     let onDelete: () -> Void
+    @FocusState private var focusedField: Field?
+    
+    enum Field {
+        case category
+        case description
+    }
+    
+    private var categoryNameField: some View {
+        TextField("Category Name", text: $goal.category, axis: .vertical)
+            .font(.system(size: 17, weight: .semibold))
+            .foregroundColor(AppTheme.Colors.primaryText)
+            .textFieldStyle(PlainTextFieldStyle())
+            .lineLimit(3)
+            .padding(8)
+            .background(categoryBackground)
+            .overlay(categoryBorder)
+            .focused($focusedField, equals: .category)
+    }
+    
+    private var descriptionField: some View {
+        TextField("Description", text: $goal.description, axis: .vertical)
+            .font(.system(size: 13))
+            .foregroundColor(AppTheme.Colors.secondaryText)
+            .textFieldStyle(PlainTextFieldStyle())
+            .lineLimit(5)
+            .padding(8)
+            .background(descriptionBackground)
+            .overlay(descriptionBorder)
+            .focused($focusedField, equals: .description)
+    }
+    
+    private var categoryBackground: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(focusedField == .category ? Color.blue.opacity(0.05) : Color.gray.opacity(0.03))
+    }
+    
+    private var categoryBorder: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .stroke(focusedField == .category ? Color.blue.opacity(0.4) : Color.gray.opacity(0.2), lineWidth: 1)
+    }
+    
+    private var descriptionBackground: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .fill(focusedField == .description ? Color.blue.opacity(0.05) : Color.gray.opacity(0.03))
+    }
+    
+    private var descriptionBorder: some View {
+        RoundedRectangle(cornerRadius: 6)
+            .stroke(focusedField == .description ? Color.blue.opacity(0.4) : Color.gray.opacity(0.2), lineWidth: 1)
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            HStack {
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(goal.category)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.primaryText)
-                    
-                    Text(goal.description)
-                        .font(.system(size: 13))
-                        .foregroundColor(AppTheme.Colors.secondaryText)
-                        .lineLimit(2)
+                    categoryNameField
+                    descriptionField
                 }
                 
                 Spacer()
@@ -489,6 +595,7 @@ private struct CategoryGoalRow: View {
                     .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.blue)
                     .frame(minWidth: 60, alignment: .trailing)
+                    .padding(.top, 8)
             }
             
             Slider(value: $goal.weight, in: 0...1, step: 0.01)
@@ -521,6 +628,10 @@ private struct CategoryGoalRow: View {
             x: AppTheme.Shadow.cardOffset.width,
             y: AppTheme.Shadow.cardOffset.height
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            hideKeyboard()
+        }
     }
 }
 
@@ -622,7 +733,44 @@ private struct AddCategorySheet: View {
     }
 }
 
-#Preview {
-    CategoryGoalSetterView()
+// MARK: - Send Button
+private struct SendButton: View {
+    let isProcessing: Bool
+    let isEnabled: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                // Background circle
+                Circle()
+                    .fill(isEnabled && !isProcessing ? Color.blue : AppTheme.Colors.secondaryText)
+                    .frame(width: 44, height: 44)
+                
+                // Icon
+                if isProcessing {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.9)
+                } else {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .disabled(!isEnabled || isProcessing)
+    }
 }
 
+#Preview {
+    CategoryGoalSetterView()
+        .environmentObject(UserDataStore.shared)
+}
+
+// MARK: - Keyboard Dismissal Helper
+extension View {
+    func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
+    }
+}
