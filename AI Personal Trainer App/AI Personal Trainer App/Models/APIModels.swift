@@ -286,6 +286,24 @@ struct ParsedCategoryGoal: Codable {
     let weight: Double
 }
 
+// MARK: - Muscle Goal Parsing Models
+struct ParseMuscleGoalsRequest: Codable {
+    let goalsText: String
+    let currentGoals: [String: Double]?
+}
+
+struct ParseMuscleGoalsResponse: Codable {
+    let success: Bool
+    let data: ParsedMuscleGoals?
+    let timestamp: String
+    let error: String?
+}
+
+struct ParsedMuscleGoals: Codable {
+    let weights: [String: Double]
+    let reasoning: String
+}
+
 // MARK: - Error Models
 enum APIError: Error, LocalizedError {
     case invalidURL

@@ -258,5 +258,44 @@ class APIService: ObservableObject {
         
         return parsedGoals
     }
+    
+    func parseMuscleGoals(goalsText: String, currentGoals: [String: Double]? = nil) async throws -> ParsedMuscleGoals {
+        guard let url = URL(string: "\(baseURL)/muscle-goals/parse") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        
+        let requestBody = ParseMuscleGoalsRequest(
+            goalsText: goalsText,
+            currentGoals: currentGoals
+        )
+        let encoder = JSONEncoder()
+        request.httpBody = try encoder.encode(requestBody)
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw APIError.unauthorized
+            } else if httpResponse.statusCode == 403 {
+                throw APIError.forbidden
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        let apiResponse = try JSONDecoder().decode(ParseMuscleGoalsResponse.self, from: data)
+        
+        guard apiResponse.success, let parsedGoals = apiResponse.data else {
+            throw APIError.invalidResponse
+        }
+        
+        return parsedGoals
+    }
 }
 

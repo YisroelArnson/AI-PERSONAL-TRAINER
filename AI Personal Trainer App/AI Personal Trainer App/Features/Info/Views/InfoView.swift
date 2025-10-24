@@ -75,6 +75,7 @@ struct InfoView: View {
             }
             .sheet(isPresented: $showingCategoryGoalSetter) {
                 CategoryGoalSetterView()
+                    .environmentObject(userDataStore)
             }
             // Muscle Goals sheets
             .sheet(isPresented: $showingMuscleAIAssist) {
@@ -82,6 +83,7 @@ struct InfoView: View {
             }
             .sheet(isPresented: $showingMuscleGoalSetter) {
                 MuscleGoalSetterView()
+                    .environmentObject(userDataStore)
             }
         }
     }

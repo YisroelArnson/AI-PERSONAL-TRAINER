@@ -9,6 +9,8 @@ import SwiftUI
 
 struct MuscleGoalSetterView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject var userDataStore: UserDataStore
+    @StateObject private var apiService = APIService()
     
     // All 16 muscles with initial weights
     @State private var muscleWeights: [String: Double] = [
@@ -34,6 +36,14 @@ struct MuscleGoalSetterView: View {
         "Chest", "Back", "Shoulders", "Biceps", "Triceps", "Abs", "Lower Back", "Quadriceps",
         "Hamstrings", "Glutes", "Calves", "Trapezius", "Abductors", "Adductors", "Forearms", "Neck"
     ]
+    
+    // AI State variables
+    @State private var aiInputText: String = ""
+    @State private var isProcessingAI: Bool = false
+    
+    // UI State
+    @State private var errorMessage: String?
+    @State private var showError: Bool = false
     
     var totalWeight: Double {
         muscleWeights.values.reduce(0, +)
@@ -145,45 +155,61 @@ struct MuscleGoalSetterView: View {
                         .padding(.top, AppTheme.Spacing.lg)
                     }
                     .padding(.top, AppTheme.Spacing.xl)
-                    .padding(.bottom, 100)
+                    .padding(.bottom, 80)
                 }
+                .simultaneousGesture(
+                    DragGesture().onChanged { _ in
+                        hideKeyboard()
+                    }
+                )
                 
-                // Save button (fixed at bottom)
+                // Floating AI Input Field
                 VStack {
                     Spacer()
                     
-                    Button(action: saveGoals) {
-                        Text("Save Goals")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(AppTheme.Colors.cardBackground)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                            .background(isValidTotal ? AppTheme.Colors.primaryText : AppTheme.Colors.border)
-                            .cornerRadius(AppTheme.CornerRadius.small)
-                    }
-                    .disabled(!isValidTotal)
-                    .padding(.horizontal, AppTheme.Spacing.xl)
-                    .padding(.bottom, AppTheme.Spacing.xl)
-                    .background(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                AppTheme.Colors.background.opacity(0),
-                                AppTheme.Colors.background
-                            ]),
-                            startPoint: .top,
-                            endPoint: .bottom
+                    HStack(spacing: AppTheme.Spacing.md) {
+                        TextField("Describe your muscle focus...", text: $aiInputText)
+                            .textFieldStyle(PlainTextFieldStyle())
+                            .padding(AppTheme.Spacing.md)
+                            .background(AppTheme.Colors.cardBackground)
+                            .cornerRadius(AppTheme.CornerRadius.medium)
+                            .disabled(isProcessingAI)
+                        
+                        SendButton(
+                            isProcessing: isProcessingAI,
+                            isEnabled: !aiInputText.isEmpty,
+                            action: handleSendTap
                         )
-                        .frame(height: 100)
-                    )
+                    }
+                    .padding(AppTheme.Spacing.md)
+                    .background(AppTheme.Colors.background)
+                    .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: -2)
                 }
             }
             .navigationTitle("Muscle Goals")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") { 
+                        dismiss() 
+                    }
+                    .disabled(isProcessingAI)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        saveGoals()
+                    }
+                    .disabled(!isValidTotal || isProcessingAI)
                 }
             }
+            .alert("Error", isPresented: $showError) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(errorMessage ?? "An unknown error occurred")
+            }
+        }
+        .onAppear {
+            loadExistingGoals()
         }
     }
     
@@ -192,6 +218,15 @@ struct MuscleGoalSetterView: View {
             get: { muscleWeights[muscle] ?? 0.0 },
             set: { muscleWeights[muscle] = $0 }
         )
+    }
+    
+    private func loadExistingGoals() {
+        // Load existing muscle goals from userDataStore
+        if !userDataStore.muscleGoals.isEmpty {
+            for goal in userDataStore.muscleGoals {
+                muscleWeights[goal.muscle] = goal.weight
+            }
+        }
     }
     
     private func equalize() {
@@ -255,8 +290,99 @@ struct MuscleGoalSetterView: View {
     }
     
     private func saveGoals() {
-        // TODO: Save to backend/user defaults
-        dismiss()
+        Task {
+            do {
+                // Get authenticated user
+                guard let userId = try? await supabase.auth.session.user.id else {
+                    print("❌ User not authenticated")
+                    return
+                }
+                
+                // Delete all existing muscle goals first
+                try await supabase
+                    .from("user_muscle_and_weight")
+                    .delete()
+                    .eq("user_id", value: userId.uuidString)
+                    .execute()
+                
+                // Insert new muscle goals
+                struct MuscleGoalInsert: Encodable {
+                    let id: UUID
+                    let user_id: UUID
+                    let muscle: String
+                    let weight: Double
+                }
+                
+                let dbGoals = muscleWeights.map { (muscle, weight) in
+                    MuscleGoalInsert(
+                        id: UUID(),
+                        user_id: userId,
+                        muscle: muscle,
+                        weight: weight
+                    )
+                }
+                
+                try await supabase
+                    .from("user_muscle_and_weight")
+                    .insert(dbGoals)
+                    .execute()
+                
+                // Refresh the data store
+                await userDataStore.refreshMuscleGoals()
+                
+                print("✅ Muscle goals saved successfully")
+                dismiss()
+            } catch {
+                print("❌ Error saving muscle goals: \(error)")
+                errorMessage = "Failed to save muscle goals: \(error.localizedDescription)"
+                showError = true
+            }
+        }
+    }
+    
+    private func handleSendTap() {
+        guard !aiInputText.isEmpty else { return }
+        processWithAI()
+    }
+    
+    private func processWithAI() {
+        isProcessingAI = true
+        errorMessage = nil
+        showError = false
+        
+        let inputText = aiInputText
+        let currentGoalsContext = muscleWeights
+        
+        Task {
+            do {
+                // Call the API to parse muscle goals
+                let parsedGoals = try await apiService.parseMuscleGoals(
+                    goalsText: inputText,
+                    currentGoals: currentGoalsContext
+                )
+                
+                await MainActor.run {
+                    // Update muscle weights with AI-generated values
+                    // Create a new dictionary to avoid inout issues with @State
+                    var updatedWeights = muscleWeights
+                    for (muscle, weight) in parsedGoals.weights {
+                        updatedWeights[muscle] = weight
+                    }
+                    muscleWeights = updatedWeights
+                    
+                    // Clear the input after successful processing
+                    aiInputText = ""
+                    isProcessingAI = false
+                }
+                
+            } catch {
+                await MainActor.run {
+                    errorMessage = "Failed to parse muscle goals: \(error.localizedDescription)"
+                    showError = true
+                    isProcessingAI = false
+                }
+            }
+        }
     }
 }
 
@@ -354,6 +480,36 @@ private struct PresetButton: View {
             .background(AppTheme.Colors.cardBackground)
             .cornerRadius(AppTheme.CornerRadius.medium)
         }
+    }
+}
+
+// MARK: - Send Button
+private struct SendButton: View {
+    let isProcessing: Bool
+    let isEnabled: Bool
+    let action: () -> Void
+    
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                // Background circle
+                Circle()
+                    .fill(isEnabled && !isProcessing ? Color.blue : AppTheme.Colors.secondaryText)
+                    .frame(width: 44, height: 44)
+                
+                // Icon
+                if isProcessing {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .scaleEffect(0.9)
+                } else {
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+            }
+        }
+        .disabled(!isEnabled || isProcessing)
     }
 }
 

@@ -12,25 +12,25 @@ struct MuscleGoalsSection: View {
     @Binding var showingMuscleGoalSetter: Bool
     @EnvironmentObject var userDataStore: UserDataStore
     
-    // Sample data for display (will be replaced with userDataStore.muscleGoals)
-    let muscles: [MuscleGoal] = [
-        MuscleGoal(name: "Chest", weight: 0.0625),
-        MuscleGoal(name: "Back", weight: 0.0625),
-        MuscleGoal(name: "Shoulders", weight: 0.0625),
-        MuscleGoal(name: "Biceps", weight: 0.0625),
-        MuscleGoal(name: "Triceps", weight: 0.0625),
-        MuscleGoal(name: "Abs", weight: 0.0625),
-        MuscleGoal(name: "Lower Back", weight: 0.0625),
-        MuscleGoal(name: "Quadriceps", weight: 0.0625),
-        MuscleGoal(name: "Hamstrings", weight: 0.0625),
-        MuscleGoal(name: "Glutes", weight: 0.0625),
-        MuscleGoal(name: "Calves", weight: 0.0625),
-        MuscleGoal(name: "Trapezius", weight: 0.0625),
-        MuscleGoal(name: "Abductors", weight: 0.0625),
-        MuscleGoal(name: "Adductors", weight: 0.0625),
-        MuscleGoal(name: "Forearms", weight: 0.0625),
-        MuscleGoal(name: "Neck", weight: 0.0625)
+    // Define the same muscle order as MuscleGoalSetterView
+    private let muscleOrder = [
+        "Chest", "Back", "Shoulders", "Biceps", "Triceps", "Abs", "Lower Back", "Quadriceps",
+        "Hamstrings", "Glutes", "Calves", "Trapezius", "Abductors", "Adductors", "Forearms", "Neck"
     ]
+    
+    // Convert userDataStore.muscleGoals to display format and sort by muscleOrder
+    var muscles: [MuscleGoal] {
+        let muscleGoals = userDataStore.muscleGoals.map { item in
+            MuscleGoal(name: item.muscle, weight: item.weight)
+        }
+        
+        // Sort by the predefined muscle order
+        return muscleGoals.sorted { muscle1, muscle2 in
+            let index1 = muscleOrder.firstIndex(of: muscle1.name) ?? Int.max
+            let index2 = muscleOrder.firstIndex(of: muscle2.name) ?? Int.max
+            return index1 < index2
+        }
+    }
     
     // What's Influencing Today data
     let muscleInfluences: [MuscleInfluence] = [
