@@ -1,6 +1,7 @@
 const { tool } = require('ai');
 const { z } = require('zod');
 const { generateExerciseRecommendations, streamExerciseRecommendations } = require('../../services/recommend.service');
+const { cleanupPreferences } = require('./parsePreference');
 
 /**
  * Tool for generating personalized exercise recommendations
@@ -43,6 +44,16 @@ function createRecommendExerciseTool(userId, options = {}) {
             }
             
             console.log(`Successfully streamed ${exercises.length} exercises for user ${userId}`);
+            
+            // Clean up preferences marked for deletion after call
+            try {
+              const cleanupResult = await cleanupPreferences(userId);
+              console.log(`Tool cleanup after streaming: deleted ${cleanupResult.deletedCount || 0} preferences`);
+            } catch (cleanupError) {
+              console.error('Error cleaning up preferences in tool:', cleanupError);
+              // Don't fail the request for cleanup errors
+            }
+            
             return { 
               recommendations: exercises,
               streaming: true,
@@ -65,6 +76,17 @@ function createRecommendExerciseTool(userId, options = {}) {
         // Use regular (non-streaming) recommendations
         const recommendations = await generateExerciseRecommendations(userId, requestData);
         console.log('Regular recommendations:', recommendations);
+        
+        // Clean up preferences marked for deletion after call
+        // Note: generateExerciseRecommendations already does cleanup, but adding here for consistency
+        try {
+          const cleanupResult = await cleanupPreferences(userId);
+          console.log(`Tool cleanup after non-streaming: deleted ${cleanupResult.deletedCount || 0} preferences`);
+        } catch (cleanupError) {
+          console.error('Error cleaning up preferences in tool:', cleanupError);
+          // Don't fail the request for cleanup errors
+        }
+        
         return { 
           recommendations: recommendations.data?.recommendations || [],
           streaming: false

@@ -1,4 +1,5 @@
 const { generateExerciseRecommendations, streamExerciseRecommendations } = require('../services/recommend.service');
+const { cleanupPreferences } = require('../ai/tools/parsePreference');
 
 /**
  * Controller for handling exercise recommendation requests
@@ -121,6 +122,15 @@ async function streamRecommendExercises(req, res) {
         }) + '\n');
         
         console.log(`Completed streaming ${exerciseCount} exercises for user: ${userId}`);
+        
+        // Clean up preferences marked for deletion after call (safety net)
+        try {
+          const cleanupResult = await cleanupPreferences(userId);
+          console.log(`Controller cleanup: deleted ${cleanupResult.deletedCount || 0} preferences`);
+        } catch (cleanupError) {
+          console.error('Error cleaning up preferences in controller:', cleanupError);
+          // Don't fail the request for cleanup errors
+        }
         
       } catch (streamError) {
         console.error('Error during streaming:', streamError);

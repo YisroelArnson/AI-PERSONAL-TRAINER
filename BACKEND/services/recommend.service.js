@@ -96,7 +96,6 @@ const IndividualExerciseSchema = z.discriminatedUnion("exercise_type", [
         exercise_type: z.literal("cardio_time"),
         duration_min: z.number().int().positive(),
         target_intensity: z.enum(["low", "moderate", "high"]).optional(),
-        target_heart_rate_bpm: z.number().int().positive().optional()
       }),
       
       // HIIT/Interval Training
@@ -157,7 +156,6 @@ const IndividualExerciseSchema = z.discriminatedUnion("exercise_type", [
         sets: z.number().int().positive(),
         reps: z.array(z.number().int().positive()),
         rest_seconds: z.number().int().positive().optional(),
-        progression_level: z.enum(["beginner", "intermediate", "advanced"]).optional()
       }),
       
       // Isometric - Hold-based exercises like planks, wall sits
@@ -166,18 +164,6 @@ const IndividualExerciseSchema = z.discriminatedUnion("exercise_type", [
         sets: z.number().int().positive(),
         hold_duration_sec: z.array(z.number().int().positive()),
         rest_seconds: z.number().int().positive().optional(),
-        progression_level: z.enum(["beginner", "intermediate", "advanced"]).optional(),
-        progression_notes: z.string().optional() // e.g., "increase hold time by 5 seconds"
-      }),
-      
-      // Plyometric - Explosive movements
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("plyometric"),
-        sets: z.number().int().positive(),
-        reps: z.array(z.number().int().positive()),
-        rest_seconds: z.number().int().positive(),
-        jump_height_cm: z.number().positive().optional(),
-        landing_emphasis: z.string().optional()
       }),
       
       // Balance/Stability - Time-based holds
@@ -185,8 +171,6 @@ const IndividualExerciseSchema = z.discriminatedUnion("exercise_type", [
         exercise_type: z.literal("balance"),
         sets: z.number().int().positive(),
         hold_duration_sec: z.array(z.number().int().positive()),
-        difficulty_level: z.enum(["beginner", "intermediate", "advanced"]).optional(),
-        support_used: z.string().optional() // e.g., "wall", "none", "bosu ball"
       }),
       
       // Sports-Specific - Skill practice
@@ -205,72 +189,218 @@ const TypedExerciseRecommendationSchema = z.object({
   recommendations: z.array(IndividualExerciseSchema)
 });
 
+/**
+ * Helper function to calculate relative time from a date
+ * Handles future dates (for expiration) and past dates (for history)
+ * @param {string} dateString - ISO date string
+ * @returns {string} Human-readable relative time
+ */
+function getRelativeTime(dateString) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = date - now; // Future dates are positive, past are negative
+  const absDiffMs = Math.abs(diffMs);
+  
+  const diffMinutes = Math.floor(absDiffMs / (1000 * 60));
+  const diffHours = Math.floor(absDiffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(absDiffMs / (1000 * 60 * 60 * 24));
+  const diffWeeks = Math.floor(diffDays / 7);
+  const diffMonths = Math.floor(diffDays / 30);
+  
+  // For past dates (history)
+  if (diffMs < 0) {
+    if (diffMinutes < 1) return 'just now';
+    if (diffMinutes === 1) return '1 minute ago';
+    if (diffMinutes < 60) return `${diffMinutes} minutes ago`;
+    if (diffHours === 1) return '1 hour ago';
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    if (diffDays === 0) return 'today';
+    if (diffDays === 1) return '1 day ago';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    if (diffWeeks === 1) return '1 week ago';
+    if (diffWeeks < 4) return `${diffWeeks} weeks ago`;
+    if (diffMonths === 1) return '1 month ago';
+    return `${diffMonths} months ago`;
+  }
+  
+  // For future dates (expiration)
+  if (diffMinutes < 1) return 'in less than a minute';
+  if (diffMinutes === 1) return 'in 1 minute';
+  if (diffMinutes < 60) return `in ${diffMinutes} minutes`;
+  if (diffHours === 1) return 'in 1 hour';
+  if (diffHours < 24) return `in ${diffHours} hours`;
+  if (diffDays === 0) return 'later today';
+  if (diffDays === 1) return 'in 1 day';
+  if (diffDays < 7) return `in ${diffDays} days`;
+  if (diffWeeks === 1) return 'in 1 week';
+  if (diffWeeks < 4) return `in ${diffWeeks} weeks`;
+  if (diffMonths === 1) return 'in 1 month';
+  return `in ${diffMonths} months`;
+}
+
+/**
+ * Formats user data into natural language for AI prompt
+ * @param {Object} userData - Structured user data from fetchAllUserData
+ * @returns {string} Natural language formatted user context
+ */
+function formatUserDataAsNaturalLanguage(userData) {
+  let output = [];
+  
+  // Body Stats
+  if (userData.bodyStats) {
+    const bs = userData.bodyStats;
+    const age = bs.dob ? Math.floor((new Date() - new Date(bs.dob)) / (365.25 * 24 * 60 * 60 * 1000)) : null;
+    const ageStr = age ? `${age}-year-old ` : '';
+    const sexStr = bs.sex || 'person';
+    const heightStr = bs.height_cm ? `${bs.height_cm}cm` : '';
+    const weightStr = bs.weight_kg ? `${bs.weight_kg}kg` : '';
+    const bodyFatStr = bs.body_fat_pct ? `, ${bs.body_fat_pct}% body fat` : '';
+    
+    output.push(`BODY STATS: ${ageStr}${sexStr}, ${heightStr}, ${weightStr}${bodyFatStr}`);
+  }
+  
+  // Goals (Category Weights) - filter and prioritize
+  if (userData.userCategoryAndWeights && userData.userCategoryAndWeights.length > 0) {
+    const activeGoals = userData.userCategoryAndWeights.filter(c => c.weight > 0);
+    if (activeGoals.length > 0) {
+      const highPriority = activeGoals.filter(g => g.weight >= 0.7);
+      const mediumPriority = activeGoals.filter(g => g.weight >= 0.3 && g.weight < 0.7);
+      const lowPriority = activeGoals.filter(g => g.weight > 0 && g.weight < 0.3);
+      
+      if (highPriority.length > 0) {
+        output.push(`PRIMARY GOALS: ${highPriority.map(g => `${g.category} (${g.weight})`).join(', ')}`);
+      }
+      if (mediumPriority.length > 0) {
+        output.push(`SECONDARY GOALS: ${mediumPriority.map(g => `${g.category} (${g.weight})`).join(', ')}`);
+      }
+      if (lowPriority.length > 0) {
+        output.push(`TERTIARY GOALS: ${lowPriority.map(g => `${g.category} (${g.weight})`).join(', ')}`);
+      }
+    }
+  }
+  
+  // Muscles (Muscle Weights) - filter and prioritize
+  if (userData.userMuscleAndWeight && userData.userMuscleAndWeight.length > 0) {
+    const activeMuscles = userData.userMuscleAndWeight.filter(m => m.weight > 0);
+    if (activeMuscles.length > 0) {
+      const highPriority = activeMuscles.filter(m => m.weight >= 0.7);
+      const mediumPriority = activeMuscles.filter(m => m.weight >= 0.3 && m.weight < 0.7);
+      const lowPriority = activeMuscles.filter(m => m.weight > 0 && m.weight < 0.3);
+      
+      if (highPriority.length > 0) {
+        output.push(`HIGH PRIORITY MUSCLES: ${highPriority.map(m => `${m.muscle} (${m.weight})`).join(', ')}`);
+      }
+      if (mediumPriority.length > 0) {
+        output.push(`MEDIUM PRIORITY MUSCLES: ${mediumPriority.map(m => `${m.muscle} (${m.weight})`).join(', ')}`);
+      }
+      if (lowPriority.length > 0) {
+        output.push(`LOW PRIORITY MUSCLES: ${lowPriority.map(m => `${m.muscle} (${m.weight})`).join(', ')}`);
+      }
+    }
+  }
+  
+  // Location and Equipment
+  if (userData.locations) {
+    const loc = userData.locations;
+    const nameStr = loc.name ? `${loc.name}` : 'Current location';
+    const equipmentStr = loc.equipment && loc.equipment.length > 0 ? loc.equipment.join(', ') : 'no specific equipment listed';
+    output.push(`LOCATION: ${nameStr} with equipment: ${equipmentStr}`);
+  }
+  
+  // Preferences (separate temporary and permanent)
+  // Temporary = has expire_time or delete_after_call=true (session-specific, override everything)
+  // Permanent = no expire_time and delete_after_call=false/null (long-term restrictions)
+  if (userData.preferences) {
+    if (userData.preferences.temporary && userData.preferences.temporary.length > 0) {
+      output.push(`TEMPORARY PREFERENCES (override all other goals - will expire or be deleted):`);
+      userData.preferences.temporary.forEach(pref => {
+        const guidance = pref.recommendations_guidance || pref.description;
+        const expireInfo = pref.expire_time 
+          ? ` [expires: ${getRelativeTime(pref.expire_time)}]` 
+          : pref.delete_after_call ? ' [one-time use]' : '';
+        output.push(`  - ${guidance}${expireInfo}`);
+      });
+      output.push(''); // Blank line separator
+    }
+    
+    if (userData.preferences.permanent && userData.preferences.permanent.length > 0) {
+      output.push(`PERMANENT PREFERENCES (always apply):`);
+      userData.preferences.permanent.forEach(pref => {
+        output.push(`  - ${pref.recommendations_guidance || pref.description}`);
+      });
+      output.push(''); // Blank line separator
+    }
+  }
+  
+  // Workout History (last 10-15 exercises)
+  if (userData.workoutHistory && userData.workoutHistory.length > 0) {
+    output.push(`RECENT WORKOUT HISTORY (for progression):`);
+    userData.workoutHistory.slice(0, 15).forEach(workout => {
+      const timeAgo = getRelativeTime(workout.performed_at);
+      let detailsStr = '';
+      
+      if (workout.sets && workout.reps) {
+        const repsStr = Array.isArray(workout.reps) ? workout.reps.join(',') : workout.reps;
+        detailsStr = `${workout.sets} sets, ${repsStr} reps`;
+        if (workout.load_kg_each) {
+          const loadStr = Array.isArray(workout.load_kg_each) ? workout.load_kg_each[0] : workout.load_kg_each;
+          detailsStr += `, ${loadStr}kg`;
+        }
+      } else if (workout.distance_km) {
+        detailsStr = `${workout.distance_km}km`;
+        if (workout.duration_min) {
+          detailsStr += ` in ${workout.duration_min}min`;
+        }
+      } else if (workout.duration_min) {
+        detailsStr = `${workout.duration_min}min`;
+      } else if (workout.hold_duration_sec) {
+        const holdStr = Array.isArray(workout.hold_duration_sec) ? workout.hold_duration_sec.join(',') : workout.hold_duration_sec;
+        detailsStr = `held for ${holdStr}sec`;
+      }
+      
+      output.push(`  - ${workout.exercise_name}: ${detailsStr} (${timeAgo})`);
+    });
+  }
+  
+  return output.join('\n');
+}
+
 
 // System prompt for the AI personal trainer
-const SYSTEM_PROMPT = `You are an AI personal trainer. Your job is to generate the next set of exercises for the user. 
-You must return recommendations that are:
-- Personalized to the user's stats, goals, and history
-- Effective for progression over time
-- Optimal for the user's current preferences, equipment, and constraints
-- Properly typed according to the exercise_type field
+const SYSTEM_PROMPT = `You are an AI personal trainer generating personalized exercise recommendations.
+
+Your recommendations must be:
+- Personalized to the user's stats, goals, workout history, and current preferences
+- Effective for progressive overload and continuous improvement
+- Practical given the user's available equipment and constraints
 - STRICTLY respect all user preferences, especially temporary ones which override everything else
 
-EXERCISE TYPES AND THEIR REQUIRED FORMATS:
-1. "strength" - Weighted exercises: requires sets, reps[], load_kg_each[], optional rest_seconds
-2. "cardio_distance" - Distance-based cardio: requires distance_km, optional duration_min, target_pace, elevation_gain_m
-3. "cardio_time" - Time-based cardio: requires duration_min, optional target_intensity, target_heart_rate_bpm
-4. "hiit" - High-intensity intervals: requires rounds, intervals[{work_sec, rest_sec}], optional total_duration_min
-5. "circuit" - Circuit training: requires circuits, exercises_in_circuit[{name, duration_sec?, reps?}], rest_between_circuits_sec
-6. "flexibility" - Stretching: requires holds[{position, duration_sec}], optional repetitions
-7. "yoga" - Yoga flows: requires sequence[{pose, duration_sec?, breaths?}], total_duration_min
-8. "bodyweight" - Bodyweight exercises with reps: requires sets, reps[], optional rest_seconds, progression_level
-9. "isometric" - Hold-based exercises (planks, wall sits): requires sets, hold_duration_sec[], optional rest_seconds, progression_level
-10. "plyometric" - Explosive movements: requires sets, reps[], rest_seconds, optional jump_height_cm, landing_emphasis
-11. "balance" - Balance training: requires sets, hold_duration_sec[], optional difficulty_level, support_used
-12. "sport_specific" - Sport drills: requires sport, drill_name, duration_min, optional repetitions, skill_focus
-
-IMPORTANT: 
-- Choose the correct exercise_type first, then provide ONLY the fields required for that type
-- If the user explicitly requests something, this preference OVERRIDES all other long-term goals and history
-- ALWAYS generate the EXACT number of exercises requested - no more, no less
-- If you cannot generate enough exercises, create variations or progressions of existing exercises
-- Always return your answer in strict JSON format. Do not include extra commentary outside the JSON.`;
+IMPORTANT RULES:
+- The output format is enforced by a strict schema - focus on selecting the best exercises, not formatting
+- Choose appropriate exercise_type for each exercise (strength, cardio_distance, cardio_time, hiit, circuit, flexibility, yoga, bodyweight, isometric, balance, sport_specific)
+- When labeling goals_addressed and muscles_utilized, use ONLY the categories and muscles provided in the user's profile
+- For muscles_utilized, ensure shares add up to 1.0 (e.g., Chest: 0.6, Triceps: 0.3, Shoulders: 0.1)
+- Apply progressive overload by slightly increasing load/reps/difficulty from recent workout history when appropriate
+- Generate EXACTLY the number of exercises requested - no more, no less`;
 
 // Process rules for the model
-const PROCESS_RULES = `Follow this process each time:
-1. FIRST: Check for stored user preferences (both permanent and temporary). Temporary preferences ALWAYS override everything else.
-   - Permanent preferences: Long-term restrictions/preferences that should always be respected
-   - Temporary preferences: Current session preferences that completely override other goals
-2. SECOND: Check for explicit user preferences in the current request data. If present, combine with stored preferences.
-3. If no overriding preferences are present, analyze the user's goals, history, equipment, and constraints.
-3. Follow the bias signals which category or muscle groups are most under-target or most relevant when recommending exercises.
-   3a. When labeling the goals_addressed and muscles_utilized, only select from the provided user's exercise categories and muscles. Do NOT make up your own categories or muscles.
-4. DETERMINE THE CORRECT EXERCISE TYPE for each exercise:
-   - Barbell/dumbbell/machine exercises with weight → "strength"
-   - Running/cycling with distance → "cardio_distance" 
-   - Treadmill/bike with time focus → "cardio_time"
-   - High-intensity intervals → "hiit"
-   - Multiple exercises in sequence → "circuit"
-   - Static stretches/holds → "flexibility"
-   - Yoga poses/flows → "yoga"
-   - Push-ups/squats/burpees without weight → "bodyweight"
-   - Planks/wall sits/static holds → "isometric"
-   - Jump training → "plyometric"
-   - Balance challenges → "balance"
-   - Sport-specific drills → "sport_specific"
-5. Select exercises that match available equipment and respect pain/avoid preferences. Consider most recently completed exercises when recommending new exercises.
-6. Apply progression logic using the user's workout history (increase load/reps slightly if appropriate).
-7. Choose the most relevant exercises for the user's available time and preferences.
-8. For each exercise, explain the reasoning in 1 sentence.
-9. IMPORTANT: For muscles_utilized, list ALL muscles involved in the exercise and ensure the shares add up to exactly 1.0. For example:
-   - Single muscle exercise: [{"muscle": "Biceps", "share": 1.0}]
-   - Multi-muscle exercise: [{"muscle": "Chest", "share": 0.6}, {"muscle": "Triceps", "share": 0.3}, {"muscle": "Shoulders", "share": 0.1}]
-10. Return results as a JSON array of exercise objects with the correct exercise_type and corresponding fields.
-11. CRITICAL: Generate EXACTLY the number of exercises requested. Count your exercises before responding. If you need more exercises, create variations by:
-    - Adjusting sets/reps/weight for different difficulty levels
-    - Using different equipment for the same movement (e.g., barbell vs dumbbell)
-    - Creating unilateral versions (single arm/leg) of bilateral exercises
-    - Adding isometric holds or tempo variations`;
+// Note: Temporary preferences are those with expire_time or delete_after_call=true
+// Permanent preferences have no expire_time and delete_after_call=false/null
+const PROCESS_RULES = `DECISION HIERARCHY (most important first):
+1. TEMPORARY PREFERENCES - Override everything else (session-specific needs with expiration or one-time use)
+2. EXPLICIT REQUESTS - Any specific request in the current interaction
+3. PERMANENT PREFERENCES - Long-term restrictions and preferences (no expiration)
+4. GOALS & MUSCLES - Priority based on weights (higher weight = higher priority)
+5. WORKOUT HISTORY - Use for progression and variety
+
+EXERCISE SELECTION PROCESS:
+1. Identify which goals and muscles to prioritize based on their weights
+2. Review recent workout history to apply progressive overload (increase load/reps by 5-10% when appropriate)
+3. Avoid recently completed exercises unless specifically requested
+4. Select exercises matching available equipment
+5. Choose appropriate exercise_type for each exercise
+6. Provide brief reasoning (1 sentence) explaining why each exercise was selected
+7. Ensure variety in movement patterns and muscle groups unless preferences specify otherwise`;
 
 /**
  * Generates exercise recommendations using OpenAI (streaming version)
@@ -295,29 +425,24 @@ async function streamExerciseRecommendations(userId, requestData = {}) {
     // Extract exercise count from request data
     const exerciseCount = requestData.exerciseCount;
     
-    // Prepare the user data for the AI prompt
-    const userContext = {
-      userData: userData.data,
-      requestData: requestData,
-      timestamp: new Date().toISOString()
-    };
+    // Format user data as natural language
+    const formattedUserData = formatUserDataAsNaturalLanguage(userData.data);
 
     // Create exercise count instruction
     const exerciseCountInstruction = exerciseCount 
-      ? `CRITICAL: Generate exactly ${exerciseCount} exercise recommendations. Count them carefully before responding. Do not generate fewer than ${exerciseCount} exercises under any circumstances.`
-      : `Generate an appropriate number of exercises based on the user's goals and available time (typically 3-8 exercises).`;
+      ? `Generate exactly ${exerciseCount} exercises.`
+      : `Generate 3-8 exercises based on the user's goals and available time.`;
 
-    // Create the user prompt with all relevant data
+    // Create the user prompt with natural language formatted data
     const userPrompt = `
-User Context:
-${JSON.stringify(userContext, null, 2)}
+USER PROFILE:
+${formattedUserData}
+
+${requestData.explicitPreferences ? `\nEXPLICIT REQUEST: ${requestData.explicitPreferences}\n` : ''}
 
 ${PROCESS_RULES}
 
 ${exerciseCountInstruction}
-
-Please generate exercise recommendations based on this user data and follow the process rules strictly.
-Return each exercise as a separate object in an array.
     `;
 
     console.log('Streaming exercise recommendations for user:', userId);
@@ -335,6 +460,16 @@ Return each exercise as a separate object in an array.
         console.error('Streaming error:', error);
       }
     });
+
+    // Clean up preferences marked for deletion after call
+    // Note: This happens after streaming starts, cleanup will occur while client receives data
+    try {
+      const cleanupResult = await cleanupPreferences(userId);
+      console.log(`Cleanup after streaming: deleted ${cleanupResult.deletedCount || 0} preferences`);
+    } catch (cleanupError) {
+      console.error('Error cleaning up preferences after streaming:', cleanupError);
+      // Don't fail the request for cleanup errors
+    }
 
     return {
       success: true,
@@ -384,28 +519,24 @@ async function generateExerciseRecommendations(userId, requestData = {}) {
     // Extract exercise count from request data
     const exerciseCount = requestData.exerciseCount;
     
-    // Prepare the user data for the AI prompt
-    const userContext = {
-      userData: userData.data,
-      requestData: requestData,
-      timestamp: new Date().toISOString()
-    };
+    // Format user data as natural language
+    const formattedUserData = formatUserDataAsNaturalLanguage(userData.data);
 
     // Create exercise count instruction
     const exerciseCountInstruction = exerciseCount 
-      ? `CRITICAL: Generate exactly ${exerciseCount} exercise recommendations. Count them carefully before responding. Do not generate fewer than ${exerciseCount} exercises under any circumstances.`
-      : `Generate an appropriate number of exercises based on the user's goals and available time (typically 3-8 exercises).`;
+      ? `Generate exactly ${exerciseCount} exercises.`
+      : `Generate 3-8 exercises based on the user's goals and available time.`;
 
-    // Create the user prompt with all relevant data
+    // Create the user prompt with natural language formatted data
     const userPrompt = `
-User Context:
-${JSON.stringify(userContext, null, 2)}
+USER PROFILE:
+${formattedUserData}
+
+${requestData.explicitPreferences ? `\nEXPLICIT REQUEST: ${requestData.explicitPreferences}\n` : ''}
 
 ${PROCESS_RULES}
 
 ${exerciseCountInstruction}
-
-Please generate exercise recommendations based on this user data and follow the process rules strictly.
     `;
 
     console.log('Generating exercise recommendations for user:', userId);

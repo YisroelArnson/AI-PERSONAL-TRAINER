@@ -13,6 +13,7 @@
 		12761C602E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C5F2E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift */; };
 		12761C622E57953C00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */; };
 		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
+		1292C3C42EADAE2F005A728A /* RefreshModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1292C3C32EADAE2F005A728A /* RefreshModalView.swift */; };
 		12CE3AAD2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12CE3AAC2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift */; };
 		12FF73FB2E9427C500958D26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF73F92E9427C500958D26 /* AppView.swift */; };
 		12FF73FC2E9427C500958D26 /* supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF73FA2E9427C500958D26 /* supabase.swift */; };
@@ -68,6 +69,7 @@
 		12761C5B2E57953B00C4F8FE /* AI Personal Trainer AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		12761C5F2E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppUITests.swift; sourceTree = "<group>"; };
 		12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppUITestsLaunchTests.swift; sourceTree = "<group>"; };
+		1292C3C32EADAE2F005A728A /* RefreshModalView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RefreshModalView.swift; sourceTree = "<group>"; };
 		12B5ED9D2E58CF87000D7061 /* AI-Personal-Trainer-App-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "AI-Personal-Trainer-App-Info.plist"; sourceTree = SOURCE_ROOT; };
 		12CE3AAC2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
 		12FF73F92E9427C500958D26 /* AppView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
@@ -277,6 +279,7 @@
 		12FF740D2E94280A00958D26 /* Home */ = {
 			isa = PBXGroup;
 			children = (
+				1292C3C32EADAE2F005A728A /* RefreshModalView.swift */,
 				12FF740E2E94280A00958D26 /* HomeView.swift */,
 			);
 			path = Home;
@@ -494,6 +497,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1292C3C42EADAE2F005A728A /* RefreshModalView.swift in Sources */,
 				12FF73FC2E9427C500958D26 /* supabase.swift in Sources */,
 				12FF74222E94280A00958D26 /* Exercise.swift in Sources */,
 				12FF73FB2E9427C500958D26 /* AppView.swift in Sources */,
