@@ -88,7 +88,7 @@ class APIService: ObservableObject {
     
     func streamRecommendations(
         exerciseCount: Int? = 8,
-        onExercise: @escaping (Exercise) -> Void,
+        onExercise: @escaping (StreamingExercise) -> Void,
         onComplete: @escaping (Int) -> Void,
         onError: @escaping (String) -> Void
     ) async throws {
@@ -139,9 +139,8 @@ class APIService: ObservableObject {
                     
                 case "exercise":
                     if let exerciseData = message.data {
-                        let exercise = Exercise(from: exerciseData)
                         await MainActor.run {
-                            onExercise(exercise)
+                            onExercise(exerciseData)
                         }
                         exerciseCount += 1
                     }
@@ -296,6 +295,41 @@ class APIService: ObservableObject {
         }
         
         return parsedGoals
+    }
+    
+    // MARK: - Exercise Logging
+    
+    func logCompletedExercise(exercise: Exercise) async throws {
+        let session = try await supabase.auth.session
+        let userId = session.user.id.uuidString
+        
+        guard let url = URL(string: "\(baseURL)/exercises/log/\(userId)") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        
+        let exerciseData = exercise.toLoggingFormat()
+        let jsonData = try JSONSerialization.data(withJSONObject: exerciseData)
+        request.httpBody = jsonData
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 201 else {
+            if httpResponse.statusCode == 401 {
+                throw APIError.unauthorized
+            } else if httpResponse.statusCode == 403 {
+                throw APIError.forbidden
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        print("✅ Successfully logged exercise: \(exercise.name)")
     }
 }
 

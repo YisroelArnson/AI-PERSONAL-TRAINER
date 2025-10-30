@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { getWorkoutHistory } = require('./exerciseLog.service');
 
 // Initialize Supabase client
 const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBASE_SECRET_KEY);
@@ -12,6 +13,7 @@ const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBA
  * @param {boolean} options.userMuscleAndWeight - Whether to fetch user muscle and weight
  * @param {boolean} options.locations - Whether to fetch user locations
  * @param {boolean} options.preferences - Whether to fetch user preferences
+ * @param {boolean} options.workoutHistory - Whether to fetch workout history
  * @returns {Object} Structured data object with requested user data
  */
 async function fetchUserData(userId, options = {}) {
@@ -27,7 +29,8 @@ async function fetchUserData(userId, options = {}) {
             userCategoryAndWeights = true,
             userMuscleAndWeight = true,
             locations = true,
-            preferences = true
+            preferences = true,
+            workoutHistory = true
         } = options;
 
         const result = {
@@ -199,17 +202,22 @@ async function fetchUserData(userId, options = {}) {
                     // Filter preferences to only include essential fields for AI prompt
                     if (preferencesData && preferencesData.length > 0) {
                         const processedPreferences = preferencesData.map(item => ({
-                            type: item.type,
                             description: item.description,
                             user_transcription: item.user_transcription,
                             recommendations_guidance: item.recommendations_guidance,
                             expire_time: item.expire_time,
-                            created_at: item.created_at
+                            delete_after_call: item.delete_after_call
                         }));
                         
                         // Separate permanent and temporary preferences for better AI context
-                        const permanent = processedPreferences.filter(p => p.type === 'permanent');
-                        const temporary = processedPreferences.filter(p => p.type === 'temporary');
+                        // Temporary: has expire_time OR delete_after_call is true
+                        // Permanent: no expire_time AND delete_after_call is false (or null)
+                        const temporary = processedPreferences.filter(p => 
+                            p.expire_time !== null || p.delete_after_call === true
+                        );
+                        const permanent = processedPreferences.filter(p => 
+                            p.expire_time === null && p.delete_after_call !== true
+                        );
                         
                         result.data.preferences = {
                             permanent,
@@ -233,6 +241,43 @@ async function fetchUserData(userId, options = {}) {
                 };
                 result.errors = result.errors || {};
                 result.errors.preferences = error.message;
+            }
+        }
+
+        // Fetch workout history (last 15 exercises for progression logic)
+        if (workoutHistory) {
+            try {
+                const historyResult = await getWorkoutHistory(userId, { limit: 15 });
+                
+                if (!historyResult.success) {
+                    console.error('Error fetching workout history:', historyResult.error);
+                    result.data.workoutHistory = [];
+                    result.errors = result.errors || {};
+                    result.errors.workoutHistory = historyResult.error;
+                } else {
+                    // Filter workout history to only include essential fields for AI prompt
+                    if (historyResult.data && historyResult.data.length > 0) {
+                        result.data.workoutHistory = historyResult.data.map(workout => ({
+                            exercise_name: workout.exercise_name,
+                            exercise_type: workout.exercise_type,
+                            performed_at: workout.performed_at,
+                            // Include relevant exercise parameters based on type
+                            sets: workout.sets,
+                            reps: workout.reps,
+                            load_kg_each: workout.load_kg_each,
+                            distance_km: workout.distance_km,
+                            duration_min: workout.duration_min,
+                            hold_duration_sec: workout.hold_duration_sec
+                        }));
+                    } else {
+                        result.data.workoutHistory = [];
+                    }
+                }
+            } catch (error) {
+                console.error('Error in workout history fetch:', error);
+                result.data.workoutHistory = [];
+                result.errors = result.errors || {};
+                result.errors.workoutHistory = error.message;
             }
         }
 
@@ -264,7 +309,8 @@ async function fetchAllUserData(userId) {
         userCategoryAndWeights: true,
         userMuscleAndWeight: true,
         locations: true,
-        preferences: true
+        preferences: true,
+        workoutHistory: true
     });
 }
 
