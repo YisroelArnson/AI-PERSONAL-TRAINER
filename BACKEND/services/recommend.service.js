@@ -303,8 +303,54 @@ function formatUserDataAsNaturalLanguage(userData) {
   if (userData.locations) {
     const loc = userData.locations;
     const nameStr = loc.name ? `${loc.name}` : 'Current location';
-    const equipmentStr = loc.equipment && loc.equipment.length > 0 ? loc.equipment.join(', ') : 'no specific equipment listed';
-    output.push(`LOCATION: ${nameStr} with equipment: ${equipmentStr}`);
+    
+    // Format equipment array - now contains objects with metadata
+    let equipmentStr = 'no specific equipment listed';
+    if (loc.equipment && Array.isArray(loc.equipment) && loc.equipment.length > 0) {
+      const equipmentParts = loc.equipment.map(eq => {
+        if (typeof eq === 'string') {
+          // Handle legacy string format
+          return eq;
+        } else if (typeof eq === 'object' && eq !== null) {
+          // Format equipment object
+          let eqStr = eq.name || 'Unknown equipment';
+          
+          // Add type if available
+          if (eq.type) {
+            const typeStr = eq.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            eqStr += ` (${typeStr})`;
+          }
+          
+          // Add weight specifications for free weights
+          if (eq.type === 'free_weights' && eq.weights && Array.isArray(eq.weights) && eq.weights.length > 0) {
+            const weightsStr = eq.weights.map(w => `${w}${eq.unit || 'kg'}`).join(', ');
+            eqStr += `: ${weightsStr}`;
+          }
+          
+          // Add brand if available
+          if (eq.brand) {
+            eqStr += ` [${eq.brand}]`;
+          }
+          
+          // Add notes if available
+          if (eq.notes) {
+            eqStr += ` - ${eq.notes}`;
+          }
+          
+          return eqStr;
+        }
+        return String(eq);
+      });
+      equipmentStr = equipmentParts.join(', ');
+    }
+    
+    // Add location description if available
+    if (loc.description) {
+      output.push(`LOCATION: ${nameStr} - ${loc.description}`);
+      output.push(`EQUIPMENT AVAILABLE: ${equipmentStr}`);
+    } else {
+      output.push(`LOCATION: ${nameStr} with equipment: ${equipmentStr}`);
+    }
   }
   
   // Preferences (separate temporary and permanent)

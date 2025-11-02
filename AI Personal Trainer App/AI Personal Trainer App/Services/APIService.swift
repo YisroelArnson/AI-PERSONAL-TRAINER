@@ -9,7 +9,43 @@ import Foundation
 import Supabase
 
 class APIService: ObservableObject {
-    private let baseURL = "http://192.168.1.171:3000"
+    // MARK: - API Base URL Configuration
+    // Automatically detects simulator vs device and uses appropriate endpoint
+    // Can be overridden via UserDefaults with key "APIBaseURL"
+    private var baseURL: String {
+        // Check for manual override first
+        if let overrideURL = UserDefaults.standard.string(forKey: "APIBaseURL"), !overrideURL.isEmpty {
+            return overrideURL
+        }
+        
+        // Detect simulator vs device
+        #if targetEnvironment(simulator)
+        // Simulator: use localhost (same machine as backend)
+        return "http://localhost:3000"
+        #else
+        // Physical device: use local IP (update this when your laptop's IP changes)
+        // You can also set this via UserDefaults in your app's settings
+        return "http://192.168.1.171:3000"
+        #endif
+    }
+    
+    // MARK: - API URL Management
+    
+    /// Get the current API base URL being used
+    var currentBaseURL: String {
+        return baseURL
+    }
+    
+    /// Set a custom API base URL (for testing on different networks)
+    /// Pass nil to reset to default (simulator uses localhost, device uses configured IP)
+    /// Example: setAPIBaseURL("http://192.168.1.100:3000")
+    func setAPIBaseURL(_ url: String?) {
+        if let url = url, !url.isEmpty {
+            UserDefaults.standard.set(url, forKey: "APIBaseURL")
+        } else {
+            UserDefaults.standard.removeObject(forKey: "APIBaseURL")
+        }
+    }
     
     // MARK: - Authentication Helpers
     private func getAuthToken() async throws -> String {
