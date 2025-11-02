@@ -361,31 +361,15 @@ class UserDataStore: ObservableObject {
         }
         
         // Convert to Location and add to local state
-        // Handle potential decoding errors gracefully - don't fail the whole operation
-        let newLocation: Location
-        do {
-            newLocation = Location(
-                id: response.id,
-                name: response.name,
-                description: response.description,
-                equipment: response.equipment ?? [],
-                currentLocation: response.current_location ?? false,
-                geoData: Location.coordinateFromPostGIS(response.geo_data),
-                createdAt: response.created_at
-            )
-        } catch {
-            print("⚠️ Error decoding location response (but save succeeded): \(error)")
-            // Create location with the data we sent, since save succeeded
-            newLocation = Location(
-                id: response.id,
-                name: location.name,
-                description: location.description,
-                equipment: location.equipment,
-                currentLocation: location.currentLocation,
-                geoData: location.geoData,
-                createdAt: response.created_at
-            )
-        }
+        let newLocation = Location(
+            id: response.id,
+            name: response.name,
+            description: response.description,
+            equipment: response.equipment ?? [],
+            currentLocation: response.current_location ?? false,
+            geoData: Location.coordinateFromPostGIS(response.geo_data),
+            createdAt: response.created_at
+        )
         
         await MainActor.run {
             if newLocation.currentLocation {
@@ -448,25 +432,17 @@ class UserDataStore: ObservableObject {
                 .execute()
         }
         
-        // Update local state - handle potential decoding errors gracefully
-        // Don't fail the whole operation if response decoding fails
+        // Update local state
         if let index = locations.firstIndex(where: { $0.id == location.id }) {
-            let updatedLocation: Location
-            do {
-                updatedLocation = Location(
-                    id: response.id,
-                    name: response.name,
-                    description: response.description,
-                    equipment: response.equipment ?? [],
-                    currentLocation: response.current_location ?? false,
-                    geoData: Location.coordinateFromPostGIS(response.geo_data),
-                    createdAt: response.created_at
-                )
-            } catch {
-                print("⚠️ Error decoding location response (but update succeeded): \(error)")
-                // Use the location data we sent, since update succeeded
-                updatedLocation = location
-            }
+            let updatedLocation = Location(
+                id: response.id,
+                name: response.name,
+                description: response.description,
+                equipment: response.equipment ?? [],
+                currentLocation: response.current_location ?? false,
+                geoData: Location.coordinateFromPostGIS(response.geo_data),
+                createdAt: response.created_at
+            )
             locations[index] = updatedLocation
             
             // If this became current, unset others locally

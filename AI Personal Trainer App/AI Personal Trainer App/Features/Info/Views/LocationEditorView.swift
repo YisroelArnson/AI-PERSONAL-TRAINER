@@ -292,7 +292,7 @@ struct LocationEditorView: View {
                 }
             } catch let error as LocationError {
                 await MainActor.run {
-                    errorMessage = error.localizedDescription ?? "Unable to determine current location."
+                    errorMessage = error.localizedDescription
                     showError = true
                 }
             } catch {

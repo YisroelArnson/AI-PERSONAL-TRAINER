@@ -257,7 +257,7 @@ extension Location {
         guard hex.count >= 34 else { return nil } // Minimum for POINT with SRID
         
         // Convert hex string to Data
-        var hexString = hex
+        let hexString = hex
         var data = Data()
         var index = hexString.startIndex
         

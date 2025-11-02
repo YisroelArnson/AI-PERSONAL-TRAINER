@@ -13,7 +13,7 @@ struct LocationMapPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var selectedCoordinate: CLLocationCoordinate2D?
     
-    @State private var region: MKCoordinateRegion
+    @State private var cameraPosition: MapCameraPosition
     @State private var annotationCoordinate: CLLocationCoordinate2D?
     @StateObject private var locationService = LocationService.shared
     @State private var showError: Bool = false
@@ -23,13 +23,13 @@ struct LocationMapPickerView: View {
     init(selectedCoordinate: Binding<CLLocationCoordinate2D?>) {
         self._selectedCoordinate = selectedCoordinate
         
-        // Initialize region with selected coordinate or default location
+        // Initialize camera position with selected coordinate or default location
         if let coordinate = selectedCoordinate.wrappedValue {
             let initialRegion = MKCoordinateRegion(
                 center: coordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
             )
-            _region = State(initialValue: initialRegion)
+            _cameraPosition = State(initialValue: .region(initialRegion))
             _annotationCoordinate = State(initialValue: coordinate)
         } else {
             // Default to a central location (can be changed to user's current location)
@@ -38,15 +38,24 @@ struct LocationMapPickerView: View {
                 center: defaultCoordinate,
                 span: MKCoordinateSpan(latitudeDelta: 0.1, longitudeDelta: 0.1)
             )
-            _region = State(initialValue: initialRegion)
+            _cameraPosition = State(initialValue: .region(initialRegion))
         }
     }
     
     var body: some View {
         NavigationView {
             ZStack {
-                Map(coordinateRegion: $region, annotationItems: annotationItems) { item in
-                    MapPin(coordinate: item.coordinate, tint: .red)
+                Map(position: $cameraPosition) {
+                    if let coordinate = annotationCoordinate {
+                        Annotation("Selected Location", coordinate: coordinate) {
+                            Image(systemName: "mappin.circle.fill")
+                                .foregroundColor(.red)
+                                .font(.system(size: 30))
+                        }
+                    }
+                }
+                .onMapCameraChange { context in
+                    annotationCoordinate = context.region.center
                 }
                 .ignoresSafeArea()
                 
@@ -114,25 +123,12 @@ struct LocationMapPickerView: View {
                     }
                 }
             }
-            .onChange(of: region.center.latitude) { _ in
-                annotationCoordinate = region.center
-            }
-            .onChange(of: region.center.longitude) { _ in
-                annotationCoordinate = region.center
-            }
             .alert("Error", isPresented: $showError) {
                 Button("OK", role: .cancel) {}
             } message: {
                 Text(errorMessage)
             }
         }
-    }
-    
-    private var annotationItems: [MapAnnotation] {
-        if let coordinate = annotationCoordinate {
-            return [MapAnnotation(coordinate: coordinate)]
-        }
-        return []
     }
     
     private func useCurrentLocation() {
@@ -190,7 +186,7 @@ struct LocationMapPickerView: View {
                             center: coordinate,
                             span: MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01)
                         )
-                        region = newRegion
+                        cameraPosition = .region(newRegion)
                         annotationCoordinate = coordinate
                     }
                 }
@@ -209,13 +205,6 @@ struct LocationMapPickerView: View {
         }
         dismiss()
     }
-}
-
-// MARK: - Map Annotation Model
-
-private struct MapAnnotation: Identifiable {
-    let id = UUID()
-    let coordinate: CLLocationCoordinate2D
 }
 
 #Preview {

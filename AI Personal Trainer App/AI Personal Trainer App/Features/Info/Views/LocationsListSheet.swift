@@ -9,7 +9,7 @@ import SwiftUI
 
 // MARK: - Editor Location Wrapper
 
-private struct EditorLocation: Identifiable {
+private struct EditorLocation: Identifiable, Equatable {
     let id: UUID
     let location: Location?
     
@@ -17,6 +17,10 @@ private struct EditorLocation: Identifiable {
         self.location = location
         // Use a UUID for the wrapper ID - always unique
         self.id = UUID()
+    }
+    
+    static func == (lhs: EditorLocation, rhs: EditorLocation) -> Bool {
+        return lhs.id == rhs.id && lhs.location == rhs.location
     }
 }
 
@@ -130,6 +134,12 @@ struct LocationsListSheet: View {
             .sheet(item: $editingLocation) { editorLocation in
                 LocationEditorView(location: editorLocation.location)
                     .environmentObject(userDataStore)
+            }
+            .onChange(of: editingLocation) { oldValue, newValue in
+                // Reset shouldShowEditor when sheet is dismissed
+                if newValue == nil {
+                    shouldShowEditor = false
+                }
             }
         }
     }

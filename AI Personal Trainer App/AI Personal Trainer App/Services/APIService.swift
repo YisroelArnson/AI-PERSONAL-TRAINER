@@ -350,7 +350,7 @@ class APIService: ObservableObject {
         let jsonData = try JSONSerialization.data(withJSONObject: exerciseData)
         request.httpBody = jsonData
         
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await URLSession.shared.data(for: request)
         
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.invalidResponse
