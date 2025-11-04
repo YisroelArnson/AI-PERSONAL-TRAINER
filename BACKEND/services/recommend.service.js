@@ -259,6 +259,38 @@ function formatUserDataAsNaturalLanguage(userData) {
     output.push(`BODY STATS: ${ageStr}${sexStr}, ${heightStr}, ${weightStr}${bodyFatStr}`);
   }
   
+  // Calculate goal priority scores
+  const goalPriorities = [];
+  if (userData.userCategoryAndWeights) {
+    userData.userCategoryAndWeights.forEach(c => {
+      if (c.weight > 0) {
+        goalPriorities.push({ name: c.category, score: c.weight * 10, type: 'category' });
+      }
+    });
+  }
+  if (userData.userMuscleAndWeight) {
+    userData.userMuscleAndWeight.forEach(m => {
+      if (m.weight > 0) {
+        goalPriorities.push({ name: m.muscle, score: m.weight * 5, type: 'muscle' });
+      }
+    });
+  }
+  goalPriorities.sort((a, b) => b.score - a.score);
+  
+  // Display top priorities with calculated scores
+  if (goalPriorities.length > 0) {
+    const top10 = goalPriorities.slice(0, 10);
+    const categories = top10.filter(g => g.type === 'category');
+    const muscles = top10.filter(g => g.type === 'muscle');
+    
+    if (categories.length > 0) {
+      output.push(`TOP CATEGORY GOALS (by priority score): ${categories.map(g => `${g.name} (score: ${g.score.toFixed(1)})`).join(', ')}`);
+    }
+    if (muscles.length > 0) {
+      output.push(`TOP MUSCLE TARGETS (by priority score): ${muscles.map(m => `${m.name} (score: ${m.score.toFixed(1)})`).join(', ')}`);
+    }
+  }
+  
   // Goals (Category Weights) - filter and prioritize
   if (userData.userCategoryAndWeights && userData.userCategoryAndWeights.length > 0) {
     const activeGoals = userData.userCategoryAndWeights.filter(c => c.weight > 0);
@@ -303,8 +335,54 @@ function formatUserDataAsNaturalLanguage(userData) {
   if (userData.locations) {
     const loc = userData.locations;
     const nameStr = loc.name ? `${loc.name}` : 'Current location';
-    const equipmentStr = loc.equipment && loc.equipment.length > 0 ? loc.equipment.join(', ') : 'no specific equipment listed';
-    output.push(`LOCATION: ${nameStr} with equipment: ${equipmentStr}`);
+    
+    // Format equipment array - now contains objects with metadata
+    let equipmentStr = 'no specific equipment listed';
+    if (loc.equipment && Array.isArray(loc.equipment) && loc.equipment.length > 0) {
+      const equipmentParts = loc.equipment.map(eq => {
+        if (typeof eq === 'string') {
+          // Handle legacy string format
+          return eq;
+        } else if (typeof eq === 'object' && eq !== null) {
+          // Format equipment object
+          let eqStr = eq.name || 'Unknown equipment';
+          
+          // Add type if available
+          if (eq.type) {
+            const typeStr = eq.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            eqStr += ` (${typeStr})`;
+          }
+          
+          // Add weight specifications for free weights
+          if (eq.type === 'free_weights' && eq.weights && Array.isArray(eq.weights) && eq.weights.length > 0) {
+            const weightsStr = eq.weights.map(w => `${w}${eq.unit || 'kg'}`).join(', ');
+            eqStr += `: ${weightsStr}`;
+          }
+          
+          // Add brand if available
+          if (eq.brand) {
+            eqStr += ` [${eq.brand}]`;
+          }
+          
+          // Add notes if available
+          if (eq.notes) {
+            eqStr += ` - ${eq.notes}`;
+          }
+          
+          return eqStr;
+        }
+        return String(eq);
+      });
+      equipmentStr = equipmentParts.join(', ');
+    }
+    
+    // Add location description if available
+    if (loc.description) {
+      output.push(`LOCATION: ${nameStr} - ${loc.description}`);
+      output.push(`EQUIPMENT AVAILABLE: ${equipmentStr}`);
+    } else {
+      output.push(`LOCATION: ${nameStr} with equipment: ${equipmentStr}`);
+    }
   }
   
   // Preferences (separate temporary and permanent)
@@ -332,9 +410,140 @@ function formatUserDataAsNaturalLanguage(userData) {
     }
   }
   
-  // Workout History (last 10-15 exercises)
+  // Workout History Analysis (last 7 days for recovery and patterns)
   if (userData.workoutHistory && userData.workoutHistory.length > 0) {
-    output.push(`RECENT WORKOUT HISTORY (for progression):`);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const recentWorkouts = userData.workoutHistory.filter(w => 
+      new Date(w.performed_at) >= sevenDaysAgo
+    );
+    
+    // Movement Pattern Analysis
+    const movementPatterns = {};
+    const exerciseFrequency = {};
+    const muscleVolumeLoad = {};
+    const muscleLastWorked = {};
+    
+    recentWorkouts.forEach(workout => {
+      // Track exercise frequency
+      exerciseFrequency[workout.exercise_name] = (exerciseFrequency[workout.exercise_name] || 0) + 1;
+      
+      // Track movement patterns
+      if (workout.movement_pattern && Array.isArray(workout.movement_pattern)) {
+        workout.movement_pattern.forEach(pattern => {
+          if (!movementPatterns[pattern]) {
+            movementPatterns[pattern] = [];
+          }
+          
+          let performanceStr = '';
+          if (workout.load_kg_each && workout.sets && workout.reps) {
+            const avgLoad = Array.isArray(workout.load_kg_each) 
+              ? workout.load_kg_each.reduce((a, b) => a + b, 0) / workout.load_kg_each.length 
+              : workout.load_kg_each;
+            const totalReps = Array.isArray(workout.reps)
+              ? workout.reps.reduce((a, b) => a + b, 0)
+              : workout.reps * workout.sets;
+            const volumeLoad = avgLoad * totalReps;
+            performanceStr = `${avgLoad.toFixed(1)}kg, volume: ${volumeLoad.toFixed(0)}kg`;
+          }
+          
+          movementPatterns[pattern].push({
+            name: workout.exercise_name,
+            date: workout.performed_at,
+            performance: performanceStr
+          });
+        });
+      }
+      
+      // Track muscle volume and last worked date
+      if (workout.muscles_utilized && Array.isArray(workout.muscles_utilized)) {
+        workout.muscles_utilized.forEach(mu => {
+          const muscle = mu.muscle;
+          const share = mu.share || 1;
+          
+          // Calculate volume load for this muscle
+          if (workout.load_kg_each && workout.sets && workout.reps) {
+            const avgLoad = Array.isArray(workout.load_kg_each) 
+              ? workout.load_kg_each.reduce((a, b) => a + b, 0) / workout.load_kg_each.length 
+              : workout.load_kg_each;
+            const totalReps = Array.isArray(workout.reps)
+              ? workout.reps.reduce((a, b) => a + b, 0)
+              : workout.reps * workout.sets;
+            const volumeLoad = avgLoad * totalReps * share;
+            
+            muscleVolumeLoad[muscle] = (muscleVolumeLoad[muscle] || 0) + volumeLoad;
+          }
+          
+          // Track last time this muscle was worked
+          const workoutDate = new Date(workout.performed_at);
+          if (!muscleLastWorked[muscle] || workoutDate > new Date(muscleLastWorked[muscle])) {
+            muscleLastWorked[muscle] = workout.performed_at;
+          }
+        });
+      }
+    });
+    
+    // Display Movement Pattern Summary
+    const patternKeys = Object.keys(movementPatterns);
+    if (patternKeys.length > 0) {
+      output.push(`\nMOVEMENT PATTERN ANALYSIS (Last 7 Days):`);
+      patternKeys.forEach(pattern => {
+        const exercises = movementPatterns[pattern].slice(0, 3); // Show top 3 recent
+        const exerciseList = exercises.map(e => {
+          const timeAgo = getRelativeTime(e.date);
+          return e.performance ? `${e.name} (${e.performance}, ${timeAgo})` : `${e.name} (${timeAgo})`;
+        }).join('; ');
+        output.push(`  - ${pattern.toUpperCase()}: ${exerciseList}`);
+      });
+    }
+    
+    // Display Recovery Status
+    const now = new Date();
+    const recoveryStatus = {
+      ready: [],
+      recovering: []
+    };
+    
+    // Define large vs small muscle groups for recovery windows
+    const largeMuscles = ['Chest', 'Back', 'Legs', 'Quadriceps', 'Hamstrings', 'Glutes', 'Lats'];
+    
+    Object.entries(muscleLastWorked).forEach(([muscle, lastDate]) => {
+      const hoursSinceWork = (now - new Date(lastDate)) / (1000 * 60 * 60);
+      const isLarge = largeMuscles.some(lm => muscle.toLowerCase().includes(lm.toLowerCase()));
+      const recoveryWindow = isLarge ? 48 : 24;
+      
+      if (hoursSinceWork >= recoveryWindow) {
+        const volumeStr = muscleVolumeLoad[muscle] ? ` (volume: ${muscleVolumeLoad[muscle].toFixed(0)}kg)` : '';
+        recoveryStatus.ready.push(`${muscle}${volumeStr}`);
+      } else {
+        const hoursRemaining = Math.ceil(recoveryWindow - hoursSinceWork);
+        recoveryStatus.recovering.push(`${muscle} (${hoursRemaining}h remaining)`);
+      }
+    });
+    
+    if (recoveryStatus.ready.length > 0 || recoveryStatus.recovering.length > 0) {
+      output.push(`\nRECOVERY STATUS:`);
+      if (recoveryStatus.ready.length > 0) {
+        output.push(`  READY: ${recoveryStatus.ready.join(', ')}`);
+      }
+      if (recoveryStatus.recovering.length > 0) {
+        output.push(`  RECOVERING: ${recoveryStatus.recovering.join(', ')}`);
+      }
+    }
+    
+    // Display exercises performed multiple times (consider variation)
+    const frequentExercises = Object.entries(exerciseFrequency)
+      .filter(([, count]) => count >= 3)
+      .map(([name, count]) => `${name} (${count}x)`)
+      .join(', ');
+    
+    if (frequentExercises) {
+      output.push(`\nFREQUENT EXERCISES (consider variation): ${frequentExercises}`);
+    }
+    
+    // Display full workout history for progression
+    output.push(`\nRECENT WORKOUT HISTORY (for progression):`);
     userData.workoutHistory.slice(0, 15).forEach(workout => {
       const timeAgo = getRelativeTime(workout.performed_at);
       let detailsStr = '';
@@ -367,40 +576,74 @@ function formatUserDataAsNaturalLanguage(userData) {
 
 
 // System prompt for the AI personal trainer
-const SYSTEM_PROMPT = `You are an AI personal trainer generating personalized exercise recommendations.
+const SYSTEM_PROMPT = `You are an elite AI personal trainer specializing in exercise programming and progressive overload. Your recommendations must be scientifically sound, highly personalized, and optimally timed.
 
-Your recommendations must be:
-- Personalized to the user's stats, goals, workout history, and current preferences
-- Effective for progressive overload and continuous improvement
-- Practical given the user's available equipment and constraints
-- STRICTLY respect all user preferences, especially temporary ones which override everything else
+CORE PRINCIPLES:
+1. PERSONALIZATION: Every recommendation must align with the user's specific goals, with exercise selection heavily influenced by their category and muscle group priorities
+2. PROGRESSION: Apply conservative progressive overload (5-10% increases) only when the user has successfully completed previous sessions
+3. RECOVERY: Respect muscle recovery by analyzing the last 7 days of training history
+4. MOVEMENT PATTERNS: Use similar exercises within movement patterns to inform weight recommendations
+5. EXERCISE SELECTION: Choose exercises that match the user's goals - prioritize compound movements for strength goals, include isolation for hypertrophy goals
+6. REP RANGES: Apply goal-appropriate rep ranges - Strength (1-5), Hypertrophy (6-12), Endurance (12+), with mixed ranges for different exercise types
 
-IMPORTANT RULES:
-- The output format is enforced by a strict schema - focus on selecting the best exercises, not formatting
-- Choose appropriate exercise_type for each exercise (strength, cardio_distance, cardio_time, hiit, circuit, flexibility, yoga, bodyweight, isometric, balance, sport_specific)
-- When labeling goals_addressed and muscles_utilized, use ONLY the categories and muscles provided in the user's profile
-- For muscles_utilized, ensure shares add up to 1.0 (e.g., Chest: 0.6, Triceps: 0.3, Shoulders: 0.1)
-- Apply progressive overload by slightly increasing load/reps/difficulty from recent workout history when appropriate
-- Generate EXACTLY the number of exercises requested - no more, no less`;
+STRICT REQUIREMENTS:
+- ONLY recommend exercises with available equipment - no substitutions or alternatives
+- Generate EXACTLY the requested number of exercises
+- Ensure muscles_utilized shares sum to 1.0
+- Use ONLY the categories and muscles from the user's profile
+- Respect ALL temporary preferences as absolute overrides
+- Choose appropriate exercise_type for each exercise (strength, cardio_distance, cardio_time, hiit, circuit, flexibility, yoga, bodyweight, isometric, balance, sport_specific)`;
 
 // Process rules for the model
 // Note: Temporary preferences are those with expire_time or delete_after_call=true
 // Permanent preferences have no expire_time and delete_after_call=false/null
-const PROCESS_RULES = `DECISION HIERARCHY (most important first):
+const PROCESS_RULES = `EXERCISE RECOMMENDATION PROCESS:
+
+1. ANALYZE GOALS
+   - Calculate priority scores: (category_weight × 10) + (muscle_weight × 5)
+   - Identify top 3 categories and top 5 muscles by priority score
+   - Ensure 70% of exercises directly address high-priority goals
+
+2. ASSESS RECENT TRAINING (Last 7 Days)
+   - Map each completed exercise to its movement patterns
+   - Calculate volume load per muscle group
+   - Identify muscles ready for training (48+ hours recovery for large muscles, 24+ hours for small muscles)
+   - Flag any exercises performed 3+ times (consider variation)
+
+3. MOVEMENT PATTERN ANALYSIS
+   For weight recommendations:
+   - Group exercises by pattern: squat, hinge, push, pull, carry, rotation_core, isolation, conditioning, plyometric, balance, flexibility, yoga
+   - Find the 3 most recent similar exercises in the same movement pattern
+   - Calculate average working weight and performance trend
+   - Apply progression logic based on pattern performance
+
+4. EXERCISE SELECTION CRITERIA
+   Priority order:
+   a) Addresses highest-priority goals (category and muscle weights)
+   b) Targets recovered muscles (check last 7 days)
+   c) Matches available equipment exactly (strict - no substitutions)
+   d) Provides movement pattern variety across the session
+   e) Hasn't been performed in last 2 sessions (unless specifically requested)
+
+5. LOAD AND REP ASSIGNMENT
+   - For familiar exercises: Use last performance + 5-10% if completed successfully
+   - For new exercises in familiar patterns: Use movement pattern data from similar exercises
+   - For unfamiliar patterns: Start conservative (bodyweight or 40-50% estimated capacity based on user stats)
+   - Apply rep ranges based on primary goal and exercise type
+   - Include rest periods: Heavy (3-5 min), Moderate (90-120s), Light (60-90s)
+
+6. FINAL VALIDATION
+   - Verify total volume is appropriate for user's experience level
+   - Ensure balanced muscle group distribution across the session
+   - Confirm exercise order follows: compound → accessory → isolation
+   - Add clear reasoning for each selection (1-2 sentences max explaining goal alignment and progression)
+
+DECISION HIERARCHY (most important first):
 1. TEMPORARY PREFERENCES - Override everything else (session-specific needs with expiration or one-time use)
 2. EXPLICIT REQUESTS - Any specific request in the current interaction
 3. PERMANENT PREFERENCES - Long-term restrictions and preferences (no expiration)
 4. GOALS & MUSCLES - Priority based on weights (higher weight = higher priority)
-5. WORKOUT HISTORY - Use for progression and variety
-
-EXERCISE SELECTION PROCESS:
-1. Identify which goals and muscles to prioritize based on their weights
-2. Review recent workout history to apply progressive overload (increase load/reps by 5-10% when appropriate)
-3. Avoid recently completed exercises unless specifically requested
-4. Select exercises matching available equipment
-5. Choose appropriate exercise_type for each exercise
-6. Provide brief reasoning (1 sentence) explaining why each exercise was selected
-7. Ensure variety in movement patterns and muscle groups unless preferences specify otherwise`;
+5. WORKOUT HISTORY - Use for progression, recovery assessment, and variety`;
 
 /**
  * Generates exercise recommendations using OpenAI (streaming version)
@@ -450,7 +693,7 @@ ${exerciseCountInstruction}
 
     // Generate structured output using Vercel AI SDK with streaming
     const result = streamObject({
-      model: openai('gpt-4o'),
+      model: openai('gpt-4.1'),
       system: SYSTEM_PROMPT,
       prompt: userPrompt,
       schema: IndividualExerciseSchema,
