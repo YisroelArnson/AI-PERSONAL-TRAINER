@@ -14,7 +14,7 @@
           </dict>
         </array>
     <key>NSLocationWhenInUseUsageDescription</key>
-    <string>This app needs access to your location to set your current workout location.</string>
+    <string>This app needs access to your location to automatically detect your workout location and set it for you.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsLocalNetworking</key>

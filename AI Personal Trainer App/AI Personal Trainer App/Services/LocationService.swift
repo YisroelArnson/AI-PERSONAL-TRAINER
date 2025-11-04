@@ -132,6 +132,62 @@ class LocationService: NSObject, ObservableObject {
         
         return CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
+    
+    // MARK: - Auto-Detection Helpers
+    
+    /// Calculate distance in meters between two coordinates
+    static func distance(from: CLLocationCoordinate2D, to: CLLocationCoordinate2D) -> CLLocationDistance {
+        let fromLocation = CLLocation(latitude: from.latitude, longitude: from.longitude)
+        let toLocation = CLLocation(latitude: to.latitude, longitude: to.longitude)
+        return fromLocation.distance(from: toLocation)
+    }
+    
+    /// Find the nearest location within a given radius
+    /// Returns nil if no locations are within the radius or if no locations have GPS coordinates
+    /// - Parameters:
+    ///   - currentCoordinate: The current GPS coordinate to search from
+    ///   - radius: Maximum distance in meters (default: 500)
+    ///   - locations: Array of Location objects to search through
+    /// - Returns: The nearest Location within radius, or nil if none found
+    func findNearestLocation(
+        from currentCoordinate: CLLocationCoordinate2D,
+        within radius: CLLocationDistance = 500,
+        from locations: [Location]
+    ) -> Location? {
+        // Filter locations that have GPS coordinates
+        let locationsWithGPS = locations.filter { $0.geoData != nil }
+        
+        guard !locationsWithGPS.isEmpty else {
+            print("📍 findNearestLocation: No locations with GPS coordinates")
+            return nil
+        }
+        
+        // Calculate distances and find the nearest
+        var nearestLocation: Location?
+        var nearestDistance: CLLocationDistance = radius
+        
+        for location in locationsWithGPS {
+            guard let locationCoordinate = location.geoData else { continue }
+            
+            let distance = LocationService.distance(from: currentCoordinate, to: locationCoordinate)
+            
+            print("📍 Location '\(location.name)' is \(Int(distance))m away")
+            
+            // Check if this location is closer and within radius
+            if distance <= nearestDistance {
+                nearestDistance = distance
+                nearestLocation = location
+            }
+        }
+        
+        if let nearest = nearestLocation {
+            print("✅ Nearest location found: '\(nearest.name)' at \(Int(nearestDistance))m")
+        } else {
+            print("📍 No locations found within \(Int(radius))m radius")
+        }
+        
+        return nearestLocation
+    }
 }
 
 // MARK: - CLLocationManagerDelegate
