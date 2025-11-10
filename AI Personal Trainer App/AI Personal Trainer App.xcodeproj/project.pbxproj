@@ -23,6 +23,8 @@
 		12761C622E57953C00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */; };
 		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
 		1292C3C42EADAE2F005A728A /* RefreshModalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1292C3C32EADAE2F005A728A /* RefreshModalView.swift */; };
+		129756012EC161ED00AA9A9E /* AppStateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129756002EC161ED00AA9A9E /* AppStateCoordinator.swift */; };
+		129756032EC1620100AA9A9E /* LoadingStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 129756022EC1620100AA9A9E /* LoadingStateView.swift */; };
 		12CE3AAD2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12CE3AAC2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift */; };
 		12FF73FB2E9427C500958D26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF73F92E9427C500958D26 /* AppView.swift */; };
 		12FF73FC2E9427C500958D26 /* supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF73FA2E9427C500958D26 /* supabase.swift */; };
@@ -88,6 +90,8 @@
 		12761C5F2E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppUITests.swift; sourceTree = "<group>"; };
 		12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		1292C3C32EADAE2F005A728A /* RefreshModalView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = RefreshModalView.swift; sourceTree = "<group>"; };
+		129756002EC161ED00AA9A9E /* AppStateCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppStateCoordinator.swift; sourceTree = "<group>"; };
+		129756022EC1620100AA9A9E /* LoadingStateView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoadingStateView.swift; sourceTree = "<group>"; };
 		12B5ED9D2E58CF87000D7061 /* AI-Personal-Trainer-App-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = "AI-Personal-Trainer-App-Info.plist"; sourceTree = SOURCE_ROOT; };
 		12CE3AAC2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
 		12FF73F92E9427C500958D26 /* AppView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
@@ -269,6 +273,7 @@
 		12FF74082E94280A00958D26 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				129756022EC1620100AA9A9E /* LoadingStateView.swift */,
 				122CF16D2EB7CA6E00820C84 /* ToastView.swift */,
 				12FF74092E94280A00958D26 /* FloatingNavigationBar.swift */,
 			);
@@ -371,6 +376,7 @@
 		12FF744B2E94466700958D26 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				129756002EC161ED00AA9A9E /* AppStateCoordinator.swift */,
 				122CF16B2EB7CA5A00820C84 /* UserSettings.swift */,
 				122CF1692EB42C9D00820C84 /* LocationService.swift */,
 				12FF74512E944B2600958D26 /* UserDataStore.swift */,
@@ -530,6 +536,7 @@
 				12FF73FB2E9427C500958D26 /* AppView.swift in Sources */,
 				122CF1662EB42C5C00820C84 /* LocationMapPickerView.swift in Sources */,
 				12FF74522E944B2600958D26 /* UserDataStore.swift in Sources */,
+				129756032EC1620100AA9A9E /* LoadingStateView.swift in Sources */,
 				12FF74242E94280A00958D26 /* AssistantView.swift in Sources */,
 				122CF16A2EB42C9D00820C84 /* LocationService.swift in Sources */,
 				12CE3AAD2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift in Sources */,
@@ -542,6 +549,7 @@
 				12FF74442E942AFF00958D26 /* MuscleGoalSetterView.swift in Sources */,
 				12FF74452E942AFF00958D26 /* MuscleGoalsAIAssistSheet.swift in Sources */,
 				12FF74232E94280A00958D26 /* FloatingNavigationBar.swift in Sources */,
+				129756012EC161ED00AA9A9E /* AppStateCoordinator.swift in Sources */,
 				122CF1652EB42C5C00820C84 /* LocationEditorView.swift in Sources */,
 				12FF742C2E94280A00958D26 /* ProfileView.swift in Sources */,
 				12FF74462E942AFF00958D26 /* CategoryGoalSetterView.swift in Sources */,

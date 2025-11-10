@@ -8,6 +8,7 @@
 import SwiftUI
 
 struct HomeView: View {
+    @EnvironmentObject var appCoordinator: AppStateCoordinator
     @StateObject private var apiService = APIService()
     @State private var currentExerciseIndex = 0
     @State private var exercises: [UIExercise] = []
@@ -111,6 +112,12 @@ struct HomeView: View {
                     }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+                
+                // Loading state overlay - shows during app initialization
+                if !appCoordinator.isReady {
+                    LoadingStateView(state: appCoordinator.loadingState)
+                        .transition(.opacity)
+                }
             }
         }
         .sheet(isPresented: $showRefreshModal) {
@@ -118,9 +125,11 @@ struct HomeView: View {
                 await fetchRecommendations(feedback: feedback)
             }
         }
-        .onAppear {
-            Task {
-                await loadRecommendationsIfNeeded()
+        .onChange(of: appCoordinator.shouldFetchRecommendations) { _, shouldFetch in
+            if shouldFetch && exercises.isEmpty {
+                Task {
+                    await loadRecommendationsIfNeeded()
+                }
             }
         }
         .onChange(of: allExercisesCompleted) { _, isAllCompleted in
@@ -212,9 +221,10 @@ struct HomeView: View {
                     // Convert streaming exercise to UIExercise
                     let uiExercise = self.convertStreamingToUIExercise(streamingExercise)
                     
-                    // Turn off loading as soon as first exercise arrives
+                    // Turn off loading and mark app as ready when first exercise arrives
                     if self.exercises.isEmpty {
                         self.isLoadingRecommendations = false
+                        self.appCoordinator.markAsReady()
                     }
                     
                     self.exercises.append(uiExercise)
