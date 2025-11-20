@@ -16,7 +16,7 @@ struct Exercise: Codable, Identifiable {
     let duration_min: Int
     let load_kg_each: [Double]
     let muscles_utilized: [MuscleUtilization]?
-    let goals_addressed: [String]?
+    let goals_addressed: [GoalUtilization]?
     let reasoning: String
     let exercise_description: String?
     let intervals: [ExerciseInterval]?
@@ -31,7 +31,7 @@ struct Exercise: Codable, Identifiable {
     let aliases: [String]?
     
     // Full initializer for direct construction
-    init(name: String, exercise_type: String, sets: Int, reps: [Int], duration_min: Int, load_kg_each: [Double], muscles_utilized: [MuscleUtilization]?, goals_addressed: [String]?, reasoning: String, exercise_description: String?, intervals: [ExerciseInterval]?, distance_km: Double?, rounds: Int?, rest_seconds: Int?, target_pace: String?, hold_duration_sec: [Int]?, equipment: [String]?, movement_pattern: [String]?, body_region: String?, aliases: [String]?) {
+    init(name: String, exercise_type: String, sets: Int, reps: [Int], duration_min: Int, load_kg_each: [Double], muscles_utilized: [MuscleUtilization]?, goals_addressed: [GoalUtilization]?, reasoning: String, exercise_description: String?, intervals: [ExerciseInterval]?, distance_km: Double?, rounds: Int?, rest_seconds: Int?, target_pace: String?, hold_duration_sec: [Int]?, equipment: [String]?, movement_pattern: [String]?, body_region: String?, aliases: [String]?) {
         self.name = name
         self.exercise_type = exercise_type
         self.sets = sets
@@ -255,7 +255,9 @@ struct Exercise: Codable, Identifiable {
                 return intervalDict
             }
         }
-        if let goals_addressed = goals_addressed { dict["goals_addressed"] = goals_addressed }
+        if let goals_addressed = goals_addressed { 
+            dict["goals_addressed"] = goals_addressed.map { ["goal": $0.goal, "share": $0.share] }
+        }
         if !reasoning.isEmpty { dict["reasoning"] = reasoning }
         if let equipment = equipment { dict["equipment"] = equipment }
         if let movement_pattern = movement_pattern { dict["movement_pattern"] = movement_pattern }
@@ -270,13 +272,18 @@ struct Exercise: Codable, Identifiable {
     }
 }
 
-struct ExerciseInterval: Codable {
+struct ExerciseInterval: Codable, Equatable {
     let work_sec: Int?
     let rest_sec: Int?
 }
 
-struct MuscleUtilization: Codable {
+struct MuscleUtilization: Codable, Equatable {
     let muscle: String
+    let share: Double
+}
+
+struct GoalUtilization: Codable, Equatable {
+    let goal: String
     let share: Double
 }
 

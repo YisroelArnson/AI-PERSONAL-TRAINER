@@ -7,24 +7,400 @@
 
 import SwiftUI
 
+enum TimePeriod: String, CaseIterable {
+    case today = "Today"
+    case thisWeek = "This Week"
+    case thisMonth = "This Month"
+    case allTime = "All Time"
+    case custom = "Custom Range"
+    
+    func dateRange(customStart: Date? = nil, customEnd: Date? = nil) -> (start: Date?, end: Date?) {
+        let calendar = Calendar.current
+        let now = Date()
+        
+        switch self {
+        case .today:
+            let startOfDay = calendar.startOfDay(for: now)
+            return (startOfDay, now)
+        case .thisWeek:
+            let startOfWeek = calendar.dateInterval(of: .weekOfYear, for: now)?.start
+            return (startOfWeek, now)
+        case .thisMonth:
+            let startOfMonth = calendar.dateInterval(of: .month, for: now)?.start
+            return (startOfMonth, now)
+        case .allTime:
+            return (nil, nil)
+        case .custom:
+            return (customStart, customEnd)
+        }
+    }
+}
+
 struct StatsView: View {
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var historyStore = WorkoutHistoryStore.shared
+    
+    @State private var selectedPeriod: TimePeriod = .thisWeek
+    @State private var filteredWorkoutHistory: [WorkoutHistoryItem] = []
+    @State private var selectedWorkout: WorkoutHistoryItem?
+    @State private var showingDetail = false
+    
+    // Custom date range state
+    @State private var customStartDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var customEndDate: Date = Date()
     
     var body: some View {
         NavigationView {
-            VStack {
-                Text("Stats & Analytics")
-                    .font(.title)
+            ZStack {
+                AppTheme.Colors.background
+                    .ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    // Filter Controls
+                    HStack(spacing: 12) {
+                        // Date Range Display
+                        dateRangeDisplay
+                        
+                        // Preset Picker Button
+                        presetPickerButton
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 12)
+                    
+                    if historyStore.isLoading {
+                        // Loading State
+                        Spacer()
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .scaleEffect(1.5)
+                            Text("Loading workout history...")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                    } else if let error = historyStore.error {
+                        // Error State
+                        Spacer()
+                        VStack(spacing: 16) {
+                            Image(systemName: "exclamationmark.triangle")
+                                .font(.system(size: 50))
+                                .foregroundColor(.red)
+                            Text("Error Loading History")
+                                .font(.headline)
+                            Text(error.localizedDescription)
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                            
+                            Button("Try Again") {
+                                Task {
+                                    await historyStore.refreshCache()
+                                }
+                            }
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                            .background(AppTheme.Colors.primaryText)
+                            .foregroundColor(.white)
+                            .cornerRadius(AppTheme.CornerRadius.medium)
+                        }
+                        Spacer()
+                    } else if filteredWorkoutHistory.isEmpty {
+                        // Empty State
+                        Spacer()
+                        VStack(spacing: 16) {
+                            Image(systemName: "calendar.badge.clock")
+                                .font(.system(size: 60))
+                                .foregroundColor(.gray)
+                            Text("No Workouts Yet")
+                                .font(.title2)
+                                .fontWeight(.semibold)
+                            Text("Complete exercises to see your workout history here")
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                        }
                 Spacer()
+                    } else {
+                        // Exercise List
+                        VStack(spacing: 0) {
+                            // Exercise count
+                            HStack {
+                                Text("Showing \(filteredWorkoutHistory.count) exercise\(filteredWorkoutHistory.count == 1 ? "" : "s")")
+                                    .font(.caption)
+                                    .foregroundColor(AppTheme.Colors.tertiaryText)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 8)
+                            .padding(.bottom, 12)
+                            
+                            ScrollView {
+                                LazyVStack(spacing: 12) {
+                                    ForEach(filteredWorkoutHistory) { workout in
+                                        WorkoutHistoryCard(workout: workout)
+                                            .onTapGesture {
+                                                selectedWorkout = workout
+                                                showingDetail = true
+                                            }
+                                    }
+                                }
+                                .padding(.horizontal, 20)
+                                .padding(.vertical, 16)
+                            }
+                        }
+                    }
+                }
             }
-            .navigationTitle("Stats")
+            .navigationTitle("Stats & Analytics")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Done") { dismiss() }
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .foregroundColor(AppTheme.Colors.primaryText)
                 }
             }
+            .sheet(isPresented: $showingDetail) {
+                if let workout = selectedWorkout {
+                    ExerciseDetailSheet(workoutItem: workout)
+                }
+            }
+            .onAppear {
+                // Filter the already-loaded cache when view appears
+                filterWorkoutHistory()
+            }
+            .onChange(of: selectedPeriod) { _, _ in
+                filterWorkoutHistory()
+            }
+            .onChange(of: historyStore.workoutHistory) { _, _ in
+                // Re-filter when cache updates
+                filterWorkoutHistory()
+            }
         }
+    }
+    
+    // MARK: - Filter UI Components
+    
+    private var dateRangeDisplay: some View {
+        HStack(spacing: 6) {
+            // Start Date
+            DatePicker(
+                "",
+                selection: $customStartDate,
+                in: ...Date(),
+                displayedComponents: [.date]
+            )
+            .datePickerStyle(.compact)
+            .labelsHidden()
+            .scaleEffect(0.9)
+            .background(Color.white)
+            .onChange(of: customStartDate) { _, newValue in
+                selectedPeriod = .custom
+                filterWorkoutHistory()
+            }
+            
+            Text("—")
+                .font(.caption)
+                .foregroundColor(AppTheme.Colors.tertiaryText)
+            
+            // End Date
+            DatePicker(
+                "",
+                selection: $customEndDate,
+                in: customStartDate...Date(),
+                displayedComponents: [.date]
+            )
+            .datePickerStyle(.compact)
+            .labelsHidden()
+            .scaleEffect(0.9)
+            .background(Color.white)
+            .onChange(of: customEndDate) { _, newValue in
+                selectedPeriod = .custom
+                filterWorkoutHistory()
+            }
+        }
+        .padding(8)
+        .background(Color.white)
+        .cornerRadius(AppTheme.CornerRadius.small)
+        .shadow(
+            color: AppTheme.Shadow.card,
+            radius: AppTheme.Shadow.cardRadius,
+            x: 0,
+            y: 2
+        )
+    }
+    
+    private var presetPickerButton: some View {
+        Menu {
+            Button {
+                applyPreset(.today)
+            } label: {
+                HStack {
+                    Text("Today")
+                    if selectedPeriod == .today {
+                        Spacer()
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+            
+            Button {
+                applyPreset(.thisWeek)
+            } label: {
+                HStack {
+                    Text("This Week")
+                    if selectedPeriod == .thisWeek {
+                        Spacer()
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+            
+            Button {
+                applyPreset(.thisMonth)
+            } label: {
+                HStack {
+                    Text("This Month")
+                    if selectedPeriod == .thisMonth {
+                        Spacer()
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+            
+            Button {
+                applyPreset(.allTime)
+            } label: {
+                HStack {
+                    Text("All Time")
+                    if selectedPeriod == .allTime {
+                        Spacer()
+                        Image(systemName: "checkmark")
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "calendar.badge.clock")
+                .font(.system(size: 18))
+                .foregroundColor(AppTheme.Colors.primaryText)
+                .frame(width: 44, height: 44)
+                .background(AppTheme.Colors.cardBackground)
+                .cornerRadius(AppTheme.CornerRadius.small)
+                .shadow(
+                    color: AppTheme.Shadow.card,
+                    radius: AppTheme.Shadow.cardRadius,
+                    x: 0,
+                    y: 2
+                )
+        }
+    }
+    
+    private func applyPreset(_ period: TimePeriod) {
+        selectedPeriod = period
+        let dateRange = period.dateRange()
+        
+        if let start = dateRange.start {
+            customStartDate = start
+        }
+        if let end = dateRange.end {
+            customEndDate = end
+        }
+        
+        filterWorkoutHistory()
+    }
+    
+    // MARK: - Filtering Methods
+    
+    private func filterWorkoutHistory() {
+        let dateRange = selectedPeriod.dateRange(
+            customStart: customStartDate,
+            customEnd: customEndDate
+        )
+        
+        print("🔍 Filtering with period: \(selectedPeriod.rawValue)")
+        print("🔍 Date range: start=\(dateRange.start?.description ?? "nil"), end=\(dateRange.end?.description ?? "nil")")
+        print("🔍 Total workouts in cache: \(historyStore.workoutHistory.count)")
+        
+        // Check if we need to load older data
+        Task {
+            await checkAndLoadOlderDataIfNeeded(startDate: dateRange.start, endDate: dateRange.end)
+        }
+        
+        // Filter from cache
+        filteredWorkoutHistory = historyStore.filteredHistory(
+            start: dateRange.start,
+            end: dateRange.end
+        )
+        
+        print("🔍 Filtered to \(filteredWorkoutHistory.count) workouts")
+    }
+    
+    /// Check if we need to load older data from the API
+    private func checkAndLoadOlderDataIfNeeded(startDate: Date?, endDate: Date?) async {
+        // If all time is selected and we haven't loaded all data yet
+        if startDate == nil && endDate == nil {
+            // Check if we need to load all-time data
+            if historyStore.oldestFetchedDate != nil {
+                print("📥 Loading all-time data...")
+                await historyStore.loadHistoryForDateRange(start: nil, end: nil)
+            }
+            return
+        }
+        
+        // Check if requested start date is before our oldest fetched date
+        if let requestedStart = startDate,
+           let oldestDate = historyStore.oldestFetchedDate,
+           requestedStart < oldestDate {
+            print("📥 Loading older data from \(requestedStart) to \(oldestDate)...")
+            await historyStore.loadHistoryForDateRange(start: requestedStart, end: endDate)
+        }
+    }
+}
+
+// MARK: - Workout History Card
+
+struct WorkoutHistoryCard: View {
+    let workout: WorkoutHistoryItem
+    
+    var body: some View {
+        HStack(alignment: .center, spacing: 12) {
+            // Exercise Name and Date
+            VStack(alignment: .leading, spacing: 4) {
+                Text(workout.exercise_name)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                    .lineLimit(2)
+                
+                Text(workout.relativeDate)
+                    .font(.caption)
+                    .foregroundColor(AppTheme.Colors.tertiaryText)
+            }
+            
+            Spacer()
+            
+            // Type Badge
+            Text(workout.exercise_type.replacingOccurrences(of: "_", with: " ").capitalized)
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(workout.typeColor)
+                .cornerRadius(AppTheme.CornerRadius.small)
+        }
+        .padding(16)
+        .background(AppTheme.Colors.cardBackground)
+        .cornerRadius(AppTheme.CornerRadius.medium)
+        .shadow(
+            color: AppTheme.Shadow.card,
+            radius: AppTheme.Shadow.cardRadius,
+            x: AppTheme.Shadow.cardOffset.width,
+            y: AppTheme.Shadow.cardOffset.height
+        )
     }
 }
 

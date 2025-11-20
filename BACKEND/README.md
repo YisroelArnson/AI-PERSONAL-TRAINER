@@ -31,7 +31,7 @@ Generate exercises that are highly personalized, effective, and optimal. That me
     1. Check for explicit user preferences in the current data. If present, ignore long-term category/muscle goals and satisfy the preference fully.
     2. If no overriding preference is present, analyze the user’s goals, history, equipment, and constraints.
     3. Follow the bias signals which category or muscle groups are most under-target or most relevant when recommending exercises.
-    	3a. When labeling the goals_addressed and muscles_utilized, only select from the provided user's exercise categories and muscles. Do NOT make up your own categories or muscles.
+    	3a. When labeling the goals_addressed and muscles_utilized, only select from the provided user's exercise categories and muscles. Do NOT make up your own categories or muscles. For goals_addressed, assign shares that add up to 1.0 representing how much each goal is addressed by this exercise.
     4. Select exercises that match available equipment and respect pain/avoid preferences. And consider most recently completed exercises when recommending new exercises.
     5. Apply progression logic using the user’s workout history (increase load/reps slightly if appropriate).
     6. Choose the most relevant exercises for the user’s available time and preferences.
@@ -49,8 +49,8 @@ Generate exercises that are highly personalized, effective, and optimal. That me
           "sets": 0,
           "reps": [],
           "load_kg_each": [],
-          "muscles_utilized": [{"muscle": "", "share": 0.5}, ], //Which muscles were utalized. Share must add up to 1.
-          "goals_addressed": [""], //Which of the user goals does this exercise fit into
+          "muscles_utilized": [{"muscle": "", "share": 0.5}], //Which muscles were utilized. Share must add up to 1.
+          "goals_addressed": [{"goal": "", "share": 0.5}], //Which of the user goals does this exercise fit into and their shares. Share must add up to 1.
           "reasoning": "" //Why was this exercise recommended?
         }
       ]
@@ -188,7 +188,10 @@ Outputs recommended exercises (zod object passed into LLM):
     { "muscle": "shoulders", "share": 0.2 }
   ],
   
-  "goals_addressed": ["strength", "upper_body"],
+  "goals_addressed": [
+    { "goal": "Strength", "share": 0.8 },
+    { "goal": "Muscle Building", "share": 0.2 }
+  ],
   "reasoning": "Recommended because chest and triceps are under target this week (+0.2 bias). Progressed safely from last session at 75–80kg.",
 	"equiptment": ["barbell", "bench"],
 	"RPE": 5,
@@ -790,7 +793,10 @@ Exercise data model
     { "muscle": "shoulders", "share": 0.2 }
   ],
   
-  "goals_addressed": ["strength", "upper_body"],
+  "goals_addressed": [
+    { "goal": "Strength", "share": 0.8 },
+    { "goal": "Muscle Building", "share": 0.2 }
+  ],
   "reasoning": "Recommended because chest and triceps are under target this week (+0.2 bias). Progressed safely from last session at 75–80kg.",
 	"equiptment": ["barbell", "bench"],
 	"RPE": 5,

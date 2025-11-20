@@ -367,5 +367,120 @@ class APIService: ObservableObject {
         
         print("✅ Successfully logged exercise: \(exercise.name)")
     }
+    
+    // MARK: - Workout History
+    
+    func fetchWorkoutHistory(startDate: Date? = nil, endDate: Date? = nil, limit: Int? = nil) async throws -> [WorkoutHistoryItem] {
+        let session = try await supabase.auth.session
+        let userId = session.user.id.uuidString
+        
+        var urlComponents = URLComponents(string: "\(baseURL)/exercises/history/\(userId)")
+        var queryItems: [URLQueryItem] = []
+        
+        if let startDate = startDate {
+            let formatter = ISO8601DateFormatter()
+            queryItems.append(URLQueryItem(name: "startDate", value: formatter.string(from: startDate)))
+        }
+        
+        if let endDate = endDate {
+            let formatter = ISO8601DateFormatter()
+            queryItems.append(URLQueryItem(name: "endDate", value: formatter.string(from: endDate)))
+        }
+        
+        if let limit = limit {
+            queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
+        }
+        
+        if !queryItems.isEmpty {
+            urlComponents?.queryItems = queryItems
+        }
+        
+        guard let url = urlComponents?.url else {
+            throw APIError.invalidURL
+        }
+        
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw APIError.unauthorized
+            } else if httpResponse.statusCode == 403 {
+                throw APIError.forbidden
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        let apiResponse = try JSONDecoder().decode(WorkoutHistoryAPIResponse.self, from: data)
+        return apiResponse.data
+    }
+    
+
+    // MARK: - Exercise Distribution Tracking
+    
+    func resetDistributionTracking() async throws {
+        let session = try await supabase.auth.session
+        let userId = session.user.id.uuidString
+        
+        guard let url = URL(string: "\(baseURL)/exercises/distribution/reset/\(userId)") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        
+        let (_, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw APIError.unauthorized
+            } else if httpResponse.statusCode == 403 {
+                throw APIError.forbidden
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        print("✅ Successfully reset distribution tracking")
+    }
+    
+    func fetchDistributionMetrics() async throws -> DistributionMetrics {
+        let session = try await supabase.auth.session
+        let userId = session.user.id.uuidString
+        
+        guard let url = URL(string: "\(baseURL)/exercises/distribution/\(userId)") else {
+            throw APIError.invalidURL
+        }
+        
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+        
+        let (data, response) = try await URLSession.shared.data(for: request)
+        
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw APIError.invalidResponse
+        }
+        
+        guard httpResponse.statusCode == 200 else {
+            if httpResponse.statusCode == 401 {
+                throw APIError.unauthorized
+            } else if httpResponse.statusCode == 403 {
+                throw APIError.forbidden
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        
+        let apiResponse = try JSONDecoder().decode(DistributionAPIResponse.self, from: data)
+        return apiResponse.data
+    }
 }
 

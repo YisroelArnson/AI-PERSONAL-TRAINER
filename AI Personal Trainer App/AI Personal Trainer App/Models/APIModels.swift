@@ -38,7 +38,7 @@ struct RecommendationExercise: Codable {
     let intervals: [ExerciseInterval]?
     let rounds: Int?
     let muscles_utilized: [MuscleUtilization]
-    let goals_addressed: [String]
+    let goals_addressed: [GoalUtilization]
     let reasoning: String
     let equipment: [String]?
     let movement_pattern: [String]?
@@ -71,7 +71,7 @@ struct StreamingExercise: Codable {
     let exercise_name: String
     let aliases: [String]?
     let muscles_utilized: [MuscleUtilization]
-    let goals_addressed: [String]
+    let goals_addressed: [GoalUtilization]
     let reasoning: String
     let equipment: [String]?
     let movement_pattern: [String]?
@@ -302,6 +302,14 @@ struct ParseMuscleGoalsResponse: Codable {
 struct ParsedMuscleGoals: Codable {
     let weights: [String: Double]
     let reasoning: String
+}
+
+// MARK: - Workout History Models
+struct WorkoutHistoryAPIResponse: Codable {
+    let success: Bool
+    let data: [WorkoutHistoryItem]
+    let count: Int
+    let timestamp: String
 }
 
 // MARK: - Error Models

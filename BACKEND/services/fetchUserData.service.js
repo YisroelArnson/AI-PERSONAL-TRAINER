@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const { getWorkoutHistory } = require('./exerciseLog.service');
+const { getDistributionMetrics } = require('./exerciseDistribution.service');
 
 // Initialize Supabase client
 const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBASE_SECRET_KEY);
@@ -14,6 +15,7 @@ const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBA
  * @param {boolean} options.locations - Whether to fetch user locations
  * @param {boolean} options.preferences - Whether to fetch user preferences
  * @param {boolean} options.workoutHistory - Whether to fetch workout history
+ * @param {boolean} options.exerciseDistribution - Whether to fetch exercise distribution tracking
  * @returns {Object} Structured data object with requested user data
  */
 async function fetchUserData(userId, options = {}) {
@@ -30,7 +32,8 @@ async function fetchUserData(userId, options = {}) {
             userMuscleAndWeight = true,
             locations = true,
             preferences = true,
-            workoutHistory = true
+            workoutHistory = true,
+            exerciseDistribution = true
         } = options;
 
         const result = {
@@ -281,6 +284,19 @@ async function fetchUserData(userId, options = {}) {
             }
         }
 
+        // Fetch exercise distribution tracking
+        if (exerciseDistribution) {
+            try {
+                const distributionMetrics = await getDistributionMetrics(userId);
+                result.data.exerciseDistribution = distributionMetrics;
+            } catch (error) {
+                console.error('Error fetching exercise distribution:', error);
+                result.data.exerciseDistribution = null;
+                result.errors = result.errors || {};
+                result.errors.exerciseDistribution = error.message;
+            }
+        }
+
         // Add success status
         result.success = !result.errors || Object.keys(result.errors).length === 0;
         
@@ -310,7 +326,8 @@ async function fetchAllUserData(userId) {
         userMuscleAndWeight: true,
         locations: true,
         preferences: true,
-        workoutHistory: true
+        workoutHistory: true,
+        exerciseDistribution: true
     });
 }
 

@@ -90,6 +90,9 @@ class UserDataStore: ObservableObject {
             self.locations = []
         }
         
+        // Load workout history cache
+        await WorkoutHistoryStore.shared.loadInitialHistory()
+        
         self.lastFetchedAt = Date()
         print("✅ User data loading completed")
         
@@ -548,7 +551,7 @@ struct MuscleGoalDB: Codable {
 
 // MARK: - Category Goal Model
 
-struct CategoryGoalItem: Identifiable, Codable {
+struct CategoryGoalItem: Identifiable, Codable, Equatable {
     let id: UUID
     var category: String
     var description: String
@@ -566,7 +569,7 @@ struct CategoryGoalItem: Identifiable, Codable {
 
 // MARK: - Muscle Goal Model
 
-struct MuscleGoalItem: Identifiable, Codable {
+struct MuscleGoalItem: Identifiable, Codable, Equatable {
     let id: UUID
     var muscle: String
     var weight: Double

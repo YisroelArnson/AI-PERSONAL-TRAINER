@@ -330,6 +330,14 @@ struct MuscleGoalSetterView: View {
                 // Refresh the data store
                 await userDataStore.refreshMuscleGoals()
                 
+                // Reset distribution tracking since goals have changed
+                do {
+                    try await APIService().resetDistributionTracking()
+                } catch {
+                    print("⚠️ Warning: Failed to reset distribution tracking: \(error)")
+                    // Don't fail the goal save if tracking reset fails
+                }
+                
                 print("✅ Muscle goals saved successfully")
                 dismiss()
             } catch {

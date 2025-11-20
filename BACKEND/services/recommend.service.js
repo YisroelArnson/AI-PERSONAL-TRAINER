@@ -3,6 +3,7 @@ const { generateObject, streamObject } = require('ai');
 const { z } = require('zod');
 const { fetchAllUserData } = require('./fetchUserData.service');
 const { cleanupPreferences } = require('../ai/tools/parsePreference');
+const { formatDistributionForPrompt } = require('./exerciseDistribution.service');
 
 // Zod schema for exercise recommendations output format
 const ExerciseRecommendationSchema = z.object({
@@ -25,7 +26,19 @@ const ExerciseRecommendationSchema = z.object({
         },
         { message: "Muscle shares must add up to 1.0" }
       ),
-      goals_addressed: z.array(z.string()),
+      goals_addressed: z.array(
+        z.object({
+          goal: z.string(),
+          share: z.number().min(0).max(1)
+        })
+      ).refine(
+        (goals) => {
+          if (goals.length === 0) return true; // Allow empty array
+          const totalShare = goals.reduce((sum, g) => sum + g.share, 0);
+          return Math.abs(totalShare - 1.0) < 0.01; // Allow for small floating point errors
+        },
+        { message: "Goal shares must add up to 1.0" }
+      ),
       reasoning: z.string()
     })
   )
@@ -49,7 +62,19 @@ const BaseExerciseSchema = z.object({
         },
         { message: "Muscle shares must add up to 1.0" }
       ),
-      goals_addressed: z.array(z.string()),
+      goals_addressed: z.array(
+        z.object({
+          goal: z.string(),
+          share: z.number().min(0).max(1)
+        })
+      ).refine(
+        (goals) => {
+          if (goals.length === 0) return true;
+          const totalShare = goals.reduce((sum, g) => sum + g.share, 0);
+          return Math.abs(totalShare - 1.0) < 0.01;
+        },
+        { message: "Goal shares must add up to 1.0" }
+      ),
       reasoning: z.string(),
   equipment: z.array(z.string()).optional(),
       movement_pattern: z.array(
@@ -410,6 +435,14 @@ function formatUserDataAsNaturalLanguage(userData) {
     }
   }
   
+  // Exercise Distribution Tracking (show debt to guide recommendations)
+  if (userData.exerciseDistribution && userData.exerciseDistribution.hasData) {
+    const distributionText = formatDistributionForPrompt(userData.exerciseDistribution);
+    if (distributionText) {
+      output.push(distributionText);
+    }
+  }
+  
   // Workout History Analysis (last 7 days for recovery and patterns)
   if (userData.workoutHistory && userData.workoutHistory.length > 0) {
     const sevenDaysAgo = new Date();
@@ -599,10 +632,13 @@ STRICT REQUIREMENTS:
 // Permanent preferences have no expire_time and delete_after_call=false/null
 const PROCESS_RULES = `EXERCISE RECOMMENDATION PROCESS:
 
-1. ANALYZE GOALS
-   - Calculate priority scores: (category_weight × 10) + (muscle_weight × 5)
-   - Identify top 3 categories and top 5 muscles by priority score
-   - Ensure 70% of exercises directly address high-priority goals
+1. ANALYZE GOALS & DISTRIBUTION
+   - Calculate base priority scores: (category_weight × 10) + (muscle_weight × 5)
+   - Review distribution status if available to see which categories/muscles are under-represented
+   - Apply debt bonus to priority: add (category_debt × 15) + (muscle_debt × 10) to priority scores
+   - Categories/muscles with positive debt (under-represented) should be strongly prioritized
+   - Identify top categories and muscles by final priority score (including debt bonus)
+   - Ensure 70% of exercises directly address high-priority goals, with extra emphasis on under-represented ones
 
 2. ASSESS RECENT TRAINING (Last 7 Days)
    - Map each completed exercise to its movement patterns
@@ -619,11 +655,12 @@ const PROCESS_RULES = `EXERCISE RECOMMENDATION PROCESS:
 
 4. EXERCISE SELECTION CRITERIA
    Priority order:
-   a) Addresses highest-priority goals (category and muscle weights)
-   b) Targets recovered muscles (check last 7 days)
-   c) Matches available equipment exactly (strict - no substitutions)
-   d) Provides movement pattern variety across the session
-   e) Hasn't been performed in last 2 sessions (unless specifically requested)
+   a) Addresses highest-priority goals (category and muscle weights + distribution debt bonus)
+   b) Prioritizes under-represented categories/muscles (those with positive debt in distribution tracking)
+   c) Targets recovered muscles (check last 7 days)
+   d) Matches available equipment exactly (strict - no substitutions)
+   e) Provides movement pattern variety across the session
+   f) Hasn't been performed in last 2 sessions (unless specifically requested)
 
 5. LOAD AND REP ASSIGNMENT
    - For familiar exercises: Use last performance + 5-10% if completed successfully
@@ -642,8 +679,9 @@ DECISION HIERARCHY (most important first):
 1. TEMPORARY PREFERENCES - Override everything else (session-specific needs with expiration or one-time use)
 2. EXPLICIT REQUESTS - Any specific request in the current interaction
 3. PERMANENT PREFERENCES - Long-term restrictions and preferences (no expiration)
-4. GOALS & MUSCLES - Priority based on weights (higher weight = higher priority)
-5. WORKOUT HISTORY - Use for progression, recovery assessment, and variety`;
+4. DISTRIBUTION DEBT - Strongly prioritize under-represented categories/muscles to balance distribution
+5. GOALS & MUSCLES - Priority based on weights (higher weight = higher priority)
+6. WORKOUT HISTORY - Use for progression, recovery assessment, and variety`;
 
 /**
  * Generates exercise recommendations using OpenAI (streaming version)

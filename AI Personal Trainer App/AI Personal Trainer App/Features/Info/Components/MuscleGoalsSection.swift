@@ -12,6 +12,10 @@ struct MuscleGoalsSection: View {
     @Binding var showingMuscleGoalSetter: Bool
     @EnvironmentObject var userDataStore: UserDataStore
     
+    // Distribution tracking
+    @State private var distributionMetrics: DistributionMetrics?
+    @State private var isLoadingDistribution = false
+    
     // Define the same muscle order as MuscleGoalSetterView
     private let muscleOrder = [
         "Chest", "Back", "Shoulders", "Biceps", "Triceps", "Abs", "Lower Back", "Quadriceps",
@@ -79,7 +83,10 @@ struct MuscleGoalsSection: View {
                         GridItem(.flexible(), spacing: AppTheme.Spacing.sm)
                     ], spacing: AppTheme.Spacing.sm) {
                         ForEach(muscles) { muscle in
-                            MuscleCell(muscle: muscle)
+                            MuscleCell(
+                                muscle: muscle,
+                                distributionData: distributionMetrics?.muscles[muscle.name]
+                            )
                         }
                     }
                     
@@ -112,6 +119,30 @@ struct MuscleGoalsSection: View {
                 showingMuscleGoalSetter: $showingMuscleGoalSetter
             )
         }
+        .onAppear {
+            Task {
+                await loadDistribution()
+            }
+        }
+        .onChange(of: userDataStore.muscleGoals) { _ in
+            // Reload when goals change
+            Task {
+                await loadDistribution()
+            }
+        }
+    }
+    
+    @MainActor
+    private func loadDistribution() async {
+        isLoadingDistribution = true
+        defer { isLoadingDistribution = false }
+        
+        do {
+            distributionMetrics = try await APIService().fetchDistributionMetrics()
+        } catch {
+            print("Failed to load distribution: \(error)")
+            // Silently fail - show goals without distribution
+        }
     }
 }
 
@@ -132,34 +163,85 @@ struct MuscleInfluence {
 // MARK: - Muscle Cell
 private struct MuscleCell: View {
     let muscle: MuscleGoal
+    let distributionData: DistributionData?
+    
+    var actualColor: Color {
+        guard let data = distributionData else {
+            return muscle.weight > 0 ? AppTheme.Colors.primaryText : AppTheme.Colors.border
+        }
+        return data.statusColor
+    }
     
     var body: some View {
         VStack(spacing: AppTheme.Spacing.xs) {
-            // Circular progress indicator
+            // Enhanced circular progress indicator
             ZStack {
+                // Background circle (target)
                 Circle()
-                    .stroke(AppTheme.Colors.background, lineWidth: 4)
+                    .stroke(Color.gray.opacity(0.2), lineWidth: 4)
                     .frame(width: 44, height: 44)
                 
-                Circle()
-                    .trim(from: 0, to: muscle.weight)
-                    .stroke(
-                        muscle.weight > 0 ? AppTheme.Colors.primaryText : AppTheme.Colors.border,
-                        style: StrokeStyle(lineWidth: 4, lineCap: .round)
-                    )
-                    .frame(width: 44, height: 44)
-                    .rotationEffect(.degrees(-90))
-                
-                Text("\(Int(muscle.weight * 100))")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(muscle.weight > 0 ? AppTheme.Colors.primaryText : AppTheme.Colors.tertiaryText)
+                if let data = distributionData {
+                    // Target ring (lighter)
+                    Circle()
+                        .trim(from: 0, to: data.target)
+                        .stroke(
+                            Color.gray.opacity(0.4),
+                            style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                        )
+                        .frame(width: 44, height: 44)
+                        .rotationEffect(.degrees(-90))
+                    
+                    // Actual ring (overlay)
+                    Circle()
+                        .trim(from: 0, to: min(data.actual, 1.0))
+                        .stroke(
+                            data.statusColor,
+                            style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                        )
+                        .frame(width: 44, height: 44)
+                        .rotationEffect(.degrees(-90))
+                    
+                    // Show target percentage in center (not actual)
+                    VStack(spacing: 0) {
+                        Text("\(Int(data.target * 100))")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(AppTheme.Colors.primaryText)
+                    }
+                } else {
+                    // No distribution data - show target only
+                    Circle()
+                        .trim(from: 0, to: muscle.weight)
+                        .stroke(
+                            actualColor,
+                            style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                        )
+                        .frame(width: 44, height: 44)
+                        .rotationEffect(.degrees(-90))
+                    
+                    Text("\(Int(muscle.weight * 100))")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(actualColor)
+                }
             }
             
+            // Muscle name
             Text(muscle.name)
                 .font(.system(size: 11, weight: .medium))
                 .foregroundColor(muscle.weight > 0 ? AppTheme.Colors.primaryText : AppTheme.Colors.tertiaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
+            
+            // Debt indicator (NEW)
+            if let data = distributionData, !data.isOnTarget {
+                Text(data.debtText)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(data.statusColor)
+            } else if let data = distributionData, data.isOnTarget {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(.green)
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, AppTheme.Spacing.md)

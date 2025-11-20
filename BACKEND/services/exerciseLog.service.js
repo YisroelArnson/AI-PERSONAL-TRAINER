@@ -1,4 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
+const { updateTrackingIncrementally } = require('./exerciseDistribution.service');
 
 // Initialize Supabase client
 const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBASE_SECRET_KEY);
@@ -81,6 +82,18 @@ async function logCompletedExercise(userId, exerciseData) {
     }
 
     console.log(`Successfully logged exercise: ${exerciseData.exercise_name} for user: ${userId}`);
+
+    // Update distribution tracking incrementally
+    try {
+      const trackingResult = await updateTrackingIncrementally(userId, exerciseData);
+      if (!trackingResult.success) {
+        console.warn('Failed to update distribution tracking:', trackingResult.error);
+        // Don't fail the exercise log if tracking update fails
+      }
+    } catch (trackingError) {
+      console.warn('Error updating distribution tracking:', trackingError);
+      // Don't fail the exercise log if tracking update fails
+    }
 
     return {
       success: true,

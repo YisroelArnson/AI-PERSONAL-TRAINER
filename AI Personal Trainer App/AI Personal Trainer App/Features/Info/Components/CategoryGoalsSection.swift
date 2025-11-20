@@ -16,6 +16,10 @@ struct CategoryGoalsSection: View {
     @State private var influences: [CategoryInfluence] = []
     @State private var showingInfluenceModal = false
     
+    // Distribution tracking
+    @State private var distributionMetrics: DistributionMetrics?
+    @State private var isLoadingDistribution = false
+    
     var enabledCategories: [CategoryGoalItem] {
         userDataStore.categoryGoals.filter { $0.enabled }
     }
@@ -59,7 +63,10 @@ struct CategoryGoalsSection: View {
                     // Category chips with percentage bars (only enabled ones)
                     VStack(spacing: AppTheme.Spacing.md) {
                         ForEach(enabledCategories) { category in
-                            CategoryChip(category: category)
+                            CategoryChip(
+                                category: category,
+                                distributionData: distributionMetrics?.categories[category.category]
+                            )
                         }
                     }
                     
@@ -101,6 +108,30 @@ struct CategoryGoalsSection: View {
                 showingCategoryGoalSetter: $showingCategoryGoalSetter
             )
         }
+        .onAppear {
+            Task {
+                await loadDistribution()
+            }
+        }
+        .onChange(of: userDataStore.categoryGoals) { _ in
+            // Reload when goals change
+            Task {
+                await loadDistribution()
+            }
+        }
+    }
+    
+    @MainActor
+    private func loadDistribution() async {
+        isLoadingDistribution = true
+        defer { isLoadingDistribution = false }
+        
+        do {
+            distributionMetrics = try await APIService().fetchDistributionMetrics()
+        } catch {
+            print("Failed to load distribution: \(error)")
+            // Silently fail - show goals without distribution
+        }
     }
 }
 
@@ -114,6 +145,7 @@ struct CategoryInfluence {
 // MARK: - Category Chip
 private struct CategoryChip: View {
     let category: CategoryGoalItem
+    let distributionData: DistributionData?
     
     var categoryColor: Color {
         // Assign colors based on category name
@@ -131,35 +163,53 @@ private struct CategoryChip: View {
         }
     }
     
+    var actualColor: Color {
+        guard let data = distributionData else { return categoryColor }
+        return data.statusColor
+    }
+    
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-            HStack {
+            HStack(spacing: 6) {
                 Text(category.category)
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Spacer()
                 
-                Text("\(Int(category.weight * 100))%")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-            }
-            
-            // Progress bar
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    // Background
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(AppTheme.Colors.background)
-                        .frame(height: 6)
+                // Show "actual vs goal" format if distribution data available
+                if let data = distributionData {
+                    HStack(spacing: 3) {
+                        // Actual percentage (bold, primary)
+                        Text("\(Int(data.actual * 100))%")
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(AppTheme.Colors.primaryText)
+                        
+                        // Separator and goal percentage (lighter, secondary)
+                        Text("/ \(Int(data.target * 100))% goal")
+                            .font(.system(size: 13, weight: .regular))
+                            .foregroundColor(AppTheme.Colors.secondaryText)
+                    }
                     
-                    // Filled portion
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(categoryColor)
-                        .frame(width: geometry.size.width * category.weight, height: 6)
+                    // Status indicator
+                    if !data.isOnTarget {
+                        // Actual exceeds or falls short of goal - just show arrow
+                        Image(systemName: data.debt > 0 ? "arrow.up" : "arrow.down")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(data.debt > 0 ? .green : .red)
+                    } else {
+                        // On target - show checkmark
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.green)
+                    }
+                } else {
+                    // No distribution data - show target only
+                    Text("\(Int(category.weight * 100))% goal")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(AppTheme.Colors.secondaryText)
                 }
             }
-            .frame(height: 6)
         }
         .padding(AppTheme.Spacing.md)
         .background(AppTheme.Colors.background.opacity(0.5))
