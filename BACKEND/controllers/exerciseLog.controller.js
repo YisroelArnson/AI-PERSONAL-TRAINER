@@ -1,4 +1,4 @@
-const { logCompletedExercise, getWorkoutHistory } = require('../services/exerciseLog.service');
+const { logCompletedExercise, getWorkoutHistory, deleteCompletedExercise } = require('../services/exerciseLog.service');
 
 /**
  * Controller for logging a completed exercise
@@ -115,8 +115,71 @@ async function getHistory(req, res) {
   }
 }
 
+/**
+ * Controller for deleting a completed exercise (undo completion)
+ * @param {Object} req - Express request object
+ * @param {Object} res - Express response object
+ */
+async function deleteExercise(req, res) {
+  try {
+    const { userId, exerciseId } = req.params;
+
+    // Validate parameters
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'userId parameter is required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (!exerciseId) {
+      return res.status(400).json({
+        success: false,
+        error: 'exerciseId parameter is required',
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    console.log(`Deleting exercise ${exerciseId} for user: ${userId}`);
+
+    // Delete the exercise
+    const result = await deleteCompletedExercise(userId, exerciseId);
+
+    if (result.success) {
+      console.log(`Successfully deleted exercise ${exerciseId} for user: ${userId}`);
+      
+      return res.status(200).json({
+        success: true,
+        message: result.message,
+        timestamp: result.timestamp
+      });
+    } else {
+      console.error(`Failed to delete exercise for user ${userId}:`, result.error);
+      
+      return res.status(400).json({
+        success: false,
+        error: result.error,
+        details: result.details,
+        timestamp: result.timestamp
+      });
+    }
+
+  } catch (error) {
+    console.error('Error in deleteExercise controller:', error);
+    
+    return res.status(500).json({
+      success: false,
+      error: 'Internal server error',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    });
+  }
+}
+
 module.exports = {
   logExercise,
-  getHistory
+  getHistory,
+  deleteExercise
 };
 

@@ -10,7 +10,9 @@ import SwiftUI
 struct ExerciseDotTracker: View {
     let totalExercises: Int
     let currentIndex: Int
-    let maxVisibleDots: Int = 10
+    let exerciseIds: [UUID]
+    let completedExerciseIds: Set<UUID>
+    let maxVisibleDots: Int = 7
     
     private var shouldShowOverflow: Bool {
         totalExercises > maxVisibleDots
@@ -41,39 +43,92 @@ struct ExerciseDotTracker: View {
     }
     
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 10) {
             if shouldShowOverflow && currentIndex >= maxVisibleDots / 2 {
                 // Show overflow indicator at start
                 Text("+\(currentIndex < totalExercises - maxVisibleDots / 2 ? currentIndex - maxVisibleDots / 2 + 1 : overflowCount)")
-                    .font(.caption2)
-                    .foregroundColor(.gray)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(AppTheme.Colors.tertiaryText)
             }
             
             ForEach(visibleRange, id: \.self) { index in
                 Circle()
-                    .fill(index == currentIndex ? Color.primary : Color.gray.opacity(0.3))
-                    .frame(width: index == currentIndex ? 8 : 6, height: index == currentIndex ? 8 : 6)
-                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: currentIndex)
+                    .fill(dotColor(for: index))
+                    .frame(width: dotSize(for: index), height: dotSize(for: index))
+                    .shadow(
+                        color: index == currentIndex ? AppTheme.Colors.warmAccent.opacity(0.3) : .clear,
+                        radius: 4,
+                        x: 0,
+                        y: 0
+                    )
+                    .animation(.spring(response: 0.4, dampingFraction: 0.7), value: currentIndex)
             }
             
             if shouldShowOverflow && currentIndex < totalExercises - maxVisibleDots / 2 {
                 // Show overflow indicator at end
                 Text("+\(totalExercises - visibleRange.upperBound)")
-                    .font(.caption2)
-                    .foregroundColor(.gray)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .foregroundColor(AppTheme.Colors.tertiaryText)
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.horizontal, AppTheme.Spacing.xl)
+        .padding(.vertical, AppTheme.Spacing.md)
+    }
+    
+    private func dotColor(for index: Int) -> Color {
+        if isCompleted(for: index) {
+            return AppTheme.Colors.success
+        } else if index == currentIndex {
+            return AppTheme.Colors.warmAccent
+        } else {
+            return AppTheme.Colors.tertiaryText.opacity(0.4)
+        }
+    }
+    
+    private func isCompleted(for index: Int) -> Bool {
+        guard index >= 0 && index < exerciseIds.count else { return false }
+        return completedExerciseIds.contains(exerciseIds[index])
+    }
+    
+    private func dotSize(for index: Int) -> CGFloat {
+        if index == currentIndex {
+            return 10
+        } else {
+            return 6
+        }
     }
 }
 
 #Preview {
-    VStack(spacing: 20) {
-        ExerciseDotTracker(totalExercises: 5, currentIndex: 2)
-        ExerciseDotTracker(totalExercises: 15, currentIndex: 2)
-        ExerciseDotTracker(totalExercises: 15, currentIndex: 7)
-        ExerciseDotTracker(totalExercises: 15, currentIndex: 13)
+    ZStack {
+        AppTheme.Gradients.background
+            .ignoresSafeArea()
+        
+        VStack(spacing: 30) {
+            ExerciseDotTracker(
+                totalExercises: 5,
+                currentIndex: 2,
+                exerciseIds: Array(repeating: UUID(), count: 5),
+                completedExerciseIds: Set()
+            )
+            ExerciseDotTracker(
+                totalExercises: 15,
+                currentIndex: 2,
+                exerciseIds: Array(repeating: UUID(), count: 15),
+                completedExerciseIds: Set()
+            )
+            ExerciseDotTracker(
+                totalExercises: 15,
+                currentIndex: 7,
+                exerciseIds: Array(repeating: UUID(), count: 15),
+                completedExerciseIds: Set()
+            )
+            ExerciseDotTracker(
+                totalExercises: 15,
+                currentIndex: 13,
+                exerciseIds: Array(repeating: UUID(), count: 15),
+                completedExerciseIds: Set()
+            )
+        }
     }
 }
-

@@ -221,6 +221,147 @@ async function updateTrackingIncrementally(userId, exerciseData) {
 }
 
 /**
+ * Decrementally update tracking when an exercise completion is undone
+ * Subtracts exercise's share values from running totals (O(1) operation)
+ * This is the inverse of updateTrackingIncrementally
+ * @param {string} userId - The user's UUID
+ * @param {Object} exerciseData - The exercise data with goals_addressed and muscles_utilized
+ * @returns {Object} Result object with success status
+ */
+async function decrementTrackingIncrementally(userId, exerciseData) {
+  try {
+    // Validate inputs
+    if (!userId || typeof userId !== 'string') {
+      throw new Error('Valid userId is required');
+    }
+
+    if (!exerciseData) {
+      throw new Error('Exercise data is required');
+    }
+
+    console.log(`Decrementing distribution tracking for user: ${userId}`);
+
+    // Fetch current tracking record
+    let { data: trackingData, error: fetchError } = await supabase
+      .from('exercise_distribution_tracking')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('Error fetching tracking record:', fetchError);
+      return {
+        success: false,
+        error: 'Failed to fetch tracking record',
+        details: fetchError.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // If no tracking record exists, nothing to decrement
+    if (!trackingData) {
+      console.log(`No tracking record found for user ${userId}, nothing to decrement`);
+      return {
+        success: true,
+        message: 'No tracking record to decrement',
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // Get current totals
+    const categoryTotals = trackingData.category_totals || {};
+    const muscleTotals = trackingData.muscle_totals || {};
+    let totalExercises = trackingData.total_exercises_count || 0;
+
+    // Subtract category totals from goals_addressed
+    if (exerciseData.goals_addressed && Array.isArray(exerciseData.goals_addressed)) {
+      exerciseData.goals_addressed.forEach(goalItem => {
+        // Support both old format (string) and new format (object with goal and share)
+        let goal, share;
+        
+        if (typeof goalItem === 'string') {
+          // Old format: treat as 1.0 share
+          goal = goalItem;
+          share = 1.0;
+        } else if (goalItem && typeof goalItem === 'object') {
+          // New format: extract goal and share
+          goal = goalItem.goal;
+          share = goalItem.share || 0;
+        }
+
+        if (goal && categoryTotals[goal] !== undefined) {
+          categoryTotals[goal] = Math.max(0, (categoryTotals[goal] || 0) - share);
+          // Remove the key if it becomes 0 or negative
+          if (categoryTotals[goal] <= 0) {
+            delete categoryTotals[goal];
+          }
+        }
+      });
+    }
+
+    // Subtract muscle totals from muscles_utilized
+    if (exerciseData.muscles_utilized && Array.isArray(exerciseData.muscles_utilized)) {
+      exerciseData.muscles_utilized.forEach(muscleItem => {
+        if (muscleItem && typeof muscleItem === 'object') {
+          const muscle = muscleItem.muscle;
+          const share = muscleItem.share || 0;
+          
+          if (muscle && muscleTotals[muscle] !== undefined) {
+            muscleTotals[muscle] = Math.max(0, (muscleTotals[muscle] || 0) - share);
+            // Remove the key if it becomes 0 or negative
+            if (muscleTotals[muscle] <= 0) {
+              delete muscleTotals[muscle];
+            }
+          }
+        }
+      });
+    }
+
+    // Decrement exercise count (don't go below 0)
+    totalExercises = Math.max(0, totalExercises - 1);
+
+    // Update the tracking record
+    const { data: updatedData, error: updateError } = await supabase
+      .from('exercise_distribution_tracking')
+      .update({
+        category_totals: categoryTotals,
+        muscle_totals: muscleTotals,
+        total_exercises_count: totalExercises,
+        last_updated_at: new Date().toISOString()
+      })
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating tracking record:', updateError);
+      return {
+        success: false,
+        error: 'Failed to update tracking',
+        details: updateError.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    console.log(`Successfully decremented tracking for user ${userId}: ${totalExercises} exercises now tracked`);
+
+    return {
+      success: true,
+      data: updatedData,
+      timestamp: new Date().toISOString()
+    };
+
+  } catch (error) {
+    console.error('Error in decrementTrackingIncrementally:', error);
+    return {
+      success: false,
+      error: error.message,
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
+/**
  * Get current distribution metrics with debt calculations
  * @param {string} userId - The user's UUID
  * @returns {Object} Distribution metrics with debt calculations
@@ -457,6 +598,7 @@ function formatDistributionForPrompt(distributionMetrics) {
 module.exports = {
   resetTracking,
   updateTrackingIncrementally,
+  decrementTrackingIncrementally,
   getDistributionMetrics,
   formatDistributionForPrompt
 };

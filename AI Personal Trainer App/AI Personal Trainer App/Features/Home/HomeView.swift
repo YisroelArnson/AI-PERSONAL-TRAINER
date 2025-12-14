@@ -4,131 +4,96 @@
 //
 //  Created by ISWA on 8/21/25.
 //
+//  Redesigned with Aurora-inspired aesthetics: warm gradients,
+//  frosted glass cards, and calm, minimal UI.
+//
 
 import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject var appCoordinator: AppStateCoordinator
+    @Binding var isDrawerOpen: Bool
+    @Binding var showingAssistant: Bool
+    
     @StateObject private var apiService = APIService()
-    @State private var currentExerciseIndex = 0
-    @State private var exercises: [UIExercise] = []
-    @State private var completedExerciseIds: Set<UUID> = []
+    @StateObject private var exerciseStore = ExerciseStore.shared
+    
     @State private var isLoadingRecommendations = false
-    @State private var lastFetchedDate: Date?
+    @State private var isStreamingExercises = false
     @State private var showRefreshModal = false
     @State private var showCompletionFeedback = false
+    @State private var showExerciseInfo = false
     @State private var errorMessage: String?
+    
+    // Interval timer states
+    @StateObject private var intervalTimerViewModel = IntervalTimerViewModel()
+    @State private var intervalDetailText: String?
     
     // Swipe and animation states
     @State private var dragOffset: CGFloat = 0
     @State private var showContent: Bool = true
     @State private var isTransitioning: Bool = false
     
-    private let cacheExpirationHours: TimeInterval = 4 * 60 * 60 // 4 hours in seconds
     private let swipeThreshold: CGFloat = 50
+    
+    // Convenience accessors for exerciseStore
+    private var exercises: [UIExercise] { exerciseStore.exercises }
+    private var completedExerciseIds: Set<UUID> { exerciseStore.completedExerciseIds }
+    private var workoutHistoryIds: [UUID: String] { exerciseStore.workoutHistoryIds }
+    private var currentExerciseIndex: Int { exerciseStore.currentExerciseIndex }
+    private var completedSetsPerExercise: [UUID: Set<Int>] { exerciseStore.completedSetsPerExercise }
+    private var adjustedRepsPerExercise: [UUID: [Int]] { exerciseStore.adjustedRepsPerExercise }
+    private var adjustedWeightsPerExercise: [UUID: [Int]] { exerciseStore.adjustedWeightsPerExercise }
     
     // Check if all exercises are completed
     private var allExercisesCompleted: Bool {
-        !exercises.isEmpty && exercises.allSatisfy { completedExerciseIds.contains($0.id) }
+        exerciseStore.allExercisesCompleted
+    }
+    
+    // Check if current exercise can be completed (has at least one set done for strength/bodyweight)
+    private var canCompleteCurrentExercise: Bool {
+        guard !exercises.isEmpty else { return false }
+        let exercise = exercises[currentExerciseIndex]
+        
+        // For strength and bodyweight exercises, require at least one set to be completed
+        if exercise.type == "strength" || exercise.type == "bodyweight" {
+            let completedSets = completedSetsPerExercise[exercise.id] ?? []
+            return !completedSets.isEmpty
+        }
+        
+        // For other exercise types, always allow completion
+        return true
     }
     
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                // Background layer - Light gray #f5f6f7
-                AppTheme.Colors.background
-                    .ignoresSafeArea()
+                // Animated gradient background
+                AnimatedGradientBackground()
                 
                 // Main content layer
                 VStack(spacing: 0) {
-                    // Header with complete and refresh buttons
-                    HStack {
-                        // Complete button (left side)
-                        if !exercises.isEmpty {
-                            Button {
-                                let currentExercise = exercises[currentExerciseIndex]
-                                if !completedExerciseIds.contains(currentExercise.id) {
-                                    completeExercise(currentExercise)
-                                }
-                            } label: {
-                                ZStack {
-                                    Circle()
-                                        .stroke(Color.white, lineWidth: 2)
-                                        .frame(width: 44, height: 44)
-                                        .background(
-                                            Circle()
-                                                .fill(completedExerciseIds.contains(exercises[currentExerciseIndex].id) 
-                                                      ? Color.green.opacity(0.3) 
-                                                      : Color.clear)
-                                        )
-                                    
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 20, weight: .medium))
-                                        .foregroundColor(.white)
-                                }
-                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                            }
-                            .disabled(completedExerciseIds.contains(exercises[currentExerciseIndex].id))
-                        }
-                        
-                        Spacer()
-                        
-                        // Refresh button (right side)
-                        Button {
-                            showRefreshModal = true
-                        } label: {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 20, weight: .medium))
-                                .foregroundColor(AppTheme.Colors.primaryText)
-                                .padding(12)
-                                .background(AppTheme.Colors.cardBackground)
-                                .clipShape(Circle())
-                                .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 60) // Safe area top padding
+                    // Minimal top bar
+                    topBar
                     
-                    Spacer()
-                    
+                    // Main content area
                     if isLoadingRecommendations {
-                        // Loading state
-                        VStack(spacing: 16) {
-                            ProgressView()
-                                .scaleEffect(1.5)
-                            Text("Loading recommendations...")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                        }
+                        Spacer()
+                        loadingState
+                        Spacer()
                     } else if exercises.isEmpty {
-                        // Empty state
-                        VStack(spacing: 16) {
-                            Image(systemName: "figure.strengthtraining.traditional")
-                                .font(.system(size: 60))
-                                .foregroundColor(.gray)
-                            Text("No exercises yet")
-                                .font(.title2)
-                                .fontWeight(.semibold)
-                            Text("Tap refresh to get personalized recommendations")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
-                                .multilineTextAlignment(.center)
-                                .padding(.horizontal, 40)
-                        }
+                        Spacer()
+                        emptyState
+                        Spacer()
                     } else {
-                        // Full-Screen Exercise Display
-                        fullScreenExerciseView(for: exercises[currentExerciseIndex])
+                        // Exercise content with header at top, content centered
+                        exerciseContent
+                            .padding(.top, AppTheme.Spacing.md)
                     }
                     
-                    Spacer()
-                    
-                    // Dot tracker at bottom
+                    // Bottom controls (orb button + dots)
                     if !exercises.isEmpty {
-                        ExerciseDotTracker(
-                            totalExercises: exercises.count,
-                            currentIndex: currentExerciseIndex
-                        )
-                        .padding(.bottom, 100) // Above nav bar
+                        bottomControls
                     }
                 }
                 
@@ -136,6 +101,19 @@ struct HomeView: View {
                 if !appCoordinator.isReady {
                     LoadingStateView(state: appCoordinator.loadingState)
                         .transition(.opacity)
+                }
+                
+                // Interval detail banner at top center
+                if !exercises.isEmpty && intervalDetailText != nil {
+                    VStack {
+                        IntervalDetailBanner(text: intervalDetailText)
+                            .padding(.top, 60)
+                            .animation(.easeInOut(duration: 0.2), value: intervalDetailText)
+                        
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
                 }
             }
             .contentShape(Rectangle())
@@ -153,41 +131,288 @@ struct HomeView: View {
                 await fetchRecommendations(feedback: feedback)
             }
         }
+        .sheet(isPresented: $showExerciseInfo) {
+            if !exercises.isEmpty {
+                ExerciseDetailSheet(exercise: exercises[currentExerciseIndex])
+            }
+        }
         .onChange(of: appCoordinator.shouldFetchRecommendations) { _, shouldFetch in
-            if shouldFetch && exercises.isEmpty {
+            if shouldFetch {
                 Task {
                     await loadRecommendationsIfNeeded()
                 }
             }
         }
         .onChange(of: allExercisesCompleted) { _, isAllCompleted in
-            if isAllCompleted {
+            if isAllCompleted && !isStreamingExercises {
                 Task {
                     // Brief delay so user sees the last completion
                     try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
-                    await fetchMoreRecommendations()
+                    // Double-check we're still not streaming after the delay
+                    if !isStreamingExercises {
+                        await fetchMoreRecommendations()
+                    }
                 }
             }
         }
+        .onChange(of: exerciseStore.needsRefresh) { _, needsRefresh in
+            if needsRefresh && !isStreamingExercises {
+                Task {
+                    await fetchRecommendations(feedback: nil)
+                }
+            }
+        }
+        .onChange(of: currentExerciseIndex) { _, newIndex in
+            // Load interval data for new exercise
+            if !exercises.isEmpty && newIndex < exercises.count {
+                loadIntervalsForCurrentExercise()
+            }
+        }
+        .onAppear {
+            // Setup interval timer callbacks
+            setupIntervalTimerCallbacks()
+            
+            // Load intervals for initial exercise if available
+            if !exercises.isEmpty {
+                loadIntervalsForCurrentExercise()
+            }
+        }
+    }
+    
+    // MARK: - Interval Timer
+    
+    private func setupIntervalTimerCallbacks() {
+        // Called when timer auto-completes a set
+        intervalTimerViewModel.onSetCompleted = { setIndex in
+            // The view model already updates ExerciseStore, but we can add visual feedback here if needed
+            print("⏱️ HomeView: Set \(setIndex + 1) auto-completed via timer")
+        }
+        
+        // Called when entire timer completes
+        intervalTimerViewModel.onTimerComplete = {
+            print("⏱️ HomeView: Timer complete for exercise")
+            intervalDetailText = nil
+        }
+    }
+    
+    private func loadIntervalsForCurrentExercise() {
+        guard !exercises.isEmpty && currentExerciseIndex < exercises.count else { return }
+        
+        let exercise = exercises[currentExerciseIndex]
+        
+        Task {
+            await intervalTimerViewModel.loadIntervals(
+                for: exercise,
+                exerciseId: exercise.id
+            )
+        }
+    }
+    
+    // MARK: - View Components
+    
+    private var topBar: some View {
+        HStack {
+            // Drawer toggle (ChatGPT-style icon)
+            Button {
+                withAnimation(AppTheme.Animation.gentle) {
+                    isDrawerOpen = true
+                }
+            } label: {
+                // Two horizontal lines icon (like ChatGPT)
+                VStack(spacing: 5) {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(AppTheme.Colors.primaryText.opacity(0.7))
+                        .frame(width: 18, height: 2)
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(AppTheme.Colors.primaryText.opacity(0.7))
+                        .frame(width: 18, height: 2)
+                }
+                .frame(width: 44, height: 44)
+            }
+            
+            // Exercise dot tracker in center
+            if !exercises.isEmpty {
+                Spacer()
+                ExerciseDotTracker(
+                    totalExercises: exercises.count,
+                    currentIndex: currentExerciseIndex,
+                    exerciseIds: exercises.map { $0.id },
+                    completedExerciseIds: completedExerciseIds
+                )
+                Spacer()
+            } else {
+                Spacer()
+            }
+            
+            // Three dots menu (minimal, no background)
+            Menu {
+                if !exercises.isEmpty {
+                    Button(action: {
+                        showExerciseInfo = true
+                    }) {
+                        Label("Exercise Info", systemImage: "info.circle")
+                    }
+                }
+                
+                Button(action: {
+                    showRefreshModal = true
+                }) {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+                    .frame(width: 44, height: 44)
+            }
+        }
+        .padding(.horizontal, AppTheme.Spacing.md)
+        .padding(.top, AppTheme.Spacing.xs)
+    }
+    
+    private var loadingState: some View {
+        VStack(spacing: AppTheme.Spacing.xxl) {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.warmAccent))
+                .scaleEffect(1.2)
+            
+            Text("Preparing your workout...")
+                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .foregroundColor(AppTheme.Colors.secondaryText)
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+    
+    private var emptyState: some View {
+        VStack(spacing: AppTheme.Spacing.xxl) {
+            Image(systemName: "figure.run")
+                .font(.system(size: 48, weight: .light))
+                .foregroundColor(AppTheme.Colors.warmAccent)
+            
+            VStack(spacing: AppTheme.Spacing.sm) {
+                Text("Ready when you are")
+                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                
+                Text("Tap refresh to get your personalized workout")
+                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, AppTheme.Spacing.xxxxl)
+            }
+            
+            Button(action: {
+                showRefreshModal = true
+            }) {
+                Text("Get started")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, AppTheme.Spacing.xxxl)
+                    .padding(.vertical, AppTheme.Spacing.md)
+                    .background(
+                        Capsule()
+                            .fill(AppTheme.Colors.warmAccent)
+                    )
+            }
+            .padding(.top, AppTheme.Spacing.md)
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.95)))
+    }
+    
+    private var exerciseContent: some View {
+        VStack(spacing: 0) {
+            // Header (equipment, title, description) - stays at top
+            ExerciseHeaderView(
+                exercise: exercises[currentExerciseIndex],
+                showContent: showContent
+            )
+            
+            // Flexible space to push content toward center
+            Spacer()
+            
+            // Exercise-specific content (sets, metrics) - centered
+            ExerciseContentView(
+                exercise: exercises[currentExerciseIndex],
+                showContent: showContent,
+                completedSetIndices: completedSetsBinding(for: exercises[currentExerciseIndex].id),
+                adjustedReps: adjustedRepsBinding(for: exercises[currentExerciseIndex].id),
+                adjustedWeights: adjustedWeightsBinding(for: exercises[currentExerciseIndex].id),
+                onInitializeState: {
+                    initializeStrengthExerciseState(for: exercises[currentExerciseIndex])
+                }
+            )
+            
+            // Flexible space below content
+            Spacer()
+        }
+    }
+    
+    private var bottomControls: some View {
+        HStack(spacing: 0) {
+            // Complete button on the left
+            let currentExercise = exercises[currentExerciseIndex]
+            let isExerciseCompleted = completedExerciseIds.contains(currentExercise.id)
+            
+            GlowingOrbButton(
+                isCompleted: isExerciseCompleted,
+                isEnabled: canCompleteCurrentExercise || isExerciseCompleted, // Enable when can complete OR when completed (for undo)
+                action: {
+                    if isExerciseCompleted {
+                        // Undo the completion
+                        uncompleteExercise(currentExercise)
+                    } else {
+                        // Complete the exercise
+                        completeExercise(currentExercise)
+                    }
+                }
+            )
+            .padding(.leading, AppTheme.Spacing.xl)
+            
+            Spacer()
+            
+            // Timer in the center
+            if intervalTimerViewModel.intervalData != nil {
+                IntervalTimerOverlay(
+                    viewModel: intervalTimerViewModel,
+                    detailText: $intervalDetailText
+                )
+                .frame(width: 64) // Fixed width to maintain center alignment
+            } else {
+                // Placeholder to maintain spacing when timer not loaded
+                Circle()
+                    .fill(Color.clear)
+                    .frame(width: 64, height: 64)
+            }
+            
+            Spacer()
+            
+            // AI button on the right
+            FloatingAIButton {
+                showingAssistant = true
+            }
+            .padding(.trailing, AppTheme.Spacing.xl)
+        }
+        .padding(.bottom, AppTheme.Spacing.xxxl)
     }
     
     // MARK: - Helper Methods
     
     private func loadRecommendationsIfNeeded() async {
-        // Check if we need to fetch new recommendations
-        if let lastFetched = lastFetchedDate {
-            let timeElapsed = Date().timeIntervalSince(lastFetched)
-            if timeElapsed < cacheExpirationHours && !exercises.isEmpty {
-                print("Using cached recommendations")
-                return
+        // Check if we should fetch new recommendations based on user settings
+        if exerciseStore.shouldFetchNewExercises {
+            await fetchRecommendations(feedback: nil)
+        } else {
+            // Resume existing exercises - mark app as ready if we have exercises
+            if !exercises.isEmpty {
+                appCoordinator.markAsReady()
+                print("📦 Resuming \(exercises.count) persisted exercises at index \(currentExerciseIndex)")
             }
         }
-        
-        await fetchRecommendations(feedback: nil)
     }
     
     private func fetchMoreRecommendations() async {
         isLoadingRecommendations = true
+        isStreamingExercises = true
         errorMessage = nil
         
         // Don't clear exercises or completedExerciseIds - append new ones
@@ -205,42 +430,45 @@ struct HomeView: View {
                         self.isLoadingRecommendations = false
                     }
                     
-                    self.exercises.append(uiExercise)
+                    self.exerciseStore.addExercise(uiExercise)
                     print("📊 Exercise \(self.exercises.count) added: \(streamingExercise.exercise_name)")
                 },
                 onComplete: { totalCount in
                     print("✅ Loaded \(totalCount) more exercises (total: \(self.exercises.count))")
-                    self.lastFetchedDate = Date()
+                    self.exerciseStore.saveState()
                     self.isLoadingRecommendations = false
+                    self.isStreamingExercises = false
                     
                     // Auto-scroll to first new uncompleted exercise
                     if let firstNewIdx = self.exercises.indices.suffix(from: startingCount).first(where: {
                         !self.completedExerciseIds.contains(self.exercises[$0].id)
                     }) {
-                        self.currentExerciseIndex = firstNewIdx
+                        self.exerciseStore.setCurrentIndex(firstNewIdx)
                     }
                 },
                 onError: { error in
                     self.errorMessage = error
                     self.isLoadingRecommendations = false
+                    self.isStreamingExercises = false
                     print("❌ Error loading exercises: \(error)")
                 }
             )
         } catch {
             errorMessage = error.localizedDescription
             isLoadingRecommendations = false
+            isStreamingExercises = false
             print("❌ Failed to fetch more recommendations: \(error)")
         }
     }
     
     private func fetchRecommendations(feedback: String?) async {
         isLoadingRecommendations = true
+        isStreamingExercises = true
         errorMessage = nil
         
-        // Clear existing exercises and completed state (manual refresh)
-        exercises = []
-        completedExerciseIds = []
-        currentExerciseIndex = 0
+        // Clear existing exercises and completed state (manual refresh or auto-refresh)
+        exerciseStore.clearExercises()
+        exerciseStore.markFetchStarted()
         
         do {
             try await apiService.streamRecommendations(
@@ -255,23 +483,26 @@ struct HomeView: View {
                         self.appCoordinator.markAsReady()
                     }
                     
-                    self.exercises.append(uiExercise)
+                    self.exerciseStore.addExercise(uiExercise)
                     print("📊 Exercise \(self.exercises.count) added: \(streamingExercise.exercise_name)")
                 },
                 onComplete: { totalCount in
                     print("✅ Loaded \(totalCount) exercises")
-                    self.lastFetchedDate = Date()
+                    self.exerciseStore.saveState()
                     self.isLoadingRecommendations = false
+                    self.isStreamingExercises = false
                 },
                 onError: { error in
                     self.errorMessage = error
                     self.isLoadingRecommendations = false
+                    self.isStreamingExercises = false
                     print("❌ Error loading exercises: \(error)")
                 }
             )
         } catch {
             errorMessage = error.localizedDescription
             isLoadingRecommendations = false
+            isStreamingExercises = false
             print("❌ Failed to fetch recommendations: \(error)")
         }
     }
@@ -361,35 +592,23 @@ struct HomeView: View {
     private func completeExercise(_ exercise: UIExercise) {
         Task {
             do {
-                let exerciseModel = exercise.toExercise()
-                
-                // Log the exercise
-                try await apiService.logCompletedExercise(exercise: exerciseModel)
-                
-                await MainActor.run {
-                    // Add to workout history cache immediately
-                    WorkoutHistoryStore.shared.addCompletedExercise(exerciseModel)
-                    
-                    // Mark as completed
-                    completedExerciseIds.insert(exercise.id)
-                    
-                    // Show completion feedback
-                    withAnimation {
-                        showCompletionFeedback = true
-                    }
-                    
-                    // Scroll to next uncompleted exercise
-                    if let currentIdx = exercises.firstIndex(where: { $0.id == exercise.id }) {
-                        // Find next uncompleted exercise
-                        let nextUncompletedIdx = exercises.indices
-                            .dropFirst(currentIdx + 1)
-                            .first { !completedExerciseIds.contains(exercises[$0].id) }
-                        
-                        if let nextIdx = nextUncompletedIdx {
-                            currentExerciseIndex = nextIdx
-                        }
-                    }
+                // For strength and bodyweight exercises, use adjusted values and only completed sets
+                let exerciseModel: Exercise
+                if exercise.type == "strength" || exercise.type == "bodyweight" {
+                    exerciseModel = createAdjustedExercise(from: exercise)
+                } else {
+                    exerciseModel = exercise.toExercise()
                 }
+                
+                // Log the exercise and get the database record ID
+                let workoutHistoryId = try await apiService.logCompletedExercise(exercise: exerciseModel)
+                
+                // Update state on MainActor
+                await updateStateAfterCompletion(
+                    exercise: exercise,
+                    workoutHistoryId: workoutHistoryId,
+                    exerciseModel: exerciseModel
+                )
                 
                 // Hide feedback after delay
                 try await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
@@ -404,6 +623,113 @@ struct HomeView: View {
                 errorMessage = "Failed to complete exercise"
             }
         }
+    }
+    
+    @MainActor
+    private func updateStateAfterCompletion(exercise: UIExercise, workoutHistoryId: String, exerciseModel: Exercise) {
+        // Mark as completed in ExerciseStore
+        exerciseStore.markExerciseCompleted(exerciseId: exercise.id, workoutHistoryId: workoutHistoryId)
+        
+        // Add to workout history cache immediately (with database ID for proper sync)
+        WorkoutHistoryStore.shared.addCompletedExercise(exerciseModel, databaseId: workoutHistoryId)
+        
+        // Show completion feedback
+        withAnimation {
+            showCompletionFeedback = true
+        }
+        
+        // Scroll to next uncompleted exercise
+        if let currentIdx = exercises.firstIndex(where: { $0.id == exercise.id }) {
+            // Find next uncompleted exercise
+            let nextUncompletedIdx = exercises.indices
+                .dropFirst(currentIdx + 1)
+                .first { !completedExerciseIds.contains(exercises[$0].id) }
+            
+            if let nextIdx = nextUncompletedIdx {
+                exerciseStore.setCurrentIndex(nextIdx)
+            }
+        }
+    }
+    
+    private func uncompleteExercise(_ exercise: UIExercise) {
+        // Capture the workout history ID before entering async context
+        guard let workoutHistoryId = workoutHistoryIds[exercise.id] else {
+            print("❌ No workout history ID found for exercise: \(exercise.exercise_name)")
+            return
+        }
+        
+        Task {
+            do {
+                // Delete from database
+                try await apiService.deleteCompletedExercise(workoutHistoryId: workoutHistoryId)
+                
+                // Update state on MainActor
+                await updateStateAfterUncompletion(
+                    exercise: exercise,
+                    workoutHistoryId: workoutHistoryId
+                )
+            } catch {
+                print("❌ Failed to uncomplete exercise: \(error)")
+                await MainActor.run {
+                    self.errorMessage = "Failed to undo exercise completion"
+                }
+            }
+        }
+    }
+    
+    @MainActor
+    private func updateStateAfterUncompletion(exercise: UIExercise, workoutHistoryId: String) {
+        // Remove from ExerciseStore completed state
+        exerciseStore.markExerciseUncompleted(exerciseId: exercise.id)
+        
+        // Remove from workout history cache
+        WorkoutHistoryStore.shared.removeCompletedExercise(id: workoutHistoryId)
+        
+        print("✅ Successfully uncompleted exercise: \(exercise.exercise_name)")
+    }
+    
+    /// Creates an Exercise model with only completed sets and adjusted values
+    private func createAdjustedExercise(from exercise: UIExercise) -> Exercise {
+        let completedSets = completedSetsPerExercise[exercise.id] ?? []
+        let adjustedReps = adjustedRepsPerExercise[exercise.id] ?? exercise.reps ?? []
+        
+        // Filter to only completed sets and get their values
+        let sortedCompletedIndices = completedSets.sorted()
+        let completedReps = sortedCompletedIndices.compactMap { index in
+            adjustedReps.indices.contains(index) ? adjustedReps[index] : nil
+        }
+        
+        // Handle weights only for strength exercises
+        var completedWeights: [Double] = []
+        if exercise.type == "strength" {
+            let adjustedWeights = adjustedWeightsPerExercise[exercise.id] ?? exercise.load_kg_each?.map { Int($0) } ?? []
+            completedWeights = sortedCompletedIndices.compactMap { index in
+                adjustedWeights.indices.contains(index) ? Double(adjustedWeights[index]) : nil
+            }
+        }
+        
+        return Exercise(
+            name: exercise.exercise_name,
+            exercise_type: exercise.type,
+            sets: completedSets.count,
+            reps: completedReps,
+            duration_min: exercise.duration_min ?? 0,
+            load_kg_each: completedWeights,
+            muscles_utilized: exercise.muscles_utilized,
+            goals_addressed: exercise.goals_addressed,
+            reasoning: exercise.reasoning ?? "",
+            exercise_description: exercise.exercise_description,
+            intervals: exercise.intervals,
+            distance_km: exercise.distance_km,
+            rounds: exercise.rounds,
+            rest_seconds: exercise.rest_seconds,
+            target_pace: exercise.target_pace,
+            hold_duration_sec: exercise.hold_duration_sec,
+            equipment: exercise.equipment,
+            movement_pattern: exercise.movement_pattern,
+            body_region: exercise.body_region,
+            aliases: exercise.aliases
+        )
     }
     
     // MARK: - Swipe Gesture Handling
@@ -427,65 +753,91 @@ struct HomeView: View {
         isTransitioning = true
         
         // Fade out current content
-        withAnimation(.easeOut(duration: 0.1)) {
+        withAnimation(.easeOut(duration: 0.15)) {
             showContent = false
         }
         
         // Wait for fade out, then change index and fade in
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            currentExerciseIndex = newIndex
-            dragOffset = 0
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            self.exerciseStore.setCurrentIndex(newIndex)
+            self.dragOffset = 0
             
             // Fade in new content
-            withAnimation(.easeIn(duration: 0.1)) {
-                showContent = true
+            withAnimation(.easeIn(duration: 0.2)) {
+                self.showContent = true
             }
             
             // Reset transition state
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                isTransitioning = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                self.isTransitioning = false
             }
         }
     }
     
-    // MARK: - Exercise View Builder
+    // MARK: - Exercise State Helpers
     
-    @ViewBuilder
-    private func fullScreenExerciseView(for exercise: UIExercise) -> some View {
-        VStack(alignment: .leading, spacing: 40) {
-            // Exercise name (title group)
-                Text(exercise.exercise_name)
-                .font(.system(size: 48, weight: .bold))
-                .foregroundColor(.primary)
-                .multilineTextAlignment(.leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 32)
-                .padding(.top, 20)
-                .opacity(showContent ? 1 : 0)
-                .animation(.easeOut(duration: 0.15), value: showContent)
+    /// Ensures state arrays are initialized for a strength or bodyweight exercise
+    private func initializeStrengthExerciseState(for exercise: UIExercise) {
+        // Handle strength exercises
+        if exercise.type == "strength",
+           let reps = exercise.reps,
+           let loads = exercise.load_kg_each {
             
-            // Type-specific metrics (metrics group)
-            switch exercise.type {
-            case "strength":
-                StrengthExerciseView(exercise: exercise, showContent: showContent)
-            case "cardio_time":
-                CardioTimeExerciseView(exercise: exercise, showContent: showContent)
-            default:
-                // Fallback for unsupported types
-                Text("Exercise type: \(exercise.type)")
-                            .font(.caption)
-                            .foregroundColor(.gray)
-                    .padding(.horizontal, 32)
-                    .opacity(showContent ? 1 : 0)
-                    .offset(y: showContent ? 0 : 20)
-                    .animation(.easeOut(duration: 0.4).delay(0.1), value: showContent)
-                                }
-                                
-                                Spacer()
-                            }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            // Initialize completed sets if not present
+            if exerciseStore.completedSetsPerExercise[exercise.id] == nil {
+                exerciseStore.updateCompletedSets(exerciseId: exercise.id, sets: [])
+            }
+            
+            // Initialize adjusted reps if not present
+            if exerciseStore.adjustedRepsPerExercise[exercise.id] == nil {
+                exerciseStore.updateAdjustedReps(exerciseId: exercise.id, reps: reps)
+            }
+            
+            // Initialize adjusted weights if not present (convert kg to lbs)
+            if exerciseStore.adjustedWeightsPerExercise[exercise.id] == nil {
+                exerciseStore.updateAdjustedWeights(exerciseId: exercise.id, weights: loads.map { Int($0) })
+            }
+        }
+        
+        // Handle bodyweight exercises
+        if exercise.type == "bodyweight",
+           let reps = exercise.reps {
+            
+            // Initialize completed sets if not present
+            if exerciseStore.completedSetsPerExercise[exercise.id] == nil {
+                exerciseStore.updateCompletedSets(exerciseId: exercise.id, sets: [])
+            }
+            
+            // Initialize adjusted reps if not present
+            if exerciseStore.adjustedRepsPerExercise[exercise.id] == nil {
+                exerciseStore.updateAdjustedReps(exerciseId: exercise.id, reps: reps)
+            }
+        }
     }
     
+    /// Binding for completed sets of a specific exercise
+    private func completedSetsBinding(for exerciseId: UUID) -> Binding<Set<Int>> {
+        Binding(
+            get: { self.exerciseStore.completedSetsPerExercise[exerciseId] ?? [] },
+            set: { self.exerciseStore.updateCompletedSets(exerciseId: exerciseId, sets: $0) }
+        )
+    }
+    
+    /// Binding for adjusted reps of a specific exercise
+    private func adjustedRepsBinding(for exerciseId: UUID) -> Binding<[Int]> {
+        Binding(
+            get: { self.exerciseStore.adjustedRepsPerExercise[exerciseId] ?? [] },
+            set: { self.exerciseStore.updateAdjustedReps(exerciseId: exerciseId, reps: $0) }
+        )
+    }
+    
+    /// Binding for adjusted weights of a specific exercise
+    private func adjustedWeightsBinding(for exerciseId: UUID) -> Binding<[Int]> {
+        Binding(
+            get: { self.exerciseStore.adjustedWeightsPerExercise[exerciseId] ?? [] },
+            set: { self.exerciseStore.updateAdjustedWeights(exerciseId: exerciseId, weights: $0) }
+        )
+    }
 }
 
 // MARK: - Data Models
@@ -698,7 +1050,31 @@ struct LocationInfo {
     )
 }
 
+// MARK: - UIExercise ExerciseDisplayable Conformance
+extension UIExercise: ExerciseDisplayable {
+    // Map 'type' to 'exercise_type' for protocol
+    var exercise_type: String {
+        return type
+    }
+    
+    var displayMusclesUtilized: [MuscleUtilization] {
+        return muscles_utilized ?? []
+    }
+    
+    // UIExercise doesn't have history-specific fields
+    var displayFormattedDate: String? {
+        return nil
+    }
+    
+    var displayRpe: Int? {
+        return nil
+    }
+    
+    var displayNotes: String? {
+        return nil
+    }
+}
 
 #Preview {
-    HomeView()
+    HomeView(isDrawerOpen: .constant(false), showingAssistant: .constant(false))
 }

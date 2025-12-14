@@ -8,6 +8,68 @@
 import Foundation
 import SwiftUI
 
+// MARK: - ExerciseDisplayable Protocol
+/// A protocol that defines common properties for displaying exercise information.
+/// Both UIExercise (recommended exercises) and WorkoutHistoryItem (completed exercises) conform to this.
+protocol ExerciseDisplayable {
+    // Core identifiers
+    var exercise_name: String { get }
+    var exercise_type: String { get }
+    var aliases: [String]? { get }
+    
+    // Exercise metrics
+    var sets: Int? { get }
+    var reps: [Int]? { get }
+    var load_kg_each: [Double]? { get }
+    var rest_seconds: Int? { get }
+    var distance_km: Double? { get }
+    var duration_min: Int? { get }
+    var target_pace: String? { get }
+    var rounds: Int? { get }
+    var intervals: [ExerciseInterval]? { get }
+    var total_duration_min: Int? { get }
+    var hold_duration_sec: [Int]? { get }
+    
+    // Metadata
+    var displayMusclesUtilized: [MuscleUtilization] { get }
+    var goals_addressed: [GoalUtilization]? { get }
+    var reasoning: String? { get }
+    var equipment: [String]? { get }
+    var exercise_description: String? { get }
+    
+    // Optional history-specific fields (nil for upcoming exercises)
+    var displayFormattedDate: String? { get }
+    var displayRpe: Int? { get }
+    var displayNotes: String? { get }
+    
+    // Computed helpers
+    var typeColor: Color { get }
+}
+
+// MARK: - Default Protocol Implementation
+extension ExerciseDisplayable {
+    var typeColor: Color {
+        switch exercise_type {
+        case "strength":
+            return AppTheme.Colors.strength
+        case "cardio_distance", "cardio_time":
+            return AppTheme.Colors.cardio
+        case "hiit":
+            return AppTheme.Colors.hiit
+        case "bodyweight":
+            return AppTheme.Colors.bodyweight
+        case "isometric":
+            return AppTheme.Colors.isometric
+        case "flexibility":
+            return AppTheme.Colors.flexibility
+        case "yoga":
+            return AppTheme.Colors.yoga
+        default:
+            return .gray
+        }
+    }
+}
+
 // MARK: - Workout History Item
 /// Represents a single completed exercise from workout history
 struct WorkoutHistoryItem: Codable, Identifiable, Equatable {
@@ -186,14 +248,22 @@ struct WorkoutHistoryItem: Codable, Identifiable, Equatable {
     }
     
     // Helper to get formatted metrics
+    @MainActor
     var primaryMetric: String {
+        let weightUnit = UserSettings.shared.weightUnitLabel
+        let distanceUnit = UserSettings.shared.distanceUnitLabel
+        
         switch exercise_type {
         case "strength":
             if let sets = sets, let reps = reps, !reps.isEmpty {
                 let repsStr = reps.map { String($0) }.joined(separator: ", ")
                 if let weights = load_kg_each, !weights.isEmpty {
-                    let weightsStr = weights.map { String(format: "%.1f", $0) }.joined(separator: ", ")
-                    return "\(sets) sets × [\(repsStr)] reps @ [\(weightsStr)] kg"
+                    let weightsStr = weights.map { weight in
+                        weight.truncatingRemainder(dividingBy: 1) == 0
+                            ? String(format: "%.0f", weight)
+                            : String(format: "%.1f", weight)
+                    }.joined(separator: ", ")
+                    return "\(sets) sets × [\(repsStr)] reps @ [\(weightsStr)] \(weightUnit)"
                 }
                 return "\(sets) sets × [\(repsStr)] reps"
             }
@@ -202,7 +272,10 @@ struct WorkoutHistoryItem: Codable, Identifiable, Equatable {
         case "cardio_distance":
             var parts: [String] = []
             if let distance = distance_km {
-                parts.append(String(format: "%.2f km", distance))
+                let formattedDistance = distance.truncatingRemainder(dividingBy: 1) == 0
+                    ? String(format: "%.0f", distance)
+                    : String(format: "%.2f", distance)
+                parts.append("\(formattedDistance) \(distanceUnit)")
             }
             if let duration = duration_min {
                 parts.append("\(duration) min")
@@ -243,6 +316,25 @@ struct WorkoutHistoryItem: Codable, Identifiable, Equatable {
             .prefix(3)
             .map { $0.muscle.capitalized }
         return topMuscles.joined(separator: ", ")
+    }
+}
+
+// MARK: - WorkoutHistoryItem ExerciseDisplayable Conformance
+extension WorkoutHistoryItem: ExerciseDisplayable {
+    var displayMusclesUtilized: [MuscleUtilization] {
+        return muscles_utilized
+    }
+    
+    var displayFormattedDate: String? {
+        return formattedDate
+    }
+    
+    var displayRpe: Int? {
+        return rpe
+    }
+    
+    var displayNotes: String? {
+        return notes
     }
 }
 

@@ -4,6 +4,7 @@ const { z } = require('zod');
 const { fetchAllUserData } = require('./fetchUserData.service');
 const { cleanupPreferences } = require('../ai/tools/parsePreference');
 const { formatDistributionForPrompt } = require('./exerciseDistribution.service');
+const { PRESET_MUSCLES } = require('./muscleGoals.service');
 
 // Zod schema for exercise recommendations output format
 const ExerciseRecommendationSchema = z.object({
@@ -45,171 +46,189 @@ const ExerciseRecommendationSchema = z.object({
 });
 
 
-// Base schema for common exercise properties
-const BaseExerciseSchema = z.object({
-      exercise_name: z.string(),
-      aliases: z.array(z.string()).optional(),
-      muscles_utilized: z.array(
-        z.object({
-          muscle: z.string(),
-          share: z.number().min(0).max(1)
-        })
-      ).refine(
-        (muscles) => {
-          if (muscles.length === 0) return true;
-          const totalShare = muscles.reduce((sum, m) => sum + m.share, 0);
-          return Math.abs(totalShare - 1.0) < 0.01;
-        },
-        { message: "Muscle shares must add up to 1.0" }
-      ),
-      goals_addressed: z.array(
-        z.object({
-          goal: z.string(),
-          share: z.number().min(0).max(1)
-        })
-      ).refine(
-        (goals) => {
-          if (goals.length === 0) return true;
-          const totalShare = goals.reduce((sum, g) => sum + g.share, 0);
-          return Math.abs(totalShare - 1.0) < 0.01;
-        },
-        { message: "Goal shares must add up to 1.0" }
-      ),
-      reasoning: z.string(),
-  equipment: z.array(z.string()).optional(),
-      movement_pattern: z.array(
-        z.enum([
-          "squat",
-          "hinge", 
-          "push",
-          "pull",
-          "carry",
-          "rotation_core",
-          "isolation",
-          "conditioning",
-          "plyometric",
-          "balance",
-          "flexibility",
-          "yoga"
-        ])
-      ).optional(),
-      exercise_description: z.string().optional(),
-      body_region: z.string().optional()
-});
+/**
+ * Creates a dynamic Zod schema for exercise recommendations based on valid muscles and goals
+ * @param {Array<string>} validMuscles - List of valid muscle names
+ * @param {Array<string>} validGoals - List of valid goal names
+ * @returns {Object} Zod schema for individual exercise
+ */
+function createIndividualExerciseSchema(validMuscles, validGoals) {
+  // Create enums for validation if lists are provided
+  const MuscleEnum = validMuscles && validMuscles.length > 0
+    ? z.enum(validMuscles)
+    : z.string();
 
-// Individual exercise schema for streaming (array output strategy)
-const IndividualExerciseSchema = z.discriminatedUnion("exercise_type", [
-      // Strength/Resistance Training - Sets, reps, and weight
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("strength"),
-        sets: z.number().int().positive(),
-        reps: z.array(z.number().int().positive()),
-        load_kg_each: z.array(z.number().nonnegative()),
-        rest_seconds: z.number().int().positive().optional()
-      }),
-      
-      // Cardio - Distance based (running, cycling, etc.)
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("cardio_distance"),
-        distance_km: z.number().positive(),
-        duration_min: z.number().int().positive().optional(),
-        target_pace: z.string().optional(), // e.g., "5:30/km"
-      }),
-      
-      // Cardio - Time based (steady state)
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("cardio_time"),
-        duration_min: z.number().int().positive(),
-        target_intensity: z.enum(["low", "moderate", "high"]).optional(),
-      }),
-      
-      // HIIT/Interval Training
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("hiit"),
-        rounds: z.number().int().positive(),
-        intervals: z.array(
-          z.object({
-            work_sec: z.number().int().positive(),
-            rest_sec: z.number().int().positive()
-          })
-        ),
-        total_duration_min: z.number().int().positive().optional()
-      }),
-      
-      // Circuit Training (multiple exercises in sequence)
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("circuit"),
-        circuits: z.number().int().positive(),
-        exercises_in_circuit: z.array(
-          z.object({
-            name: z.string(),
-            duration_sec: z.number().int().positive().optional(),
-            reps: z.number().int().positive().optional()
-          })
-        ),
-        rest_between_circuits_sec: z.number().int().positive()
-      }),
-      
-      // Flexibility/Stretching - Hold-based
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("flexibility"),
-        holds: z.array(
-          z.object({
-            position: z.string(),
-            duration_sec: z.number().int().positive()
-          })
-        ),
-        repetitions: z.number().int().positive().optional()
-      }),
-      
-      // Yoga/Flow - Sequence based
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("yoga"),
-        sequence: z.array(
-          z.object({
-            pose: z.string(),
-            duration_sec: z.number().int().positive().optional(),
-            breaths: z.number().int().positive().optional()
-          })
-        ),
-        total_duration_min: z.number().int().positive()
-      }),
-      
-      // Bodyweight - Rep based without external load
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("bodyweight"),
-        sets: z.number().int().positive(),
-        reps: z.array(z.number().int().positive()),
-        rest_seconds: z.number().int().positive().optional(),
-      }),
-      
-      // Isometric - Hold-based exercises like planks, wall sits
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("isometric"),
-        sets: z.number().int().positive(),
-        hold_duration_sec: z.array(z.number().int().positive()),
-        rest_seconds: z.number().int().positive().optional(),
-      }),
-      
-      // Balance/Stability - Time-based holds
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("balance"),
-        sets: z.number().int().positive(),
-        hold_duration_sec: z.array(z.number().int().positive()),
-      }),
-      
-      // Sports-Specific - Skill practice
-      BaseExerciseSchema.extend({
-        exercise_type: z.literal("sport_specific"),
-        sport: z.string(),
-        drill_name: z.string(),
-        duration_min: z.number().int().positive(),
-        repetitions: z.number().int().positive().optional(),
-        skill_focus: z.string() // e.g., "accuracy", "speed", "technique"
+  const GoalEnum = validGoals && validGoals.length > 0
+    ? z.enum(validGoals)
+    : z.string();
+
+  // Base schema for common exercise properties with dynamic validation
+  const BaseExerciseSchema = z.object({
+    exercise_name: z.string(),
+    aliases: z.array(z.string()).optional(),
+    muscles_utilized: z.array(
+      z.object({
+        muscle: MuscleEnum,
+        share: z.number().min(0).max(1)
       })
-    ]);
+    ).refine(
+      (muscles) => {
+        if (muscles.length === 0) return true;
+        const totalShare = muscles.reduce((sum, m) => sum + m.share, 0);
+        return Math.abs(totalShare - 1.0) < 0.01;
+      },
+      { message: "Muscle shares must add up to 1.0" }
+    ),
+    goals_addressed: z.array(
+      z.object({
+        goal: GoalEnum,
+        share: z.number().min(0).max(1)
+      })
+    ).refine(
+      (goals) => {
+        if (goals.length === 0) return true;
+        const totalShare = goals.reduce((sum, g) => sum + g.share, 0);
+        return Math.abs(totalShare - 1.0) < 0.01;
+      },
+      { message: "Goal shares must add up to 1.0" }
+    ),
+    reasoning: z.string(),
+    equipment: z.array(z.string()).optional(),
+    movement_pattern: z.array(
+      z.enum([
+        "squat",
+        "hinge",
+        "push",
+        "pull",
+        "carry",
+        "rotation_core",
+        "isolation",
+        "conditioning",
+        "plyometric",
+        "balance",
+        "flexibility",
+        "yoga"
+      ])
+    ).optional(),
+    exercise_description: z.string().optional(),
+    body_region: z.string().optional()
+  });
 
-// Discriminated union schema for different exercise types (non-streaming)
+  // Individual exercise schema for streaming (array output strategy)
+  return z.discriminatedUnion("exercise_type", [
+    // Strength/Resistance Training - Sets, reps, and weight
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("strength"),
+      sets: z.number().int().positive(),
+      reps: z.array(z.number().int().positive()),
+      load_kg_each: z.array(z.number().nonnegative()),
+      rest_seconds: z.number().int().positive().optional()
+    }),
+
+    // Cardio - Distance based (running, cycling, etc.)
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("cardio_distance"),
+      distance_km: z.number().positive(),
+      duration_min: z.number().int().positive().optional(),
+      target_pace: z.string().optional(), // e.g., "5:30/km"
+    }),
+
+    // Cardio - Time based (steady state)
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("cardio_time"),
+      duration_min: z.number().int().positive(),
+      target_intensity: z.enum(["low", "moderate", "high"]).optional(),
+    }),
+
+    // HIIT/Interval Training
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("hiit"),
+      rounds: z.number().int().positive(),
+      intervals: z.array(
+        z.object({
+          work_sec: z.number().int().positive(),
+          rest_sec: z.number().int().positive()
+        })
+      ),
+      total_duration_min: z.number().int().positive().optional()
+    }),
+
+    // Circuit Training (multiple exercises in sequence)
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("circuit"),
+      circuits: z.number().int().positive(),
+      exercises_in_circuit: z.array(
+        z.object({
+          name: z.string(),
+          duration_sec: z.number().int().positive().optional(),
+          reps: z.number().int().positive().optional()
+        })
+      ),
+      rest_between_circuits_sec: z.number().int().positive()
+    }),
+
+    // Flexibility/Stretching - Hold-based
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("flexibility"),
+      holds: z.array(
+        z.object({
+          position: z.string(),
+          duration_sec: z.number().int().positive()
+        })
+      ),
+      repetitions: z.number().int().positive().optional()
+    }),
+
+    // Yoga/Flow - Sequence based
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("yoga"),
+      sequence: z.array(
+        z.object({
+          pose: z.string(),
+          duration_sec: z.number().int().positive().optional(),
+          breaths: z.number().int().positive().optional()
+        })
+      ),
+      total_duration_min: z.number().int().positive()
+    }),
+
+    // Bodyweight - Rep based without external load
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("bodyweight"),
+      sets: z.number().int().positive(),
+      reps: z.array(z.number().int().positive()),
+      rest_seconds: z.number().int().positive().optional(),
+    }),
+
+    // Isometric - Hold-based exercises like planks, wall sits
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("isometric"),
+      sets: z.number().int().positive(),
+      hold_duration_sec: z.array(z.number().int().positive()),
+      rest_seconds: z.number().int().positive().optional(),
+    }),
+
+    // Balance/Stability - Time-based holds
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("balance"),
+      sets: z.number().int().positive(),
+      hold_duration_sec: z.array(z.number().int().positive()),
+    }),
+
+    // Sports-Specific - Skill practice
+    BaseExerciseSchema.extend({
+      exercise_type: z.literal("sport_specific"),
+      sport: z.string(),
+      drill_name: z.string(),
+      duration_min: z.number().int().positive(),
+      repetitions: z.number().int().positive().optional(),
+      skill_focus: z.string() // e.g., "accuracy", "speed", "technique"
+    })
+  ]);
+}
+
+// Placeholder for static export (will be dynamic in usage)
+const IndividualExerciseSchema = createIndividualExerciseSchema([], []);
 const TypedExerciseRecommendationSchema = z.object({
   recommendations: z.array(IndividualExerciseSchema)
 });
@@ -225,13 +244,13 @@ function getRelativeTime(dateString) {
   const now = new Date();
   const diffMs = date - now; // Future dates are positive, past are negative
   const absDiffMs = Math.abs(diffMs);
-  
+
   const diffMinutes = Math.floor(absDiffMs / (1000 * 60));
   const diffHours = Math.floor(absDiffMs / (1000 * 60 * 60));
   const diffDays = Math.floor(absDiffMs / (1000 * 60 * 60 * 24));
   const diffWeeks = Math.floor(diffDays / 7);
   const diffMonths = Math.floor(diffDays / 30);
-  
+
   // For past dates (history)
   if (diffMs < 0) {
     if (diffMinutes < 1) return 'just now';
@@ -247,7 +266,7 @@ function getRelativeTime(dateString) {
     if (diffMonths === 1) return '1 month ago';
     return `${diffMonths} months ago`;
   }
-  
+
   // For future dates (expiration)
   if (diffMinutes < 1) return 'in less than a minute';
   if (diffMinutes === 1) return 'in 1 minute';
@@ -270,7 +289,16 @@ function getRelativeTime(dateString) {
  */
 function formatUserDataAsNaturalLanguage(userData) {
   let output = [];
-  
+
+  // User Settings (Unit Preferences) - Display first so LLM knows the context
+  if (userData.userSettings) {
+    const weightUnit = userData.userSettings.weight_unit || 'lbs';
+    const distanceUnit = userData.userSettings.distance_unit || 'miles';
+    output.push(`UNIT PREFERENCES: Weight in ${weightUnit}, Distance in ${distanceUnit}`);
+    output.push(`IMPORTANT: All weights must be in ${weightUnit} and all distances must be in ${distanceUnit}. Use practical, commonly available weights (e.g., standard dumbbell increments).`);
+    output.push('');
+  }
+
   // Body Stats
   if (userData.bodyStats) {
     const bs = userData.bodyStats;
@@ -280,10 +308,10 @@ function formatUserDataAsNaturalLanguage(userData) {
     const heightStr = bs.height_cm ? `${bs.height_cm}cm` : '';
     const weightStr = bs.weight_kg ? `${bs.weight_kg}kg` : '';
     const bodyFatStr = bs.body_fat_pct ? `, ${bs.body_fat_pct}% body fat` : '';
-    
+
     output.push(`BODY STATS: ${ageStr}${sexStr}, ${heightStr}, ${weightStr}${bodyFatStr}`);
   }
-  
+
   // Calculate goal priority scores
   const goalPriorities = [];
   if (userData.userCategoryAndWeights) {
@@ -301,13 +329,13 @@ function formatUserDataAsNaturalLanguage(userData) {
     });
   }
   goalPriorities.sort((a, b) => b.score - a.score);
-  
+
   // Display top priorities with calculated scores
   if (goalPriorities.length > 0) {
     const top10 = goalPriorities.slice(0, 10);
     const categories = top10.filter(g => g.type === 'category');
     const muscles = top10.filter(g => g.type === 'muscle');
-    
+
     if (categories.length > 0) {
       output.push(`TOP CATEGORY GOALS (by priority score): ${categories.map(g => `${g.name} (score: ${g.score.toFixed(1)})`).join(', ')}`);
     }
@@ -315,7 +343,7 @@ function formatUserDataAsNaturalLanguage(userData) {
       output.push(`TOP MUSCLE TARGETS (by priority score): ${muscles.map(m => `${m.name} (score: ${m.score.toFixed(1)})`).join(', ')}`);
     }
   }
-  
+
   // Goals (Category Weights) - filter and prioritize
   if (userData.userCategoryAndWeights && userData.userCategoryAndWeights.length > 0) {
     const activeGoals = userData.userCategoryAndWeights.filter(c => c.weight > 0);
@@ -323,7 +351,7 @@ function formatUserDataAsNaturalLanguage(userData) {
       const highPriority = activeGoals.filter(g => g.weight >= 0.7);
       const mediumPriority = activeGoals.filter(g => g.weight >= 0.3 && g.weight < 0.7);
       const lowPriority = activeGoals.filter(g => g.weight > 0 && g.weight < 0.3);
-      
+
       if (highPriority.length > 0) {
         output.push(`PRIMARY GOALS: ${highPriority.map(g => `${g.category} (${g.weight})`).join(', ')}`);
       }
@@ -335,7 +363,7 @@ function formatUserDataAsNaturalLanguage(userData) {
       }
     }
   }
-  
+
   // Muscles (Muscle Weights) - filter and prioritize
   if (userData.userMuscleAndWeight && userData.userMuscleAndWeight.length > 0) {
     const activeMuscles = userData.userMuscleAndWeight.filter(m => m.weight > 0);
@@ -343,7 +371,7 @@ function formatUserDataAsNaturalLanguage(userData) {
       const highPriority = activeMuscles.filter(m => m.weight >= 0.7);
       const mediumPriority = activeMuscles.filter(m => m.weight >= 0.3 && m.weight < 0.7);
       const lowPriority = activeMuscles.filter(m => m.weight > 0 && m.weight < 0.3);
-      
+
       if (highPriority.length > 0) {
         output.push(`HIGH PRIORITY MUSCLES: ${highPriority.map(m => `${m.muscle} (${m.weight})`).join(', ')}`);
       }
@@ -355,12 +383,12 @@ function formatUserDataAsNaturalLanguage(userData) {
       }
     }
   }
-  
+
   // Location and Equipment
   if (userData.locations) {
     const loc = userData.locations;
     const nameStr = loc.name ? `${loc.name}` : 'Current location';
-    
+
     // Format equipment array - now contains objects with metadata
     let equipmentStr = 'no specific equipment listed';
     if (loc.equipment && Array.isArray(loc.equipment) && loc.equipment.length > 0) {
@@ -371,36 +399,36 @@ function formatUserDataAsNaturalLanguage(userData) {
         } else if (typeof eq === 'object' && eq !== null) {
           // Format equipment object
           let eqStr = eq.name || 'Unknown equipment';
-          
+
           // Add type if available
           if (eq.type) {
             const typeStr = eq.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
             eqStr += ` (${typeStr})`;
           }
-          
+
           // Add weight specifications for free weights
           if (eq.type === 'free_weights' && eq.weights && Array.isArray(eq.weights) && eq.weights.length > 0) {
             const weightsStr = eq.weights.map(w => `${w}${eq.unit || 'kg'}`).join(', ');
             eqStr += `: ${weightsStr}`;
           }
-          
+
           // Add brand if available
           if (eq.brand) {
             eqStr += ` [${eq.brand}]`;
           }
-          
+
           // Add notes if available
           if (eq.notes) {
             eqStr += ` - ${eq.notes}`;
           }
-          
+
           return eqStr;
         }
         return String(eq);
       });
       equipmentStr = equipmentParts.join(', ');
     }
-    
+
     // Add location description if available
     if (loc.description) {
       output.push(`LOCATION: ${nameStr} - ${loc.description}`);
@@ -409,7 +437,7 @@ function formatUserDataAsNaturalLanguage(userData) {
       output.push(`LOCATION: ${nameStr} with equipment: ${equipmentStr}`);
     }
   }
-  
+
   // Preferences (separate temporary and permanent)
   // Temporary = has expire_time or delete_after_call=true (session-specific, override everything)
   // Permanent = no expire_time and delete_after_call=false/null (long-term restrictions)
@@ -418,14 +446,14 @@ function formatUserDataAsNaturalLanguage(userData) {
       output.push(`TEMPORARY PREFERENCES (override all other goals - will expire or be deleted):`);
       userData.preferences.temporary.forEach(pref => {
         const guidance = pref.recommendations_guidance || pref.description;
-        const expireInfo = pref.expire_time 
-          ? ` [expires: ${getRelativeTime(pref.expire_time)}]` 
+        const expireInfo = pref.expire_time
+          ? ` [expires: ${getRelativeTime(pref.expire_time)}]`
           : pref.delete_after_call ? ' [one-time use]' : '';
         output.push(`  - ${guidance}${expireInfo}`);
       });
       output.push(''); // Blank line separator
     }
-    
+
     if (userData.preferences.permanent && userData.preferences.permanent.length > 0) {
       output.push(`PERMANENT PREFERENCES (always apply):`);
       userData.preferences.permanent.forEach(pref => {
@@ -434,7 +462,7 @@ function formatUserDataAsNaturalLanguage(userData) {
       output.push(''); // Blank line separator
     }
   }
-  
+
   // Exercise Distribution Tracking (show debt to guide recommendations)
   if (userData.exerciseDistribution && userData.exerciseDistribution.hasData) {
     const distributionText = formatDistributionForPrompt(userData.exerciseDistribution);
@@ -442,37 +470,37 @@ function formatUserDataAsNaturalLanguage(userData) {
       output.push(distributionText);
     }
   }
-  
+
   // Workout History Analysis (last 7 days for recovery and patterns)
   if (userData.workoutHistory && userData.workoutHistory.length > 0) {
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    const recentWorkouts = userData.workoutHistory.filter(w => 
+
+    const recentWorkouts = userData.workoutHistory.filter(w =>
       new Date(w.performed_at) >= sevenDaysAgo
     );
-    
+
     // Movement Pattern Analysis
     const movementPatterns = {};
     const exerciseFrequency = {};
     const muscleVolumeLoad = {};
     const muscleLastWorked = {};
-    
+
     recentWorkouts.forEach(workout => {
       // Track exercise frequency
       exerciseFrequency[workout.exercise_name] = (exerciseFrequency[workout.exercise_name] || 0) + 1;
-      
+
       // Track movement patterns
       if (workout.movement_pattern && Array.isArray(workout.movement_pattern)) {
         workout.movement_pattern.forEach(pattern => {
           if (!movementPatterns[pattern]) {
             movementPatterns[pattern] = [];
           }
-          
+
           let performanceStr = '';
           if (workout.load_kg_each && workout.sets && workout.reps) {
-            const avgLoad = Array.isArray(workout.load_kg_each) 
-              ? workout.load_kg_each.reduce((a, b) => a + b, 0) / workout.load_kg_each.length 
+            const avgLoad = Array.isArray(workout.load_kg_each)
+              ? workout.load_kg_each.reduce((a, b) => a + b, 0) / workout.load_kg_each.length
               : workout.load_kg_each;
             const totalReps = Array.isArray(workout.reps)
               ? workout.reps.reduce((a, b) => a + b, 0)
@@ -480,7 +508,7 @@ function formatUserDataAsNaturalLanguage(userData) {
             const volumeLoad = avgLoad * totalReps;
             performanceStr = `${avgLoad.toFixed(1)}kg, volume: ${volumeLoad.toFixed(0)}kg`;
           }
-          
+
           movementPatterns[pattern].push({
             name: workout.exercise_name,
             date: workout.performed_at,
@@ -488,26 +516,26 @@ function formatUserDataAsNaturalLanguage(userData) {
           });
         });
       }
-      
+
       // Track muscle volume and last worked date
       if (workout.muscles_utilized && Array.isArray(workout.muscles_utilized)) {
         workout.muscles_utilized.forEach(mu => {
           const muscle = mu.muscle;
           const share = mu.share || 1;
-          
+
           // Calculate volume load for this muscle
           if (workout.load_kg_each && workout.sets && workout.reps) {
-            const avgLoad = Array.isArray(workout.load_kg_each) 
-              ? workout.load_kg_each.reduce((a, b) => a + b, 0) / workout.load_kg_each.length 
+            const avgLoad = Array.isArray(workout.load_kg_each)
+              ? workout.load_kg_each.reduce((a, b) => a + b, 0) / workout.load_kg_each.length
               : workout.load_kg_each;
             const totalReps = Array.isArray(workout.reps)
               ? workout.reps.reduce((a, b) => a + b, 0)
               : workout.reps * workout.sets;
             const volumeLoad = avgLoad * totalReps * share;
-            
+
             muscleVolumeLoad[muscle] = (muscleVolumeLoad[muscle] || 0) + volumeLoad;
           }
-          
+
           // Track last time this muscle was worked
           const workoutDate = new Date(workout.performed_at);
           if (!muscleLastWorked[muscle] || workoutDate > new Date(muscleLastWorked[muscle])) {
@@ -516,7 +544,7 @@ function formatUserDataAsNaturalLanguage(userData) {
         });
       }
     });
-    
+
     // Display Movement Pattern Summary
     const patternKeys = Object.keys(movementPatterns);
     if (patternKeys.length > 0) {
@@ -530,22 +558,22 @@ function formatUserDataAsNaturalLanguage(userData) {
         output.push(`  - ${pattern.toUpperCase()}: ${exerciseList}`);
       });
     }
-    
+
     // Display Recovery Status
     const now = new Date();
     const recoveryStatus = {
       ready: [],
       recovering: []
     };
-    
+
     // Define large vs small muscle groups for recovery windows
     const largeMuscles = ['Chest', 'Back', 'Legs', 'Quadriceps', 'Hamstrings', 'Glutes', 'Lats'];
-    
+
     Object.entries(muscleLastWorked).forEach(([muscle, lastDate]) => {
       const hoursSinceWork = (now - new Date(lastDate)) / (1000 * 60 * 60);
       const isLarge = largeMuscles.some(lm => muscle.toLowerCase().includes(lm.toLowerCase()));
       const recoveryWindow = isLarge ? 48 : 24;
-      
+
       if (hoursSinceWork >= recoveryWindow) {
         const volumeStr = muscleVolumeLoad[muscle] ? ` (volume: ${muscleVolumeLoad[muscle].toFixed(0)}kg)` : '';
         recoveryStatus.ready.push(`${muscle}${volumeStr}`);
@@ -554,7 +582,7 @@ function formatUserDataAsNaturalLanguage(userData) {
         recoveryStatus.recovering.push(`${muscle} (${hoursRemaining}h remaining)`);
       }
     });
-    
+
     if (recoveryStatus.ready.length > 0 || recoveryStatus.recovering.length > 0) {
       output.push(`\nRECOVERY STATUS:`);
       if (recoveryStatus.ready.length > 0) {
@@ -564,23 +592,23 @@ function formatUserDataAsNaturalLanguage(userData) {
         output.push(`  RECOVERING: ${recoveryStatus.recovering.join(', ')}`);
       }
     }
-    
+
     // Display exercises performed multiple times (consider variation)
     const frequentExercises = Object.entries(exerciseFrequency)
       .filter(([, count]) => count >= 3)
       .map(([name, count]) => `${name} (${count}x)`)
       .join(', ');
-    
+
     if (frequentExercises) {
       output.push(`\nFREQUENT EXERCISES (consider variation): ${frequentExercises}`);
     }
-    
+
     // Display full workout history for progression
     output.push(`\nRECENT WORKOUT HISTORY (for progression):`);
     userData.workoutHistory.slice(0, 15).forEach(workout => {
       const timeAgo = getRelativeTime(workout.performed_at);
       let detailsStr = '';
-      
+
       if (workout.sets && workout.reps) {
         const repsStr = Array.isArray(workout.reps) ? workout.reps.join(',') : workout.reps;
         detailsStr = `${workout.sets} sets, ${repsStr} reps`;
@@ -599,11 +627,11 @@ function formatUserDataAsNaturalLanguage(userData) {
         const holdStr = Array.isArray(workout.hold_duration_sec) ? workout.hold_duration_sec.join(',') : workout.hold_duration_sec;
         detailsStr = `held for ${holdStr}sec`;
       }
-      
+
       output.push(`  - ${workout.exercise_name}: ${detailsStr} (${timeAgo})`);
     });
   }
-  
+
   return output.join('\n');
 }
 
@@ -619,11 +647,18 @@ CORE PRINCIPLES:
 5. EXERCISE SELECTION: Choose exercises that match the user's goals - prioritize compound movements for strength goals, include isolation for hypertrophy goals
 6. REP RANGES: Apply goal-appropriate rep ranges - Strength (1-5), Hypertrophy (6-12), Endurance (12+), with mixed ranges for different exercise types
 
+UNIT SYSTEM REQUIREMENTS:
+- ALWAYS use the user's preferred unit system as specified in their UNIT PREFERENCES
+- For weights: Use practical, commonly available increments (e.g., 5, 10, 15, 20, 25, 30, 35, 40, 45 lbs OR 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20 kg)
+- For distances: Use standard increments (e.g., 0.5, 1, 1.5, 2, 3, 5 miles OR 1, 2, 3, 5, 10 km)
+- NEVER mix units - if user prefers lbs, ALL weights must be in lbs; if user prefers km, ALL distances must be in km
+
 STRICT REQUIREMENTS:
 - ONLY recommend exercises with available equipment - no substitutions or alternatives
 - Generate EXACTLY the requested number of exercises
 - Ensure muscles_utilized shares sum to 1.0
-- Use ONLY the categories and muscles from the user's profile
+- Use ONLY the exact muscle names from the standard list: Chest, Back, Shoulders, Biceps, Triceps, Abs, Lower Back, Quadriceps, Hamstrings, Glutes, Calves, Trapezius, Abductors, Adductors, Forearms, Neck
+- Use ONLY the exact goal categories listed in the USER PROFILE (do not invent new goals)
 - Respect ALL temporary preferences as absolute overrides
 - Choose appropriate exercise_type for each exercise (strength, cardio_distance, cardio_time, hiit, circuit, flexibility, yoga, bodyweight, isometric, balance, sport_specific)`;
 
@@ -698,19 +733,19 @@ async function streamExerciseRecommendations(userId, requestData = {}) {
 
     // Fetch all user data
     const userData = await fetchAllUserData(userId);
-    
+
     if (!userData.success) {
       throw new Error(`Failed to fetch user data: ${userData.error || 'Unknown error'}`);
     }
 
     // Extract exercise count from request data
     const exerciseCount = requestData.exerciseCount;
-    
+
     // Format user data as natural language
     const formattedUserData = formatUserDataAsNaturalLanguage(userData.data);
 
     // Create exercise count instruction
-    const exerciseCountInstruction = exerciseCount 
+    const exerciseCountInstruction = exerciseCount
       ? `Generate exactly ${exerciseCount} exercises.`
       : `Generate 3-8 exercises based on the user's goals and available time.`;
 
@@ -729,12 +764,20 @@ ${exerciseCountInstruction}
     console.log('Streaming exercise recommendations for user:', userId);
     console.log('User prompt length:', userPrompt.length);
 
+    // Extract valid goals from user data
+    const validGoals = userData.data.userCategoryAndWeights
+      ? userData.data.userCategoryAndWeights.map(g => g.category)
+      : [];
+
+    // Create dynamic schema with validation
+    const DynamicExerciseSchema = createIndividualExerciseSchema(PRESET_MUSCLES, validGoals);
+
     // Generate structured output using Vercel AI SDK with streaming
     const result = streamObject({
       model: openai('gpt-4.1'),
       system: SYSTEM_PROMPT,
       prompt: userPrompt,
-      schema: IndividualExerciseSchema,
+      schema: DynamicExerciseSchema,
       output: 'array',
       temperature: 0.7,
       onError({ error }) {
@@ -766,7 +809,7 @@ ${exerciseCountInstruction}
 
   } catch (error) {
     console.error('Error streaming exercise recommendations:', error);
-    
+
     return {
       success: false,
       error: error.message,
@@ -792,19 +835,19 @@ async function generateExerciseRecommendations(userId, requestData = {}) {
 
     // Fetch all user data
     const userData = await fetchAllUserData(userId);
-    
+
     if (!userData.success) {
       throw new Error(`Failed to fetch user data: ${userData.error || 'Unknown error'}`);
     }
 
     // Extract exercise count from request data
     const exerciseCount = requestData.exerciseCount;
-    
+
     // Format user data as natural language
     const formattedUserData = formatUserDataAsNaturalLanguage(userData.data);
 
     // Create exercise count instruction
-    const exerciseCountInstruction = exerciseCount 
+    const exerciseCountInstruction = exerciseCount
       ? `Generate exactly ${exerciseCount} exercises.`
       : `Generate 3-8 exercises based on the user's goals and available time.`;
 
@@ -823,17 +866,28 @@ ${exerciseCountInstruction}
     console.log('Generating exercise recommendations for user:', userId);
     console.log('User prompt length:', userPrompt.length);
 
+    // Extract valid goals from user data
+    const validGoals = userData.data.userCategoryAndWeights
+      ? userData.data.userCategoryAndWeights.map(g => g.category)
+      : [];
+
+    // Create dynamic schema with validation
+    const DynamicExerciseSchema = createIndividualExerciseSchema(PRESET_MUSCLES, validGoals);
+    const DynamicTypedSchema = z.object({
+      recommendations: z.array(DynamicExerciseSchema)
+    });
+
     // Generate structured output using Vercel AI SDK
     const result = await generateObject({
       model: openai('gpt-4o'),
       system: SYSTEM_PROMPT,
       prompt: userPrompt,
-      schema: TypedExerciseRecommendationSchema,
+      schema: DynamicTypedSchema,
       temperature: 0.7,
     });
 
     console.log('Successfully generated exercise recommendations');
-    
+
     // Clean up preferences marked for deletion after call
     try {
       await cleanupPreferences(userId);
@@ -841,13 +895,13 @@ ${exerciseCountInstruction}
       console.error('Error cleaning up preferences:', cleanupError);
       // Don't fail the whole request for cleanup errors
     }
-    
+
     // Validate exercise count if specified
     const actualCount = result.object.recommendations.length;
     if (exerciseCount && actualCount !== exerciseCount) {
       console.warn(`Warning: Requested ${exerciseCount} exercises but got ${actualCount}`);
     }
-    
+
     return {
       success: true,
       data: result.object,
@@ -864,11 +918,11 @@ ${exerciseCountInstruction}
 
   } catch (error) {
     console.error('Error generating exercise recommendations:', error);
-    
+
     // Provide more specific error messages
     let errorMessage = error.message;
     let errorDetails = null;
-    
+
     if (error.name === 'AI_NoObjectGeneratedError' || error.name === 'NoObjectGeneratedError') {
       errorMessage = 'AI failed to generate valid exercise recommendations. This may be due to schema validation issues.';
       errorDetails = {
@@ -884,7 +938,7 @@ ${exerciseCountInstruction}
         suggestion: 'The AI generated invalid data. Please try again.'
       };
     }
-    
+
     return {
       success: false,
       error: errorMessage,
@@ -902,5 +956,5 @@ module.exports = {
   ExerciseRecommendationSchema,
   TypedExerciseRecommendationSchema,
   IndividualExerciseSchema,
-  BaseExerciseSchema
+  createIndividualExerciseSchema
 };

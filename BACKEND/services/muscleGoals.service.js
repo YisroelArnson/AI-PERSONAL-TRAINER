@@ -111,7 +111,7 @@ Current time: ${new Date().toISOString()}`
     // Normalize weights to ensure they sum to 1.0
     const muscleWeights = parsedGoals.weights;
     const totalWeight = Object.values(muscleWeights).reduce((sum, weight) => sum + weight, 0);
-    
+
     if (Math.abs(totalWeight - 1.0) > 0.001) {
       // Normalize each weight
       Object.keys(muscleWeights).forEach(muscle => {
@@ -133,6 +133,7 @@ Current time: ${new Date().toISOString()}`
 }
 
 module.exports = {
-  parseMuscleGoalsText
+  parseMuscleGoalsText,
+  PRESET_MUSCLES
 };
 

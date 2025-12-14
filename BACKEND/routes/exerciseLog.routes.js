@@ -1,12 +1,16 @@
 const express = require('express');
 const router = express.Router();
-const { logExercise, getHistory } = require('../controllers/exerciseLog.controller');
+const { logExercise, getHistory, deleteExercise } = require('../controllers/exerciseLog.controller');
 const { getDistribution, resetDistributionTracking } = require('../controllers/exerciseDistribution.controller');
 const { authenticateToken } = require('../middleware/auth');
 
 // Log a completed exercise
 // POST /exercises/log/:userId
 router.post('/log/:userId', authenticateToken, logExercise);
+
+// Delete a completed exercise (undo completion)
+// DELETE /exercises/log/:userId/:exerciseId
+router.delete('/log/:userId/:exerciseId', authenticateToken, deleteExercise);
 
 // Get workout history for a user
 // GET /exercises/history/:userId

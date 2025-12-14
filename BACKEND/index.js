@@ -31,6 +31,12 @@ app.use('/muscle-goals', muscleGoalsRouter);
 const exerciseLogRouter = require('./routes/exerciseLog.routes');
 app.use('/exercises', exerciseLogRouter);
 
+const userSettingsRouter = require('./routes/userSettings.routes');
+app.use('/user-settings', userSettingsRouter);
+
+const intervalRouter = require('./routes/interval.routes');
+app.use('/intervals', intervalRouter);
+
 // Start server
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);

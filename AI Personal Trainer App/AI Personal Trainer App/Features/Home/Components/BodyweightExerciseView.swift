@@ -1,39 +1,33 @@
 //
-//  StrengthExerciseView.swift
+//  BodyweightExerciseView.swift
 //  AI Personal Trainer App
 //
-//  Created by ISWA on 11/11/25.
+//  Created by AI Assistant on 11/23/25.
 //
 
 import SwiftUI
 
-// MARK: - Main View
-struct StrengthExerciseView: View {
+struct BodyweightExerciseView: View {
     let exercise: UIExercise
     let showContent: Bool
     @Binding var completedSetIndices: Set<Int>
     @Binding var adjustedReps: [Int]
-    @Binding var adjustedWeights: [Int]
     
     // Picker state
     @State private var showRepsPicker = false
-    @State private var showWeightPicker = false
     @State private var editingSetIndex: Int = 0
     @State private var tempRepsValue: Int = 0
-    @State private var tempWeightValue: Int = 0
     
     var body: some View {
         let setCount = exercise.sets ?? 0
         let reps = exercise.reps ?? []
-        let loads = exercise.load_kg_each ?? []
-        let actualSetCount = min(setCount, reps.count, loads.count)
+        let actualSetCount = min(setCount, reps.count)
         
         if actualSetCount > 0 {
             VStack(spacing: AppTheme.Spacing.sm) {
                 ForEach(0..<actualSetCount, id: \.self) { index in
-                    SetCard(
+                    BodyweightSetCard(
                         reps: adjustedReps.indices.contains(index) ? adjustedReps[index] : reps[index],
-                        weight: adjustedWeights.indices.contains(index) ? adjustedWeights[index] : Int(loads[index]),
                         isCompleted: completedSetIndices.contains(index),
                         onTap: {
                             withAnimation(AppTheme.Animation.gentle) {
@@ -48,31 +42,16 @@ struct StrengthExerciseView: View {
                             editingSetIndex = index
                             tempRepsValue = adjustedReps.indices.contains(index) ? adjustedReps[index] : reps[index]
                             showRepsPicker = true
-                        },
-                        onTapWeight: {
-                            editingSetIndex = index
-                            tempWeightValue = adjustedWeights.indices.contains(index) ? adjustedWeights[index] : Int(loads[index])
-                            showWeightPicker = true
                         }
                     )
                     .emergingAnimation(isVisible: showContent, delay: 0.1 + Double(index) * 0.06)
                 }
             }
             .sheet(isPresented: $showRepsPicker) {
-                RepsPickerSheet(
+                BodyweightRepsPickerSheet(
                     reps: $tempRepsValue,
                     onSave: {
                         adjustedReps[editingSetIndex] = tempRepsValue
-                    }
-                )
-                .presentationDetents([.height(280)])
-                .presentationDragIndicator(.visible)
-            }
-            .sheet(isPresented: $showWeightPicker) {
-                WeightPickerSheet(
-                    weight: $tempWeightValue,
-                    onSave: {
-                        adjustedWeights[editingSetIndex] = tempWeightValue
                     }
                 )
                 .presentationDetents([.height(280)])
@@ -82,22 +61,17 @@ struct StrengthExerciseView: View {
     }
 }
 
-// MARK: - Set Card
+// MARK: - Bodyweight Set Card
 
-struct SetCard: View {
+struct BodyweightSetCard: View {
     let reps: Int
-    let weight: Int
     let isCompleted: Bool
     let onTap: () -> Void
     let onTapReps: () -> Void
-    let onTapWeight: () -> Void
-    
-    @StateObject private var userSettings = UserSettings.shared
     
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: AppTheme.Spacing.lg) {
-                // Reps
+            HStack {
                 Button(action: onTapReps) {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Text("\(reps)")
@@ -112,20 +86,6 @@ struct SetCard: View {
                 .buttonStyle(.plain)
                 
                 Spacer()
-                
-                // Weight
-                Button(action: onTapWeight) {
-                    HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text("\(weight)")
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
-                            .foregroundColor(isCompleted ? AppTheme.Colors.secondaryText : AppTheme.Colors.primaryText)
-                        
-                        Text(userSettings.weightUnitLabel)
-                            .font(.system(size: 12, weight: .regular, design: .rounded))
-                            .foregroundColor(AppTheme.Colors.tertiaryText)
-                    }
-                }
-                .buttonStyle(.plain)
             }
             .padding(.horizontal, AppTheme.Spacing.xl)
             .padding(.vertical, AppTheme.Spacing.lg)
@@ -145,8 +105,8 @@ struct SetCard: View {
     }
 }
 
-// MARK: - Reps Picker Sheet
-struct RepsPickerSheet: View {
+// MARK: - Bodyweight Reps Picker Sheet
+struct BodyweightRepsPickerSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var reps: Int
     let onSave: () -> Void
@@ -155,7 +115,7 @@ struct RepsPickerSheet: View {
         NavigationView {
             VStack(spacing: 0) {
                 Picker("Reps", selection: $reps) {
-                    ForEach(1...50, id: \.self) { value in
+                    ForEach(1...100, id: \.self) { value in
                         Text("\(value) reps").tag(value)
                     }
                 }
@@ -184,56 +144,12 @@ struct RepsPickerSheet: View {
     }
 }
 
-// MARK: - Weight Picker Sheet
-struct WeightPickerSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Binding var weight: Int
-    let onSave: () -> Void
-    
-    @StateObject private var userSettings = UserSettings.shared
-    
-    // Weight values: 0, 5, 10, 15... up to 500
-    private let weightValues = Array(stride(from: 0, through: 500, by: 5))
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                Picker("Weight", selection: $weight) {
-                    ForEach(weightValues, id: \.self) { value in
-                        Text("\(value) \(userSettings.weightUnitLabel)").tag(value)
-                    }
-                }
-                .pickerStyle(.wheel)
-                .frame(height: 180)
-            }
-            .navigationTitle("Weight")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        onSave()
-                        dismiss()
-                    }
-                    .fontWeight(.semibold)
-                    .foregroundColor(AppTheme.Colors.warmAccent)
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Preview
+
 #Preview {
     struct PreviewWrapper: View {
         @State private var completedSets: Set<Int> = [1]
-        @State private var adjustedReps: [Int] = [10, 8, 8, 6]
-        @State private var adjustedWeights: [Int] = [135, 155, 155, 175]
+        @State private var adjustedReps: [Int] = [15, 12, 10]
         
         var body: some View {
             ZStack {
@@ -241,24 +157,22 @@ struct WeightPickerSheet: View {
                     .ignoresSafeArea()
                 
                 VStack(alignment: .leading, spacing: 20) {
-                    Text("Barbell Bench Press")
+                    Text("Push-ups")
                         .font(.system(size: 28, weight: .bold, design: .rounded))
                         .foregroundColor(AppTheme.Colors.primaryText)
                         .padding(.horizontal, 20)
                     
-                    StrengthExerciseView(
+                    BodyweightExerciseView(
                         exercise: UIExercise(
-                            exercise_name: "Barbell Bench Press",
-                            type: "strength",
-                            reps: [10, 8, 8, 6],
-                            load_kg_each: [61.2, 70.3, 70.3, 79.4],
-                            sets: 4,
-                            rest_seconds: 90
+                            exercise_name: "Push-ups",
+                            type: "bodyweight",
+                            reps: [15, 12, 10],
+                            sets: 3,
+                            rest_seconds: 60
                         ),
                         showContent: true,
                         completedSetIndices: $completedSets,
-                        adjustedReps: $adjustedReps,
-                        adjustedWeights: $adjustedWeights
+                        adjustedReps: $adjustedReps
                     )
                     .padding(.horizontal, 20)
                 }

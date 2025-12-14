@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { getWorkoutHistory } = require('./exerciseLog.service');
 const { getDistributionMetrics } = require('./exerciseDistribution.service');
+const { getUserSettings, DEFAULT_SETTINGS } = require('./userSettings.service');
 
 // Initialize Supabase client
 const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBASE_SECRET_KEY);
@@ -16,6 +17,7 @@ const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBA
  * @param {boolean} options.preferences - Whether to fetch user preferences
  * @param {boolean} options.workoutHistory - Whether to fetch workout history
  * @param {boolean} options.exerciseDistribution - Whether to fetch exercise distribution tracking
+ * @param {boolean} options.userSettings - Whether to fetch user settings (unit preferences)
  * @returns {Object} Structured data object with requested user data
  */
 async function fetchUserData(userId, options = {}) {
@@ -33,7 +35,8 @@ async function fetchUserData(userId, options = {}) {
             locations = true,
             preferences = true,
             workoutHistory = true,
-            exerciseDistribution = true
+            exerciseDistribution = true,
+            userSettings = true
         } = options;
 
         const result = {
@@ -297,6 +300,24 @@ async function fetchUserData(userId, options = {}) {
             }
         }
 
+        // Fetch user settings (unit preferences)
+        if (userSettings) {
+            try {
+                const settingsResult = await getUserSettings(userId);
+                if (settingsResult.success) {
+                    result.data.userSettings = settingsResult.data;
+                } else {
+                    // Use defaults if fetching fails
+                    result.data.userSettings = DEFAULT_SETTINGS;
+                }
+            } catch (error) {
+                console.error('Error fetching user settings:', error);
+                result.data.userSettings = DEFAULT_SETTINGS;
+                result.errors = result.errors || {};
+                result.errors.userSettings = error.message;
+            }
+        }
+
         // Add success status
         result.success = !result.errors || Object.keys(result.errors).length === 0;
         
@@ -327,7 +348,8 @@ async function fetchAllUserData(userId) {
         locations: true,
         preferences: true,
         workoutHistory: true,
-        exerciseDistribution: true
+        exerciseDistribution: true,
+        userSettings: true
     });
 }
 

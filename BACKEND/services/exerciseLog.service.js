@@ -1,5 +1,5 @@
 const { createClient } = require('@supabase/supabase-js');
-const { updateTrackingIncrementally } = require('./exerciseDistribution.service');
+const { updateTrackingIncrementally, decrementTrackingIncrementally } = require('./exerciseDistribution.service');
 
 // Initialize Supabase client
 const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBASE_SECRET_KEY);
@@ -173,8 +173,101 @@ async function getWorkoutHistory(userId, options = {}) {
   }
 }
 
+/**
+ * Delete a completed exercise from workout_history (undo completion)
+ * Also decrements the distribution tracking
+ * @param {string} userId - The user's UUID
+ * @param {string} exerciseId - The workout_history record UUID
+ * @returns {Object} Result with success status
+ */
+async function deleteCompletedExercise(userId, exerciseId) {
+  try {
+    // Validate required fields
+    if (!userId || !exerciseId) {
+      return {
+        success: false,
+        error: 'Missing required parameters (userId and exerciseId)',
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // First, fetch the exercise data (needed for decrementing tracking)
+    const { data: exerciseData, error: fetchError } = await supabase
+      .from('workout_history')
+      .select('*')
+      .eq('id', exerciseId)
+      .eq('user_id', userId)
+      .single();
+
+    if (fetchError) {
+      console.error('Error fetching exercise to delete:', fetchError);
+      return {
+        success: false,
+        error: 'Failed to fetch exercise',
+        details: fetchError.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    if (!exerciseData) {
+      return {
+        success: false,
+        error: 'Exercise not found or does not belong to user',
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    // Delete the exercise from workout_history
+    const { error: deleteError } = await supabase
+      .from('workout_history')
+      .delete()
+      .eq('id', exerciseId)
+      .eq('user_id', userId);
+
+    if (deleteError) {
+      console.error('Error deleting exercise:', deleteError);
+      return {
+        success: false,
+        error: 'Failed to delete exercise',
+        details: deleteError.message,
+        timestamp: new Date().toISOString()
+      };
+    }
+
+    console.log(`Successfully deleted exercise: ${exerciseData.exercise_name} for user: ${userId}`);
+
+    // Decrement distribution tracking
+    try {
+      const trackingResult = await decrementTrackingIncrementally(userId, exerciseData);
+      if (!trackingResult.success) {
+        console.warn('Failed to decrement distribution tracking:', trackingResult.error);
+        // Don't fail the delete if tracking update fails
+      }
+    } catch (trackingError) {
+      console.warn('Error decrementing distribution tracking:', trackingError);
+      // Don't fail the delete if tracking update fails
+    }
+
+    return {
+      success: true,
+      message: `Exercise "${exerciseData.exercise_name}" deleted successfully`,
+      timestamp: new Date().toISOString()
+    };
+
+  } catch (error) {
+    console.error('Error in deleteCompletedExercise service:', error);
+    return {
+      success: false,
+      error: 'Internal service error',
+      details: error.message,
+      timestamp: new Date().toISOString()
+    };
+  }
+}
+
 module.exports = {
   logCompletedExercise,
-  getWorkoutHistory
+  getWorkoutHistory,
+  deleteCompletedExercise
 };
 

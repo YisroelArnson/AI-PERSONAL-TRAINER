@@ -312,6 +312,28 @@ struct WorkoutHistoryAPIResponse: Codable {
     let timestamp: String
 }
 
+// MARK: - Log Exercise Response Models
+struct LogExerciseResponse: Codable {
+    let success: Bool
+    let data: LoggedExerciseData
+    let timestamp: String
+}
+
+struct LoggedExerciseData: Codable {
+    let id: String
+}
+
+// MARK: - User Settings Models
+struct UserSettingsAPIResponse: Codable {
+    let success: Bool
+    let data: UserSettingsData
+}
+
+struct UserSettingsData: Codable {
+    let weight_unit: String
+    let distance_unit: String
+}
+
 // MARK: - Error Models
 enum APIError: Error, LocalizedError {
     case invalidURL
@@ -320,6 +342,7 @@ enum APIError: Error, LocalizedError {
     case unauthorized
     case forbidden
     case authenticationRequired
+    case networkError
     
     var errorDescription: String? {
         switch self {
@@ -335,6 +358,8 @@ enum APIError: Error, LocalizedError {
             return "Access denied - insufficient permissions"
         case .authenticationRequired:
             return "Please sign in to access this feature"
+        case .networkError:
+            return "Unable to connect to server. Please check your network connection."
         }
     }
 }

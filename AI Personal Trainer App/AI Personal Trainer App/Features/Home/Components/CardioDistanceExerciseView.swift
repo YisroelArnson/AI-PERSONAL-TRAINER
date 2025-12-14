@@ -1,32 +1,34 @@
 //
-//  CardioTimeExerciseView.swift
+//  CardioDistanceExerciseView.swift
 //  AI Personal Trainer App
 //
-//  Created by ISWA on 11/11/25.
+//  Created by AI Assistant on 11/23/25.
 //
 
 import SwiftUI
 
-struct CardioTimeExerciseView: View {
+struct CardioDistanceExerciseView: View {
     let exercise: UIExercise
     let showContent: Bool
     
+    @StateObject private var userSettings = UserSettings.shared
+    
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xxl) {
-            // Duration
-            if let duration = exercise.duration_min {
+            // Distance
+            if let distance = exercise.distance_km {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                    Text("duration")
+                    Text("distance")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundColor(AppTheme.Colors.tertiaryText)
                         .textCase(.lowercase)
                     
                     HStack(alignment: .firstTextBaseline, spacing: AppTheme.Spacing.sm) {
-                        Text("\(duration)")
+                        Text(String(format: "%.1f", distance))
                             .font(.system(size: 64, weight: .bold, design: .rounded))
                             .foregroundColor(AppTheme.Colors.primaryText)
                         
-                        Text("min")
+                        Text(userSettings.distanceUnitLabel)
                             .font(.system(size: 22, weight: .regular, design: .rounded))
                             .foregroundColor(AppTheme.Colors.secondaryText)
                     }
@@ -35,20 +37,36 @@ struct CardioTimeExerciseView: View {
                 .animation(.easeOut(duration: 0.2), value: showContent)
             }
             
-            // Intensity
-            if let intensity = exercise.target_intensity {
+            // Target Pace
+            if let pace = exercise.target_pace {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                    Text("intensity")
+                    Text("target pace")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundColor(AppTheme.Colors.tertiaryText)
                         .textCase(.lowercase)
                     
-                    Text(intensity.capitalized)
+                    Text(pace)
                         .font(.system(size: 28, weight: .semibold, design: .rounded))
                         .foregroundColor(AppTheme.Colors.primaryText)
                 }
                 .opacity(showContent ? 1 : 0)
                 .animation(.easeOut(duration: 0.2).delay(0.05), value: showContent)
+            }
+            
+            // Duration Estimate (if available)
+            if let duration = exercise.duration_min {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    Text("est. duration")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(AppTheme.Colors.tertiaryText)
+                        .textCase(.lowercase)
+                    
+                    Text("\(duration) min")
+                        .font(.system(size: 20, weight: .medium, design: .rounded))
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                }
+                .opacity(showContent ? 1 : 0)
+                .animation(.easeOut(duration: 0.2).delay(0.1), value: showContent)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -62,16 +80,17 @@ struct CardioTimeExerciseView: View {
         
         ExerciseCard {
             VStack(alignment: .leading, spacing: 16) {
-                Text("Cycling")
+                Text("5K Run")
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
-                CardioTimeExerciseView(
+                CardioDistanceExerciseView(
                     exercise: UIExercise(
-                        exercise_name: "Cycling",
-                        type: "cardio_time",
+                        exercise_name: "5K Run",
+                        type: "cardio_distance",
                         duration_min: 30,
-                        target_intensity: "moderate"
+                        distance_km: 5.0,
+                        target_pace: "6:00/km"
                     ),
                     showContent: true
                 )

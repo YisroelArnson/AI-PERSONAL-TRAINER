@@ -8,8 +8,9 @@
 import SwiftUI
 
 struct ExerciseDetailSheet: View {
-    let workoutItem: WorkoutHistoryItem
+    let exercise: any ExerciseDisplayable
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var userSettings = UserSettings.shared
     
     var body: some View {
         NavigationView {
@@ -17,23 +18,26 @@ struct ExerciseDetailSheet: View {
                 VStack(alignment: .leading, spacing: 24) {
                     // Exercise Name and Type
                     VStack(alignment: .leading, spacing: 8) {
-                        Text(workoutItem.exercise_name)
+                        Text(exercise.exercise_name)
                             .font(.system(size: 28, weight: .bold))
                             .foregroundColor(AppTheme.Colors.primaryText)
                         
                         HStack(spacing: 8) {
-                            Text(workoutItem.exercise_type.replacingOccurrences(of: "_", with: " ").capitalized)
+                            Text(exercise.exercise_type.replacingOccurrences(of: "_", with: " ").capitalized)
                                 .font(.caption)
                                 .fontWeight(.medium)
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(workoutItem.typeColor)
+                                .background(exercise.typeColor)
                                 .cornerRadius(AppTheme.CornerRadius.small)
                             
-                            Text(workoutItem.formattedDate)
-                                .font(.caption)
-                                .foregroundColor(AppTheme.Colors.secondaryText)
+                            // Only show date for completed exercises
+                            if let formattedDate = exercise.displayFormattedDate {
+                                Text(formattedDate)
+                                    .font(.caption)
+                                    .foregroundColor(AppTheme.Colors.secondaryText)
+                            }
                         }
                     }
                     .padding(.horizontal, 20)
@@ -53,51 +57,74 @@ struct ExerciseDetailSheet: View {
                     .padding(.horizontal, 20)
                     
                     // Muscles Utilized Section
-                    if !workoutItem.muscles_utilized.isEmpty {
+                    if !exercise.displayMusclesUtilized.isEmpty {
                         Divider()
                             .padding(.horizontal, 20)
                         
-                        VStack(alignment: .leading, spacing: 12) {
+                        VStack(alignment: .leading, spacing: 16) {
                             Text("Muscles Utilized")
                                 .font(.headline)
                                 .foregroundColor(AppTheme.Colors.primaryText)
                             
-                            ForEach(workoutItem.muscles_utilized.sorted(by: { $0.share > $1.share }), id: \.muscle) { muscle in
-                                HStack {
-                                    Text(muscle.muscle.capitalized)
-                                        .font(.subheadline)
-                                        .foregroundColor(AppTheme.Colors.primaryText)
+                            let sortedMuscles = exercise.displayMusclesUtilized.sorted(by: { $0.share > $1.share })
+                            let colors: [Color] = [
+                                Color.blue,
+                                Color.orange,
+                                Color.green,
+                                Color.purple,
+                                Color.pink,
+                                Color.cyan,
+                                Color.yellow,
+                                Color.indigo,
+                                Color.mint,
+                                Color.teal
+                            ]
+                            
+                            ZStack {
+                                // Chart
+                                ForEach(Array(sortedMuscles.enumerated()), id: \.element.muscle) { index, muscle in
+                                    let start = sortedMuscles[0..<index].reduce(0) { $0 + $1.share }
+                                    let end = start + muscle.share
+                                    let color = colors[index % colors.count]
                                     
-                                    Spacer()
+                                    Circle()
+                                        .trim(from: start, to: end)
+                                        .stroke(color, style: StrokeStyle(lineWidth: 24, lineCap: .butt))
+                                        .rotationEffect(.degrees(-90))
+                                        .frame(width: 180, height: 180)
+                                }
+                                
+                                // Labels
+                                ForEach(Array(sortedMuscles.enumerated()), id: \.element.muscle) { index, muscle in
+                                    let start = sortedMuscles[0..<index].reduce(0) { $0 + $1.share }
+                                    let mid = start + (muscle.share / 2)
+                                    let angle = mid * 2 * .pi
+                                    let labelRadius: CGFloat = 130
+                                    let x = labelRadius * CGFloat(sin(angle))
+                                    let y = -labelRadius * CGFloat(cos(angle))
                                     
-                                    Text("\(Int(muscle.share * 100))%")
-                                        .font(.subheadline)
-                                        .fontWeight(.medium)
-                                        .foregroundColor(AppTheme.Colors.secondaryText)
-                                    
-                                    // Progress bar
-                                    GeometryReader { geo in
-                                        ZStack(alignment: .leading) {
-                                            Rectangle()
-                                                .fill(AppTheme.Colors.border)
-                                                .frame(height: 6)
-                                                .cornerRadius(3)
-                                            
-                                            Rectangle()
-                                                .fill(workoutItem.typeColor)
-                                                .frame(width: geo.size.width * muscle.share, height: 6)
-                                                .cornerRadius(3)
-                                        }
+                                    VStack(spacing: 0) {
+                                        Text(muscle.muscle.capitalized)
+                                            .font(.caption2)
+                                            .fontWeight(.medium)
+                                            .foregroundColor(AppTheme.Colors.primaryText)
+                                            .multilineTextAlignment(.center)
+                                        
+                                        Text("\(Int(muscle.share * 100))%")
+                                            .font(.caption2)
+                                            .foregroundColor(AppTheme.Colors.secondaryText)
                                     }
-                                    .frame(width: 80, height: 6)
+                                    .offset(x: x, y: y)
                                 }
                             }
+                            .frame(height: 310)
+                            .frame(maxWidth: .infinity)
                         }
                         .padding(.horizontal, 20)
                     }
                     
                     // Goals Addressed Section
-                    if let goals = workoutItem.goals_addressed, !goals.isEmpty {
+                    if let goals = exercise.goals_addressed, !goals.isEmpty {
                         Divider()
                             .padding(.horizontal, 20)
                         
@@ -125,7 +152,7 @@ struct ExerciseDetailSheet: View {
                     }
                     
                     // Equipment Section
-                    if let equipment = workoutItem.equipment, !equipment.isEmpty {
+                    if let equipment = exercise.equipment, !equipment.isEmpty {
                         Divider()
                             .padding(.horizontal, 20)
                         
@@ -150,7 +177,7 @@ struct ExerciseDetailSheet: View {
                     }
                     
                     // Reasoning Section
-                    if let reasoning = workoutItem.reasoning, !reasoning.isEmpty {
+                    if let reasoning = exercise.reasoning, !reasoning.isEmpty {
                         Divider()
                             .padding(.horizontal, 20)
                         
@@ -168,7 +195,7 @@ struct ExerciseDetailSheet: View {
                     }
                     
                     // Exercise Description Section
-                    if let description = workoutItem.exercise_description, !description.isEmpty {
+                    if let description = exercise.exercise_description, !description.isEmpty {
                         Divider()
                             .padding(.horizontal, 20)
                         
@@ -185,8 +212,8 @@ struct ExerciseDetailSheet: View {
                         .padding(.horizontal, 20)
                     }
                     
-                    // User Feedback Section
-                    if workoutItem.rpe != nil || workoutItem.notes != nil {
+                    // User Feedback Section (only for completed exercises)
+                    if exercise.displayRpe != nil || exercise.displayNotes != nil {
                         Divider()
                             .padding(.horizontal, 20)
                         
@@ -195,7 +222,7 @@ struct ExerciseDetailSheet: View {
                                 .font(.headline)
                                 .foregroundColor(AppTheme.Colors.primaryText)
                             
-                            if let rpe = workoutItem.rpe {
+                            if let rpe = exercise.displayRpe {
                                 HStack {
                                     Text("RPE (Rate of Perceived Exertion)")
                                         .font(.subheadline)
@@ -210,7 +237,7 @@ struct ExerciseDetailSheet: View {
                                 }
                             }
                             
-                            if let notes = workoutItem.notes, !notes.isEmpty {
+                            if let notes = exercise.displayNotes, !notes.isEmpty {
                                 VStack(alignment: .leading, spacing: 4) {
                                     Text("Notes")
                                         .font(.subheadline)
@@ -246,7 +273,7 @@ struct ExerciseDetailSheet: View {
     
     @ViewBuilder
     private var metricsView: some View {
-        switch workoutItem.exercise_type {
+        switch exercise.exercise_type {
         case "strength":
             strengthMetrics
         case "cardio_distance":
@@ -266,19 +293,25 @@ struct ExerciseDetailSheet: View {
     
     private var strengthMetrics: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let sets = workoutItem.sets {
+            if let sets = exercise.sets {
                 metricRow(label: "Sets", value: "\(sets)")
             }
             
-            if let reps = workoutItem.reps, !reps.isEmpty {
+            if let reps = exercise.reps, !reps.isEmpty {
                 metricRow(label: "Reps", value: reps.map { String($0) }.joined(separator: ", "))
             }
             
-            if let weights = workoutItem.load_kg_each, !weights.isEmpty {
-                metricRow(label: "Weight (kg)", value: weights.map { String(format: "%.1f", $0) }.joined(separator: ", "))
+            if let weights = exercise.load_kg_each, !weights.isEmpty {
+                let weightLabel = "Weight (\(userSettings.weightUnitLabel))"
+                let weightValues = weights.map { weight in
+                    weight.truncatingRemainder(dividingBy: 1) == 0
+                        ? String(format: "%.0f", weight)
+                        : String(format: "%.1f", weight)
+                }.joined(separator: ", ")
+                metricRow(label: weightLabel, value: weightValues)
             }
             
-            if let rest = workoutItem.rest_seconds {
+            if let rest = exercise.rest_seconds {
                 metricRow(label: "Rest", value: "\(rest)s between sets")
             }
         }
@@ -286,15 +319,18 @@ struct ExerciseDetailSheet: View {
     
     private var cardioDistanceMetrics: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let distance = workoutItem.distance_km {
-                metricRow(label: "Distance", value: String(format: "%.2f km", distance))
+            if let distance = exercise.distance_km {
+                let formattedDistance = distance.truncatingRemainder(dividingBy: 1) == 0
+                    ? String(format: "%.0f", distance)
+                    : String(format: "%.2f", distance)
+                metricRow(label: "Distance", value: "\(formattedDistance) \(userSettings.distanceUnitLabel)")
             }
             
-            if let duration = workoutItem.duration_min {
+            if let duration = exercise.duration_min {
                 metricRow(label: "Duration", value: "\(duration) min")
             }
             
-            if let pace = workoutItem.target_pace {
+            if let pace = exercise.target_pace {
                 metricRow(label: "Target Pace", value: pace)
             }
         }
@@ -302,7 +338,7 @@ struct ExerciseDetailSheet: View {
     
     private var cardioTimeMetrics: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let duration = workoutItem.duration_min {
+            if let duration = exercise.duration_min {
                 metricRow(label: "Duration", value: "\(duration) min")
             }
         }
@@ -310,15 +346,15 @@ struct ExerciseDetailSheet: View {
     
     private var hiitMetrics: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let rounds = workoutItem.rounds {
+            if let rounds = exercise.rounds {
                 metricRow(label: "Rounds", value: "\(rounds)")
             }
             
-            if let duration = workoutItem.total_duration_min ?? workoutItem.duration_min {
+            if let duration = exercise.total_duration_min ?? exercise.duration_min {
                 metricRow(label: "Total Duration", value: "\(duration) min")
             }
             
-            if let intervals = workoutItem.intervals, !intervals.isEmpty {
+            if let intervals = exercise.intervals, !intervals.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Intervals:")
                         .font(.subheadline)
@@ -345,15 +381,15 @@ struct ExerciseDetailSheet: View {
     
     private var bodyweightMetrics: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let sets = workoutItem.sets {
+            if let sets = exercise.sets {
                 metricRow(label: "Sets", value: "\(sets)")
             }
             
-            if let reps = workoutItem.reps, !reps.isEmpty {
+            if let reps = exercise.reps, !reps.isEmpty {
                 metricRow(label: "Reps", value: reps.map { String($0) }.joined(separator: ", "))
             }
             
-            if let rest = workoutItem.rest_seconds {
+            if let rest = exercise.rest_seconds {
                 metricRow(label: "Rest", value: "\(rest)s between sets")
             }
         }
@@ -361,15 +397,15 @@ struct ExerciseDetailSheet: View {
     
     private var isometricMetrics: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let sets = workoutItem.sets {
+            if let sets = exercise.sets {
                 metricRow(label: "Sets", value: "\(sets)")
             }
             
-            if let holds = workoutItem.hold_duration_sec, !holds.isEmpty {
+            if let holds = exercise.hold_duration_sec, !holds.isEmpty {
                 metricRow(label: "Hold Duration", value: holds.map { "\($0)s" }.joined(separator: ", "))
             }
             
-            if let rest = workoutItem.rest_seconds {
+            if let rest = exercise.rest_seconds {
                 metricRow(label: "Rest", value: "\(rest)s between sets")
             }
         }
@@ -377,7 +413,7 @@ struct ExerciseDetailSheet: View {
     
     private var defaultMetrics: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if let duration = workoutItem.duration_min {
+            if let duration = exercise.duration_min {
                 metricRow(label: "Duration", value: "\(duration) min")
             }
         }
@@ -477,7 +513,7 @@ struct PreviewWrapper: View {
             if isLoading {
                 ProgressView("Loading from database...")
             } else if let firstItem = workoutItems.first {
-                ExerciseDetailSheet(workoutItem: firstItem)
+                ExerciseDetailSheet(exercise: firstItem)
             } else {
                 Text("No workout history found")
                     .foregroundColor(.gray)

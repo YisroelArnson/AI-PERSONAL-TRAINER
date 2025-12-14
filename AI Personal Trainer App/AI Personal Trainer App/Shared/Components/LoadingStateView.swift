@@ -10,30 +10,64 @@ import SwiftUI
 struct LoadingStateView: View {
     let state: AppLoadingState
     
-    @State private var rotationAngle: Double = 0
     @State private var textOpacity: Double = 1
     @State private var textScale: CGFloat = 1
+    @State private var orbScale: CGFloat = 1
     
     var body: some View {
         ZStack {
-            // Background
-            AppTheme.Colors.background
-                .ignoresSafeArea()
+            // Animated gradient background
+            AnimatedGradientBackground()
             
             // Content
-            VStack(spacing: 32) {
-                // Simple rotating loading symbol
-                ProgressView()
-                    .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.primaryText))
-                    .scaleEffect(1.5)
-                    .frame(height: 60)
+            VStack(spacing: AppTheme.Spacing.xxxl) {
+                // Glowing orb loader
+                ZStack {
+                    // Outer glow ring
+                    Circle()
+                        .stroke(
+                            AngularGradient(
+                                colors: [
+                                    AppTheme.Colors.warmAccentLight,
+                                    AppTheme.Colors.warmAccent,
+                                    Color(hex: "F7C4D4"),
+                                    AppTheme.Colors.warmAccentLight
+                                ],
+                                center: .center
+                            ),
+                            lineWidth: 3
+                        )
+                        .frame(width: 56, height: 56)
+                        .shadow(
+                            color: AppTheme.Shadow.orb,
+                            radius: 16,
+                            x: 0,
+                            y: 0
+                        )
+                        .scaleEffect(orbScale)
+                    
+                    // Inner circle
+                    Circle()
+                        .fill(Color.white.opacity(0.9))
+                        .frame(width: 48, height: 48)
+                    
+                    // Spinning indicator
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.warmAccent))
+                        .scaleEffect(0.8)
+                }
+                .onAppear {
+                    withAnimation(AppTheme.Animation.breathing) {
+                        orbScale = 1.05
+                    }
+                }
                 
-                // Status message with flicker animation
+                // Status message with gentle animation
                 Text(state.message)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(AppTheme.Colors.primaryText)
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .foregroundColor(AppTheme.Colors.secondaryText)
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
+                    .padding(.horizontal, AppTheme.Spacing.xxxxl)
                     .opacity(textOpacity)
                     .scaleEffect(textScale)
             }
@@ -61,8 +95,5 @@ struct LoadingStateView: View {
 }
 
 #Preview {
-    VStack(spacing: 20) {
-        LoadingStateView(state: .loadingUserData)
-    }
+    LoadingStateView(state: .loadingUserData)
 }
-

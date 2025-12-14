@@ -16,99 +16,112 @@ struct RefreshModalView: View {
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 24) {
-                // Title and description
-                VStack(spacing: 12) {
-                    Text("Refresh Recommendations")
-                        .font(.title2)
-                        .fontWeight(.bold)
+            ZStack {
+                // Warm gradient background
+                AppTheme.Gradients.background
+                    .ignoresSafeArea()
+                
+                VStack(spacing: AppTheme.Spacing.xxl) {
+                    // Title and description
+                    VStack(spacing: AppTheme.Spacing.md) {
+                        Text("Refresh Recommendations")
+                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .foregroundColor(AppTheme.Colors.primaryText)
+                        
+                        Text("Get new exercise recommendations. Optionally, tell us what you'd like different.")
+                            .font(.system(size: 15, weight: .regular, design: .rounded))
+                            .foregroundColor(AppTheme.Colors.secondaryText)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .padding(.top, AppTheme.Spacing.xl)
                     
-                    Text("Get new exercise recommendations. Optionally, tell us what you'd like different.")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal)
-                }
-                .padding(.top, 20)
-                
-                // Feedback text field
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Feedback (Optional)")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.gray)
+                    // Feedback text field
+                    VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                        Text("Feedback (optional)")
+                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .foregroundColor(AppTheme.Colors.secondaryText)
+                        
+                        TextField("E.g., 'More leg exercises' or 'Less intense'", text: $feedbackText, axis: .vertical)
+                            .font(.system(size: 15, design: .rounded))
+                            .lineLimit(3...6)
+                            .padding(AppTheme.Spacing.md)
+                            .background(
+                                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                                    .fill(Color.white)
+                                    .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: 2)
+                            )
+                    }
+                    .padding(.horizontal, AppTheme.Spacing.xl)
                     
-                    TextField("E.g., 'More leg exercises' or 'Less intense'", text: $feedbackText, axis: .vertical)
-                        .textFieldStyle(.roundedBorder)
-                        .lineLimit(3...6)
-                        .padding(.horizontal, 4)
-                }
-                .padding(.horizontal, 20)
-                
-                Spacer()
-                
-                // Action buttons
-                VStack(spacing: 12) {
-                    // Refresh with feedback button
-                    if !feedbackText.isEmpty {
+                    Spacer()
+                    
+                    // Action buttons
+                    VStack(spacing: AppTheme.Spacing.md) {
+                        // Refresh with feedback button
+                        if !feedbackText.isEmpty {
+                            Button {
+                                Task {
+                                    isLoading = true
+                                    await onRefresh(feedbackText)
+                                    isLoading = false
+                                    dismiss()
+                                }
+                            } label: {
+                                HStack {
+                                    if isLoading {
+                                        ProgressView()
+                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Image(systemName: "sparkles")
+                                        Text("Refresh with Feedback")
+                                    }
+                                }
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, AppTheme.Spacing.md)
+                                .background(
+                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                                        .fill(AppTheme.Colors.warmAccent)
+                                )
+                                .foregroundColor(.white)
+                            }
+                            .disabled(isLoading)
+                        }
+                        
+                        // Quick refresh button
                         Button {
                             Task {
                                 isLoading = true
-                                await onRefresh(feedbackText)
+                                await onRefresh(nil)
                                 isLoading = false
                                 dismiss()
                             }
                         } label: {
                             HStack {
-                                if isLoading {
+                                if isLoading && feedbackText.isEmpty {
                                     ProgressView()
-                                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.primaryText))
                                 } else {
-                                    Image(systemName: "sparkles")
-                                    Text("Refresh with Feedback")
+                                    Image(systemName: "arrow.clockwise")
+                                    Text("Quick Refresh")
                                 }
                             }
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
                             .frame(maxWidth: .infinity)
-                            .padding()
-                            .background(AppTheme.Colors.primaryText)
-                            .foregroundColor(.white)
-                            .cornerRadius(12)
+                            .padding(.vertical, AppTheme.Spacing.md)
+                            .background(
+                                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                                    .fill(Color.white)
+                                    .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: 2)
+                            )
+                            .foregroundColor(AppTheme.Colors.primaryText)
                         }
                         .disabled(isLoading)
                     }
-                    
-                    // Quick refresh button
-                    Button {
-                        Task {
-                            isLoading = true
-                            await onRefresh(nil)
-                            isLoading = false
-                            dismiss()
-                        }
-                    } label: {
-                        HStack {
-                            if isLoading && feedbackText.isEmpty {
-                                ProgressView()
-                                    .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.primaryText))
-                            } else {
-                                Image(systemName: "arrow.clockwise")
-                                Text("Quick Refresh")
-                            }
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(AppTheme.Colors.background)
-                        .foregroundColor(AppTheme.Colors.primaryText)
-                        .cornerRadius(12)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 12)
-                                .stroke(AppTheme.Colors.primaryText.opacity(0.3), lineWidth: 1)
-                        )
-                    }
-                    .disabled(isLoading)
+                    .padding(.horizontal, AppTheme.Spacing.xl)
+                    .padding(.bottom, AppTheme.Spacing.xl)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 20)
             }
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -116,6 +129,8 @@ struct RefreshModalView: View {
                     Button("Cancel") {
                         dismiss()
                     }
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .foregroundColor(AppTheme.Colors.secondaryText)
                 }
             }
         }
@@ -127,4 +142,3 @@ struct RefreshModalView: View {
         print("Refreshing with feedback: \(feedback ?? "none")")
     }
 }
-

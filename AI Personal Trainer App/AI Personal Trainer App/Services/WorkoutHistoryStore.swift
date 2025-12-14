@@ -156,14 +156,31 @@ class WorkoutHistoryStore: ObservableObject {
     
     /// Add a newly completed exercise to the cache
     /// Call this after successfully logging an exercise to keep cache up-to-date
-    func addCompletedExercise(_ exercise: Exercise) {
-        // Convert Exercise to WorkoutHistoryItem
-        let historyItem = WorkoutHistoryItem.from(exercise: exercise)
+    /// - Parameters:
+    ///   - exercise: The exercise that was completed
+    ///   - databaseId: The UUID string returned from the database after logging
+    func addCompletedExercise(_ exercise: Exercise, databaseId: String) {
+        // Convert Exercise to WorkoutHistoryItem with the database ID
+        let historyItem = WorkoutHistoryItem.from(exercise: exercise, databaseId: databaseId)
         
         // Add to the beginning of the array (most recent)
         workoutHistory.insert(historyItem, at: 0)
         
-        print("✅ WorkoutHistoryStore: Added new exercise '\(exercise.name)' to cache (total: \(workoutHistory.count))")
+        print("✅ WorkoutHistoryStore: Added new exercise '\(exercise.name)' with ID '\(databaseId)' to cache (total: \(workoutHistory.count))")
+    }
+    
+    /// Remove a completed exercise from the cache (undo completion)
+    /// Call this after successfully deleting an exercise from the database
+    func removeCompletedExercise(id: String) {
+        // Find and remove the exercise with matching ID
+        if let index = workoutHistory.firstIndex(where: { $0.id.uuidString == id }) {
+            let removed = workoutHistory.remove(at: index)
+            print("✅ WorkoutHistoryStore: Removed exercise '\(removed.exercise_name)' from cache (total: \(workoutHistory.count))")
+        } else {
+            // If not found by exact ID, try to find the most recent exercise (for locally-added items)
+            // This handles the case where the local cache has a different ID than the database
+            print("⚠️ WorkoutHistoryStore: Exercise with ID '\(id)' not found in cache")
+        }
     }
     
     /// Manually refresh the cache (useful for pull-to-refresh)
@@ -271,8 +288,12 @@ class WorkoutHistoryStore: ObservableObject {
 
 extension WorkoutHistoryItem {
     /// Convert an Exercise to a WorkoutHistoryItem for cache updates
-    static func from(exercise: Exercise) -> WorkoutHistoryItem {
-        let id = UUID()
+    /// - Parameters:
+    ///   - exercise: The exercise to convert
+    ///   - databaseId: The UUID string from the database (used for cache sync)
+    static func from(exercise: Exercise, databaseId: String) -> WorkoutHistoryItem {
+        // Use the database ID if valid, otherwise generate a new one
+        let id = UUID(uuidString: databaseId) ?? UUID()
         let userId = UUID() // Will be set by backend
         let performedAt = Date()
         let createdAt = Date()
