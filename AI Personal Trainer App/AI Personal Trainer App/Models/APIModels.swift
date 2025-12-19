@@ -87,7 +87,6 @@ struct StreamingExercise: Codable {
     let duration_min: Int?
     let target_pace: String?
     let elevation_gain_m: Double?
-    let target_intensity: String?
     let target_heart_rate_bpm: Int?
     let rounds: Int?
     let intervals: [ExerciseInterval]?

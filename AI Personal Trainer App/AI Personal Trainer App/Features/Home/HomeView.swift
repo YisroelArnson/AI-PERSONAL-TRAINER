@@ -25,10 +25,6 @@ struct HomeView: View {
     @State private var showExerciseInfo = false
     @State private var errorMessage: String?
     
-    // Interval timer states
-    @StateObject private var intervalTimerViewModel = IntervalTimerViewModel()
-    @State private var intervalDetailText: String?
-    
     // Swipe and animation states
     @State private var dragOffset: CGFloat = 0
     @State private var showContent: Bool = true
@@ -102,19 +98,6 @@ struct HomeView: View {
                     LoadingStateView(state: appCoordinator.loadingState)
                         .transition(.opacity)
                 }
-                
-                // Interval detail banner at top center
-                if !exercises.isEmpty && intervalDetailText != nil {
-                    VStack {
-                        IntervalDetailBanner(text: intervalDetailText)
-                            .padding(.top, 60)
-                            .animation(.easeInOut(duration: 0.2), value: intervalDetailText)
-                        
-                        Spacer()
-                    }
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
-                }
             }
             .contentShape(Rectangle())
             .gesture(
@@ -161,50 +144,6 @@ struct HomeView: View {
                     await fetchRecommendations(feedback: nil)
                 }
             }
-        }
-        .onChange(of: currentExerciseIndex) { _, newIndex in
-            // Load interval data for new exercise
-            if !exercises.isEmpty && newIndex < exercises.count {
-                loadIntervalsForCurrentExercise()
-            }
-        }
-        .onAppear {
-            // Setup interval timer callbacks
-            setupIntervalTimerCallbacks()
-            
-            // Load intervals for initial exercise if available
-            if !exercises.isEmpty {
-                loadIntervalsForCurrentExercise()
-            }
-        }
-    }
-    
-    // MARK: - Interval Timer
-    
-    private func setupIntervalTimerCallbacks() {
-        // Called when timer auto-completes a set
-        intervalTimerViewModel.onSetCompleted = { setIndex in
-            // The view model already updates ExerciseStore, but we can add visual feedback here if needed
-            print("⏱️ HomeView: Set \(setIndex + 1) auto-completed via timer")
-        }
-        
-        // Called when entire timer completes
-        intervalTimerViewModel.onTimerComplete = {
-            print("⏱️ HomeView: Timer complete for exercise")
-            intervalDetailText = nil
-        }
-    }
-    
-    private func loadIntervalsForCurrentExercise() {
-        guard !exercises.isEmpty && currentExerciseIndex < exercises.count else { return }
-        
-        let exercise = exercises[currentExerciseIndex]
-        
-        Task {
-            await intervalTimerViewModel.loadIntervals(
-                for: exercise,
-                exerciseId: exercise.id
-            )
         }
     }
     
@@ -370,22 +309,6 @@ struct HomeView: View {
             
             Spacer()
             
-            // Timer in the center
-            if intervalTimerViewModel.intervalData != nil {
-                IntervalTimerOverlay(
-                    viewModel: intervalTimerViewModel,
-                    detailText: $intervalDetailText
-                )
-                .frame(width: 64) // Fixed width to maintain center alignment
-            } else {
-                // Placeholder to maintain spacing when timer not loaded
-                Circle()
-                    .fill(Color.clear)
-                    .frame(width: 64, height: 64)
-            }
-            
-            Spacer()
-            
             // AI button on the right
             FloatingAIButton {
                 showingAssistant = true
@@ -529,7 +452,6 @@ struct HomeView: View {
             muscles_utilized: exercise.muscles_utilized,
             rest_seconds: exercise.rest_seconds,
             target_pace: exercise.target_pace,
-            target_intensity: nil,
             hold_duration_sec: exercise.hold_duration_sec,
             progression_level: nil,
             circuits: nil,
@@ -567,7 +489,6 @@ struct HomeView: View {
             muscles_utilized: streamingExercise.muscles_utilized,
             rest_seconds: streamingExercise.rest_seconds,
             target_pace: streamingExercise.target_pace,
-            target_intensity: streamingExercise.target_intensity,
             hold_duration_sec: streamingExercise.hold_duration_sec,
             progression_level: streamingExercise.progression_level,
             circuits: streamingExercise.circuits,
@@ -867,7 +788,6 @@ struct UIExercise: Identifiable, Codable {
     // Additional fields for different exercise types
     let rest_seconds: Int?
     let target_pace: String?
-    let target_intensity: String?
     let hold_duration_sec: [Int]?
     let progression_level: String?
     
@@ -898,7 +818,7 @@ struct UIExercise: Identifiable, Codable {
     let body_region: String?
     
     // Custom initializer to generate UUID
-    init(exercise_name: String, type: String, aliases: [String]? = nil, duration_min: Int? = nil, reps: [Int]? = nil, load_kg_each: [Double]? = nil, sets: Int? = nil, distance_km: Double? = nil, intervals: [ExerciseInterval]? = nil, rounds: Int? = nil, muscles_utilized: [MuscleUtilization]? = nil, rest_seconds: Int? = nil, target_pace: String? = nil, target_intensity: String? = nil, hold_duration_sec: [Int]? = nil, progression_level: String? = nil, circuits: Int? = nil, exercises_in_circuit: [CircuitExercise]? = nil, rest_between_circuits_sec: Int? = nil, holds: [FlexibilityHold]? = nil, repetitions: Int? = nil, sequence: [YogaPose]? = nil, total_duration_min: Int? = nil, sport: String? = nil, drill_name: String? = nil, skill_focus: String? = nil, goals_addressed: [GoalUtilization]? = nil, reasoning: String? = nil, equipment: [String]? = nil, movement_pattern: [String]? = nil, exercise_description: String? = nil, body_region: String? = nil) {
+    init(exercise_name: String, type: String, aliases: [String]? = nil, duration_min: Int? = nil, reps: [Int]? = nil, load_kg_each: [Double]? = nil, sets: Int? = nil, distance_km: Double? = nil, intervals: [ExerciseInterval]? = nil, rounds: Int? = nil, muscles_utilized: [MuscleUtilization]? = nil, rest_seconds: Int? = nil, target_pace: String? = nil, hold_duration_sec: [Int]? = nil, progression_level: String? = nil, circuits: Int? = nil, exercises_in_circuit: [CircuitExercise]? = nil, rest_between_circuits_sec: Int? = nil, holds: [FlexibilityHold]? = nil, repetitions: Int? = nil, sequence: [YogaPose]? = nil, total_duration_min: Int? = nil, sport: String? = nil, drill_name: String? = nil, skill_focus: String? = nil, goals_addressed: [GoalUtilization]? = nil, reasoning: String? = nil, equipment: [String]? = nil, movement_pattern: [String]? = nil, exercise_description: String? = nil, body_region: String? = nil) {
         self.id = UUID()
         self.exercise_name = exercise_name
         self.type = type
@@ -913,7 +833,6 @@ struct UIExercise: Identifiable, Codable {
         self.muscles_utilized = muscles_utilized
         self.rest_seconds = rest_seconds
         self.target_pace = target_pace
-        self.target_intensity = target_intensity
         self.hold_duration_sec = hold_duration_sec
         self.progression_level = progression_level
         self.circuits = circuits
@@ -961,7 +880,7 @@ struct UIExercise: Identifiable, Codable {
     }
     
     enum CodingKeys: String, CodingKey {
-        case id, exercise_name, type, aliases, duration_min, reps, load_kg_each, sets, distance_km, intervals, rounds, muscles_utilized, rest_seconds, target_pace, target_intensity, hold_duration_sec, progression_level, circuits, exercises_in_circuit, rest_between_circuits_sec, holds, repetitions, sequence, total_duration_min, sport, drill_name, skill_focus, goals_addressed, reasoning, equipment, movement_pattern, exercise_description, body_region
+        case id, exercise_name, type, aliases, duration_min, reps, load_kg_each, sets, distance_km, intervals, rounds, muscles_utilized, rest_seconds, target_pace, hold_duration_sec, progression_level, circuits, exercises_in_circuit, rest_between_circuits_sec, holds, repetitions, sequence, total_duration_min, sport, drill_name, skill_focus, goals_addressed, reasoning, equipment, movement_pattern, exercise_description, body_region
     }
     
     static var sampleExercises: [UIExercise] {
@@ -983,7 +902,6 @@ struct UIExercise: Identifiable, Codable {
             ],
             rest_seconds: 90,
             target_pace: nil,
-            target_intensity: nil,
             hold_duration_sec: nil,
             progression_level: nil
         )
@@ -1005,7 +923,6 @@ struct UIExercise: Identifiable, Codable {
             ],
             rest_seconds: nil,
             target_pace: "5:00/km",
-            target_intensity: nil,
             hold_duration_sec: nil,
             progression_level: nil
         )
@@ -1029,7 +946,6 @@ struct UIExercise: Identifiable, Codable {
             ],
             rest_seconds: nil,
             target_pace: nil,
-            target_intensity: "High",
             hold_duration_sec: nil,
             progression_level: nil
         )

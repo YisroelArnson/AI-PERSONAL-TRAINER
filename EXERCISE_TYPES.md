@@ -61,7 +61,6 @@ The application supports **11 distinct exercise types**, each designed to accomm
 
 **Key Parameters:**
 - `duration_min`: Duration in minutes (positive integer)
-- `target_intensity`: Intensity level - "low", "moderate", or "high" (optional)
 
 **Examples:**
 - Steady-state running
@@ -71,7 +70,6 @@ The application supports **11 distinct exercise types**, each designed to accomm
 
 **Tracking:**
 - Duration is the primary metric
-- Intensity level guides the effort
 - No distance tracking required
 
 ---

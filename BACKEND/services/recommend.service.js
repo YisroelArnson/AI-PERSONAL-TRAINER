@@ -137,7 +137,6 @@ function createIndividualExerciseSchema(validMuscles, validGoals) {
     BaseExerciseSchema.extend({
       exercise_type: z.literal("cardio_time"),
       duration_min: z.number().int().positive(),
-      target_intensity: z.enum(["low", "moderate", "high"]).optional(),
     }),
 
     // HIIT/Interval Training

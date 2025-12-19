@@ -144,7 +144,6 @@ Generate interval data for this distance-based cardio:
 
     case 'cardio_time':
       exerciseDetails += `Duration: ${exercise.duration_min || 20} minutes\n`;
-      exerciseDetails += `Intensity: ${exercise.target_intensity || 'moderate'}\n`;
       specificInstructions = `
 Generate interval data for this time-based cardio:
 - Include warmup (1-2 min) and cooldown (1-2 min)

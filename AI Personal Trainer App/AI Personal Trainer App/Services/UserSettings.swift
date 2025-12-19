@@ -52,14 +52,6 @@ class UserSettings: ObservableObject {
     @AppStorage("autoRefreshExercisesHours")
     var autoRefreshExercisesHours: Int = 12  // Default 12 hours
     
-    // MARK: - Interval Timer Settings (Local)
-    
-    @AppStorage("isIntervalHapticEnabled")
-    var isIntervalHapticEnabled: Bool = true  // Haptic feedback on phase transitions
-    
-    @AppStorage("isIntervalAudioEnabled")
-    var isIntervalAudioEnabled: Bool = false  // Audio cues on phase transitions
-    
     // MARK: - Unit Preferences (Synced with Database)
     
     @Published var weightUnit: WeightUnit = .lbs
@@ -181,8 +173,6 @@ class UserSettings: ObservableObject {
         isAutoDetectLocationEnabled = false
         isAutoRefreshExercisesEnabled = false
         autoRefreshExercisesHours = 12
-        isIntervalHapticEnabled = true
-        isIntervalAudioEnabled = false
         weightUnit = .lbs
         distanceUnit = .miles
         cachedWeightUnit = "lbs"

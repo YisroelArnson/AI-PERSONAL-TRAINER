@@ -34,22 +34,6 @@ struct CardioTimeExerciseView: View {
                 .opacity(showContent ? 1 : 0)
                 .animation(.easeOut(duration: 0.2), value: showContent)
             }
-            
-            // Intensity
-            if let intensity = exercise.target_intensity {
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                    Text("intensity")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(AppTheme.Colors.tertiaryText)
-                        .textCase(.lowercase)
-                    
-                    Text(intensity.capitalized)
-                        .font(.system(size: 28, weight: .semibold, design: .rounded))
-                        .foregroundColor(AppTheme.Colors.primaryText)
-                }
-                .opacity(showContent ? 1 : 0)
-                .animation(.easeOut(duration: 0.2).delay(0.05), value: showContent)
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -70,8 +54,7 @@ struct CardioTimeExerciseView: View {
                     exercise: UIExercise(
                         exercise_name: "Cycling",
                         type: "cardio_time",
-                        duration_min: 30,
-                        target_intensity: "moderate"
+                        duration_min: 30
                     ),
                     showContent: true
                 )
