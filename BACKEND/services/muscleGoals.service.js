@@ -119,6 +119,23 @@ Current time: ${new Date().toISOString()}`
       });
     }
 
+    // Round to 2 decimal places and fix sum to exactly 1.0
+    Object.keys(muscleWeights).forEach(muscle => {
+      muscleWeights[muscle] = Number(muscleWeights[muscle].toFixed(2));
+    });
+
+    // Adjust largest weight to compensate for rounding error
+    const roundedSum = Object.values(muscleWeights).reduce((sum, w) => sum + w, 0);
+    const roundingError = Number((1.0 - roundedSum).toFixed(2));
+
+    if (roundingError !== 0) {
+      // Find muscle with largest weight
+      const largestMuscle = Object.keys(muscleWeights).reduce((a, b) =>
+        muscleWeights[a] > muscleWeights[b] ? a : b
+      );
+      muscleWeights[largestMuscle] = Number((muscleWeights[largestMuscle] + roundingError).toFixed(2));
+    }
+
     console.log('Parsed muscle goals:', parsedGoals);
 
     return {

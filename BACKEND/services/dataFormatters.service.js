@@ -1,0 +1,266 @@
+// BACKEND/services/dataFormatters.service.js
+// Concise formatters for all data sources used in agent context
+// Optimized for token efficiency
+
+/**
+ * Format workout history for context
+ * Optimized for token efficiency
+ * @param {Array} workouts - Array of workout records
+ * @returns {string} Formatted string
+ */
+function formatWorkoutHistory(workouts) {
+  if (!workouts || workouts.length === 0) {
+    return 'No workout history available.';
+  }
+
+  return workouts.map(w => {
+    const date = new Date(w.completed_at).toLocaleDateString();
+    const exercises = w.exercises?.map(e => 
+      `${e.name}(${e.sets}x${e.reps || e.duration || e.hold_time})`
+    ).join(', ') || 'No exercises logged';
+    return `${date}: ${exercises}`;
+  }).join('\n');
+}
+
+/**
+ * Format category goals for context
+ * @param {Array} goals - Array of category goal records
+ * @returns {string} Formatted string
+ */
+function formatCategoryGoals(goals) {
+  if (!goals || goals.length === 0) {
+    return 'No category goals set.';
+  }
+
+  return goals.map(g => {
+    // Handle both 'category' and 'category_name' field names
+    const categoryName = g.category_name || g.category;
+    const rounded = Number(g.weight).toFixed(2);
+    const weight = g.weight > 0 ? `+${rounded}` : rounded;
+    return `${categoryName}: ${weight}`;
+  }).join(', ');
+}
+
+/**
+ * Format muscle goals for context
+ * @param {Array} goals - Array of muscle goal records
+ * @returns {string} Formatted string
+ */
+function formatMuscleGoals(goals) {
+  if (!goals || goals.length === 0) {
+    return 'No muscle goals set.';
+  }
+
+  return goals.map(g => {
+    // Handle both 'muscle' and 'muscle_name' field names
+    const muscleName = g.muscle_name || g.muscle;
+    const rounded = Number(g.weight).toFixed(2);
+    const weight = g.weight > 0 ? `+${rounded}` : rounded;
+    return `${muscleName}: ${weight}`;
+  }).join(', ');
+}
+
+/**
+ * Format active preferences for context
+ * @param {Array} preferences - Array of preference records
+ * @returns {string} Formatted string
+ */
+function formatPreferences(preferences) {
+  if (!preferences || preferences.length === 0) {
+    return 'No active preferences.';
+  }
+
+  return preferences.map(p => {
+    let str = `[${p.id}] ${p.preference_type}: ${p.value}`;
+    if (p.duration_type !== 'permanent') {
+      str += ` (${p.duration_type})`;
+    }
+    return str;
+  }).join('\n');
+}
+
+/**
+ * Format exercise distribution for context
+ * @param {Object} distribution - Distribution tracking record
+ * @returns {string} Formatted string
+ */
+function formatDistribution(distribution) {
+  if (!distribution) {
+    return 'No distribution data available.';
+  }
+
+  const { category_totals, muscle_totals, total_exercises_count } = distribution;
+  
+  let result = `Total exercises tracked: ${total_exercises_count || 0}`;
+  
+  if (category_totals && Object.keys(category_totals).length > 0) {
+    result += '\nCategories: ' + Object.entries(category_totals)
+      .map(([cat, count]) => `${cat}:${Number(count).toFixed(1)}`)
+      .join(', ');
+  }
+  
+  if (muscle_totals && Object.keys(muscle_totals).length > 0) {
+    result += '\nMuscles: ' + Object.entries(muscle_totals)
+      .map(([muscle, count]) => `${muscle}:${Number(count).toFixed(1)}`)
+      .join(', ');
+  }
+
+  return result || 'No distribution data.';
+}
+
+/**
+ * Format user settings for context
+ * @param {Object} settings - User settings record
+ * @returns {string} Formatted string
+ */
+function formatUserSettings(settings) {
+  if (!settings) {
+    return 'Default settings in use.';
+  }
+
+  const parts = [];
+  if (settings.preferred_workout_duration) {
+    parts.push(`Duration: ${settings.preferred_workout_duration}min`);
+  }
+  if (settings.fitness_level) {
+    parts.push(`Level: ${settings.fitness_level}`);
+  }
+  if (settings.available_equipment?.length > 0) {
+    parts.push(`Equipment: ${settings.available_equipment.join(', ')}`);
+  }
+  
+  return parts.length > 0 ? parts.join(' | ') : 'Default settings in use.';
+}
+
+/**
+ * Format body stats for context
+ * @param {Object} stats - Body stats record
+ * @returns {string} Formatted string
+ */
+function formatBodyStats(stats) {
+  if (!stats) {
+    return 'No body stats recorded.';
+  }
+
+  const parts = [];
+  if (stats.height_cm) parts.push(`Height: ${stats.height_cm}cm`);
+  if (stats.weight_kg) parts.push(`Weight: ${stats.weight_kg}kg`);
+  if (stats.age) parts.push(`Age: ${stats.age}`);
+  if (stats.gender) parts.push(`Gender: ${stats.gender}`);
+  
+  return parts.length > 0 ? parts.join(' | ') : 'No body stats recorded.';
+}
+
+/**
+ * Format all user locations for context
+ * Token-efficient format with equipment details
+ * @param {Array} locations - Array of location records with full equipment metadata
+ * @returns {string} Formatted string
+ */
+function formatAllLocations(locations) {
+  if (!locations || locations.length === 0) {
+    return 'No locations configured.';
+  }
+
+  return locations.map(loc => {
+    // Mark current location with star
+    const marker = loc.current_location ? '★ ' : '  ';
+    let result = `${marker}${loc.name}`;
+
+    // Add ID for set_current_location tool reference
+    result += ` [id:${loc.id}]`;
+
+    // Add description if present
+    if (loc.description) {
+      result += `\n    ${loc.description}`;
+    }
+
+    // Format equipment with type and weight details
+    if (loc.equipment && loc.equipment.length > 0) {
+      result += '\n    Equipment:';
+      for (const eq of loc.equipment) {
+        // Handle both object format and legacy string format
+        if (typeof eq === 'string') {
+          result += `\n      - ${eq}`;
+          continue;
+        }
+
+        let eqLine = `\n      - ${eq.name}`;
+        if (eq.type) eqLine += ` (${eq.type})`;
+
+        // Include weights for free_weights type
+        if (eq.type === 'free_weights' && eq.weights && eq.weights.length > 0) {
+          const unit = eq.unit || 'kg';
+          eqLine += `: ${eq.weights.join(', ')}${unit}`;
+        }
+
+        // Include brand/notes if present
+        if (eq.brand) eqLine += ` [${eq.brand}]`;
+        if (eq.notes) eqLine += ` - ${eq.notes}`;
+
+        result += eqLine;
+      }
+    } else {
+      result += '\n    Equipment: none';
+    }
+
+    return result;
+  }).join('\n\n');
+}
+
+/**
+ * Format current workout session for context
+ * This data comes from the client (iOS app) not the database
+ * @param {Object} workout - Current workout session from client
+ * @returns {string} Formatted string
+ */
+function formatCurrentWorkout(workout) {
+  if (!workout || !workout.exercises || workout.exercises.length === 0) {
+    return 'No active workout session.';
+  }
+
+  const { exercises, currentIndex, totalCompleted } = workout;
+  const total = exercises.length;
+  const currentExercise = exercises[currentIndex] || exercises[0];
+  
+  let result = `Active workout: ${total} exercises, ${totalCompleted || 0} completed\n`;
+  result += `Currently viewing: ${currentExercise.name || currentExercise.exercise_name} (${currentIndex + 1}/${total})\n\n`;
+  result += 'Exercises:\n';
+  
+  exercises.forEach((ex, idx) => {
+    const name = ex.name || ex.exercise_name;
+    const type = ex.type || ex.exercise_type;
+    const isCompleted = ex.completed ? '✓' : ' ';
+    const isCurrent = idx === currentIndex ? '→' : ' ';
+    
+    let details = '';
+    if (type === 'strength' || type === 'bodyweight') {
+      const sets = ex.sets || (ex.reps ? ex.reps.length : 0);
+      const reps = ex.reps ? ex.reps.join('/') : '';
+      details = `${sets}x${reps}`;
+    } else if (type === 'cardio_distance') {
+      details = `${ex.distance_km}km`;
+    } else if (type === 'cardio_time' || type === 'hiit') {
+      details = `${ex.duration_min || ex.total_duration_min}min`;
+    } else if (type === 'isometric') {
+      const holds = ex.hold_duration_sec ? ex.hold_duration_sec.join('/') + 's' : '';
+      details = holds;
+    }
+    
+    result += `${isCurrent}[${isCompleted}] ${idx + 1}. ${name} (${type}) ${details}\n`;
+  });
+
+  return result.trim();
+}
+
+module.exports = {
+  formatWorkoutHistory,
+  formatCategoryGoals,
+  formatMuscleGoals,
+  formatPreferences,
+  formatDistribution,
+  formatUserSettings,
+  formatBodyStats,
+  formatCurrentWorkout,
+  formatAllLocations
+};

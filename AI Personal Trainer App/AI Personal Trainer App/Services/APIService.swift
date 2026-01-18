@@ -21,8 +21,11 @@ class APIService: ObservableObject {
         "http://192.168.1.4:3000"
     ]
     
-    // Track which IP is currently working
+    // Track which IP is currently working (in-memory cache)
     @Published private var workingBaseURL: String?
+    
+    // Track if we're currently discovering the working URL
+    private var isDiscovering = false
     
     private var baseURL: String {
         // Check for manual override first
@@ -33,6 +36,11 @@ class APIService: ObservableObject {
         // If we have a working URL from a previous successful request, use it
         if let workingURL = workingBaseURL {
             return workingURL
+        }
+        
+        // Check for cached working URL from previous app session
+        if let cachedURL = UserDefaults.standard.string(forKey: "CachedWorkingAPIURL"), !cachedURL.isEmpty {
+            return cachedURL
         }
         
         // Detect simulator vs device
@@ -55,17 +63,126 @@ class APIService: ObservableObject {
         #if targetEnvironment(simulator)
         return ["http://localhost:3000"]
         #else
-        // On device, try the working URL first if we have one, otherwise try all fallbacks
+        // On device, prioritize cached/working URL, then try all fallbacks
+        var urlsToTry: [String] = []
+        
+        // First priority: in-memory working URL
         if let workingURL = workingBaseURL {
-            return [workingURL] + fallbackIPs.filter { $0 != workingURL }
-        } else {
-            return fallbackIPs
+            urlsToTry.append(workingURL)
         }
+        // Second priority: cached URL from previous session
+        else if let cachedURL = UserDefaults.standard.string(forKey: "CachedWorkingAPIURL"), !cachedURL.isEmpty {
+            urlsToTry.append(cachedURL)
+        }
+        
+        // Add all fallback IPs that aren't already in the list
+        for ip in fallbackIPs {
+            if !urlsToTry.contains(ip) {
+                urlsToTry.append(ip)
+            }
+        }
+        
+        return urlsToTry
         #endif
+    }
+    
+    // MARK: - Fast URL Discovery
+    
+    /// Quickly test all URLs in parallel to find the working one
+    /// - Returns: The first working URL found, or nil if none work
+    private func discoverWorkingURL() async -> String? {
+        let urlsToTest: [String]
+        
+        #if targetEnvironment(simulator)
+        urlsToTest = ["http://localhost:3000"]
+        #else
+        urlsToTest = fallbackIPs
+        #endif
+        
+        print("🔍 Starting parallel URL discovery for \(urlsToTest.count) URLs...")
+        
+        // Test all URLs concurrently with a fast timeout
+        return await withTaskGroup(of: (String, Bool).self) { group in
+            for baseURL in urlsToTest {
+                group.addTask {
+                    let isWorking = await self.testURL(baseURL)
+                    return (baseURL, isWorking)
+                }
+            }
+            
+            // Return the first working URL we find
+            for await (url, isWorking) in group {
+                if isWorking {
+                    print("✅ Found working URL: \(url)")
+                    // Cancel remaining tasks
+                    group.cancelAll()
+                    return url
+                }
+            }
+            
+            return nil
+        }
+    }
+    
+    /// Test if a URL is reachable with a fast health check
+    /// - Parameter baseURL: The base URL to test
+    /// - Returns: true if the URL is reachable
+    private func testURL(_ baseURL: String) async -> Bool {
+        guard let url = URL(string: "\(baseURL)/") else {
+            return false
+        }
+        
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 2 // Fast 2-second timeout for discovery
+        request.httpMethod = "GET"
+        
+        do {
+            let (_, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse {
+                let isSuccess = httpResponse.statusCode >= 200 && httpResponse.statusCode < 300
+                print("\(isSuccess ? "✅" : "❌") URL \(baseURL) responded with status \(httpResponse.statusCode)")
+                return isSuccess
+            }
+            return false
+        } catch {
+            print("❌ URL \(baseURL) failed: \(error.localizedDescription)")
+            return false
+        }
+    }
+    
+    /// Ensure we have a working URL, discovering it if necessary
+    private func ensureWorkingURL() async {
+        // Skip if we already have a working URL or manual override
+        if workingBaseURL != nil || UserDefaults.standard.string(forKey: "APIBaseURL") != nil {
+            return
+        }
+        
+        // Skip if already discovering
+        guard !isDiscovering else { return }
+        
+        isDiscovering = true
+        defer { isDiscovering = false }
+        
+        // Try to discover the working URL
+        if let discoveredURL = await discoverWorkingURL() {
+            await MainActor.run {
+                self.workingBaseURL = discoveredURL
+            }
+            // Cache it for next app launch
+            UserDefaults.standard.set(discoveredURL, forKey: "CachedWorkingAPIURL")
+            print("💾 Cached working URL: \(discoveredURL)")
+        } else {
+            print("⚠️ No working URLs found during discovery")
+        }
     }
     
     // Helper to perform data request with automatic fallback
     private func dataWithFallback(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        // If we don't have a working URL yet, try to discover it quickly
+        if workingBaseURL == nil && UserDefaults.standard.string(forKey: "APIBaseURL") == nil {
+            await ensureWorkingURL()
+        }
+        
         var lastError: Error?
         let urlsToTry = getURLsToTry()
         
@@ -83,7 +200,7 @@ class APIService: ObservableObject {
                 
                 var newRequest = request
                 newRequest.url = newURL
-                newRequest.timeoutInterval = 5 // Quick timeout for faster fallback
+                newRequest.timeoutInterval = 3 // Quick timeout for faster fallback
                 
                 print("🔄 Trying API request to: \(baseURLToTry)")
                 
@@ -93,11 +210,12 @@ class APIService: ObservableObject {
                     throw APIError.invalidResponse
                 }
                 
-                // Connection successful - update working URL
+                // Connection successful - update working URL and cache it
                 if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                     await MainActor.run {
                         self.workingBaseURL = baseURLToTry
                     }
+                    UserDefaults.standard.set(baseURLToTry, forKey: "CachedWorkingAPIURL")
                     print("✅ Successfully connected to: \(baseURLToTry)")
                 }
                 
@@ -119,6 +237,11 @@ class APIService: ObservableObject {
     
     // Helper to perform bytes request with automatic fallback (for streaming)
     private func bytesWithFallback(for request: URLRequest) async throws -> (URLSession.AsyncBytes, HTTPURLResponse) {
+        // If we don't have a working URL yet, try to discover it quickly
+        if workingBaseURL == nil && UserDefaults.standard.string(forKey: "APIBaseURL") == nil {
+            await ensureWorkingURL()
+        }
+        
         var lastError: Error?
         let urlsToTry = getURLsToTry()
         
@@ -146,11 +269,12 @@ class APIService: ObservableObject {
                     throw APIError.invalidResponse
                 }
                 
-                // Connection successful - update working URL
+                // Connection successful - update working URL and cache it
                 if httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                     await MainActor.run {
                         self.workingBaseURL = baseURLToTry
                     }
+                    UserDefaults.standard.set(baseURLToTry, forKey: "CachedWorkingAPIURL")
                     print("✅ Successfully connected to: \(baseURLToTry)")
                 }
                 
@@ -190,9 +314,24 @@ class APIService: ObservableObject {
     func setAPIBaseURL(_ url: String?) {
         if let url = url, !url.isEmpty {
             UserDefaults.standard.set(url, forKey: "APIBaseURL")
+            workingBaseURL = url
+            UserDefaults.standard.set(url, forKey: "CachedWorkingAPIURL")
         } else {
             UserDefaults.standard.removeObject(forKey: "APIBaseURL")
         }
+    }
+    
+    /// Clear the cached working URL to force re-discovery
+    /// Useful when switching networks or if the cached URL is no longer valid
+    func clearCachedURL() {
+        workingBaseURL = nil
+        UserDefaults.standard.removeObject(forKey: "CachedWorkingAPIURL")
+        print("🔄 Cleared cached API URL - will rediscover on next request")
+    }
+    
+    /// Manually trigger URL discovery (useful for testing or when switching networks)
+    func discoverURL() async {
+        await ensureWorkingURL()
     }
     
     // MARK: - Authentication Helpers

@@ -4,7 +4,7 @@ const { getDistributionMetrics } = require('./exerciseDistribution.service');
 const { getUserSettings, DEFAULT_SETTINGS } = require('./userSettings.service');
 
 // Initialize Supabase client
-const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBASE_SECRET_KEY);
+const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPABASE_SECRET_KEY);
 
 /**
  * Fetches user data from specified tables

@@ -14,6 +14,8 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.30",
     "@openrouter/ai-sdk-provider": "^1.2.0",
+    "@sentry/node": "^10.34.0",
+    "@sentry/profiling-node": "^10.34.0",
     "@supabase/supabase-js": "^2.55.0",
     "ai": "^5.0.44",
     "cors": "^2.8.5",
@@ -22,6 +24,8 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "jwks-rsa": "^3.2.0",
+    "openai": "^6.16.0",
+    "uuid": "^13.0.0",
     "zod": "^4.1.8"
   },
   "devDependencies": {

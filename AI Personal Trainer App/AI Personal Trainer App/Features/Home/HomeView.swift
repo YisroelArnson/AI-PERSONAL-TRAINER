@@ -13,7 +13,6 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject var appCoordinator: AppStateCoordinator
     @Binding var isDrawerOpen: Bool
-    @Binding var showingAssistant: Bool
     
     @StateObject private var apiService = APIService()
     @StateObject private var exerciseStore = ExerciseStore.shared
@@ -309,11 +308,10 @@ struct HomeView: View {
             
             Spacer()
             
-            // AI button on the right
-            FloatingAIButton {
-                showingAssistant = true
-            }
-            .padding(.trailing, AppTheme.Spacing.xl)
+            // Space reserved for global AI button overlay (positioned in AssistantOverlayView)
+            Color.clear
+                .frame(width: 56, height: 56)
+                .padding(.trailing, AppTheme.Spacing.xl)
         }
         .padding(.bottom, AppTheme.Spacing.xxxl)
     }
@@ -992,5 +990,5 @@ extension UIExercise: ExerciseDisplayable {
 }
 
 #Preview {
-    HomeView(isDrawerOpen: .constant(false), showingAssistant: .constant(false))
+    HomeView(isDrawerOpen: .constant(false))
 }

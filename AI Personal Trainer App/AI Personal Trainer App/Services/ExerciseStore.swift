@@ -209,6 +209,40 @@ class ExerciseStore: ObservableObject {
         adjustedWeightsPerExercise[exerciseId] = weights
         saveState()
     }
+    
+    // MARK: - Agent Context
+    
+    /// Creates a payload representing the current workout session for the agent API
+    /// Returns nil if there are no exercises
+    func getCurrentWorkoutPayload() -> CurrentWorkoutPayload? {
+        guard !exercises.isEmpty else { return nil }
+        
+        let exercisePayloads = exercises.map { exercise -> WorkoutExercisePayload in
+            let isCompleted = completedExerciseIds.contains(exercise.id)
+            
+            return WorkoutExercisePayload(
+                name: exercise.exercise_name,
+                type: exercise.type,
+                completed: isCompleted,
+                sets: exercise.sets,
+                reps: exercise.reps,
+                loadKgEach: exercise.load_kg_each,
+                durationMin: exercise.duration_min,
+                distanceKm: exercise.distance_km,
+                holdDurationSec: exercise.hold_duration_sec,
+                rounds: exercise.rounds,
+                totalDurationMin: exercise.total_duration_min
+            )
+        }
+        
+        let totalCompleted = completedExerciseIds.count
+        
+        return CurrentWorkoutPayload(
+            exercises: exercisePayloads,
+            currentIndex: currentExerciseIndex,
+            totalCompleted: totalCompleted
+        )
+    }
 }
 
 // MARK: - Persisted State Model

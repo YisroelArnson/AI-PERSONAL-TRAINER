@@ -41,6 +41,9 @@ struct MainAppView: View {
     @EnvironmentObject var userDataStore: UserDataStore
     @StateObject private var appCoordinator = AppStateCoordinator()
     
+    // Global AI Assistant overlay manager
+    @State private var assistantManager = AssistantOverlayManager()
+    
     // Navigation state
     @State private var currentPage: DrawerDestination = .home
     @State private var isDrawerOpen = false
@@ -50,7 +53,6 @@ struct MainAppView: View {
     @State private var isDragging = false
     
     // Sheet states
-    @State private var showingAssistant = false
     @State private var showingProfile = false
     
     // User info
@@ -62,65 +64,69 @@ struct MainAppView: View {
     private let velocityThreshold: CGFloat = 300
     
     var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                // Container that holds drawer + content side by side
-                HStack(spacing: 0) {
-                    // Side drawer
-                    SideDrawerView(
-                        currentPage: $currentPage,
-                        onNavigate: { destination in
-                            navigateToPage(destination)
-                        },
-                        onProfileTap: {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                isDrawerOpen = false
-                                dragOffset = 0
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                showingProfile = true
-                            }
-                        },
-                        userEmail: userEmail
-                    )
-                    .frame(width: drawerWidth)
-                    
-                    // Main content area
-                    ZStack {
-                        // Current page content - instant switch, no transition
-                        currentPageView
-                            .frame(width: geometry.size.width)
-                        
-                        // Dim overlay that follows drawer position
-                        Color.black
-                            .opacity(drawerOverlayOpacity)
-                            .ignoresSafeArea()
-                            .allowsHitTesting(isDrawerOpen || isDragging)
-                            .onTapGesture {
+        ZStack {
+            // Main app content with drawer (ignores keyboard to prevent content shifting)
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    // Container that holds drawer + content side by side
+                    HStack(spacing: 0) {
+                        // Side drawer
+                        SideDrawerView(
+                            currentPage: $currentPage,
+                            onNavigate: { destination in
+                                navigateToPage(destination)
+                            },
+                            onProfileTap: {
                                 withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                                     isDrawerOpen = false
                                     dragOffset = 0
                                 }
-                            }
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                                    showingProfile = true
+                                }
+                            },
+                            userEmail: userEmail
+                        )
+                        .frame(width: drawerWidth)
+                        
+                        // Main content area
+                        ZStack {
+                            // Current page content - instant switch, no transition
+                            currentPageView
+                                .frame(width: geometry.size.width)
+                            
+                            // Dim overlay that follows drawer position
+                            Color.black
+                                .opacity(drawerOverlayOpacity)
+                                .ignoresSafeArea()
+                                .allowsHitTesting(isDrawerOpen || isDragging)
+                                .onTapGesture {
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                        isDrawerOpen = false
+                                        dragOffset = 0
+                                    }
+                                }
+                        }
+                        .frame(width: geometry.size.width)
                     }
-                    .frame(width: geometry.size.width)
+                    .offset(x: currentDrawerOffset)
+                    .animation(isDragging ? nil : .spring(response: 0.35, dampingFraction: 0.8), value: isDrawerOpen)
                 }
-                .offset(x: currentDrawerOffset)
-                .animation(isDragging ? nil : .spring(response: 0.35, dampingFraction: 0.8), value: isDrawerOpen)
+                .gesture(
+                    DragGesture()
+                        .onChanged { value in
+                            handleDragChange(value: value)
+                        }
+                        .onEnded { value in
+                            handleDragEnd(value: value)
+                        }
+                )
             }
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        handleDragChange(value: value)
-                    }
-                    .onEnded { value in
-                        handleDragEnd(value: value)
-                    }
-            )
-        }
-        .ignoresSafeArea(.keyboard)
-        .sheet(isPresented: $showingAssistant) {
-            AssistantView()
+            .ignoresSafeArea(.keyboard) // Main content ignores keyboard
+            
+            // Global AI Assistant Overlay (respects keyboard to push input up)
+            AssistantOverlayView()
+                .environment(\.assistantManager, assistantManager)
         }
         .sheet(isPresented: $showingProfile) {
             ProfileView()
@@ -143,7 +149,7 @@ struct MainAppView: View {
     private var currentPageView: some View {
         switch currentPage {
         case .home:
-            HomeView(isDrawerOpen: $isDrawerOpen, showingAssistant: $showingAssistant)
+            HomeView(isDrawerOpen: $isDrawerOpen)
                 .environmentObject(appCoordinator)
                 .id("home") // Ensure view identity for transitions
         case .stats:

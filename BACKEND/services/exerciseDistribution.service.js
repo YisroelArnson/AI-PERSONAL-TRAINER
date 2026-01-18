@@ -1,7 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Initialize Supabase client
-const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBASE_SECRET_KEY);
+const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPABASE_SECRET_KEY);
 
 /**
  * Reset tracking for a user (called when goals are updated)

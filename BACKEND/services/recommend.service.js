@@ -2,7 +2,6 @@ const { openai } = require('@ai-sdk/openai');
 const { generateObject, streamObject } = require('ai');
 const { z } = require('zod');
 const { fetchAllUserData } = require('./fetchUserData.service');
-const { cleanupPreferences } = require('../ai/tools/parsePreference');
 const { formatDistributionForPrompt } = require('./exerciseDistribution.service');
 const { PRESET_MUSCLES } = require('./muscleGoals.service');
 
@@ -784,16 +783,6 @@ ${exerciseCountInstruction}
       }
     });
 
-    // Clean up preferences marked for deletion after call
-    // Note: This happens after streaming starts, cleanup will occur while client receives data
-    try {
-      const cleanupResult = await cleanupPreferences(userId);
-      console.log(`Cleanup after streaming: deleted ${cleanupResult.deletedCount || 0} preferences`);
-    } catch (cleanupError) {
-      console.error('Error cleaning up preferences after streaming:', cleanupError);
-      // Don't fail the request for cleanup errors
-    }
-
     return {
       success: true,
       elementStream: result.elementStream,
@@ -886,14 +875,6 @@ ${exerciseCountInstruction}
     });
 
     console.log('Successfully generated exercise recommendations');
-
-    // Clean up preferences marked for deletion after call
-    try {
-      await cleanupPreferences(userId);
-    } catch (cleanupError) {
-      console.error('Error cleaning up preferences:', cleanupError);
-      // Don't fail the whole request for cleanup errors
-    }
 
     // Validate exercise count if specified
     const actualCount = result.object.recommendations.length;

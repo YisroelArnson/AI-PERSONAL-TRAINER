@@ -2,7 +2,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { updateTrackingIncrementally, decrementTrackingIncrementally } = require('./exerciseDistribution.service');
 
 // Initialize Supabase client
-const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPBASE_SECRET_KEY);
+const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPABASE_SECRET_KEY);
 
 /**
  * Log a completed exercise to the workout_history table
