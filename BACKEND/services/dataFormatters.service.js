@@ -211,6 +211,7 @@ function formatAllLocations(locations) {
 /**
  * Format current workout session for context
  * This data comes from the client (iOS app) not the database
+ * Uses the 4-type exercise system: reps, hold, duration, intervals
  * @param {Object} workout - Current workout session from client
  * @returns {string} Formatted string
  */
@@ -222,31 +223,52 @@ function formatCurrentWorkout(workout) {
   const { exercises, currentIndex, totalCompleted } = workout;
   const total = exercises.length;
   const currentExercise = exercises[currentIndex] || exercises[0];
-  
+
   let result = `Active workout: ${total} exercises, ${totalCompleted || 0} completed\n`;
   result += `Currently viewing: ${currentExercise.name || currentExercise.exercise_name} (${currentIndex + 1}/${total})\n\n`;
   result += 'Exercises:\n';
-  
+
   exercises.forEach((ex, idx) => {
     const name = ex.name || ex.exercise_name;
     const type = ex.type || ex.exercise_type;
     const isCompleted = ex.completed ? '✓' : ' ';
     const isCurrent = idx === currentIndex ? '→' : ' ';
-    
+
     let details = '';
-    if (type === 'strength' || type === 'bodyweight') {
-      const sets = ex.sets || (ex.reps ? ex.reps.length : 0);
-      const reps = ex.reps ? ex.reps.join('/') : '';
-      details = `${sets}x${reps}`;
-    } else if (type === 'cardio_distance') {
-      details = `${ex.distance_km}km`;
-    } else if (type === 'cardio_time' || type === 'hiit') {
-      details = `${ex.duration_min || ex.total_duration_min}min`;
-    } else if (type === 'isometric') {
-      const holds = ex.hold_duration_sec ? ex.hold_duration_sec.join('/') + 's' : '';
-      details = holds;
+    switch (type) {
+      case 'reps':
+        const sets = ex.sets || (ex.reps ? ex.reps.length : 0);
+        const reps = ex.reps ? ex.reps.join('/') : '';
+        details = `${sets}x${reps}`;
+        if (ex.load_each && ex.load_each[0]) {
+          details += ` @${ex.load_each[0]}${ex.load_unit || 'kg'}`;
+        }
+        break;
+      case 'hold':
+        const holdSets = ex.sets || (ex.hold_sec ? ex.hold_sec.length : 0);
+        const holds = ex.hold_sec ? ex.hold_sec.join('/') + 's' : '';
+        details = `${holdSets}x${holds}`;
+        break;
+      case 'duration':
+        details = `${ex.duration_min}min`;
+        if (ex.distance && ex.distance_unit) {
+          details += ` / ${ex.distance}${ex.distance_unit}`;
+        }
+        break;
+      case 'intervals':
+        details = `${ex.rounds}x (${ex.work_sec}s work / ${ex.rest_sec}s rest)`;
+        break;
+      default:
+        // Fallback for any legacy types
+        if (ex.sets && ex.reps) {
+          const s = ex.sets;
+          const r = ex.reps ? ex.reps.join('/') : '';
+          details = `${s}x${r}`;
+        } else if (ex.duration_min) {
+          details = `${ex.duration_min}min`;
+        }
     }
-    
+
     result += `${isCurrent}[${isCompleted}] ${idx + 1}. ${name} (${type}) ${details}\n`;
   });
 

@@ -22,17 +22,10 @@
 		12761C602E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C5F2E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift */; };
 		12761C622E57953C00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */; };
 		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
-		128CEA042ED3480D002A61D5 /* CircuitExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CE9F92ED3480D002A61D5 /* CircuitExerciseView.swift */; };
-		128CEA052ED3480D002A61D5 /* SportSpecificExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CE9FA2ED3480D002A61D5 /* SportSpecificExerciseView.swift */; };
 		128CEA062ED3480D002A61D5 /* BodyweightExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CE9FB2ED3480D002A61D5 /* BodyweightExerciseView.swift */; };
-		128CEA072ED3480D002A61D5 /* FlexibilityExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CE9FC2ED3480D002A61D5 /* FlexibilityExerciseView.swift */; };
-		128CEA082ED3480D002A61D5 /* CardioDistanceExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CE9FD2ED3480D002A61D5 /* CardioDistanceExerciseView.swift */; };
-		128CEA092ED3480D002A61D5 /* YogaExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CE9FE2ED3480D002A61D5 /* YogaExerciseView.swift */; };
 		128CEA0A2ED3480D002A61D5 /* StrengthExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CE9FF2ED3480D002A61D5 /* StrengthExerciseView.swift */; };
 		128CEA0B2ED3480D002A61D5 /* IsometricExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CEA002ED3480D002A61D5 /* IsometricExerciseView.swift */; };
 		128CEA0C2ED3480D002A61D5 /* ExerciseDotTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CEA012ED3480D002A61D5 /* ExerciseDotTracker.swift */; };
-		128CEA0D2ED3480D002A61D5 /* HiitExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CEA022ED3480D002A61D5 /* HiitExerciseView.swift */; };
-		128CEA0E2ED3480D002A61D5 /* CardioTimeExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CEA032ED3480D002A61D5 /* CardioTimeExerciseView.swift */; };
 		128CEA102ED49593002A61D5 /* ExpandableDescriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CEA0F2ED49593002A61D5 /* ExpandableDescriptionView.swift */; };
 		128CEA122ED5E507002A61D5 /* ExerciseCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CEA112ED5E507002A61D5 /* ExerciseCard.swift */; };
 		128CEA142ED5E535002A61D5 /* GlowingOrbButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 128CEA132ED5E535002A61D5 /* GlowingOrbButton.swift */; };
@@ -60,6 +53,9 @@
 		12C88E492F1D3ABC004E8A51 /* CollapsedStepsSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C88E482F1D3ABC004E8A51 /* CollapsedStepsSummary.swift */; };
 		12C88E4B2F1D3ACB004E8A51 /* InlineStepsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C88E4A2F1D3ACB004E8A51 /* InlineStepsView.swift */; };
 		12C88E4D2F1D3ADF004E8A51 /* StreamingStepsLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C88E4C2F1D3ADF004E8A51 /* StreamingStepsLine.swift */; };
+		12C88E4F2F1D6E8D004E8A51 /* ArtifactCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C88E4E2F1D6E8D004E8A51 /* ArtifactCard.swift */; };
+		12C88E512F1DD1D3004E8A51 /* DurationExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C88E502F1DD1D3004E8A51 /* DurationExerciseView.swift */; };
+		12C88E532F1DD27C004E8A51 /* IntervalsExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C88E522F1DD27C004E8A51 /* IntervalsExerciseView.swift */; };
 		12CE3AAD2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12CE3AAC2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift */; };
 		12FF73FB2E9427C500958D26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF73F92E9427C500958D26 /* AppView.swift */; };
 		12FF73FC2E9427C500958D26 /* supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF73FA2E9427C500958D26 /* supabase.swift */; };
@@ -122,17 +118,10 @@
 		12761C5B2E57953B00C4F8FE /* AI Personal Trainer AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		12761C5F2E57953B00C4F8FE /* AI_Personal_Trainer_AppUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppUITests.swift; sourceTree = "<group>"; };
 		12761C612E57953B00C4F8FE /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppUITestsLaunchTests.swift; sourceTree = "<group>"; };
-		128CE9F92ED3480D002A61D5 /* CircuitExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CircuitExerciseView.swift; sourceTree = "<group>"; };
-		128CE9FA2ED3480D002A61D5 /* SportSpecificExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SportSpecificExerciseView.swift; sourceTree = "<group>"; };
 		128CE9FB2ED3480D002A61D5 /* BodyweightExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BodyweightExerciseView.swift; sourceTree = "<group>"; };
-		128CE9FC2ED3480D002A61D5 /* FlexibilityExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FlexibilityExerciseView.swift; sourceTree = "<group>"; };
-		128CE9FD2ED3480D002A61D5 /* CardioDistanceExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CardioDistanceExerciseView.swift; sourceTree = "<group>"; };
-		128CE9FE2ED3480D002A61D5 /* YogaExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = YogaExerciseView.swift; sourceTree = "<group>"; };
 		128CE9FF2ED3480D002A61D5 /* StrengthExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StrengthExerciseView.swift; sourceTree = "<group>"; };
 		128CEA002ED3480D002A61D5 /* IsometricExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IsometricExerciseView.swift; sourceTree = "<group>"; };
 		128CEA012ED3480D002A61D5 /* ExerciseDotTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExerciseDotTracker.swift; sourceTree = "<group>"; };
-		128CEA022ED3480D002A61D5 /* HiitExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HiitExerciseView.swift; sourceTree = "<group>"; };
-		128CEA032ED3480D002A61D5 /* CardioTimeExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CardioTimeExerciseView.swift; sourceTree = "<group>"; };
 		128CEA0F2ED49593002A61D5 /* ExpandableDescriptionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExpandableDescriptionView.swift; sourceTree = "<group>"; };
 		128CEA112ED5E507002A61D5 /* ExerciseCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExerciseCard.swift; sourceTree = "<group>"; };
 		128CEA132ED5E535002A61D5 /* GlowingOrbButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GlowingOrbButton.swift; sourceTree = "<group>"; };
@@ -161,6 +150,9 @@
 		12C88E482F1D3ABC004E8A51 /* CollapsedStepsSummary.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CollapsedStepsSummary.swift; sourceTree = "<group>"; };
 		12C88E4A2F1D3ACB004E8A51 /* InlineStepsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InlineStepsView.swift; sourceTree = "<group>"; };
 		12C88E4C2F1D3ADF004E8A51 /* StreamingStepsLine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StreamingStepsLine.swift; sourceTree = "<group>"; };
+		12C88E4E2F1D6E8D004E8A51 /* ArtifactCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ArtifactCard.swift; sourceTree = "<group>"; };
+		12C88E502F1DD1D3004E8A51 /* DurationExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DurationExerciseView.swift; sourceTree = "<group>"; };
+		12C88E522F1DD27C004E8A51 /* IntervalsExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IntervalsExerciseView.swift; sourceTree = "<group>"; };
 		12CE3AAC2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
 		12FF73F92E9427C500958D26 /* AppView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
 		12FF73FA2E9427C500958D26 /* supabase.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = supabase.swift; sourceTree = "<group>"; };
@@ -287,20 +279,15 @@
 		128CE9F82ED3480D002A61D5 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				12C88E522F1DD27C004E8A51 /* IntervalsExerciseView.swift */,
+				12C88E502F1DD1D3004E8A51 /* DurationExerciseView.swift */,
 				128CEA132ED5E535002A61D5 /* GlowingOrbButton.swift */,
 				128CEA112ED5E507002A61D5 /* ExerciseCard.swift */,
 				128CEA0F2ED49593002A61D5 /* ExpandableDescriptionView.swift */,
-				128CE9F92ED3480D002A61D5 /* CircuitExerciseView.swift */,
-				128CE9FA2ED3480D002A61D5 /* SportSpecificExerciseView.swift */,
 				128CE9FB2ED3480D002A61D5 /* BodyweightExerciseView.swift */,
-				128CE9FC2ED3480D002A61D5 /* FlexibilityExerciseView.swift */,
-				128CE9FD2ED3480D002A61D5 /* CardioDistanceExerciseView.swift */,
-				128CE9FE2ED3480D002A61D5 /* YogaExerciseView.swift */,
 				128CE9FF2ED3480D002A61D5 /* StrengthExerciseView.swift */,
 				128CEA002ED3480D002A61D5 /* IsometricExerciseView.swift */,
 				128CEA012ED3480D002A61D5 /* ExerciseDotTracker.swift */,
-				128CEA022ED3480D002A61D5 /* HiitExerciseView.swift */,
-				128CEA032ED3480D002A61D5 /* CardioTimeExerciseView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -326,6 +313,7 @@
 		129802472F1A433100B47B49 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				12C88E4E2F1D6E8D004E8A51 /* ArtifactCard.swift */,
 				12C88E4C2F1D3ADF004E8A51 /* StreamingStepsLine.swift */,
 				12C88E4A2F1D3ACB004E8A51 /* InlineStepsView.swift */,
 				12C88E482F1D3ABC004E8A51 /* CollapsedStepsSummary.swift */,
@@ -654,6 +642,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				128CEA142ED5E535002A61D5 /* GlowingOrbButton.swift in Sources */,
+				12C88E4F2F1D6E8D004E8A51 /* ArtifactCard.swift in Sources */,
 				12C88E4B2F1D3ACB004E8A51 /* InlineStepsView.swift in Sources */,
 				1292C3C42EADAE2F005A728A /* RefreshModalView.swift in Sources */,
 				12FF73FC2E9427C500958D26 /* supabase.swift in Sources */,
@@ -662,13 +651,10 @@
 				1298025A2F1A437900B47B49 /* AssistantOverlayManager.swift in Sources */,
 				12FF73FB2E9427C500958D26 /* AppView.swift in Sources */,
 				122CF1662EB42C5C00820C84 /* LocationMapPickerView.swift in Sources */,
-				128CEA082ED3480D002A61D5 /* CardioDistanceExerciseView.swift in Sources */,
 				12FF74522E944B2600958D26 /* UserDataStore.swift in Sources */,
 				129802502F1A433100B47B49 /* MinimizedResponsePill.swift in Sources */,
 				129756032EC1620100AA9A9E /* LoadingStateView.swift in Sources */,
-				128CEA072ED3480D002A61D5 /* FlexibilityExerciseView.swift in Sources */,
 				128CEA0C2ED3480D002A61D5 /* ExerciseDotTracker.swift in Sources */,
-				128CEA0D2ED3480D002A61D5 /* HiitExerciseView.swift in Sources */,
 				122CF16A2EB42C9D00820C84 /* LocationService.swift in Sources */,
 				12C88E492F1D3ABC004E8A51 /* CollapsedStepsSummary.swift in Sources */,
 				12CE3AAD2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift in Sources */,
@@ -678,7 +664,6 @@
 				12FF74422E942AFF00958D26 /* AddPreferenceSheet.swift in Sources */,
 				1297560E2ECD50A000AA9A9E /* WorkoutHistory.swift in Sources */,
 				128CEA102ED49593002A61D5 /* ExpandableDescriptionView.swift in Sources */,
-				128CEA052ED3480D002A61D5 /* SportSpecificExerciseView.swift in Sources */,
 				128CEA0B2ED3480D002A61D5 /* IsometricExerciseView.swift in Sources */,
 				128CEA1C2ED7E232002A61D5 /* EmergingAnimation.swift in Sources */,
 				12C88E4D2F1D3ADF004E8A51 /* StreamingStepsLine.swift in Sources */,
@@ -694,10 +679,8 @@
 				129802562F1A435200B47B49 /* AgentModels.swift in Sources */,
 				128CEA062ED3480D002A61D5 /* BodyweightExerciseView.swift in Sources */,
 				128CEA0A2ED3480D002A61D5 /* StrengthExerciseView.swift in Sources */,
-				128CEA092ED3480D002A61D5 /* YogaExerciseView.swift in Sources */,
 				129802512F1A433100B47B49 /* FloatingMessageStack.swift in Sources */,
 				122CF1652EB42C5C00820C84 /* LocationEditorView.swift in Sources */,
-				128CEA0E2ED3480D002A61D5 /* CardioTimeExerciseView.swift in Sources */,
 				12FF742C2E94280A00958D26 /* ProfileView.swift in Sources */,
 				128CEA1A2ED799E0002A61D5 /* AnimatedGradientBackground.swift in Sources */,
 				1298024E2F1A433100B47B49 /* AssistantOverlayView.swift in Sources */,
@@ -718,11 +701,12 @@
 				122CF1642EB42C5C00820C84 /* LocationsListSheet.swift in Sources */,
 				12FF742E2E94280A00958D26 /* StatsView.swift in Sources */,
 				122CF15E2EB42C2900820C84 /* CurrentLocationPill.swift in Sources */,
-				128CEA042ED3480D002A61D5 /* CircuitExerciseView.swift in Sources */,
 				12FF741F2E94280A00958D26 /* AppTheme.swift in Sources */,
 				12FF74472E942AFF00958D26 /* CategoryGoalsAIAssistSheet.swift in Sources */,
 				12FF74542E9458FC00958D26 /* PreferenceManagerView.swift in Sources */,
 				122CF1602EB42C3600820C84 /* EquipmentInputView.swift in Sources */,
+				12C88E512F1DD1D3004E8A51 /* DurationExerciseView.swift in Sources */,
+				12C88E532F1DD27C004E8A51 /* IntervalsExerciseView.swift in Sources */,
 				12FF743E2E942AFF00958D26 /* MuscleGoalsSection.swift in Sources */,
 				128CEA122ED5E507002A61D5 /* ExerciseCard.swift in Sources */,
 			);

@@ -45,7 +45,8 @@ CREATE TABLE IF NOT EXISTS agent_session_events (
     'tool_call',       -- Tool invocation (used for context)
     'tool_result',     -- Tool execution result (used for context)
     'knowledge',       -- Injected knowledge from initializer agent (used for context)
-    'error'            -- Any error that occurred
+    'error',           -- Any error that occurred
+    'artifact'         -- Structured output (workout, report, etc.) for client delivery
   )),
   
   -- Timing
@@ -62,6 +63,8 @@ CREATE TABLE IF NOT EXISTS agent_session_events (
   -- tool_result: { tool_name: string, result: any, success: boolean, call_id: string }
   -- knowledge: { source: string, data: string }
   -- error: { message: string, stack: string, context: string }
+  -- artifact: { artifact_id: string, type: string, schema_version: string, title: string,
+  --             summary: object, auto_start: boolean, payload: object }
   data JSONB NOT NULL,
   
   -- Ensure unique sequence per session
@@ -150,6 +153,7 @@ SELECT
   COUNT(CASE WHEN e.event_type = 'llm_response' THEN 1 END) as llm_call_count,
   COUNT(CASE WHEN e.event_type = 'tool_call' THEN 1 END) as tool_call_count,
   COUNT(CASE WHEN e.event_type = 'error' THEN 1 END) as error_count,
+  COUNT(CASE WHEN e.event_type = 'artifact' THEN 1 END) as artifact_count,
   MIN(e.timestamp) as first_event_at,
   MAX(e.timestamp) as last_event_at
 FROM agent_sessions s

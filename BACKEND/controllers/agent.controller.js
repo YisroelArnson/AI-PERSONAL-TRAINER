@@ -91,6 +91,19 @@ async function handleStreamChat(req, res) {
             formatted: event.formatted,  // Include formatted result for display
             status: event.success ? 'done' : 'failed'
           };
+
+          // If this is message_notify_user with an artifact, include artifact data
+          if (event.tool === 'message_notify_user') {
+            console.log('📦 message_notify_user result:', JSON.stringify(event.result, null, 2).substring(0, 500));
+            if (event.result?.artifact) {
+              console.log('   ✅ Artifact found, adding to SSE event');
+              sseEvent.artifact = event.result.artifact;
+              sseEvent.artifact_id = event.result.artifact_id;
+            } else {
+              console.log('   ⚠️ No artifact in result');
+            }
+          }
+
           res.write(`data: ${JSON.stringify(sseEvent)}\n\n`);
         }
         else if (event.type === 'knowledge') {

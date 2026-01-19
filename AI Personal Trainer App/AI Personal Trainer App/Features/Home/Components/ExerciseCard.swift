@@ -110,76 +110,78 @@ struct ExerciseContentView: View {
     }
     
     // Check if we have content to show
+    // Uses the 4-type exercise system: reps, hold, duration, intervals
     private var hasExerciseContent: Bool {
         switch exercise.type {
-        case "strength":
-            return completedSetIndices != nil && adjustedReps != nil && adjustedWeights != nil
-        case "bodyweight":
+        case "reps":
+            // Reps exercises with weights need all bindings
+            if exercise.load_kg_each != nil {
+                return completedSetIndices != nil && adjustedReps != nil && adjustedWeights != nil
+            }
+            // Bodyweight reps exercises need only sets and reps bindings
             return completedSetIndices != nil && adjustedReps != nil
-        case "cardio_time", "cardio_distance", "hiit", "circuit", "flexibility", "yoga", "isometric", "sport_specific":
+        case "hold", "duration", "intervals":
             return true
         default:
             return false
         }
     }
-    
+
     // Exercises that use individual floating cards instead of a frosted wrapper
     private var usesFloatingCards: Bool {
         switch exercise.type {
-        case "strength", "bodyweight", "isometric":
+        case "reps", "hold":
             return true
         default:
             return false
         }
     }
-    
+
     @ViewBuilder
     private var exerciseContent: some View {
         switch exercise.type {
-        case "strength":
-            if let completedSets = completedSetIndices,
-               let reps = adjustedReps,
-               let weights = adjustedWeights {
-                StrengthExerciseView(
-                    exercise: exercise,
-                    showContent: showContent,
-                    completedSetIndices: completedSets,
-                    adjustedReps: reps,
-                    adjustedWeights: weights
-                )
-                .onAppear {
-                    onInitializeState?()
+        case "reps":
+            // Reps exercise (strength or bodyweight)
+            if exercise.load_kg_each != nil {
+                // Weighted reps
+                if let completedSets = completedSetIndices,
+                   let reps = adjustedReps,
+                   let weights = adjustedWeights {
+                    StrengthExerciseView(
+                        exercise: exercise,
+                        showContent: showContent,
+                        completedSetIndices: completedSets,
+                        adjustedReps: reps,
+                        adjustedWeights: weights
+                    )
+                    .onAppear {
+                        onInitializeState?()
+                    }
+                }
+            } else {
+                // Bodyweight reps
+                if let completedSets = completedSetIndices,
+                   let reps = adjustedReps {
+                    BodyweightExerciseView(
+                        exercise: exercise,
+                        showContent: showContent,
+                        completedSetIndices: completedSets,
+                        adjustedReps: reps
+                    )
+                    .onAppear {
+                        onInitializeState?()
+                    }
                 }
             }
-        case "cardio_time":
-            CardioTimeExerciseView(exercise: exercise, showContent: showContent)
-        case "cardio_distance":
-            CardioDistanceExerciseView(exercise: exercise, showContent: showContent)
-        case "hiit":
-            HiitExerciseView(exercise: exercise, showContent: showContent)
-        case "circuit":
-            CircuitExerciseView(exercise: exercise, showContent: showContent)
-        case "flexibility":
-            FlexibilityExerciseView(exercise: exercise, showContent: showContent)
-        case "yoga":
-            YogaExerciseView(exercise: exercise, showContent: showContent)
-        case "bodyweight":
-            if let completedSets = completedSetIndices,
-               let reps = adjustedReps {
-                BodyweightExerciseView(
-                    exercise: exercise,
-                    showContent: showContent,
-                    completedSetIndices: completedSets,
-                    adjustedReps: reps
-                )
-                .onAppear {
-                    onInitializeState?()
-                }
-            }
-        case "isometric":
+        case "hold":
+            // Hold exercise (isometric, balance, static stretches)
             IsometricExerciseView(exercise: exercise, showContent: showContent)
-        case "sport_specific":
-            SportSpecificExerciseView(exercise: exercise, showContent: showContent)
+        case "duration":
+            // Duration exercise (cardio, yoga flows)
+            DurationExerciseView(exercise: exercise, showContent: showContent)
+        case "intervals":
+            // Intervals exercise (HIIT, tabata)
+            IntervalsExerciseView(exercise: exercise, showContent: showContent)
         default:
             EmptyView()
         }
@@ -220,15 +222,16 @@ struct ExerciseDisplayCard: View {
     ZStack {
         AppTheme.Gradients.background
             .ignoresSafeArea()
-        
+
         ScrollView {
             VStack(spacing: 20) {
                 ExerciseDisplayCard(
                     exercise: UIExercise(
                         exercise_name: "Barbell Bench Press",
-                        type: "strength",
+                        type: "reps",  // New 4-type system
                         reps: [10, 8, 8, 6],
                         load_kg_each: [60, 70, 70, 80],
+                        load_unit: "kg",
                         sets: 4,
                         rest_seconds: 90,
                         equipment: ["barbell", "bench"],

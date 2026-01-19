@@ -43,41 +43,41 @@ const BatchIntervalSchema = z.object({
 
 const INTERVAL_SYSTEM_PROMPT = `You are an expert fitness coach and workout timer designer. Your job is to create precise interval timer data for exercises.
 
+EXERCISE TYPES (4 core types):
+- reps: Set/rep based exercises (strength, bodyweight)
+- hold: Isometric holds (planks, wall sits, static stretches)
+- duration: Continuous activity (running, cycling, yoga flows)
+- intervals: Work/rest cycles (HIIT, tabata)
+
 GUIDELINES FOR PHASE GENERATION:
 
-1. REP-BASED EXERCISES (strength, bodyweight):
+1. TYPE: reps (strength, bodyweight exercises):
    - Use simple pace: typically 3-6 seconds per rep depending on exercise complexity
-   - Include rest between sets 
+   - Include rest between sets (use rest_sec field)
    - Add motivational cues at set starts and ends
    - Mark final set with encouraging "Final set!" type cues
-   - IMPORTANT: Include set_number (1-indexed) on ALL work phases and rest phases for these exercise types
+   - IMPORTANT: Include set_number (1-indexed) on ALL work phases and rest phases
    - set_number should match which set the phase belongs to (e.g., all reps in set 1 have set_number: 1)
 
-2. CARDIO (cardio_distance, cardio_time):
+2. TYPE: hold (isometric, balance, static stretches):
+   - Use "hold" phase type for active holds
+   - Include encouraging checkpoints during long holds (e.g., at 10 sec, 20 sec)
+   - Add form reminders in cues
+   - Include set_number (1-indexed) on hold and rest phases
+   - Mark the final hold specially
+   - For flexibility/yoga flows, include breathing cues and transition phases
+
+3. TYPE: duration (cardio, continuous effort):
    - Break into meaningful segments (warmup, main work, cooldown)
    - Add milestone cues (halfway, final stretch, etc.)
    - Keep phases longer (1-5 minutes each) rather than second-by-second
+   - Include distance milestones if distance is provided
 
-3. HIIT:
-   - Alternate work and rest phases based on the interval structure
+4. TYPE: intervals (HIIT, tabata):
+   - Alternate work and rest phases based on rounds, work_sec, rest_sec
    - Include round numbers in details
    - Add intensity cues ("All out!", "Push it!", "Recovery")
-
-4. CIRCUIT:
-   - Include transition phases between exercises (5-10 seconds)
-   - Show exercise name in cue, position in detail
-   - Rest between circuits (30-60 seconds)
-
-5. ISOMETRIC/BALANCE:
-   - Use "hold" phase type
-   - Include encouraging checkpoints during long holds
-   - Add form reminders in cues
-   - Include set_number (1-indexed) on hold and rest phases for these exercise types
-
-6. FLEXIBILITY/YOGA:
-   - Use "hold" for static stretches
-   - Include breathing cues
-   - Allow transition time between positions
+   - Include a brief warmup/get-ready phase
 
 CUE STYLE:
 - Keep cues short and punchy (1-5 words)
@@ -96,6 +96,7 @@ DETAIL STYLE:
 
 /**
  * Build a prompt for a single exercise based on its type
+ * Uses the 4-type exercise system: reps, hold, duration, intervals
  * @param {Object} exercise - The exercise object
  * @returns {string} Formatted prompt for the LLM
  */
@@ -106,132 +107,71 @@ function buildExercisePrompt(exercise) {
   let exerciseDetails = `Exercise: ${exercise_name}\nType: ${exercise_type}\n`;
 
   switch (exercise_type) {
-    case 'strength':
+    case 'reps':
+      // Set/rep based exercises (strength, bodyweight)
       exerciseDetails += `Sets: ${exercise.sets || 3}\n`;
       exerciseDetails += `Reps per set: ${JSON.stringify(exercise.reps || [10, 10, 10])}\n`;
-      exerciseDetails += `Load (kg): ${JSON.stringify(exercise.load_kg_each || [])}\n`;
-      exerciseDetails += `Rest between sets: ${exercise.rest_seconds || 60} seconds\n`;
+      if (exercise.load_each) {
+        exerciseDetails += `Load per set: ${JSON.stringify(exercise.load_each)} ${exercise.load_unit || 'kg'}\n`;
+      }
+      exerciseDetails += `Rest between sets: ${exercise.rest_sec || 60} seconds\n`;
       specificInstructions = `
-Generate interval data for this strength exercise:
-- Use 4-5 seconds per rep (controlled tempo)
+Generate interval data for this rep-based exercise:
+- Use 3-5 seconds per rep (controlled tempo, slower for weighted)
 - Include rest phases between sets
 - Add encouraging cues at the start and end of each set
-- Mark the final set specially`;
+- Mark the final set specially
+- Include set_number on all work and rest phases`;
       break;
 
-    case 'bodyweight':
+    case 'hold':
+      // Isometric holds (planks, wall sits, static stretches, balance)
       exerciseDetails += `Sets: ${exercise.sets || 3}\n`;
-      exerciseDetails += `Reps per set: ${JSON.stringify(exercise.reps || [15, 15, 15])}\n`;
-      exerciseDetails += `Rest between sets: ${exercise.rest_seconds || 45} seconds\n`;
+      exerciseDetails += `Hold duration per set: ${JSON.stringify(exercise.hold_sec || [30, 30, 30])} seconds\n`;
+      exerciseDetails += `Rest between holds: ${exercise.rest_sec || 30} seconds\n`;
       specificInstructions = `
-Generate interval data for this bodyweight exercise:
-- Use 3-4 seconds per rep (slightly faster than weighted)
-- Include rest phases between sets
-- Keep cues energetic and motivating`;
+Generate interval data for this hold exercise:
+- Use "hold" phase type for active holds
+- Add encouraging checkpoints during long holds (e.g., at 10 sec, 20 sec)
+- Include form reminder cues ("Keep breathing", "Stay steady")
+- Mark the final hold specially
+- Include set_number on all hold and rest phases`;
       break;
 
-    case 'cardio_distance':
-      exerciseDetails += `Distance: ${exercise.distance_km || 5} km\n`;
-      exerciseDetails += `Target duration: ${exercise.duration_min || 30} minutes\n`;
-      exerciseDetails += `Target pace: ${exercise.target_pace || 'comfortable'}\n`;
-      specificInstructions = `
-Generate interval data for this distance-based cardio:
-- Include warmup phase (1-2 minutes)
-- Break the main work into 3-5 segments with milestone cues
-- Add a cooldown phase
-- Use encouraging cues at key distance/time milestones`;
-      break;
-
-    case 'cardio_time':
+    case 'duration':
+      // Continuous effort (cardio, yoga flows)
       exerciseDetails += `Duration: ${exercise.duration_min || 20} minutes\n`;
+      if (exercise.distance) {
+        exerciseDetails += `Distance: ${exercise.distance} ${exercise.distance_unit || 'km'}\n`;
+      }
+      if (exercise.target_pace) {
+        exerciseDetails += `Target pace: ${exercise.target_pace}\n`;
+      }
       specificInstructions = `
-Generate interval data for this time-based cardio:
-- Include warmup (1-2 min) and cooldown (1-2 min)
-- Break main work into meaningful segments
+Generate interval data for this duration-based exercise:
+- Include warmup phase (1-2 minutes)
+- Break the main work into 3-5 meaningful segments with milestone cues
+- Add a cooldown phase
+- Use encouraging cues at key time/distance milestones
 - Add milestone cues (halfway, final stretch, etc.)`;
       break;
 
-    case 'hiit':
-      exerciseDetails += `Rounds: ${exercise.rounds || 4}\n`;
-      exerciseDetails += `Intervals: ${JSON.stringify(exercise.intervals || [{ work_sec: 30, rest_sec: 15 }])}\n`;
-      exerciseDetails += `Total duration: ${exercise.total_duration_min || 15} minutes\n`;
+    case 'intervals':
+      // Work/rest cycles (HIIT, tabata)
+      exerciseDetails += `Rounds: ${exercise.rounds || 8}\n`;
+      exerciseDetails += `Work interval: ${exercise.work_sec || 20} seconds\n`;
+      exerciseDetails += `Rest interval: ${exercise.rest_sec || 10} seconds\n`;
       specificInstructions = `
-Generate interval data for this HIIT workout:
+Generate interval data for this interval exercise:
 - Create alternating work/rest phases for each round
-- Include a brief warmup/get-ready phase
-- Mark round numbers in detail field
-- Use high-energy cues for work phases, recovery cues for rest`;
-      break;
-
-    case 'circuit':
-      exerciseDetails += `Number of circuits: ${exercise.circuits || 3}\n`;
-      exerciseDetails += `Exercises in circuit: ${JSON.stringify(exercise.exercises_in_circuit || [])}\n`;
-      exerciseDetails += `Rest between circuits: ${exercise.rest_between_circuits_sec || 60} seconds\n`;
-      specificInstructions = `
-Generate interval data for this circuit training:
-- Include each exercise as a work phase with the exercise name as the cue
-- Add short transition phases (5-10 sec) between exercises
-- Include rest phases between complete circuits
-- Show exercise position in detail (e.g., "Exercise 2 of 4")`;
-      break;
-
-    case 'flexibility':
-      exerciseDetails += `Holds: ${JSON.stringify(exercise.holds || [{ position: 'stretch', duration_sec: 30 }])}\n`;
-      exerciseDetails += `Repetitions: ${exercise.repetitions || 1}\n`;
-      specificInstructions = `
-Generate interval data for this flexibility routine:
-- Use "hold" phase type for each stretch position
-- Include breathing cues
-- Add transition phases between positions
-- Keep the pace calm and measured`;
-      break;
-
-    case 'yoga':
-      exerciseDetails += `Sequence: ${JSON.stringify(exercise.sequence || [])}\n`;
-      exerciseDetails += `Total duration: ${exercise.total_duration_min || 15} minutes\n`;
-      specificInstructions = `
-Generate interval data for this yoga flow:
-- Use "hold" phase type for each pose
-- Include breath counts or durations
-- Add smooth transition phases
-- Use calming, mindful cues`;
-      break;
-
-    case 'isometric':
-      exerciseDetails += `Sets: ${exercise.sets || 3}\n`;
-      exerciseDetails += `Hold duration per set: ${JSON.stringify(exercise.hold_duration_sec || [30, 30, 30])}\n`;
-      exerciseDetails += `Rest between holds: ${exercise.rest_seconds || 30} seconds\n`;
-      specificInstructions = `
-Generate interval data for this isometric exercise:
-- Use "hold" phase type for active holds
-- Add encouraging checkpoints during long holds (e.g., at 10 sec, 20 sec)
-- Include form reminder cues
-- Mark the final hold specially`;
-      break;
-
-    case 'balance':
-      exerciseDetails += `Sets: ${exercise.sets || 3}\n`;
-      exerciseDetails += `Hold duration per set: ${JSON.stringify(exercise.hold_duration_sec || [30, 30, 30])}\n`;
-      specificInstructions = `
-Generate interval data for this balance exercise:
-- Use "hold" phase type
-- Add focus cues ("Find your center", "Steady")
-- Include brief rest/transition between sides if applicable`;
-      break;
-
-    case 'sport_specific':
-      exerciseDetails += `Sport: ${exercise.sport || 'general'}\n`;
-      exerciseDetails += `Drill: ${exercise.drill_name || 'practice'}\n`;
-      exerciseDetails += `Duration: ${exercise.duration_min || 10} minutes\n`;
-      exerciseDetails += `Repetitions: ${exercise.repetitions || 10}\n`;
-      specificInstructions = `
-Generate interval data for this sport-specific drill:
-- Structure based on the drill requirements
-- Include skill-focused cues
-- Add appropriate rest/recovery phases`;
+- Include a brief warmup/get-ready phase (5-10 seconds)
+- Mark round numbers in detail field ("Round 1 of 8")
+- Use high-energy cues for work phases ("Go!", "Push it!", "All out!")
+- Use recovery cues for rest phases ("Breathe", "Recovery", "30 seconds")`;
       break;
 
     default:
+      // Fallback for any unknown types
       specificInstructions = `
 Generate appropriate interval data for this exercise:
 - Analyze the exercise type and create sensible phases
@@ -245,6 +185,7 @@ Generate appropriate interval data for this exercise:
 
 /**
  * Calculate estimated total duration for an exercise
+ * Uses the 4-type exercise system: reps, hold, duration, intervals
  * @param {Object} exercise - The exercise object
  * @returns {number} Estimated duration in seconds
  */
@@ -252,57 +193,37 @@ function estimateDuration(exercise) {
   const { exercise_type } = exercise;
 
   switch (exercise_type) {
-    case 'strength':
-    case 'bodyweight': {
+    case 'reps': {
+      // Set/rep based exercises
       const sets = exercise.sets || 3;
       const reps = exercise.reps || [10];
       const avgReps = reps.reduce((a, b) => a + b, 0) / reps.length;
-      const repTime = exercise_type === 'strength' ? 5 : 4;
-      const restTime = exercise.rest_seconds || 60;
+      // Weighted exercises: 5 sec/rep, bodyweight: 4 sec/rep
+      const repTime = exercise.load_each ? 5 : 4;
+      const restTime = exercise.rest_sec || 60;
       return Math.round(sets * avgReps * repTime + (sets - 1) * restTime);
     }
 
-    case 'cardio_distance':
-    case 'cardio_time':
-      return (exercise.duration_min || 20) * 60;
-
-    case 'hiit': {
-      const rounds = exercise.rounds || 4;
-      const intervals = exercise.intervals || [{ work_sec: 30, rest_sec: 15 }];
-      const intervalDuration = intervals.reduce((sum, i) => sum + (i.work_sec || 0) + (i.rest_sec || 0), 0);
-      return rounds * intervalDuration + 10; // +10 for warmup
-    }
-
-    case 'circuit': {
-      const circuits = exercise.circuits || 3;
-      const exercises = exercise.exercises_in_circuit || [];
-      const exerciseTime = exercises.reduce((sum, e) => sum + (e.duration_sec || 30), 0);
-      const transitionTime = (exercises.length - 1) * 10;
-      const restTime = exercise.rest_between_circuits_sec || 60;
-      return circuits * (exerciseTime + transitionTime) + (circuits - 1) * restTime;
-    }
-
-    case 'flexibility': {
-      const holds = exercise.holds || [{ duration_sec: 30 }];
-      const reps = exercise.repetitions || 1;
-      const holdTime = holds.reduce((sum, h) => sum + (h.duration_sec || 30), 0);
-      return holdTime * reps + (holds.length - 1) * 5; // 5 sec transitions
-    }
-
-    case 'yoga':
-      return (exercise.total_duration_min || 15) * 60;
-
-    case 'isometric':
-    case 'balance': {
+    case 'hold': {
+      // Isometric holds
       const sets = exercise.sets || 3;
-      const holds = exercise.hold_duration_sec || [30];
+      const holds = exercise.hold_sec || [30];
       const avgHold = holds.reduce((a, b) => a + b, 0) / holds.length;
-      const restTime = exercise.rest_seconds || 30;
+      const restTime = exercise.rest_sec || 30;
       return Math.round(sets * avgHold + (sets - 1) * restTime);
     }
 
-    case 'sport_specific':
-      return (exercise.duration_min || 10) * 60;
+    case 'duration':
+      // Continuous effort
+      return (exercise.duration_min || 20) * 60;
+
+    case 'intervals': {
+      // Work/rest cycles
+      const rounds = exercise.rounds || 8;
+      const workSec = exercise.work_sec || 20;
+      const restSec = exercise.rest_sec || 10;
+      return rounds * (workSec + restSec) + 10; // +10 for warmup
+    }
 
     default:
       return 300; // Default 5 minutes

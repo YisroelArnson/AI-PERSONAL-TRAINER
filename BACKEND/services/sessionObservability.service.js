@@ -3,6 +3,7 @@
 // Handles session management, event logging, context building, and console output
 
 const { createClient } = require('@supabase/supabase-js');
+const { v4: uuidv4 } = require('uuid');
 const dotenv = require('dotenv');
 const { calculateCostCents } = require('./observability/pricing');
 
@@ -452,8 +453,9 @@ async function logToolResult(sessionId, toolName, result, success = true, callId
  * @param {string} sessionId - Session UUID
  * @param {Error|string} error - Error object or message
  * @param {string} context - Context where error occurred
+ * @param {Object} details - Additional structured details for debugging
  */
-async function logError(sessionId, error, context = null) {
+async function logError(sessionId, error, context = null, details = null) {
   const message = error instanceof Error ? error.message : String(error);
   const stack = error instanceof Error ? error.stack : null;
 
@@ -467,7 +469,8 @@ async function logError(sessionId, error, context = null) {
   return await logEvent(sessionId, 'error', {
     message,
     stack,
-    context
+    context,
+    details
   });
 }
 
@@ -491,6 +494,75 @@ async function logKnowledge(sessionId, source, data) {
   });
 }
 
+/**
+ * Generate a short, LLM-friendly ID (8 alphanumeric characters)
+ */
+function generateShortId() {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let id = '';
+  for (let i = 0; i < 8; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
+
+/**
+ * Log an artifact event
+ * Artifacts are structured outputs (workouts, reports, etc.) that can be delivered to the client
+ * @param {string} sessionId - Session UUID
+ * @param {Object} artifact - Artifact object
+ * @param {string} artifact.type - Artifact type (e.g., 'exercise_list')
+ * @param {string} artifact.title - Human-readable title
+ * @param {Object} artifact.summary - Summary information for display
+ * @param {boolean} artifact.auto_start - Whether to auto-start (for timers)
+ * @param {Object} artifact.payload - Full artifact payload data
+ * @returns {Object} Object with event and artifact_id
+ */
+async function logArtifact(sessionId, artifact) {
+  // Generate short artifact ID if not provided (e.g., "art_x7k2m9p4")
+  const artifactId = artifact.artifact_id || `art_${generateShortId()}`;
+
+  consoleLog(
+    sessionId,
+    '📦',
+    `${colors.blue}Artifact${colors.reset} ← ${artifact.type}`,
+    `"${truncate(artifact.title, 40)}"`
+  );
+
+  const artifactData = {
+    artifact_id: artifactId,
+    type: artifact.type,
+    schema_version: artifact.schema_version || '1.0',
+    title: artifact.title,
+    summary: artifact.summary,
+    auto_start: artifact.auto_start || false,
+    payload: artifact.payload
+  };
+
+  const event = await logEvent(sessionId, 'artifact', artifactData);
+
+  return { event, artifact_id: artifactId };
+}
+
+/**
+ * Get artifact by ID from session events
+ * @param {string} sessionId - Session UUID
+ * @param {string} artifactId - Artifact ID to retrieve
+ * @returns {Object|null} Artifact data or null if not found
+ */
+async function getArtifact(sessionId, artifactId) {
+  const { data, error } = await supabase
+    .from('agent_session_events')
+    .select('data')
+    .eq('session_id', sessionId)
+    .eq('event_type', 'artifact')
+    .filter('data->>artifact_id', 'eq', artifactId)
+    .single();
+
+  if (error || !data) return null;
+  return data.data;
+}
+
 // =============================================================================
 // EVENT RETRIEVAL
 // =============================================================================
@@ -512,7 +584,7 @@ async function getSessionTimeline(sessionId) {
 }
 
 /**
- * Get events for context building (user_message, tool_call, tool_result, knowledge)
+ * Get events for context building (user_message, tool_call, tool_result, knowledge, artifact)
  * @param {string} sessionId - Session UUID
  * @param {number} fromSequence - Start from this sequence
  * @returns {Array} Context-relevant events
@@ -523,7 +595,7 @@ async function getContextEvents(sessionId, fromSequence = 0) {
     .select('*')
     .eq('session_id', sessionId)
     .gte('sequence_number', fromSequence)
-    .in('event_type', ['user_message', 'tool_call', 'tool_result', 'knowledge'])
+    .in('event_type', ['user_message', 'tool_call', 'tool_result', 'knowledge', 'artifact'])
     .order('sequence_number', { ascending: true });
 
   if (error) throw error;
@@ -568,6 +640,8 @@ module.exports = {
   logToolResult,
   logError,
   logKnowledge,
+  logArtifact,
+  getArtifact,
 
   // Event retrieval
   getSessionTimeline,

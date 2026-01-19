@@ -13,6 +13,11 @@ struct FloatingMessageStack: View {
     var currentStep: StepItem? = nil  // For streaming updates
     let onExpandToggle: () -> Void
 
+    // Artifact action callbacks
+    var onStartWorkout: ((Artifact) -> Void)? = nil
+    var onAddToCurrent: ((Artifact) -> Void)? = nil
+    var onReplaceCurrent: ((Artifact) -> Void)? = nil
+
     // Scroll state
     @State private var scrollProxy: ScrollViewProxy?
     @Namespace private var bottomID
@@ -51,6 +56,17 @@ struct FloatingMessageStack: View {
                                 // Only show message bubble if there's content
                                 if !message.content.isEmpty {
                                     MessageBubble(message: message)
+                                }
+
+                                // Show artifact card if message has an artifact attached
+                                if let artifact = message.artifact, message.role == .assistant {
+                                    ArtifactCard(
+                                        artifact: artifact,
+                                        onStartWorkout: { onStartWorkout?(artifact) },
+                                        onAddToCurrent: { onAddToCurrent?(artifact) },
+                                        onReplaceCurrent: { onReplaceCurrent?(artifact) }
+                                    )
+                                    .padding(.top, AppTheme.Spacing.xs)
                                 }
                             }
                         }

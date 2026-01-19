@@ -42,7 +42,4 @@ struct AssistantView: View {
     }
 }
 
-#Preview {
-    AssistantView()
-}
 

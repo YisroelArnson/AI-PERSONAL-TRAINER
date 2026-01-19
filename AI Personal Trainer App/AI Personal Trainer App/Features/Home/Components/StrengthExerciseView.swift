@@ -249,7 +249,7 @@ struct WeightPickerSheet: View {
                     StrengthExerciseView(
                         exercise: UIExercise(
                             exercise_name: "Barbell Bench Press",
-                            type: "strength",
+                            type: "reps",
                             reps: [10, 8, 8, 6],
                             load_kg_each: [61.2, 70.3, 70.3, 79.4],
                             sets: 4,

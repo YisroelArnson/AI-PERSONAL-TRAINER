@@ -329,6 +329,33 @@ final class AssistantOverlayManager {
         }
     }
 
+    /// Update the streaming message content and attach an artifact
+    /// If the current streaming message already has content, creates a new message with the artifact
+    func updateStreamingContentWithArtifact(_ content: String, artifact: Artifact) {
+        guard let messageId = streamingMessageId,
+              let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+
+        // If current message is empty, set the content and artifact
+        if messages[index].content.isEmpty {
+            messages[index].content = content
+            messages[index].artifact = artifact
+        } else {
+            // Current message already has content - finalize it and create a new one
+            messages[index].isStreaming = false
+
+            // Create a new streaming message for this content with artifact
+            let newMessage = ChatMessage(
+                role: .assistant,
+                content: content,
+                steps: [],  // Steps stay with the first message
+                isStreaming: true,
+                artifact: artifact
+            )
+            streamingMessageId = newMessage.id
+            messages.append(newMessage)
+        }
+    }
+
     /// Finalize the streaming message (mark as complete)
     /// Waits for any remaining queued steps to be displayed before finalizing
     func finalizeStreamingMessage() {

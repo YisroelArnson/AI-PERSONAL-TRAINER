@@ -39,14 +39,11 @@ enum AppTheme {
         static let warning = Color(hex: "F7C97D")          // Gentle amber
         static let border = Color(hex: "E8E4E0").opacity(0.6)
         
-        // Exercise type colors (softer variants)
-        static let strength = Color(hex: "F4A574")         // Warm orange
-        static let cardio = Color(hex: "7FB7FF")           // Soft blue
-        static let hiit = Color(hex: "F7A0A0")             // Soft coral
-        static let bodyweight = Color(hex: "93E2C4")       // Soft mint
-        static let isometric = Color(hex: "C4A7E7")        // Soft lavender
-        static let flexibility = Color(hex: "F7C4D4")      // Soft pink
-        static let yoga = Color(hex: "A7E7D7")             // Soft teal
+        // Exercise type colors (4-type system)
+        static let reps = Color(hex: "F4A574")             // Warm orange (strength/bodyweight)
+        static let hold = Color(hex: "C4A7E7")             // Soft lavender (isometric/balance)
+        static let duration = Color(hex: "7FB7FF")         // Soft blue (cardio/yoga)
+        static let intervals = Color(hex: "F7A0A0")        // Soft coral (HIIT)
     }
     
     // MARK: - Gradients

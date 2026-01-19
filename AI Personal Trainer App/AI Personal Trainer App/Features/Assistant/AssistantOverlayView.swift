@@ -55,6 +55,15 @@ struct AssistantOverlayView: View {
                                 } else {
                                     manager.expand()
                                 }
+                            },
+                            onStartWorkout: { artifact in
+                                handleStartWorkout(artifact)
+                            },
+                            onAddToCurrent: { artifact in
+                                handleAddToCurrent(artifact)
+                            },
+                            onReplaceCurrent: { artifact in
+                                handleReplaceCurrent(artifact)
                             }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -236,6 +245,10 @@ struct AssistantOverlayView: View {
                 manager.updateStreamingContent(content)
             }
 
+        case .messageWithArtifact(let content, let artifact):
+            // Update streaming message content with attached artifact
+            manager.updateStreamingContentWithArtifact(content, artifact: artifact)
+
         case .question(let text, _):
             if !text.isEmpty {
                 manager.updateStreamingContent(text)
@@ -272,6 +285,38 @@ struct AssistantOverlayView: View {
 
         // If no XML tags, return as-is
         return formatted
+    }
+
+    // MARK: - Artifact Actions
+
+    private func handleStartWorkout(_ artifact: Artifact) {
+        print("🏋️ Starting workout from artifact: \(artifact.artifactId)")
+
+        // Load exercises from artifact into ExerciseStore (replaces current workout)
+        ExerciseStore.shared.loadFromArtifact(artifact)
+
+        // Close the overlay to show the workout
+        manager.minimize()
+    }
+
+    private func handleAddToCurrent(_ artifact: Artifact) {
+        print("➕ Adding to current workout from artifact: \(artifact.artifactId)")
+
+        // Add exercises from artifact to current workout
+        ExerciseStore.shared.addFromArtifact(artifact)
+
+        // Minimize to show the updated workout
+        manager.minimize()
+    }
+
+    private func handleReplaceCurrent(_ artifact: Artifact) {
+        print("🔄 Replacing current workout from artifact: \(artifact.artifactId)")
+
+        // Replace current workout with artifact exercises (same as Start)
+        ExerciseStore.shared.loadFromArtifact(artifact)
+
+        // Minimize to show the workout
+        manager.minimize()
     }
 }
 

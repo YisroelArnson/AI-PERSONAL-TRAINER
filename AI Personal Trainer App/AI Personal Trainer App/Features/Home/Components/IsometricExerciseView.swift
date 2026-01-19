@@ -97,7 +97,7 @@ struct IsometricSetCard: View {
             IsometricExerciseView(
                 exercise: UIExercise(
                     exercise_name: "Plank",
-                    type: "isometric",
+                    type: "hold",
                     sets: 3,
                     rest_seconds: 60,
                     hold_duration_sec: [45, 60, 45]

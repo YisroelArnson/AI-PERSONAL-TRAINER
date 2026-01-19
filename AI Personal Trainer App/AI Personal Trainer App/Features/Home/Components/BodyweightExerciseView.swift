@@ -165,7 +165,7 @@ struct BodyweightRepsPickerSheet: View {
                     BodyweightExerciseView(
                         exercise: UIExercise(
                             exercise_name: "Push-ups",
-                            type: "bodyweight",
+                            type: "reps",
                             reps: [15, 12, 10],
                             sets: 3,
                             rest_seconds: 60

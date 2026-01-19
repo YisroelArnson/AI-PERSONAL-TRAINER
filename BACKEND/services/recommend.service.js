@@ -5,7 +5,20 @@ const { fetchAllUserData } = require('./fetchUserData.service');
 const { formatDistributionForPrompt } = require('./exerciseDistribution.service');
 const { PRESET_MUSCLES } = require('./muscleGoals.service');
 
-// Zod schema for exercise recommendations output format
+// Valid muscles (16 preset) - matching the 4-type exercise system
+const VALID_MUSCLES = [
+  'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Abs',
+  'Lower Back', 'Quadriceps', 'Hamstrings', 'Glutes', 'Calves',
+  'Trapezius', 'Abductors', 'Adductors', 'Forearms', 'Neck'
+];
+
+// Group types for circuits, supersets, etc.
+const GROUP_TYPES = ['circuit', 'superset', 'giant_set', 'warmup', 'cooldown', 'sequence'];
+
+// Exercise types (4 core types)
+const EXERCISE_TYPES = ['reps', 'hold', 'duration', 'intervals'];
+
+// Legacy Zod schema for exercise recommendations output format (kept for backward compatibility)
 const ExerciseRecommendationSchema = z.object({
   recommendations: z.array(
     z.object({
@@ -47,6 +60,7 @@ const ExerciseRecommendationSchema = z.object({
 
 /**
  * Creates a dynamic Zod schema for exercise recommendations based on valid muscles and goals
+ * Uses the 4-type exercise system: reps, hold, duration, intervals
  * @param {Array<string>} validMuscles - List of valid muscle names
  * @param {Array<string>} validGoals - List of valid goal names
  * @returns {Object} Zod schema for individual exercise
@@ -61,10 +75,26 @@ function createIndividualExerciseSchema(validMuscles, validGoals) {
     ? z.enum(validGoals)
     : z.string();
 
+  // Group schema for circuits, supersets, etc.
+  const ExerciseGroupSchema = z.object({
+    id: z.string().describe('Unique group identifier (e.g., "circuit-1", "superset-a")'),
+    type: z.enum(GROUP_TYPES).describe('How to execute the group'),
+    position: z.number().int().positive().describe('Order within group (1-indexed)'),
+    name: z.string().optional().describe('Display name (set on first exercise only)'),
+    rounds: z.number().int().positive().optional().describe('Times to repeat group (set on first exercise only)'),
+    rest_between_rounds_sec: z.number().int().nonnegative().optional().describe('Rest after completing group')
+  }).nullable().optional();
+
   // Base schema for common exercise properties with dynamic validation
   const BaseExerciseSchema = z.object({
+    // Identity & ordering
     exercise_name: z.string(),
-    aliases: z.array(z.string()).optional(),
+    order: z.number().int().positive().describe('Position in workout (1-indexed)'),
+
+    // Grouping (optional - for circuits, supersets, etc.)
+    group: ExerciseGroupSchema,
+
+    // Metadata
     muscles_utilized: z.array(
       z.object({
         muscle: MuscleEnum,
@@ -74,9 +104,9 @@ function createIndividualExerciseSchema(validMuscles, validGoals) {
       (muscles) => {
         if (muscles.length === 0) return true;
         const totalShare = muscles.reduce((sum, m) => sum + m.share, 0);
-        return Math.abs(totalShare - 1.0) < 0.01;
+        return Math.abs(totalShare - 1.0) < 0.05;
       },
-      { message: "Muscle shares must add up to 1.0" }
+      { message: "Muscle shares must add up to approximately 1.0" }
     ),
     goals_addressed: z.array(
       z.object({
@@ -87,140 +117,50 @@ function createIndividualExerciseSchema(validMuscles, validGoals) {
       (goals) => {
         if (goals.length === 0) return true;
         const totalShare = goals.reduce((sum, g) => sum + g.share, 0);
-        return Math.abs(totalShare - 1.0) < 0.01;
+        return Math.abs(totalShare - 1.0) < 0.05;
       },
-      { message: "Goal shares must add up to 1.0" }
+      { message: "Goal shares must add up to approximately 1.0" }
     ),
-    reasoning: z.string(),
-    equipment: z.array(z.string()).optional(),
-    movement_pattern: z.array(
-      z.enum([
-        "squat",
-        "hinge",
-        "push",
-        "pull",
-        "carry",
-        "rotation_core",
-        "isolation",
-        "conditioning",
-        "plyometric",
-        "balance",
-        "flexibility",
-        "yoga"
-      ])
-    ).optional(),
-    exercise_description: z.string().optional(),
-    body_region: z.string().optional()
+    reasoning: z.string().max(300).describe('Brief explanation for this exercise selection'),
+    exercise_description: z.string().optional().describe('Instructions on how to perform the exercise'),
+    equipment: z.array(z.string()).optional().describe('Equipment needed')
   });
 
-  // Individual exercise schema for streaming (array output strategy)
+  // 4-type exercise schema using discriminated union
   return z.discriminatedUnion("exercise_type", [
-    // Strength/Resistance Training - Sets, reps, and weight
+    // Type: reps - Count repetitions across sets (strength, bodyweight)
     BaseExerciseSchema.extend({
-      exercise_type: z.literal("strength"),
-      sets: z.number().int().positive(),
-      reps: z.array(z.number().int().positive()),
-      load_kg_each: z.array(z.number().nonnegative()),
-      rest_seconds: z.number().int().positive().optional()
+      exercise_type: z.literal("reps"),
+      sets: z.number().int().positive().describe('Number of sets'),
+      reps: z.array(z.number().int().positive()).describe('Target reps per set'),
+      load_each: z.array(z.number().nonnegative()).nullable().optional().describe('Weight per set (null for bodyweight)'),
+      load_unit: z.enum(['lbs', 'kg']).nullable().optional().describe('Weight unit'),
+      rest_sec: z.number().int().nonnegative().describe('Rest between sets in seconds')
     }),
 
-    // Cardio - Distance based (running, cycling, etc.)
+    // Type: hold - Hold positions for time (isometric, balance, static stretches)
     BaseExerciseSchema.extend({
-      exercise_type: z.literal("cardio_distance"),
-      distance_km: z.number().positive(),
-      duration_min: z.number().int().positive().optional(),
-      target_pace: z.string().optional(), // e.g., "5:30/km"
+      exercise_type: z.literal("hold"),
+      sets: z.number().int().positive().describe('Number of sets'),
+      hold_sec: z.array(z.number().int().positive()).describe('Hold duration per set in seconds'),
+      rest_sec: z.number().int().nonnegative().describe('Rest between sets in seconds')
     }),
 
-    // Cardio - Time based (steady state)
+    // Type: duration - Continuous effort (cardio, yoga flows)
     BaseExerciseSchema.extend({
-      exercise_type: z.literal("cardio_time"),
-      duration_min: z.number().int().positive(),
+      exercise_type: z.literal("duration"),
+      duration_min: z.number().positive().describe('Total duration in minutes'),
+      distance: z.number().positive().nullable().optional().describe('Target distance (optional)'),
+      distance_unit: z.enum(['km', 'mi']).nullable().optional().describe('Distance unit'),
+      target_pace: z.string().nullable().optional().describe('Target pace (e.g., "5:30/km")')
     }),
 
-    // HIIT/Interval Training
+    // Type: intervals - Work/rest cycles (HIIT, tabata)
     BaseExerciseSchema.extend({
-      exercise_type: z.literal("hiit"),
-      rounds: z.number().int().positive(),
-      intervals: z.array(
-        z.object({
-          work_sec: z.number().int().positive(),
-          rest_sec: z.number().int().positive()
-        })
-      ),
-      total_duration_min: z.number().int().positive().optional()
-    }),
-
-    // Circuit Training (multiple exercises in sequence)
-    BaseExerciseSchema.extend({
-      exercise_type: z.literal("circuit"),
-      circuits: z.number().int().positive(),
-      exercises_in_circuit: z.array(
-        z.object({
-          name: z.string(),
-          duration_sec: z.number().int().positive().optional(),
-          reps: z.number().int().positive().optional()
-        })
-      ),
-      rest_between_circuits_sec: z.number().int().positive()
-    }),
-
-    // Flexibility/Stretching - Hold-based
-    BaseExerciseSchema.extend({
-      exercise_type: z.literal("flexibility"),
-      holds: z.array(
-        z.object({
-          position: z.string(),
-          duration_sec: z.number().int().positive()
-        })
-      ),
-      repetitions: z.number().int().positive().optional()
-    }),
-
-    // Yoga/Flow - Sequence based
-    BaseExerciseSchema.extend({
-      exercise_type: z.literal("yoga"),
-      sequence: z.array(
-        z.object({
-          pose: z.string(),
-          duration_sec: z.number().int().positive().optional(),
-          breaths: z.number().int().positive().optional()
-        })
-      ),
-      total_duration_min: z.number().int().positive()
-    }),
-
-    // Bodyweight - Rep based without external load
-    BaseExerciseSchema.extend({
-      exercise_type: z.literal("bodyweight"),
-      sets: z.number().int().positive(),
-      reps: z.array(z.number().int().positive()),
-      rest_seconds: z.number().int().positive().optional(),
-    }),
-
-    // Isometric - Hold-based exercises like planks, wall sits
-    BaseExerciseSchema.extend({
-      exercise_type: z.literal("isometric"),
-      sets: z.number().int().positive(),
-      hold_duration_sec: z.array(z.number().int().positive()),
-      rest_seconds: z.number().int().positive().optional(),
-    }),
-
-    // Balance/Stability - Time-based holds
-    BaseExerciseSchema.extend({
-      exercise_type: z.literal("balance"),
-      sets: z.number().int().positive(),
-      hold_duration_sec: z.array(z.number().int().positive()),
-    }),
-
-    // Sports-Specific - Skill practice
-    BaseExerciseSchema.extend({
-      exercise_type: z.literal("sport_specific"),
-      sport: z.string(),
-      drill_name: z.string(),
-      duration_min: z.number().int().positive(),
-      repetitions: z.number().int().positive().optional(),
-      skill_focus: z.string() // e.g., "accuracy", "speed", "technique"
+      exercise_type: z.literal("intervals"),
+      rounds: z.number().int().positive().describe('Number of rounds'),
+      work_sec: z.number().int().positive().describe('Work interval in seconds'),
+      rest_sec: z.number().int().nonnegative().describe('Rest interval in seconds')
     })
   ]);
 }
@@ -645,6 +585,19 @@ CORE PRINCIPLES:
 5. EXERCISE SELECTION: Choose exercises that match the user's goals - prioritize compound movements for strength goals, include isolation for hypertrophy goals
 6. REP RANGES: Apply goal-appropriate rep ranges - Strength (1-5), Hypertrophy (6-12), Endurance (12+), with mixed ranges for different exercise types
 
+EXERCISE TYPES (4 core types):
+- reps: Set/rep based exercises (strength, bodyweight). Fields: sets, reps[], load_each[] (optional), load_unit, rest_sec
+- hold: Isometric holds (planks, wall sits, static stretches). Fields: sets, hold_sec[], rest_sec
+- duration: Continuous activity (running, cycling, yoga flows). Fields: duration_min, distance (optional), distance_unit, target_pace (optional)
+- intervals: Work/rest cycles (HIIT, tabata). Fields: rounds, work_sec, rest_sec
+
+GROUPING (for circuits, supersets, etc.):
+Use the optional "group" field instead of a separate type:
+- group.type: circuit, superset, giant_set, warmup, cooldown, sequence
+- group.id: Unique identifier (e.g., "superset-1")
+- group.position: Order within the group (1-indexed)
+- group.rounds: How many times to repeat the group
+
 UNIT SYSTEM REQUIREMENTS:
 - ALWAYS use the user's preferred unit system as specified in their UNIT PREFERENCES
 - For weights: Use practical, commonly available increments (e.g., 5, 10, 15, 20, 25, 30, 35, 40, 45 lbs OR 2.5, 5, 7.5, 10, 12.5, 15, 17.5, 20 kg)
@@ -658,7 +611,8 @@ STRICT REQUIREMENTS:
 - Use ONLY the exact muscle names from the standard list: Chest, Back, Shoulders, Biceps, Triceps, Abs, Lower Back, Quadriceps, Hamstrings, Glutes, Calves, Trapezius, Abductors, Adductors, Forearms, Neck
 - Use ONLY the exact goal categories listed in the USER PROFILE (do not invent new goals)
 - Respect ALL temporary preferences as absolute overrides
-- Choose appropriate exercise_type for each exercise (strength, cardio_distance, cardio_time, hiit, circuit, flexibility, yoga, bodyweight, isometric, balance, sport_specific)`;
+- Choose appropriate exercise_type for each exercise: reps, hold, duration, or intervals
+- Include "order" field (1-indexed position in workout) for each exercise`;
 
 // Process rules for the model
 // Note: Temporary preferences are those with expire_time or delete_after_call=true

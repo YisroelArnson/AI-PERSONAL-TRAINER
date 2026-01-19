@@ -16,64 +16,86 @@ const MAX_ITERATIONS = 10;
 const MODEL = 'gpt-4o';
 
 /**
- * Parse tool call from XML response
- * Expects format: <action tool="tool_name">{"arg": "value"}</action>
- * @param {string} responseText - The LLM response text
+ * JSON Schema for structured outputs - guarantees valid tool calls
+ * OpenAI will enforce this schema, eliminating parsing failures
+ */
+const TOOL_CALL_SCHEMA = {
+  type: "json_schema",
+  json_schema: {
+    name: "tool_call",
+    strict: true,
+    schema: {
+      type: "object",
+      properties: {
+        tool: {
+          type: "string",
+          enum: [
+            "message_notify_user",
+            "message_ask_user",
+            "idle",
+            "generate_workout",
+            "swap_exercise",
+            "adjust_exercise",
+            "remove_exercise",
+            "log_workout",
+            "set_goals",
+            "set_preference",
+            "delete_preference",
+            "set_current_location",
+            "fetch_data"
+          ]
+        },
+        arguments: {
+          type: "object",
+          additionalProperties: true
+        }
+      },
+      required: ["tool", "arguments"],
+      additionalProperties: false
+    }
+  }
+};
+
+/**
+ * Parse tool call from JSON response (structured output)
+ * @param {string} responseText - The LLM response text (JSON)
  * @returns {Object|null} Parsed tool call or null
  */
-function parseToolCallFromXml(responseText) {
-  // Match <action tool="...">...</action>
-  const actionRegex = /<action\s+tool="([^"]+)">\s*([\s\S]*?)\s*<\/action>/;
-  const match = responseText.match(actionRegex);
-  
-  if (!match) {
-    // Try alternative format without quotes
-    const altRegex = /<action\s+tool=([^\s>]+)>\s*([\s\S]*?)\s*<\/action>/;
-    const altMatch = responseText.match(altRegex);
-    if (altMatch) {
-      try {
-        return {
-          id: `call_${Date.now()}`,
-          name: altMatch[1],
-          arguments: JSON.parse(altMatch[2].trim())
-        };
-      } catch (e) {
-        return null;
-      }
-    }
-    return null;
-  }
-  
-  const toolName = match[1];
-  const argsString = match[2].trim();
-  
+function parseToolCallFromJson(responseText) {
   try {
-    const args = JSON.parse(argsString);
+    const parsed = JSON.parse(responseText);
+
+    if (!parsed.tool || !parsed.arguments) {
+      return null;
+    }
+
     return {
       id: `call_${Date.now()}`,
-      name: toolName,
-      arguments: args
+      name: parsed.tool,
+      arguments: parsed.arguments
     };
   } catch (e) {
+    // This should never happen with structured outputs, but handle gracefully
+    console.error('Failed to parse JSON tool call:', e.message);
     return null;
   }
 }
 
 /**
- * Call the LLM with XML prompt (no built-in tools)
+ * Call the LLM with XML prompt and JSON structured output for tool calls
  * @param {Object} context - Built context with prompt string
  * @returns {Object} OpenAI API response
  */
 async function callLLM(context) {
   const { prompt } = context;
-  
-  // Send as a single user message - optimal for caching
+
+  // Send as a single user message with structured output for guaranteed tool calls
   const response = await openai.chat.completions.create({
     model: MODEL,
     messages: [
       { role: 'user', content: prompt }
-    ]
-    // NO tools parameter - we parse XML ourselves
+    ],
+    response_format: TOOL_CALL_SCHEMA
   });
 
   return response;
@@ -166,7 +188,7 @@ async function runAgentLoop(userId, userInput, options = {}) {
         totalDurationMs += durationMs;
         
         responseText = response.choices[0].message.content || '';
-        toolCall = parseToolCallFromXml(responseText);
+        toolCall = parseToolCallFromJson(responseText);
         
         // Log LLM response (pass raw response for observability)
         await sessionObs.logLLMResponse(sessionId, {
@@ -180,7 +202,10 @@ async function runAgentLoop(userId, userInput, options = {}) {
       }
 
       if (!toolCall) {
-        await sessionObs.logError(sessionId, 'No tool call found in LLM response', 'parse_response');
+        // This should rarely happen with structured outputs
+        await sessionObs.logError(sessionId, 'Failed to parse structured output', 'parse_response', {
+          responsePreview: responseText.substring(0, 300)
+        });
         break;
       }
 
@@ -308,5 +333,5 @@ async function getSessionState(sessionId) {
 module.exports = {
   runAgentLoop,
   getSessionState,
-  parseToolCallFromXml  // Export for testing
+  parseToolCallFromJson  // Export for testing
 };

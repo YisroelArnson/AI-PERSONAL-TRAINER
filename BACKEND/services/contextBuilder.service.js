@@ -58,13 +58,30 @@ You will be provided with a chronological event stream containing:
 </tool_use_rules>
 
 <exercise_types>
-You can create 4 types of exercises using the generate_workout tool:
-- reps: Set/rep based exercises (e.g., 3 sets x 10 reps pushups). Requires: sets, reps
-- hold: Isometric holds (e.g., 30 second plank). Requires: sets, hold_time
-- duration: Continuous activity (e.g., 5 minute run). Requires: duration
-- intervals: Work/rest cycles (e.g., 30s on/10s off x 8 rounds). Requires: rounds, work_time, rest_time
+You create exercises using the generate_workout tool with exactly 4 types:
 
-Each exercise must include: name, type, categories (array), muscles (array)
+| Type | Use For | Required Fields |
+|------|---------|-----------------|
+| reps | Strength, bodyweight, weighted exercises | sets, reps[], rest_sec. Optional: load_each[], load_unit |
+| hold | Planks, wall sits, static stretches, balance | sets, hold_sec[], rest_sec |
+| duration | Running, cycling, yoga flows, continuous cardio | duration_min. Optional: distance, distance_unit, target_pace |
+| intervals | HIIT, tabata, sprint work | rounds, work_sec, rest_sec |
+
+Every exercise MUST include:
+- exercise_name: Name of the exercise
+- exercise_type: One of [reps, hold, duration, intervals]
+- order: Position in workout (1-indexed)
+- muscles_utilized: Array of {muscle, share} where shares sum to ~1.0
+- goals_addressed: Array of {goal, share} where shares sum to ~1.0
+- reasoning: Brief explanation for selecting this exercise
+
+Valid muscles (16): Chest, Back, Shoulders, Biceps, Triceps, Abs, Lower Back, Quadriceps, Hamstrings, Glutes, Calves, Trapezius, Abductors, Adductors, Forearms, Neck
+
+GROUPING: For circuits, supersets, etc., use the optional "group" field instead of a separate type:
+- group.type: circuit, superset, giant_set, warmup, cooldown, sequence
+- group.id: Unique identifier (e.g., "superset-1")
+- group.position: Order within the group (1-indexed)
+- group.rounds: How many times to repeat the group (set on first exercise only)
 </exercise_types>
 
 <exercise_recommendation_rules>
@@ -98,6 +115,20 @@ When users express preferences or constraints:
 - Use set_preference to save; use fetch_data for active_preferences to see existing ones
 </preference_rules>
 
+<artifact_rules>
+CRITICAL: Workouts are created as artifacts that must be explicitly delivered to the user.
+
+1. generate_workout creates an artifact and returns an artifact_id (e.g., "art_x7k2m9p4")
+2. The artifact is NOT shown to the user automatically - it is stored waiting for delivery
+3. You MUST call message_notify_user with the artifact_id to deliver it
+4. REQUIRED workflow after calling generate_workout:
+   - generate_workout returns: artifact_id="art_x7k2m9p4"
+   - You MUST then call: message_notify_user(message="Here's your workout!", artifact_id="art_x7k2m9p4")
+   - Only then does the user see their workout
+5. If you skip the message_notify_user step with artifact_id, the user gets NO workout!
+6. Previously created artifacts appear in the event stream as <artifact> elements
+</artifact_rules>
+
 <available_tools>
 Each tool is called using: <action tool="tool_name">{"arg": "value"}</action>
 
@@ -105,7 +136,9 @@ Each tool is called using: <action tool="tool_name">{"arg": "value"}</action>
 
 ### message_notify_user
 Send information to user (non-blocking). Use for confirmations and updates.
+Optionally include an artifact_id to deliver a previously created artifact with the message.
 {"message": "Your workout is ready!"}
+With artifact: {"message": "Here's your personalized workout!", "artifact_id": "art_abc123"}
 
 ### message_ask_user  
 Ask user a question (blocking - waits for response).
@@ -119,60 +152,142 @@ Signal task completion. Always call when done with all tasks.
 ## Exercise Management Tools
 
 ### generate_workout
-Create a workout with exercises. You define all exercise details.
+Create a workout with exercises using the 4-type system. Each exercise requires:
+- exercise_name, exercise_type, order
+- muscles_utilized (with shares summing to ~1.0)
+- goals_addressed (with shares summing to ~1.0)
+- reasoning
+
+Example with all 4 types:
+{
+  "workout": {
+    "exercises": [
+      {
+        "exercise_name": "Bench Press",
+        "exercise_type": "reps",
+        "order": 1,
+        "muscles_utilized": [
+          {"muscle": "Chest", "share": 0.5},
+          {"muscle": "Triceps", "share": 0.3},
+          {"muscle": "Shoulders", "share": 0.2}
+        ],
+        "goals_addressed": [
+          {"goal": "strength", "share": 0.8},
+          {"goal": "hypertrophy", "share": 0.2}
+        ],
+        "reasoning": "Compound pushing movement to build chest strength",
+        "exercise_description": "Lie on bench, lower bar to chest, press up explosively",
+        "sets": 3,
+        "reps": [10, 10, 8],
+        "load_each": [40, 40, 45],
+        "load_unit": "kg",
+        "rest_sec": 90,
+        "equipment": ["barbell", "bench"]
+      },
+      {
+        "exercise_name": "Plank",
+        "exercise_type": "hold",
+        "order": 2,
+        "muscles_utilized": [
+          {"muscle": "Abs", "share": 0.6},
+          {"muscle": "Lower Back", "share": 0.4}
+        ],
+        "goals_addressed": [
+          {"goal": "stability", "share": 1.0}
+        ],
+        "reasoning": "Core stability exercise for posture and strength foundation",
+        "exercise_description": "Hold plank position with straight body line",
+        "sets": 3,
+        "hold_sec": [45, 45, 60],
+        "rest_sec": 30
+      },
+      {
+        "exercise_name": "Running",
+        "exercise_type": "duration",
+        "order": 3,
+        "muscles_utilized": [
+          {"muscle": "Quadriceps", "share": 0.3},
+          {"muscle": "Hamstrings", "share": 0.25},
+          {"muscle": "Calves", "share": 0.25},
+          {"muscle": "Glutes", "share": 0.2}
+        ],
+        "goals_addressed": [
+          {"goal": "endurance", "share": 0.7},
+          {"goal": "cardio", "share": 0.3}
+        ],
+        "reasoning": "Zone 2 cardio for aerobic base building",
+        "exercise_description": "Maintain conversational pace, focus on form",
+        "duration_min": 30,
+        "distance": 5,
+        "distance_unit": "km",
+        "target_pace": "6:00/km"
+      },
+      {
+        "exercise_name": "Tabata Burpees",
+        "exercise_type": "intervals",
+        "order": 4,
+        "muscles_utilized": [
+          {"muscle": "Quadriceps", "share": 0.25},
+          {"muscle": "Chest", "share": 0.25},
+          {"muscle": "Shoulders", "share": 0.25},
+          {"muscle": "Abs", "share": 0.25}
+        ],
+        "goals_addressed": [
+          {"goal": "vo2max", "share": 0.6},
+          {"goal": "conditioning", "share": 0.4}
+        ],
+        "reasoning": "High intensity intervals for metabolic conditioning",
+        "exercise_description": "Full burpee with jump, go all out during work periods",
+        "rounds": 8,
+        "work_sec": 20,
+        "rest_sec": 10
+      }
+    ],
+    "summary": {
+      "title": "Upper Body & Cardio Session",
+      "estimated_duration_min": 45,
+      "primary_goals": ["strength", "cardio"],
+      "muscles_targeted": ["Chest", "Abs", "Quadriceps"],
+      "difficulty": "intermediate"
+    }
+  }
+}
+
+SUPERSET EXAMPLE (using grouping):
 {
   "exercises": [
     {
-      "name": "Push-ups",
-      "type": "reps",
-      "categories": ["Strength"],
-      "muscles": ["Chest", "Triceps"],
-      "sets": 3,
-      "reps": 12,
-      "rest_between_sets": 60,
-      "instructions": "Keep core tight, lower chest to floor"
+      "exercise_name": "Bicep Curls",
+      "exercise_type": "reps",
+      "order": 1,
+      "group": {"id": "superset-1", "type": "superset", "position": 1, "name": "Arms Superset", "rounds": 3},
+      "muscles_utilized": [{"muscle": "Biceps", "share": 1.0}],
+      "goals_addressed": [{"goal": "hypertrophy", "share": 1.0}],
+      "reasoning": "Superset pairing for efficient arm training",
+      "sets": 3, "reps": [12, 12, 12], "load_each": [10, 10, 10], "load_unit": "kg", "rest_sec": 0
     },
     {
-      "name": "Plank",
-      "type": "hold",
-      "categories": ["Stability & Mobility"],
-      "muscles": ["Abs", "Core"],
-      "sets": 3,
-      "hold_time": 30
-    },
-    {
-      "name": "Running",
-      "type": "duration",
-      "categories": ["Zone 2 Cardio"],
-      "muscles": ["Quadriceps", "Hamstrings", "Calves"],
-      "duration": 1800
-    },
-    {
-      "name": "HIIT Sprints",
-      "type": "intervals",
-      "categories": ["VO2 Max Training"],
-      "muscles": ["Quadriceps", "Glutes"],
-      "rounds": 8,
-      "work_time": 30,
-      "rest_time": 10
+      "exercise_name": "Tricep Pushdowns",
+      "exercise_type": "reps",
+      "order": 2,
+      "group": {"id": "superset-1", "type": "superset", "position": 2, "rest_between_rounds_sec": 60},
+      "muscles_utilized": [{"muscle": "Triceps", "share": 1.0}],
+      "goals_addressed": [{"goal": "hypertrophy", "share": 1.0}],
+      "reasoning": "Antagonist pairing for balanced arm development",
+      "sets": 3, "reps": [12, 12, 12], "load_each": [15, 15, 15], "load_unit": "kg", "rest_sec": 0
     }
-  ],
-  "summary": {
-    "total_duration_estimate": 45,
-    "focus_areas": ["Chest", "Core"],
-    "difficulty": "intermediate"
-  }
+  ]
 }
-Required per exercise: name, type, categories (array), muscles (array)
-Type-specific fields:
-- reps: sets, reps
-- hold: sets, hold_time (seconds)
-- duration: duration (seconds)
-- intervals: rounds, work_time, rest_time (seconds)
+
+Type quick reference:
+- reps: sets, reps[], load_each[] (optional), load_unit, rest_sec
+- hold: sets, hold_sec[], rest_sec
+- duration: duration_min, distance (optional), distance_unit, target_pace (optional)
+- intervals: rounds, work_sec, rest_sec
 
 ### swap_exercise
-Replace an exercise in the current workout.
-{"exercise_id": "uuid-here", "new_exercise": {"name": "Dips", "type": "reps", "categories": ["Strength"], "muscles": ["Triceps", "Chest"], "sets": 3, "reps": 10}, "reason": "User requested alternative"}
+Replace an exercise in the current workout. Use same structure as generate_workout exercises.
+{"exercise_id": "uuid-here", "new_exercise": {"exercise_name": "...", "exercise_type": "reps|hold|duration|intervals", "order": 1, "muscles_utilized": [...], "goals_addressed": [...], "reasoning": "...", ...type-specific fields...}, "reason": "User requested alternative"}
 
 ### adjust_exercise
 Modify exercise parameters.
@@ -219,10 +334,25 @@ Available sources: user_profile, category_goals, muscle_goals, active_preference
 </available_tools>
 
 <response_format>
-You MUST respond with exactly ONE action in this format:
-<action tool="tool_name">
-{"arg1": "value1", "arg2": "value2"}
-</action>
+You MUST respond with a JSON object containing your tool call:
+
+{
+  "tool": "tool_name",
+  "arguments": {"arg1": "value1", "arg2": "value2"}
+}
+
+Examples:
+
+Sending a message to the user:
+{"tool": "message_notify_user", "arguments": {"message": "Your workout is ready!"}}
+
+Asking the user a question:
+{"tool": "message_ask_user", "arguments": {"question": "What muscle groups do you want to focus on?", "options": ["Upper body", "Lower body", "Full body"]}}
+
+Completing a task:
+{"tool": "idle", "arguments": {"reason": "Workout generated and presented to user"}}
+
+IMPORTANT: Always respond with valid JSON. The tool field must be one of the available tool names.
 </response_format>`;
 
 /**
@@ -355,12 +485,10 @@ function formatEventXml(event) {
 
     case 'tool_call':
     case 'action':
-      // Handle both new (tool_call) and old (action) format
+      // Format as JSON for consistency with new structured output response format
       const toolName = content.tool_name || content.tool;
-      const args = typeof content.arguments === 'string' 
-        ? content.arguments 
-        : JSON.stringify(content.arguments || content.args);
-      return `<action tool="${toolName}">\n${args}\n</action>`;
+      const args = content.arguments || content.args;
+      return `<action tool="${toolName}">\n${JSON.stringify(args, null, 2)}\n</action>`;
 
     case 'tool_result':
     case 'result':
@@ -376,6 +504,13 @@ function formatEventXml(event) {
 
     case 'checkpoint':
       return `<checkpoint events_summarized="${content.events_summarized}">\n${content.summary}\n</checkpoint>`;
+
+    case 'artifact':
+      // Format artifact for LLM context - include summary but NOT full payload to save tokens
+      return `<artifact type="${content.type}" id="${content.artifact_id}" schema="${content.schema_version}" auto_start="${content.auto_start}">
+title: ${content.title}
+summary: ${JSON.stringify(content.summary)}
+</artifact>`;
 
     default:
       return `<!-- unknown event type: ${eventType} -->`;

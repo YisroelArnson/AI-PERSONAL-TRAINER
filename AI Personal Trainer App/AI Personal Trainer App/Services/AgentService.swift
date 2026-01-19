@@ -47,6 +47,7 @@ enum AgentStreamEventType {
     case action(tool: String, status: ActionStatus, formatted: String?)
     case status(message: String, tool: String, phase: StatusPhase)  // New: for flickering status updates
     case message(String)
+    case messageWithArtifact(message: String, artifact: Artifact)  // Message with attached artifact
     case question(text: String, options: [String]?)
     case exercises([StreamingExercise])
     case done(sessionId: String)
@@ -448,16 +449,22 @@ class AgentService: ObservableObject {
             
             do {
                 let event = try JSONDecoder().decode(AgentStreamEvent.self, from: jsonData)
+
+                // Debug: Log message_notify_user events with raw JSON
+                if event.type == "message_notify_user" {
+                    print("🔍 Raw message_notify_user JSON: \(jsonString.prefix(500))...")
+                }
+
                 let eventType = parseStreamEvent(event)
-                
+
                 await MainActor.run {
                     onEvent(eventType)
                 }
-                
+
                 // Stop on done or error
                 if case .done = eventType { return }
                 if case .error = eventType { return }
-                
+
             } catch {
                 print("⚠️ Failed to decode streaming event: \(error)")
                 print("   Raw line: \(jsonString)")
@@ -489,10 +496,16 @@ class AgentService: ObservableObject {
             return .status(message: message, tool: tool, phase: phase)
             
         case "message_notify_user":
-            if let message = event.data?.message {
-                return .message(message)
+            let message = event.data?.message ?? ""
+            // Check if artifact is attached (either at top level or in data)
+            print("📦 message_notify_user received - message: \"\(message.prefix(50))...\"")
+            print("   event.artifact: \(event.artifact != nil ? "present" : "nil")")
+            print("   event.data?.artifact: \(event.data?.artifact != nil ? "present" : "nil")")
+            if let artifact = event.artifact ?? event.data?.artifact {
+                print("   ✅ Artifact found! ID: \(artifact.artifactId), title: \(artifact.title)")
+                return .messageWithArtifact(message: message, artifact: artifact)
             }
-            return .message("")
+            return .message(message)
             
         case "message_ask_user":
             if let question = event.data?.question {

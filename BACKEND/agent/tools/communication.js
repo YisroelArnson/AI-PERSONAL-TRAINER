@@ -1,9 +1,11 @@
 // BACKEND/agent/tools/communication.js
 // Communication tools for agent-user interaction
 
+const sessionObs = require('../../services/sessionObservability.service');
+
 const communicationTools = {
   message_notify_user: {
-    description: 'Send a message to the user without expecting a response. Use for confirmations, status updates, and information.',
+    description: 'Send a message to the user without expecting a response. Optionally include an artifact_id to deliver a previously created artifact with the message.',
     // No status message - this IS the message to the user
     statusMessage: null,
     parameters: {
@@ -12,18 +14,42 @@ const communicationTools = {
         message: {
           type: 'string',
           description: 'The message to display to the user'
+        },
+        artifact_id: {
+          type: 'string',
+          description: 'Optional: ID of an artifact to deliver with this message (e.g., from generate_workout)'
         }
       },
       required: ['message']
     },
     execute: async (args, context) => {
-      return {
+      const result = {
         success: true,
         message: args.message,
         type: 'notification'
       };
+
+      // If artifact_id provided, resolve and include the artifact
+      if (args.artifact_id) {
+        const artifact = await sessionObs.getArtifact(context.sessionId, args.artifact_id);
+        if (artifact) {
+          result.artifact = artifact;
+          result.artifact_id = args.artifact_id;
+        } else {
+          // Artifact not found - still succeed but note it
+          result.artifact_warning = `Artifact ${args.artifact_id} not found`;
+        }
+      }
+
+      return result;
     },
-    formatResult: (result) => `Notified user: "${result.message.substring(0, 50)}${result.message.length > 50 ? '...' : ''}"`
+    formatResult: (result) => {
+      let formatted = `Notified user: "${result.message.substring(0, 50)}${result.message.length > 50 ? '...' : ''}"`;
+      if (result.artifact_id) {
+        formatted += ` [artifact: ${result.artifact_id}]`;
+      }
+      return formatted;
+    }
   },
 
   message_ask_user: {

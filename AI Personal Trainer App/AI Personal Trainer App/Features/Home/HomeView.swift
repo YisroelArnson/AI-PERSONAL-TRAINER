@@ -45,17 +45,17 @@ struct HomeView: View {
         exerciseStore.allExercisesCompleted
     }
     
-    // Check if current exercise can be completed (has at least one set done for strength/bodyweight)
+    // Check if current exercise can be completed (has at least one set done for reps type)
     private var canCompleteCurrentExercise: Bool {
         guard !exercises.isEmpty else { return false }
         let exercise = exercises[currentExerciseIndex]
-        
-        // For strength and bodyweight exercises, require at least one set to be completed
-        if exercise.type == "strength" || exercise.type == "bodyweight" {
+
+        // For reps exercises (with sets), require at least one set to be completed
+        if exercise.type == "reps" && exercise.sets != nil {
             let completedSets = completedSetsPerExercise[exercise.id] ?? []
             return !completedSets.isEmpty
         }
-        
+
         // For other exercise types, always allow completion
         return true
     }
@@ -430,90 +430,62 @@ struct HomeView: View {
     
     private func convertToUIExercise(_ exercise: Exercise) -> UIExercise {
         // Create UIExercise from Exercise model (this is used for logging)
-        // Extract total_duration_min based on exercise type
+        // Extract total_duration_min for intervals type
         var totalDuration: Int? = nil
-        if exercise.exercise_type == "hiit" || exercise.exercise_type == "yoga" {
+        if exercise.exercise_type == "intervals" {
             totalDuration = exercise.duration_min > 0 ? exercise.duration_min : nil
         }
         
         return UIExercise(
             exercise_name: exercise.name,
             type: exercise.exercise_type,
-            aliases: exercise.aliases,
             duration_min: exercise.duration_min > 0 ? exercise.duration_min : nil,
             reps: !exercise.reps.isEmpty ? exercise.reps : nil,
             load_kg_each: !exercise.load_kg_each.isEmpty ? exercise.load_kg_each : nil,
             sets: exercise.sets > 0 ? exercise.sets : nil,
             distance_km: exercise.distance_km,
-            intervals: exercise.intervals,
             rounds: exercise.rounds,
+            total_duration_min: totalDuration,
             muscles_utilized: exercise.muscles_utilized,
             rest_seconds: exercise.rest_seconds,
             target_pace: exercise.target_pace,
             hold_duration_sec: exercise.hold_duration_sec,
-            progression_level: nil,
-            circuits: nil,
-            exercises_in_circuit: nil,
-            rest_between_circuits_sec: nil,
-            holds: nil,
-            repetitions: nil,
-            sequence: nil,
-            total_duration_min: totalDuration,
-            sport: nil,
-            drill_name: nil,
-            skill_focus: nil,
             goals_addressed: exercise.goals_addressed,
             reasoning: exercise.reasoning,
             equipment: exercise.equipment,
-            movement_pattern: exercise.movement_pattern,
-            exercise_description: exercise.exercise_description,
-            body_region: exercise.body_region
+            exercise_description: exercise.exercise_description
         )
     }
-    
+
     private func convertStreamingToUIExercise(_ streamingExercise: StreamingExercise) -> UIExercise {
-        // Direct conversion from StreamingExercise to UIExercise preserving all fields
+        // Direct conversion from StreamingExercise to UIExercise
         return UIExercise(
             exercise_name: streamingExercise.exercise_name,
             type: streamingExercise.exercise_type,
-            aliases: streamingExercise.aliases,
             duration_min: streamingExercise.duration_min,
             reps: streamingExercise.reps,
             load_kg_each: streamingExercise.load_kg_each,
             sets: streamingExercise.sets,
             distance_km: streamingExercise.distance_km,
-            intervals: streamingExercise.intervals,
             rounds: streamingExercise.rounds,
+            total_duration_min: streamingExercise.total_duration_min,
             muscles_utilized: streamingExercise.muscles_utilized,
             rest_seconds: streamingExercise.rest_seconds,
             target_pace: streamingExercise.target_pace,
             hold_duration_sec: streamingExercise.hold_duration_sec,
-            progression_level: streamingExercise.progression_level,
-            circuits: streamingExercise.circuits,
-            exercises_in_circuit: streamingExercise.exercises_in_circuit,
-            rest_between_circuits_sec: streamingExercise.rest_between_circuits_sec,
-            holds: streamingExercise.holds,
-            repetitions: streamingExercise.repetitions,
-            sequence: streamingExercise.sequence,
-            total_duration_min: streamingExercise.total_duration_min,
-            sport: streamingExercise.sport,
-            drill_name: streamingExercise.drill_name,
-            skill_focus: streamingExercise.skill_focus,
             goals_addressed: streamingExercise.goals_addressed,
             reasoning: streamingExercise.reasoning,
             equipment: streamingExercise.equipment,
-            movement_pattern: streamingExercise.movement_pattern,
-            exercise_description: streamingExercise.exercise_description,
-            body_region: streamingExercise.body_region
+            exercise_description: streamingExercise.exercise_description
         )
     }
     
     private func completeExercise(_ exercise: UIExercise) {
         Task {
             do {
-                // For strength and bodyweight exercises, use adjusted values and only completed sets
+                // For reps exercises (with sets), use adjusted values and only completed sets
                 let exerciseModel: Exercise
-                if exercise.type == "strength" || exercise.type == "bodyweight" {
+                if exercise.type == "reps" && exercise.sets != nil {
                     exerciseModel = createAdjustedExercise(from: exercise)
                 } else {
                     exerciseModel = exercise.toExercise()
@@ -611,22 +583,22 @@ struct HomeView: View {
     private func createAdjustedExercise(from exercise: UIExercise) -> Exercise {
         let completedSets = completedSetsPerExercise[exercise.id] ?? []
         let adjustedReps = adjustedRepsPerExercise[exercise.id] ?? exercise.reps ?? []
-        
+
         // Filter to only completed sets and get their values
         let sortedCompletedIndices = completedSets.sorted()
         let completedReps = sortedCompletedIndices.compactMap { index in
             adjustedReps.indices.contains(index) ? adjustedReps[index] : nil
         }
-        
-        // Handle weights only for strength exercises
+
+        // Handle weights for reps exercises with load
         var completedWeights: [Double] = []
-        if exercise.type == "strength" {
+        if exercise.type == "reps" && exercise.load_kg_each != nil {
             let adjustedWeights = adjustedWeightsPerExercise[exercise.id] ?? exercise.load_kg_each?.map { Int($0) } ?? []
             completedWeights = sortedCompletedIndices.compactMap { index in
                 adjustedWeights.indices.contains(index) ? Double(adjustedWeights[index]) : nil
             }
         }
-        
+
         return Exercise(
             name: exercise.exercise_name,
             exercise_type: exercise.type,
@@ -638,16 +610,12 @@ struct HomeView: View {
             goals_addressed: exercise.goals_addressed,
             reasoning: exercise.reasoning ?? "",
             exercise_description: exercise.exercise_description,
-            intervals: exercise.intervals,
             distance_km: exercise.distance_km,
             rounds: exercise.rounds,
             rest_seconds: exercise.rest_seconds,
             target_pace: exercise.target_pace,
             hold_duration_sec: exercise.hold_duration_sec,
-            equipment: exercise.equipment,
-            movement_pattern: exercise.movement_pattern,
-            body_region: exercise.body_region,
-            aliases: exercise.aliases
+            equipment: exercise.equipment
         )
     }
     
@@ -695,42 +663,25 @@ struct HomeView: View {
     
     // MARK: - Exercise State Helpers
     
-    /// Ensures state arrays are initialized for a strength or bodyweight exercise
+    /// Ensures state arrays are initialized for reps exercises
     private func initializeStrengthExerciseState(for exercise: UIExercise) {
-        // Handle strength exercises
-        if exercise.type == "strength",
-           let reps = exercise.reps,
-           let loads = exercise.load_kg_each {
-            
-            // Initialize completed sets if not present
-            if exerciseStore.completedSetsPerExercise[exercise.id] == nil {
-                exerciseStore.updateCompletedSets(exerciseId: exercise.id, sets: [])
-            }
-            
-            // Initialize adjusted reps if not present
-            if exerciseStore.adjustedRepsPerExercise[exercise.id] == nil {
-                exerciseStore.updateAdjustedReps(exerciseId: exercise.id, reps: reps)
-            }
-            
-            // Initialize adjusted weights if not present (convert kg to lbs)
-            if exerciseStore.adjustedWeightsPerExercise[exercise.id] == nil {
-                exerciseStore.updateAdjustedWeights(exerciseId: exercise.id, weights: loads.map { Int($0) })
-            }
+        // Handle reps exercises (with or without load)
+        guard exercise.type == "reps", let reps = exercise.reps else { return }
+
+        // Initialize completed sets if not present
+        if exerciseStore.completedSetsPerExercise[exercise.id] == nil {
+            exerciseStore.updateCompletedSets(exerciseId: exercise.id, sets: [])
         }
-        
-        // Handle bodyweight exercises
-        if exercise.type == "bodyweight",
-           let reps = exercise.reps {
-            
-            // Initialize completed sets if not present
-            if exerciseStore.completedSetsPerExercise[exercise.id] == nil {
-                exerciseStore.updateCompletedSets(exerciseId: exercise.id, sets: [])
-            }
-            
-            // Initialize adjusted reps if not present
-            if exerciseStore.adjustedRepsPerExercise[exercise.id] == nil {
-                exerciseStore.updateAdjustedReps(exerciseId: exercise.id, reps: reps)
-            }
+
+        // Initialize adjusted reps if not present
+        if exerciseStore.adjustedRepsPerExercise[exercise.id] == nil {
+            exerciseStore.updateAdjustedReps(exerciseId: exercise.id, reps: reps)
+        }
+
+        // Initialize adjusted weights if not present (for weighted exercises)
+        if let loads = exercise.load_kg_each,
+           exerciseStore.adjustedWeightsPerExercise[exercise.id] == nil {
+            exerciseStore.updateAdjustedWeights(exerciseId: exercise.id, weights: loads.map { Int($0) })
         }
     }
     
@@ -761,96 +712,93 @@ struct HomeView: View {
 
 // MARK: - Data Models
 
+/// UI exercise model using the 4-type system: reps, hold, duration, intervals
 struct UIExercise: Identifiable, Codable {
     let id: UUID
     let exercise_name: String
-    let type: String // exercise type (strength, cardio_distance, etc.)
-    let aliases: [String]?
-    let duration_min: Int?
-    
-    // For rep-based exercises
-    let reps: [Int]?
-    let load_kg_each: [Double]?
-    let sets: Int?
-    
-    // For distance-based cardio
-    let distance_km: Double?
-    
-    // For interval exercises
-    let intervals: [ExerciseInterval]?
-    let rounds: Int?
-    
-    // Muscle utilization
+    let type: String // exercise type: "reps", "hold", "duration", "intervals"
+
+    // === METADATA ===
     let muscles_utilized: [MuscleUtilization]?
-    
-    // Additional fields for different exercise types
-    let rest_seconds: Int?
-    let target_pace: String?
-    let hold_duration_sec: [Int]?
-    let progression_level: String?
-    
-    // Circuit training fields
-    let circuits: Int?
-    let exercises_in_circuit: [CircuitExercise]?
-    let rest_between_circuits_sec: Int?
-    
-    // Flexibility fields
-    let holds: [FlexibilityHold]?
-    let repetitions: Int?
-    
-    // Yoga fields
-    let sequence: [YogaPose]?
-    let total_duration_min: Int?
-    
-    // Sport-specific fields
-    let sport: String?
-    let drill_name: String?
-    let skill_focus: String?
-    
-    // Metadata fields
     let goals_addressed: [GoalUtilization]?
     let reasoning: String?
-    let equipment: [String]?
-    let movement_pattern: [String]?
     let exercise_description: String?
-    let body_region: String?
-    
+    let equipment: [String]?
+
+    // === TYPE: reps - Count repetitions across sets ===
+    let sets: Int?
+    let reps: [Int]?
+    let load_kg_each: [Double]?  // Weight per set
+    let load_unit: String?       // "lbs" or "kg"
+
+    // === TYPE: hold - Hold positions for time ===
+    let hold_duration_sec: [Int]? // Hold duration per set in seconds
+
+    // === TYPE: duration - Continuous effort ===
+    let duration_min: Int?
+    let distance_km: Double?
+    let distance_unit: String?   // "km" or "mi"
+    let target_pace: String?
+
+    // === TYPE: intervals - Work/rest cycles ===
+    let rounds: Int?
+    let work_sec: Int?           // Work interval in seconds
+    let total_duration_min: Int? // Total workout duration
+
+    // === SHARED TIMING ===
+    let rest_seconds: Int?       // Rest between sets/intervals in seconds
+
+    // === GROUPING (optional) ===
+    let group: ExerciseGroup?
+
     // Custom initializer to generate UUID
-    init(exercise_name: String, type: String, aliases: [String]? = nil, duration_min: Int? = nil, reps: [Int]? = nil, load_kg_each: [Double]? = nil, sets: Int? = nil, distance_km: Double? = nil, intervals: [ExerciseInterval]? = nil, rounds: Int? = nil, muscles_utilized: [MuscleUtilization]? = nil, rest_seconds: Int? = nil, target_pace: String? = nil, hold_duration_sec: [Int]? = nil, progression_level: String? = nil, circuits: Int? = nil, exercises_in_circuit: [CircuitExercise]? = nil, rest_between_circuits_sec: Int? = nil, holds: [FlexibilityHold]? = nil, repetitions: Int? = nil, sequence: [YogaPose]? = nil, total_duration_min: Int? = nil, sport: String? = nil, drill_name: String? = nil, skill_focus: String? = nil, goals_addressed: [GoalUtilization]? = nil, reasoning: String? = nil, equipment: [String]? = nil, movement_pattern: [String]? = nil, exercise_description: String? = nil, body_region: String? = nil) {
+    init(
+        exercise_name: String,
+        type: String,
+        duration_min: Int? = nil,
+        reps: [Int]? = nil,
+        load_kg_each: [Double]? = nil,
+        load_unit: String? = nil,
+        sets: Int? = nil,
+        distance_km: Double? = nil,
+        distance_unit: String? = nil,
+        rounds: Int? = nil,
+        work_sec: Int? = nil,
+        total_duration_min: Int? = nil,
+        muscles_utilized: [MuscleUtilization]? = nil,
+        rest_seconds: Int? = nil,
+        target_pace: String? = nil,
+        hold_duration_sec: [Int]? = nil,
+        goals_addressed: [GoalUtilization]? = nil,
+        reasoning: String? = nil,
+        equipment: [String]? = nil,
+        exercise_description: String? = nil,
+        group: ExerciseGroup? = nil
+    ) {
         self.id = UUID()
         self.exercise_name = exercise_name
         self.type = type
-        self.aliases = aliases
         self.duration_min = duration_min
         self.reps = reps
         self.load_kg_each = load_kg_each
+        self.load_unit = load_unit
         self.sets = sets
         self.distance_km = distance_km
-        self.intervals = intervals
+        self.distance_unit = distance_unit
         self.rounds = rounds
+        self.work_sec = work_sec
+        self.total_duration_min = total_duration_min
         self.muscles_utilized = muscles_utilized
         self.rest_seconds = rest_seconds
         self.target_pace = target_pace
         self.hold_duration_sec = hold_duration_sec
-        self.progression_level = progression_level
-        self.circuits = circuits
-        self.exercises_in_circuit = exercises_in_circuit
-        self.rest_between_circuits_sec = rest_between_circuits_sec
-        self.holds = holds
-        self.repetitions = repetitions
-        self.sequence = sequence
-        self.total_duration_min = total_duration_min
-        self.sport = sport
-        self.drill_name = drill_name
-        self.skill_focus = skill_focus
         self.goals_addressed = goals_addressed
         self.reasoning = reasoning
         self.equipment = equipment
-        self.movement_pattern = movement_pattern
         self.exercise_description = exercise_description
-        self.body_region = body_region
+        self.group = group
     }
-    
+
     // Convert to Exercise model for logging
     func toExercise() -> Exercise {
         return Exercise(
@@ -864,91 +812,107 @@ struct UIExercise: Identifiable, Codable {
             goals_addressed: goals_addressed,
             reasoning: reasoning ?? "",
             exercise_description: exercise_description,
-            intervals: intervals,
             distance_km: distance_km,
             rounds: rounds,
             rest_seconds: rest_seconds,
             target_pace: target_pace,
             hold_duration_sec: hold_duration_sec,
-            equipment: equipment,
-            movement_pattern: movement_pattern,
-            body_region: body_region,
-            aliases: aliases
+            equipment: equipment
         )
     }
-    
+
     enum CodingKeys: String, CodingKey {
-        case id, exercise_name, type, aliases, duration_min, reps, load_kg_each, sets, distance_km, intervals, rounds, muscles_utilized, rest_seconds, target_pace, hold_duration_sec, progression_level, circuits, exercises_in_circuit, rest_between_circuits_sec, holds, repetitions, sequence, total_duration_min, sport, drill_name, skill_focus, goals_addressed, reasoning, equipment, movement_pattern, exercise_description, body_region
+        case id, exercise_name, type
+        case duration_min, reps, sets, rounds
+        case load_kg_each, load_unit
+        case distance_km, distance_unit
+        case work_sec, total_duration_min
+        case muscles_utilized, rest_seconds, target_pace
+        case hold_duration_sec
+        case goals_addressed, reasoning, equipment
+        case exercise_description
+        case group
     }
-    
+
     static var sampleExercises: [UIExercise] {
+        // Sample using new 4-type system
         let benchPress = UIExercise(
             exercise_name: "Barbell Bench Press",
-            type: "strength",
-            aliases: ["bb_bench_press"],
-            duration_min: 0,
-            reps: [8, 8, 6, 6],
-            load_kg_each: [80, 80, 85, 85],
-            sets: 4,
-            distance_km: nil,
-            intervals: nil,
-            rounds: nil,
+            type: "reps",
+            reps: [10, 10, 8],
+            load_kg_each: [40, 40, 45],
+            load_unit: "kg",
+            sets: 3,
             muscles_utilized: [
-                MuscleUtilization(muscle: "chest", share: 0.5),
-                MuscleUtilization(muscle: "triceps", share: 0.3),
-                MuscleUtilization(muscle: "shoulders", share: 0.2)
+                MuscleUtilization(muscle: "Chest", share: 0.5),
+                MuscleUtilization(muscle: "Triceps", share: 0.3),
+                MuscleUtilization(muscle: "Shoulders", share: 0.2)
             ],
             rest_seconds: 90,
-            target_pace: nil,
-            hold_duration_sec: nil,
-            progression_level: nil
+            goals_addressed: [
+                GoalUtilization(goal: "strength", share: 0.8),
+                GoalUtilization(goal: "hypertrophy", share: 0.2)
+            ],
+            reasoning: "Compound pushing movement to build chest strength",
+            equipment: ["barbell", "bench"]
         )
-        
+
+        let plank = UIExercise(
+            exercise_name: "Plank",
+            type: "hold",
+            sets: 3,
+            muscles_utilized: [
+                MuscleUtilization(muscle: "Abs", share: 0.6),
+                MuscleUtilization(muscle: "Lower Back", share: 0.4)
+            ],
+            rest_seconds: 30,
+            hold_duration_sec: [45, 45, 60],
+            goals_addressed: [
+                GoalUtilization(goal: "stability", share: 1.0)
+            ],
+            reasoning: "Core stability exercise"
+        )
+
         let run5k = UIExercise(
             exercise_name: "5K Run",
-            type: "cardio_distance",
-            aliases: ["running"],
-            duration_min: 25,
-            reps: nil,
-            load_kg_each: nil,
-            sets: nil,
+            type: "duration",
+            duration_min: 30,
             distance_km: 5.0,
-            intervals: nil,
-            rounds: nil,
+            distance_unit: "km",
             muscles_utilized: [
-                MuscleUtilization(muscle: "legs", share: 0.7),
-                MuscleUtilization(muscle: "core", share: 0.3)
+                MuscleUtilization(muscle: "Quadriceps", share: 0.3),
+                MuscleUtilization(muscle: "Hamstrings", share: 0.25),
+                MuscleUtilization(muscle: "Calves", share: 0.25),
+                MuscleUtilization(muscle: "Glutes", share: 0.2)
             ],
-            rest_seconds: nil,
-            target_pace: "5:00/km",
-            hold_duration_sec: nil,
-            progression_level: nil
+            target_pace: "6:00/km",
+            goals_addressed: [
+                GoalUtilization(goal: "endurance", share: 0.7),
+                GoalUtilization(goal: "cardio", share: 0.3)
+            ],
+            reasoning: "Zone 2 cardio for aerobic base"
         )
-        
-        let hiitCircuit = UIExercise(
-            exercise_name: "HIIT Circuit",
-            type: "hiit",
-            aliases: ["high_intensity_intervals"],
-            duration_min: 20,
-            reps: nil,
-            load_kg_each: nil,
-            sets: nil,
-            distance_km: nil,
-            intervals: [
-                ExerciseInterval(work_sec: 30, rest_sec: nil),
-                ExerciseInterval(work_sec: nil, rest_sec: 60)
-            ],
-            rounds: 10,
+
+        let tabata = UIExercise(
+            exercise_name: "Tabata Burpees",
+            type: "intervals",
+            rounds: 8,
+            work_sec: 20,
             muscles_utilized: [
-                MuscleUtilization(muscle: "full_body", share: 1.0)
+                MuscleUtilization(muscle: "Quadriceps", share: 0.25),
+                MuscleUtilization(muscle: "Chest", share: 0.25),
+                MuscleUtilization(muscle: "Shoulders", share: 0.25),
+                MuscleUtilization(muscle: "Abs", share: 0.25)
             ],
-            rest_seconds: nil,
-            target_pace: nil,
-            hold_duration_sec: nil,
-            progression_level: nil
+            rest_seconds: 10,
+            goals_addressed: [
+                GoalUtilization(goal: "vo2max", share: 0.6),
+                GoalUtilization(goal: "conditioning", share: 0.4)
+            ],
+            reasoning: "High intensity intervals for metabolic conditioning"
         )
-        
-        return [benchPress, run5k, hiitCircuit]
+
+        return [benchPress, plank, run5k, tabata]
     }
 }
 

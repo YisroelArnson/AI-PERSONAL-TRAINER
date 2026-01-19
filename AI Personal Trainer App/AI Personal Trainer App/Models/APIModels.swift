@@ -28,22 +28,34 @@ struct RecommendationData: Codable {
     let recommendations: [RecommendationExercise]
 }
 
+/// Recommendation exercise model using 4-type system: reps, hold, duration, intervals
 struct RecommendationExercise: Codable {
     let exercise_name: String
-    let aliases: [String]?
-    let duration_min: Int?
-    let reps: [Int]?
-    let load_kg_each: [Double]?
-    let distance_km: Double?
-    let intervals: [ExerciseInterval]?
-    let rounds: Int?
+    let exercise_type: String  // "reps", "hold", "duration", "intervals"
     let muscles_utilized: [MuscleUtilization]
     let goals_addressed: [GoalUtilization]
     let reasoning: String
     let equipment: [String]?
-    let movement_pattern: [String]?
     let exercise_description: String?
-    let body_region: String?
+
+    // TYPE: reps
+    let sets: Int?
+    let reps: [Int]?
+    let load_kg_each: [Double]?
+
+    // TYPE: hold
+    let hold_duration_sec: [Int]?
+
+    // TYPE: duration
+    let duration_min: Int?
+    let distance_km: Double?
+    let target_pace: String?
+
+    // TYPE: intervals
+    let rounds: Int?
+
+    // SHARED
+    let rest_seconds: Int?
 }
 
 struct RecommendationMetadata: Codable {
@@ -66,47 +78,41 @@ struct StreamingMessage: Codable {
     let details: String?
 }
 
+/// Streaming exercise model using the 4-type system: reps, hold, duration, intervals
 struct StreamingExercise: Codable {
-    let exercise_type: String
+    let exercise_type: String  // "reps", "hold", "duration", "intervals"
     let exercise_name: String
-    let aliases: [String]?
     let muscles_utilized: [MuscleUtilization]
     let goals_addressed: [GoalUtilization]
     let reasoning: String
     let equipment: [String]?
-    let movement_pattern: [String]?
     let exercise_description: String?
-    let body_region: String?
-    
-    // Type-specific fields
+
+    // TYPE: reps - Count repetitions across sets
     let sets: Int?
     let reps: [Int]?
     let load_kg_each: [Double]?
-    let rest_seconds: Int?
-    let distance_km: Double?
-    let duration_min: Int?
-    let target_pace: String?
-    let elevation_gain_m: Double?
-    let target_heart_rate_bpm: Int?
-    let rounds: Int?
-    let intervals: [ExerciseInterval]?
-    let total_duration_min: Int?
-    let circuits: Int?
-    let exercises_in_circuit: [CircuitExercise]?
-    let rest_between_circuits_sec: Int?
-    let holds: [FlexibilityHold]?
-    let repetitions: Int?
-    let sequence: [YogaPose]?
-    let progression_level: String?
+    let load_unit: String?
+
+    // TYPE: hold - Hold positions for time
     let hold_duration_sec: [Int]?
-    let progression_notes: String?
-    let jump_height_cm: Double?
-    let landing_emphasis: String?
-    let difficulty_level: String?
-    let support_used: String?
-    let sport: String?
-    let drill_name: String?
-    let skill_focus: String?
+
+    // TYPE: duration - Continuous effort
+    let duration_min: Int?
+    let distance_km: Double?
+    let distance_unit: String?
+    let target_pace: String?
+
+    // TYPE: intervals - Work/rest cycles
+    let rounds: Int?
+    let work_sec: Int?
+    let total_duration_min: Int?
+
+    // SHARED
+    let rest_seconds: Int?
+
+    // GROUPING (optional)
+    let group: ExerciseGroup?
 }
 
 // MARK: - Agent Models

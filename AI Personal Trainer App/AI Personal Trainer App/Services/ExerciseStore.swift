@@ -211,36 +211,111 @@ class ExerciseStore: ObservableObject {
     }
     
     // MARK: - Agent Context
-    
+
     /// Creates a payload representing the current workout session for the agent API
+    /// Uses the 4-type exercise system: reps, hold, duration, intervals
     /// Returns nil if there are no exercises
     func getCurrentWorkoutPayload() -> CurrentWorkoutPayload? {
         guard !exercises.isEmpty else { return nil }
-        
+
         let exercisePayloads = exercises.map { exercise -> WorkoutExercisePayload in
             let isCompleted = completedExerciseIds.contains(exercise.id)
-            
+
+            // Convert Int? to Double? for duration_min
+            let durationMinDouble: Double? = exercise.duration_min != nil ? Double(exercise.duration_min!) : nil
+
             return WorkoutExercisePayload(
                 name: exercise.exercise_name,
                 type: exercise.type,
                 completed: isCompleted,
                 sets: exercise.sets,
                 reps: exercise.reps,
-                loadKgEach: exercise.load_kg_each,
-                durationMin: exercise.duration_min,
-                distanceKm: exercise.distance_km,
-                holdDurationSec: exercise.hold_duration_sec,
+                loadEach: exercise.load_kg_each,
+                loadUnit: exercise.load_unit,
+                holdSec: exercise.hold_duration_sec,
+                durationMin: durationMinDouble,
+                distance: exercise.distance_km,
+                distanceUnit: exercise.distance_unit,
                 rounds: exercise.rounds,
-                totalDurationMin: exercise.total_duration_min
+                workSec: exercise.work_sec,
+                restSec: exercise.rest_seconds
             )
         }
-        
+
         let totalCompleted = completedExerciseIds.count
-        
+
         return CurrentWorkoutPayload(
             exercises: exercisePayloads,
             currentIndex: currentExerciseIndex,
             totalCompleted: totalCompleted
+        )
+    }
+
+    // MARK: - Artifact Loading
+
+    /// Load exercises from an artifact, replacing the current workout
+    /// - Parameter artifact: The artifact containing exercise data
+    func loadFromArtifact(_ artifact: Artifact) {
+        guard let artifactExercises = artifact.payload.exercises else {
+            print("⚠️ ExerciseStore: Artifact has no exercises")
+            return
+        }
+
+        // Clear current state and load new exercises
+        clearExercises()
+
+        // Convert ArtifactExercise to UIExercise
+        exercises = artifactExercises.map { convertToUIExercise($0) }
+        fetchedAt = Date()
+        currentExerciseIndex = 0
+
+        saveState()
+        print("📦 ExerciseStore: Loaded \(exercises.count) exercises from artifact \(artifact.artifactId)")
+    }
+
+    /// Add exercises from an artifact to the current workout
+    /// - Parameter artifact: The artifact containing exercise data
+    func addFromArtifact(_ artifact: Artifact) {
+        guard let artifactExercises = artifact.payload.exercises else {
+            print("⚠️ ExerciseStore: Artifact has no exercises")
+            return
+        }
+
+        // Convert and append exercises
+        let newExercises = artifactExercises.map { convertToUIExercise($0) }
+        exercises.append(contentsOf: newExercises)
+
+        saveState()
+        print("📦 ExerciseStore: Added \(newExercises.count) exercises from artifact \(artifact.artifactId)")
+    }
+
+    /// Convert an ArtifactExercise to UIExercise
+    /// Uses the 4-type exercise system: reps, hold, duration, intervals
+    private func convertToUIExercise(_ artifact: ArtifactExercise) -> UIExercise {
+        // Convert duration_min from Double? to Int?
+        let durationMinInt: Int? = artifact.durationMin != nil ? Int(artifact.durationMin!) : nil
+
+        return UIExercise(
+            exercise_name: artifact.exerciseName,
+            type: artifact.exerciseType,
+            duration_min: durationMinInt,
+            reps: artifact.reps,
+            load_kg_each: artifact.loadEach,    // load_each -> load_kg_each
+            load_unit: artifact.loadUnit,
+            sets: artifact.sets,
+            distance_km: artifact.distance,      // distance -> distance_km
+            distance_unit: artifact.distanceUnit,
+            rounds: artifact.rounds,
+            work_sec: artifact.workSec,
+            muscles_utilized: artifact.musclesUtilized,
+            rest_seconds: artifact.restSec,      // rest_sec -> rest_seconds
+            target_pace: artifact.targetPace,
+            hold_duration_sec: artifact.holdSec, // hold_sec -> hold_duration_sec
+            goals_addressed: artifact.goalsAddressed,
+            reasoning: artifact.reasoning,
+            equipment: artifact.equipment,
+            exercise_description: artifact.exerciseDescription,
+            group: artifact.group
         )
     }
 }

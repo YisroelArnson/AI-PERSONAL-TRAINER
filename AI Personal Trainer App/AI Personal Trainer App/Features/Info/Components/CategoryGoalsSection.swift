@@ -113,7 +113,7 @@ struct CategoryGoalsSection: View {
                 await loadDistribution()
             }
         }
-        .onChange(of: userDataStore.categoryGoals) { _ in
+        .onChange(of: userDataStore.categoryGoals) {
             // Reload when goals change
             Task {
                 await loadDistribution()
