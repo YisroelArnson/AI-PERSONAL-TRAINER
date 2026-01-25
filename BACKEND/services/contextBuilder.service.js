@@ -1,5 +1,5 @@
 // BACKEND/services/contextBuilder.service.js
-// Builds XML context for LLM calls - optimized for KV-cache hits
+// Builds context for Anthropic LLM calls with proper multi-cache-block approach
 const { getSession, getContextEvents } = require('./sessionObservability.service');
 const { fetchAllUserData } = require('./fetchUserData.service');
 
@@ -140,7 +140,7 @@ Optionally include an artifact_id to deliver a previously created artifact with 
 {"message": "Your workout is ready!"}
 With artifact: {"message": "Here's your personalized workout!", "artifact_id": "art_abc123"}
 
-### message_ask_user  
+### message_ask_user
 Ask user a question (blocking - waits for response).
 {"question": "What muscle groups would you like to focus on?", "options": ["Upper body", "Lower body", "Full body"]}
 Note: "options" is optional.
@@ -287,15 +287,16 @@ Type quick reference:
 
 ### swap_exercise
 Replace an exercise in the current workout. Use same structure as generate_workout exercises.
-{"exercise_id": "uuid-here", "new_exercise": {"exercise_name": "...", "exercise_type": "reps|hold|duration|intervals", "order": 1, "muscles_utilized": [...], "goals_addressed": [...], "reasoning": "...", ...type-specific fields...}, "reason": "User requested alternative"}
+exercise_id can be either the UUID or the order number (e.g., "1" for first exercise).
+{"exercise_id": "1", "new_exercise": {"exercise_name": "...", "exercise_type": "reps|hold|duration|intervals", "order": 1, "muscles_utilized": [...], "goals_addressed": [...], "reasoning": "...", ...type-specific fields...}, "reason": "User requested alternative"}
 
 ### adjust_exercise
-Modify exercise parameters.
-{"exercise_id": "uuid-here", "adjustments": {"sets": 4, "reps": 15}}
+Modify exercise parameters. exercise_id can be either the UUID or the order number.
+{"exercise_id": "1", "adjustments": {"sets": 4, "reps": 15}}
 
 ### remove_exercise
-Remove an exercise from the workout.
-{"exercise_id": "uuid-here", "reason": "User has shoulder injury"}
+Remove an exercise from the workout. exercise_id can be either the UUID or the order number.
+{"exercise_id": "1", "reason": "User has shoulder injury"}
 
 ### log_workout
 Log completed exercises to history.
@@ -470,87 +471,203 @@ function formatUserDataXml(userData) {
 }
 
 /**
- * Format a single event to XML
- * Handles both old event types (action, result) and new event types (tool_call, tool_result)
- * @param {Object} event - Session event
- * @returns {string} XML formatted event
+ * Convert session events to Anthropic native multi-turn message format
+ *
+ * CRITICAL: Anthropic requires that every tool_use from assistant must be
+ * IMMEDIATELY followed by a tool_result in the next user message.
+ *
+ * Event types map to:
+ * - user_message → { role: "user", content: "text" }
+ * - tool_call → { role: "assistant", content: [{ type: "tool_use", ... }] }
+ * - tool_result → { role: "user", content: [{ type: "tool_result", ... }] }
+ * - knowledge/artifact → Appended to user message AFTER the tool_result (if pending)
+ *
+ * Sequence handling:
+ * 1. When we see a tool_call, we set pendingToolCallId
+ * 2. Knowledge/artifacts that arrive before tool_result are buffered
+ * 3. When tool_result arrives, we create the user message with tool_result FIRST,
+ *    then append any buffered content
+ *
+ * @param {Array} events - Session events ordered by sequence_number
+ * @returns {Array} Anthropic messages array
  */
-function formatEventXml(event) {
-  const eventType = event.event_type;
-  const content = event.data || event.content || {};
+function buildEventsToMessages(events) {
+  const messages = [];
+  let pendingToolCallId = null;  // Track if we're waiting for a tool_result
+  let bufferedContent = [];       // Content to add after tool_result
 
-  switch (eventType) {
-    case 'user_message':
-      return `<user_message>${content.message || content}</user_message>`;
+  for (const event of events) {
+    const eventType = event.event_type;
+    const data = event.data || {};
 
-    case 'tool_call':
-    case 'action':
-      // Format as JSON for consistency with new structured output response format
-      const toolName = content.tool_name || content.tool;
-      const args = content.arguments || content.args;
-      return `<action tool="${toolName}">\n${JSON.stringify(args, null, 2)}\n</action>`;
+    switch (eventType) {
+      case 'user_message':
+        // If waiting for tool_result, buffer this (shouldn't normally happen)
+        if (pendingToolCallId) {
+          bufferedContent.push({ type: 'text', text: data.message || data });
+        } else {
+          // Check if last message is also user - merge to avoid consecutive user messages
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg && lastMsg.role === 'user') {
+            if (typeof lastMsg.content === 'string') {
+              lastMsg.content = [{ type: 'text', text: lastMsg.content }];
+            }
+            lastMsg.content.push({ type: 'text', text: data.message || data });
+          } else {
+            messages.push({
+              role: 'user',
+              content: data.message || data
+            });
+          }
+        }
+        break;
 
-    case 'tool_result':
-    case 'result':
-      // Handle both new (tool_result) and old (result) format
-      if (content.formatted) {
-        return content.formatted;
-      }
-      const result = content.result !== undefined ? content.result : content;
-      return `<result>${JSON.stringify(result)}</result>`;
+      case 'tool_call':
+        messages.push({
+          role: 'assistant',
+          content: [{
+            type: 'tool_use',
+            id: data.call_id,
+            name: data.tool_name,
+            input: data.arguments
+          }]
+        });
+        // Mark that we're waiting for a tool_result
+        pendingToolCallId = data.call_id;
+        bufferedContent = [];  // Reset buffer
+        break;
 
-    case 'knowledge':
-      return `<knowledge source="${content.source}">\n${content.data}\n</knowledge>`;
+      case 'tool_result':
+        // Create user message with tool_result FIRST
+        const toolResultContent = [{
+          type: 'tool_result',
+          tool_use_id: data.call_id,
+          content: typeof data.result === 'string'
+            ? data.result
+            : JSON.stringify(data.result)
+        }];
 
-    case 'checkpoint':
-      return `<checkpoint events_summarized="${content.events_summarized}">\n${content.summary}\n</checkpoint>`;
+        // Append any buffered content (knowledge/artifacts that came before)
+        if (bufferedContent.length > 0) {
+          toolResultContent.push(...bufferedContent);
+          bufferedContent = [];
+        }
 
-    case 'artifact':
-      // Format artifact for LLM context - include summary but NOT full payload to save tokens
-      return `<artifact type="${content.type}" id="${content.artifact_id}" schema="${content.schema_version}" auto_start="${content.auto_start}">
-title: ${content.title}
-summary: ${JSON.stringify(content.summary)}
-</artifact>`;
+        messages.push({
+          role: 'user',
+          content: toolResultContent
+        });
 
-    default:
-      return `<!-- unknown event type: ${eventType} -->`;
+        // Clear pending state
+        pendingToolCallId = null;
+        break;
+
+      case 'knowledge':
+      case 'artifact':
+        const textContent = eventType === 'knowledge'
+          ? `<knowledge source="${data.source}">\n${data.data}\n</knowledge>`
+          : `<artifact type="${data.type}" id="${data.artifact_id}">\n${JSON.stringify(data.summary)}\n</artifact>`;
+
+        // If waiting for tool_result, buffer this content
+        if (pendingToolCallId) {
+          bufferedContent.push({ type: 'text', text: textContent });
+        } else {
+          // Append to last user message, or create new one
+          const lastMsg = messages[messages.length - 1];
+          if (lastMsg && lastMsg.role === 'user') {
+            // Convert string content to array if needed
+            if (typeof lastMsg.content === 'string') {
+              lastMsg.content = [{ type: 'text', text: lastMsg.content }];
+            }
+            lastMsg.content.push({ type: 'text', text: textContent });
+          } else {
+            messages.push({
+              role: 'user',
+              content: [{ type: 'text', text: textContent }]
+            });
+          }
+        }
+        break;
+    }
   }
+
+  // Handle edge case: buffered content with no tool_result (shouldn't happen)
+  if (bufferedContent.length > 0) {
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'user') {
+      if (typeof lastMsg.content === 'string') {
+        lastMsg.content = [{ type: 'text', text: lastMsg.content }];
+      }
+      lastMsg.content.push(...bufferedContent);
+    } else {
+      messages.push({ role: 'user', content: bufferedContent });
+    }
+  }
+
+  return messages;
 }
 
 /**
- * Build the full XML context for an LLM call
- * Structure: [STABLE PREFIX] + [EVENT STREAM]
- * 
+ * Add cache_control to the last content block of the last message
+ * @param {Array} messages - Anthropic messages array
+ * @returns {Array} Messages with cache_control added
+ */
+function addCacheControlToLastMessage(messages) {
+  if (messages.length === 0) return messages;
+
+  const lastMsg = messages[messages.length - 1];
+
+  // Convert string content to array format
+  if (typeof lastMsg.content === 'string') {
+    lastMsg.content = [{ type: 'text', text: lastMsg.content }];
+  }
+
+  // Add cache_control to last content block
+  if (Array.isArray(lastMsg.content) && lastMsg.content.length > 0) {
+    const lastBlock = lastMsg.content[lastMsg.content.length - 1];
+    lastBlock.cache_control = { type: 'ephemeral' };
+  }
+
+  return messages;
+}
+
+/**
+ * Build the full context for an Anthropic API call
+ * Uses proper multi-cache-block approach with 4 cache breakpoints:
+ * 1. Tools - cache_control on last tool
+ * 2. System prompt - cache_control on system text block
+ * 3. User data - cache_control on separate system text block
+ * 4. Messages - cache_control on last content block of last message
+ *
  * @param {string} sessionId - The session UUID
  * @param {string} userId - The user's UUID
- * @returns {Object} Context with prompt string, session, and metadata
+ * @returns {Object} Context with systemPrompt, userDataXml, messages
  */
 async function buildAgentContext(sessionId, userId) {
   const session = await getSession(sessionId);
   const events = await getContextEvents(sessionId, session.context_start_sequence);
-
-  // Fetch user data for stable prefix
   const userData = await fetchAllUserData(userId);
 
-  // Build stable prefix (system prompt + user data)
-  const stablePrefix = SYSTEM_PROMPT + '\n\n' + formatUserDataXml(userData);
+  // Format user data as XML
+  const userDataXml = formatUserDataXml(userData);
 
-  // Build event stream
-  let eventStream = '<event_stream>\n';
-  for (const event of events) {
-    eventStream += formatEventXml(event) + '\n';
+  // Convert events to Anthropic message format
+  const messages = buildEventsToMessages(events);
+
+  // Validate: messages should not be empty
+  if (messages.length === 0) {
+    throw new Error('Cannot build context: no events in session');
   }
-  eventStream += '</event_stream>';
 
-  // Combine into full prompt
-  const fullPrompt = stablePrefix + '\n\n' + eventStream;
+  // Add cache_control to last message
+  addCacheControlToLastMessage(messages);
 
   return {
-    prompt: fullPrompt,
-    stablePrefix,
-    eventStream,
+    systemPrompt: SYSTEM_PROMPT,
+    userDataXml,
+    messages,  // Native Anthropic format with cache_control on last message
     session,
-    userData
+    eventCount: events.length
   };
 }
 
@@ -560,25 +677,35 @@ async function buildAgentContext(sessionId, userId) {
  * @returns {number} Estimated token count
  */
 function estimateTokens(context) {
-  const text = context.prompt || '';
-  // Rough estimate: ~4 chars per token
-  return Math.ceil(text.length / 4);
-}
+  // Estimate based on system prompt + user data + messages
+  let totalChars = 0;
+  totalChars += context.systemPrompt?.length || 0;
+  totalChars += context.userDataXml?.length || 0;
 
-/**
- * Get the stable prefix length for caching metrics
- * @param {Object} context - The built context
- * @returns {number} Stable prefix character count
- */
-function getStablePrefixLength(context) {
-  return context.stablePrefix?.length || 0;
+  // Estimate message content
+  if (context.messages) {
+    for (const msg of context.messages) {
+      if (typeof msg.content === 'string') {
+        totalChars += msg.content.length;
+      } else if (Array.isArray(msg.content)) {
+        for (const block of msg.content) {
+          if (block.text) totalChars += block.text.length;
+          if (block.content) totalChars += block.content.length;
+          if (block.input) totalChars += JSON.stringify(block.input).length;
+        }
+      }
+    }
+  }
+
+  // Rough estimate: ~4 chars per token
+  return Math.ceil(totalChars / 4);
 }
 
 module.exports = {
   buildAgentContext,
+  buildEventsToMessages,
+  addCacheControlToLastMessage,
   estimateTokens,
-  getStablePrefixLength,
   formatUserDataXml,
-  formatEventXml,
   SYSTEM_PROMPT
 };

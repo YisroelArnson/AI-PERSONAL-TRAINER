@@ -3,7 +3,6 @@
 // Handles session management, event logging, context building, and console output
 
 const { createClient } = require('@supabase/supabase-js');
-const { v4: uuidv4 } = require('uuid');
 const dotenv = require('dotenv');
 const { calculateCostCents } = require('./observability/pricing');
 
@@ -173,6 +172,8 @@ async function endSession(sessionId, status = 'completed', errorMessage = null) 
 
   let totalTokens = 0;
   let cachedTokens = 0;
+  let cacheWriteTokens = 0;
+  let promptTokens = 0;
   let totalCostCents = 0;
   let totalDurationMs = 0;
 
@@ -180,11 +181,17 @@ async function endSession(sessionId, status = 'completed', errorMessage = null) 
     const tokens = event.data?.tokens || {};
     totalTokens += tokens.total || 0;
     cachedTokens += tokens.cached || 0;
+    cacheWriteTokens += tokens.cache_write || 0;
+    promptTokens += tokens.prompt || 0;
     totalCostCents += event.data?.cost_cents || 0;
     totalDurationMs += event.duration_ms || 0;
   }
 
-  // Update session
+  // Calculate cache efficiency metrics
+  const totalPromptTokens = promptTokens + cachedTokens;  // Total input tokens sent
+  const cacheHitRate = totalPromptTokens > 0 ? (cachedTokens / totalPromptTokens * 100).toFixed(1) : 0;
+
+  // Update session with enhanced cache metrics
   const { error } = await supabase
     .from('agent_sessions')
     .update({
@@ -193,20 +200,32 @@ async function endSession(sessionId, status = 'completed', errorMessage = null) 
       cached_tokens: cachedTokens,
       total_cost_cents: totalCostCents,
       updated_at: new Date().toISOString(),
-      metadata: errorMessage ? { error: errorMessage } : undefined
+      metadata: errorMessage
+        ? { error: errorMessage }
+        : { cache_write_tokens: cacheWriteTokens, cache_hit_rate: parseFloat(cacheHitRate) }
     })
     .eq('id', sessionId);
 
   if (error) throw error;
 
-  // Log completion
+  // Log completion with enhanced cache metrics
   const icon = status === 'error' ? '❌' : '✅';
   const color = status === 'error' ? colors.red : colors.green;
+
+  // Build cache info string
+  let cacheInfo = '';
+  if (cachedTokens > 0 || cacheWriteTokens > 0) {
+    const parts = [];
+    if (cachedTokens > 0) parts.push(`${formatTokens(cachedTokens)} cached`);
+    if (cacheWriteTokens > 0) parts.push(`${formatTokens(cacheWriteTokens)} written`);
+    cacheInfo = ` (${parts.join(', ')}, ${cacheHitRate}% hit rate)`;
+  }
+
   consoleLog(
     sessionId,
     icon,
     `${color}Session ${status}${colors.reset}`,
-    `${formatTokens(totalTokens)} tokens (${formatTokens(cachedTokens)} cached) | ${formatCost(totalCostCents)} | ${formatDuration(totalDurationMs)}`
+    `${formatTokens(totalTokens)} tokens${cacheInfo} | ${formatCost(totalCostCents)} | ${formatDuration(totalDurationMs)}`
   );
 }
 
@@ -251,6 +270,8 @@ async function getUserSessions(userId, limit = 10) {
 
 /**
  * Get next sequence number for a session
+ * Note: This has a race condition when called in parallel.
+ * The logEvent function handles this with retries.
  */
 async function getNextSequence(sessionId) {
   const { data } = await supabase
@@ -269,34 +290,61 @@ async function getNextSequence(sessionId) {
  * @param {string} sessionId - Session UUID
  * @param {string} eventType - Event type
  * @param {Object} data - Event data
- * @param {number} durationMs - Duration in milliseconds (optional)
+ * @param {Object} options - Optional parameters
+ * @param {number} options.durationMs - Duration in milliseconds
+ * @param {string} options.modelId - Model ID for LLM events (for comparison tracing)
  * @returns {Object} Created event
  */
-async function logEvent(sessionId, eventType, data, durationMs = null) {
-  const sequenceNumber = await getNextSequence(sessionId);
+async function logEvent(sessionId, eventType, data, options = {}) {
+  // Support legacy signature: logEvent(sessionId, eventType, data, durationMs)
+  const opts = typeof options === 'number' ? { durationMs: options } : options;
+  const { durationMs = null, modelId = null } = opts;
 
-  const { data: event, error } = await supabase
-    .from('agent_session_events')
-    .insert({
-      session_id: sessionId,
-      sequence_number: sequenceNumber,
-      event_type: eventType,
-      data,
-      duration_ms: durationMs,
-      timestamp: new Date().toISOString()
-    })
-    .select()
-    .single();
+  // Retry logic for handling sequence number race conditions
+  const maxRetries = 5;
+  let lastError = null;
 
-  if (error) throw error;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const sequenceNumber = await getNextSequence(sessionId);
 
-  // Update session timestamp
-  await supabase
-    .from('agent_sessions')
-    .update({ updated_at: new Date().toISOString() })
-    .eq('id', sessionId);
+    const { data: event, error } = await supabase
+      .from('agent_session_events')
+      .insert({
+        session_id: sessionId,
+        sequence_number: sequenceNumber,
+        event_type: eventType,
+        data,
+        duration_ms: durationMs,
+        model_id: modelId,
+        timestamp: new Date().toISOString()
+      })
+      .select()
+      .single();
 
-  return event;
+    if (!error) {
+      // Update session timestamp
+      await supabase
+        .from('agent_sessions')
+        .update({ updated_at: new Date().toISOString() })
+        .eq('id', sessionId);
+
+      return event;
+    }
+
+    // Check if it's a duplicate key error (code 23505)
+    if (error.code === '23505') {
+      lastError = error;
+      // Small random delay before retry to reduce collision chance
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 50));
+      continue;
+    }
+
+    // For other errors, throw immediately
+    throw error;
+  }
+
+  // If we exhausted retries, throw the last error
+  throw lastError;
 }
 
 /**
@@ -319,74 +367,106 @@ async function logUserMessage(sessionId, message) {
  * @param {string} sessionId - Session UUID
  * @param {string} model - Model name
  * @param {string} prompt - Full prompt text
- * @param {number} estimatedTokens - Estimated token count
+ * @param {Object} options - Optional parameters
+ * @param {number} options.estimatedTokens - Estimated token count
+ * @param {boolean} options.skipConsole - Skip console logging (for comparison models)
  */
-async function logLLMRequest(sessionId, model, prompt, estimatedTokens = null) {
-  consoleLog(
-    sessionId,
-    '📤',
-    `${colors.magenta}LLM Request${colors.reset} → ${model}`,
-    estimatedTokens ? `est. ${formatTokens(estimatedTokens)} tokens` : ''
-  );
+async function logLLMRequest(sessionId, model, prompt, options = {}) {
+  // Support legacy signature: logLLMRequest(sessionId, model, prompt, estimatedTokens)
+  const opts = typeof options === 'number' ? { estimatedTokens: options } : options;
+  const { estimatedTokens = null, skipConsole = false } = opts;
+
+  if (!skipConsole) {
+    consoleLog(
+      sessionId,
+      '📤',
+      `${colors.magenta}LLM Request${colors.reset} → ${model}`,
+      estimatedTokens ? `est. ${formatTokens(estimatedTokens)} tokens` : ''
+    );
+  }
 
   return await logEvent(sessionId, 'llm_request', {
     model,
     prompt,
     estimated_tokens: estimatedTokens
-  });
+  }, { modelId: model });
 }
 
 /**
  * Log an LLM response
  * @param {string} sessionId - Session UUID
  * @param {Object} params - Response parameters
- * @param {Object} params.rawResponse - Raw OpenAI API response object
+ * @param {Object} params.rawResponse - Raw API response object
  * @param {number} params.durationMs - Request duration
+ * @param {string} params.modelId - Model ID override (for comparison models)
+ * @param {boolean} params.skipConsole - Skip console logging (for comparison models)
  */
 async function logLLMResponse(sessionId, params) {
-  const { rawResponse, durationMs } = params;
+  const { rawResponse, durationMs, modelId, skipConsole = false } = params;
 
   // Extract usage from raw response
   const usage = rawResponse?.usage;
-  const model = rawResponse?.model;
+  const model = modelId || rawResponse?.model;
   const content = rawResponse?.choices?.[0]?.message?.content;
 
   // Calculate tokens for session totals
+  // Handle both OpenAI and Anthropic cache token formats
+  const isAnthropic = rawResponse?._provider === 'anthropic';
   const tokens = {
     prompt: usage?.prompt_tokens || 0,
     completion: usage?.completion_tokens || 0,
-    cached: usage?.prompt_tokens_details?.cached_tokens || 0,
+    // OpenAI: prompt_tokens_details.cached_tokens
+    // Anthropic: cache_read_input_tokens (already in usage from our normalization)
+    cached: isAnthropic
+      ? (usage?.cache_read_input_tokens || 0)
+      : (usage?.prompt_tokens_details?.cached_tokens || 0),
+    // Anthropic also has cache_creation_input_tokens for cache writes
+    cache_write: usage?.cache_creation_input_tokens || 0,
     total: usage?.total_tokens || 0
   };
 
-  // Calculate cost
+  // Calculate cost - pass cache info in appropriate format
+  const cacheInfo = isAnthropic
+    ? {
+        cache_creation_input_tokens: tokens.cache_write,
+        cache_read_input_tokens: tokens.cached
+      }
+    : tokens.cached;
+
   const costCents = calculateCostCents(
     model,
     tokens.prompt,
     tokens.completion,
-    tokens.cached
+    cacheInfo
   );
 
   // Build console output
-  let responseDesc = content ? `"${truncate(content, 50)}"` : `${colors.dim}(empty)${colors.reset}`;
+  if (!skipConsole) {
+    let responseDesc = content ? `"${truncate(content, 50)}"` : `${colors.dim}(empty)${colors.reset}`;
 
-  const tokenInfo = tokens.cached > 0 
-    ? `${formatTokens(tokens.total)} tokens (${formatTokens(tokens.cached)} cached)`
-    : `${formatTokens(tokens.total)} tokens`;
+    // Show cache info in console
+    let tokenInfo = `${formatTokens(tokens.total)} tokens`;
+    if (tokens.cached > 0 || tokens.cache_write > 0) {
+      const cacheParts = [];
+      if (tokens.cached > 0) cacheParts.push(`${formatTokens(tokens.cached)} cached`);
+      if (tokens.cache_write > 0) cacheParts.push(`${formatTokens(tokens.cache_write)} cache write`);
+      tokenInfo += ` (${cacheParts.join(', ')})`;
+    }
 
-  consoleLog(
-    sessionId,
-    '📥',
-    `${colors.magenta}LLM Response${colors.reset} ← ${responseDesc}`,
-    `${tokenInfo} | ${formatCost(costCents)} | ${formatDuration(durationMs || 0)}`
-  );
+    consoleLog(
+      sessionId,
+      '📥',
+      `${colors.magenta}LLM Response${colors.reset} ← ${responseDesc}`,
+      `${tokenInfo} | ${formatCost(costCents)} | ${formatDuration(durationMs || 0)}`
+    );
+  }
 
   // Store raw response plus calculated fields needed for session totals
   return await logEvent(sessionId, 'llm_response', {
     raw_response: rawResponse,
     tokens,
     cost_cents: costCents
-  }, durationMs);
+  }, { durationMs, modelId: model });
 }
 
 /**
@@ -617,6 +697,7 @@ async function getSessionWithStats(sessionId) {
   if (error) throw error;
   return data;
 }
+
 
 // =============================================================================
 // EXPORTS

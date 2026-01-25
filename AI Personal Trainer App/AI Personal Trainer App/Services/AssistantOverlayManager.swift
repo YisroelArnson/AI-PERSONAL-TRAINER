@@ -356,6 +356,33 @@ final class AssistantOverlayManager {
         }
     }
 
+    /// Update the streaming message content with question options
+    /// If the current streaming message already has content, creates a new message with the options
+    func updateStreamingContentWithOptions(_ content: String, options: [String]) {
+        guard let messageId = streamingMessageId,
+              let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+
+        // If current message is empty, set the content and options
+        if messages[index].content.isEmpty {
+            messages[index].content = content
+            messages[index].questionOptions = options
+        } else {
+            // Current message already has content - finalize it and create a new one
+            messages[index].isStreaming = false
+
+            // Create a new streaming message for this content with options
+            let newMessage = ChatMessage(
+                role: .assistant,
+                content: content,
+                steps: [],  // Steps stay with the first message
+                isStreaming: true,
+                questionOptions: options
+            )
+            streamingMessageId = newMessage.id
+            messages.append(newMessage)
+        }
+    }
+
     /// Finalize the streaming message (mark as complete)
     /// Waits for any remaining queued steps to be displayed before finalizing
     func finalizeStreamingMessage() {

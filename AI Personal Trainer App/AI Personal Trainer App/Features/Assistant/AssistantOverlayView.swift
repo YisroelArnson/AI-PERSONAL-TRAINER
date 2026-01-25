@@ -64,6 +64,9 @@ struct AssistantOverlayView: View {
                             },
                             onReplaceCurrent: { artifact in
                                 handleReplaceCurrent(artifact)
+                            },
+                            onOptionSelected: { option in
+                                handleOptionSelected(option)
                             }
                         )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -249,9 +252,14 @@ struct AssistantOverlayView: View {
             // Update streaming message content with attached artifact
             manager.updateStreamingContentWithArtifact(content, artifact: artifact)
 
-        case .question(let text, _):
+        case .question(let text, let options):
             if !text.isEmpty {
-                manager.updateStreamingContent(text)
+                // If options are provided, use the options-aware method
+                if let options = options, !options.isEmpty {
+                    manager.updateStreamingContentWithOptions(text, options: options)
+                } else {
+                    manager.updateStreamingContent(text)
+                }
             }
 
         case .exercises(let exercises):
@@ -317,6 +325,35 @@ struct AssistantOverlayView: View {
 
         // Minimize to show the workout
         manager.minimize()
+    }
+
+    private func handleOptionSelected(_ option: String) {
+        print("💬 User selected option: \(option)")
+
+        // Add user message with the selected option
+        manager.addUserMessage(option)
+
+        // Start processing and create streaming message for the response
+        manager.startProcessing()
+        manager.startStreamingMessage()
+
+        // Send the selected option to the agent
+        Task {
+            do {
+                try await agentService.streamMessage(
+                    option,
+                    sessionId: manager.currentSessionId
+                ) { event in
+                    handleStreamEvent(event)
+                }
+            } catch {
+                await MainActor.run {
+                    manager.finalizeStreamingMessage()
+                    manager.stopProcessing()
+                    manager.showError(error.localizedDescription)
+                }
+            }
+        }
     }
 }
 

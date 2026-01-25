@@ -226,7 +226,7 @@ const exerciseTools = {
       properties: {
         exercise_id: {
           type: 'string',
-          description: 'ID of the exercise to replace'
+          description: 'ID of the exercise to replace (UUID or order number as string, e.g., "1" for first exercise)'
         },
         new_exercise: {
           type: 'object',
@@ -276,9 +276,26 @@ const exerciseTools = {
         return { success: false, error: 'No active workout session' };
       }
 
-      const index = workout.exercises.findIndex(e => e.id === args.exercise_id);
+      // Try to find by UUID first, then by order number
+      let index = workout.exercises.findIndex(e => e.id === args.exercise_id);
+
+      // If not found by UUID, try treating exercise_id as an order number
       if (index === -1) {
-        return { success: false, error: 'Exercise not found' };
+        const orderNum = parseInt(args.exercise_id, 10);
+        if (!isNaN(orderNum)) {
+          index = workout.exercises.findIndex(e => e.order === orderNum);
+        }
+      }
+
+      if (index === -1) {
+        // Provide helpful error with available exercises
+        const availableExercises = workout.exercises.map(e =>
+          `Order ${e.order}: "${e.exercise_name}" (id: ${e.id})`
+        ).join(', ');
+        return {
+          success: false,
+          error: `Exercise not found. Available exercises: ${availableExercises}`
+        };
       }
 
       const oldExercise = workout.exercises[index];
@@ -309,7 +326,7 @@ const exerciseTools = {
       properties: {
         exercise_id: {
           type: 'string',
-          description: 'ID of the exercise to modify'
+          description: 'ID of the exercise to modify (UUID or order number as string, e.g., "1" for first exercise)'
         },
         adjustments: {
           type: 'object',
@@ -322,14 +339,31 @@ const exerciseTools = {
     execute: async (args, context) => {
       const { sessionId } = context;
       const workout = workoutSessions.get(sessionId);
-      
+
       if (!workout) {
         return { success: false, error: 'No active workout session' };
       }
 
-      const exercise = workout.exercises.find(e => e.id === args.exercise_id);
+      // Try to find by UUID first, then by order number
+      let exercise = workout.exercises.find(e => e.id === args.exercise_id);
+
+      // If not found by UUID, try treating exercise_id as an order number
       if (!exercise) {
-        return { success: false, error: 'Exercise not found' };
+        const orderNum = parseInt(args.exercise_id, 10);
+        if (!isNaN(orderNum)) {
+          exercise = workout.exercises.find(e => e.order === orderNum);
+        }
+      }
+
+      if (!exercise) {
+        // Provide helpful error with available exercises
+        const availableExercises = workout.exercises.map(e =>
+          `Order ${e.order}: "${e.exercise_name}" (id: ${e.id})`
+        ).join(', ');
+        return {
+          success: false,
+          error: `Exercise not found. Available exercises: ${availableExercises}`
+        };
       }
 
       const oldValues = {};
@@ -342,7 +376,7 @@ const exerciseTools = {
 
       return {
         success: true,
-        exercise_name: exercise.name,
+        exercise_name: exercise.exercise_name,
         adjustments: args.adjustments,
         old_values: oldValues
       };
@@ -367,7 +401,7 @@ const exerciseTools = {
       properties: {
         exercise_id: {
           type: 'string',
-          description: 'ID of the exercise to remove'
+          description: 'ID of the exercise to remove (UUID or order number as string, e.g., "1" for first exercise)'
         },
         reason: {
           type: 'string',
@@ -379,21 +413,38 @@ const exerciseTools = {
     execute: async (args, context) => {
       const { sessionId } = context;
       const workout = workoutSessions.get(sessionId);
-      
+
       if (!workout) {
         return { success: false, error: 'No active workout session' };
       }
 
-      const index = workout.exercises.findIndex(e => e.id === args.exercise_id);
+      // Try to find by UUID first, then by order number
+      let index = workout.exercises.findIndex(e => e.id === args.exercise_id);
+
+      // If not found by UUID, try treating exercise_id as an order number
       if (index === -1) {
-        return { success: false, error: 'Exercise not found' };
+        const orderNum = parseInt(args.exercise_id, 10);
+        if (!isNaN(orderNum)) {
+          index = workout.exercises.findIndex(e => e.order === orderNum);
+        }
+      }
+
+      if (index === -1) {
+        // Provide helpful error with available exercises
+        const availableExercises = workout.exercises.map(e =>
+          `Order ${e.order}: "${e.exercise_name}" (id: ${e.id})`
+        ).join(', ');
+        return {
+          success: false,
+          error: `Exercise not found. Available exercises: ${availableExercises}`
+        };
       }
 
       const removed = workout.exercises.splice(index, 1)[0];
 
       return {
         success: true,
-        removed_exercise: removed.name,
+        removed_exercise: removed.exercise_name,
         remaining_count: workout.exercises.length
       };
     },

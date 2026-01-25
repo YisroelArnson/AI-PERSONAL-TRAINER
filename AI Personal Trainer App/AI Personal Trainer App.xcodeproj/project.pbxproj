@@ -56,6 +56,7 @@
 		12C88E4F2F1D6E8D004E8A51 /* ArtifactCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C88E4E2F1D6E8D004E8A51 /* ArtifactCard.swift */; };
 		12C88E512F1DD1D3004E8A51 /* DurationExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C88E502F1DD1D3004E8A51 /* DurationExerciseView.swift */; };
 		12C88E532F1DD27C004E8A51 /* IntervalsExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C88E522F1DD27C004E8A51 /* IntervalsExerciseView.swift */; };
+		12C88E552F1F0E62004E8A51 /* QuestionOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C88E542F1F0E62004E8A51 /* QuestionOptionsView.swift */; };
 		12CE3AAD2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12CE3AAC2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift */; };
 		12FF73FB2E9427C500958D26 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF73F92E9427C500958D26 /* AppView.swift */; };
 		12FF73FC2E9427C500958D26 /* supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12FF73FA2E9427C500958D26 /* supabase.swift */; };
@@ -153,6 +154,7 @@
 		12C88E4E2F1D6E8D004E8A51 /* ArtifactCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ArtifactCard.swift; sourceTree = "<group>"; };
 		12C88E502F1DD1D3004E8A51 /* DurationExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DurationExerciseView.swift; sourceTree = "<group>"; };
 		12C88E522F1DD27C004E8A51 /* IntervalsExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IntervalsExerciseView.swift; sourceTree = "<group>"; };
+		12C88E542F1F0E62004E8A51 /* QuestionOptionsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = QuestionOptionsView.swift; sourceTree = "<group>"; };
 		12CE3AAC2E94250200BD239C /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
 		12FF73F92E9427C500958D26 /* AppView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
 		12FF73FA2E9427C500958D26 /* supabase.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = supabase.swift; sourceTree = "<group>"; };
@@ -313,6 +315,7 @@
 		129802472F1A433100B47B49 /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				12C88E542F1F0E62004E8A51 /* QuestionOptionsView.swift */,
 				12C88E4E2F1D6E8D004E8A51 /* ArtifactCard.swift */,
 				12C88E4C2F1D3ADF004E8A51 /* StreamingStepsLine.swift */,
 				12C88E4A2F1D3ACB004E8A51 /* InlineStepsView.swift */,
@@ -694,6 +697,7 @@
 				128CEA1E2EDD0701002A61D5 /* ExerciseStore.swift in Sources */,
 				122CF1682EB42C6F00820C84 /* Location.swift in Sources */,
 				12FF742B2E94280A00958D26 /* WritingModeView.swift in Sources */,
+				12C88E552F1F0E62004E8A51 /* QuestionOptionsView.swift in Sources */,
 				12FF743F2E942AFF00958D26 /* CategoryGoalsSection.swift in Sources */,
 				128CEA182ED5E95E002A61D5 /* SideDrawerView.swift in Sources */,
 				12FF743D2E942AFF00958D26 /* ActivePreferencesSection.swift in Sources */,

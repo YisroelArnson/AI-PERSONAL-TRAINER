@@ -1,104 +1,109 @@
 // BACKEND/services/agentLoop.service.js
-// Main agent loop - orchestrates tool execution with pure XML prompts
-const OpenAI = require('openai');
+// Main agent loop - Anthropic-only with proper multi-cache-block approach
 const dotenv = require('dotenv');
 const { buildAgentContext, estimateTokens } = require('./contextBuilder.service');
 const { initializeContext } = require('./initializerAgent.service');
-const { executeTool, getToolStatusMessage } = require('../agent/tools');
+const { executeTool, getToolStatusMessage, getToolDefinitions } = require('../agent/tools');
 const sessionObs = require('./sessionObservability.service');
 const { formatCurrentWorkout } = require('./dataFormatters.service');
+const { getAnthropicClient } = require('./modelProviders.service');
 
 dotenv.config();
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
 const MAX_ITERATIONS = 10;
-const MODEL = 'gpt-4o';
+
+// Default model from environment
+const DEFAULT_MODEL = process.env.PRIMARY_MODEL || 'claude-haiku-4-5';
 
 /**
- * JSON Schema for structured outputs - guarantees valid tool calls
- * OpenAI will enforce this schema, eliminating parsing failures
+ * Convert tool registry format to Anthropic's native tool use format
+ * Adds cache_control to the last tool to enable prompt caching for all tools
+ * @returns {Array} Tools in Anthropic API format with caching enabled
  */
-const TOOL_CALL_SCHEMA = {
-  type: "json_schema",
-  json_schema: {
-    name: "tool_call",
-    strict: true,
-    schema: {
-      type: "object",
-      properties: {
-        tool: {
-          type: "string",
-          enum: [
-            "message_notify_user",
-            "message_ask_user",
-            "idle",
-            "generate_workout",
-            "swap_exercise",
-            "adjust_exercise",
-            "remove_exercise",
-            "log_workout",
-            "set_goals",
-            "set_preference",
-            "delete_preference",
-            "set_current_location",
-            "fetch_data"
-          ]
-        },
-        arguments: {
-          type: "object",
-          additionalProperties: true
-        }
-      },
-      required: ["tool", "arguments"],
-      additionalProperties: false
-    }
-  }
-};
-
-/**
- * Parse tool call from JSON response (structured output)
- * @param {string} responseText - The LLM response text (JSON)
- * @returns {Object|null} Parsed tool call or null
- */
-function parseToolCallFromJson(responseText) {
-  try {
-    const parsed = JSON.parse(responseText);
-
-    if (!parsed.tool || !parsed.arguments) {
-      return null;
-    }
-
-    return {
-      id: `call_${Date.now()}`,
-      name: parsed.tool,
-      arguments: parsed.arguments
+function getAnthropicTools() {
+  const toolDefs = getToolDefinitions();
+  return toolDefs.map((tool, index) => {
+    const anthropicTool = {
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.parameters  // Anthropic uses input_schema, not parameters
     };
-  } catch (e) {
-    // This should never happen with structured outputs, but handle gracefully
-    console.error('Failed to parse JSON tool call:', e.message);
-    return null;
-  }
+
+    // Add cache_control to the LAST tool to cache all tools as a prefix
+    // This gives us 90% cost reduction on tool definitions after first request
+    if (index === toolDefs.length - 1) {
+      anthropicTool.cache_control = { type: 'ephemeral' };
+    }
+
+    return anthropicTool;
+  });
 }
 
 /**
- * Call the LLM with XML prompt and JSON structured output for tool calls
- * @param {Object} context - Built context with prompt string
- * @returns {Object} OpenAI API response
+ * Call Anthropic API with native tool use and proper multi-cache-block approach
+ *
+ * Cache breakpoints (4 total):
+ * 1. Tools - cache_control on last tool
+ * 2. System prompt - cache_control on system text block
+ * 3. User data - cache_control on separate system text block
+ * 4. Messages - cache_control on last content block of last message (set by contextBuilder)
+ *
+ * @param {Object} client - Anthropic client instance
+ * @param {string} modelId - Model ID (e.g., 'claude-haiku-4-5')
+ * @param {Object} context - Context from buildAgentContext
+ * @returns {Object} Normalized response with toolCall and usage
  */
-async function callLLM(context) {
-  const { prompt } = context;
+async function callAnthropicModel(client, modelId, context) {
+  const tools = getAnthropicTools();
 
-  // Send as a single user message with structured output for guaranteed tool calls
-  const response = await openai.chat.completions.create({
-    model: MODEL,
-    messages: [
-      { role: 'user', content: prompt }
+  // Debug: Log message count
+  console.log(`[ANTHROPIC] Calling ${modelId} with ${context.messages.length} messages`);
+
+  const response = await client.messages.create({
+    model: modelId,
+    max_tokens: 8192,
+    tools: tools,
+    tool_choice: { type: 'any' },  // Force tool use (agent must call a tool)
+    system: [
+      {
+        type: 'text',
+        text: context.systemPrompt,
+        cache_control: { type: 'ephemeral' }  // Cache breakpoint 2: system prompt
+      },
+      {
+        type: 'text',
+        text: context.userDataXml,
+        cache_control: { type: 'ephemeral' }  // Cache breakpoint 3: user data
+      }
     ],
-    response_format: TOOL_CALL_SCHEMA
+    messages: context.messages  // Cache breakpoint 4 already set by contextBuilder
   });
 
-  return response;
+  // Find the tool_use block in the response
+  const toolUseBlock = response.content.find(block => block.type === 'tool_use');
+
+  return {
+    toolCall: toolUseBlock ? {
+      id: toolUseBlock.id,
+      name: toolUseBlock.name,
+      arguments: toolUseBlock.input
+    } : null,
+    usage: {
+      inputTokens: response.usage?.input_tokens || 0,
+      outputTokens: response.usage?.output_tokens || 0,
+      cacheCreationTokens: response.usage?.cache_creation_input_tokens || 0,
+      cacheReadTokens: response.usage?.cache_read_input_tokens || 0
+    },
+    model: response.model,
+    stopReason: response.stop_reason,
+    // Include raw response for observability logging
+    _rawResponse: {
+      usage: response.usage,
+      model: response.model,
+      stop_reason: response.stop_reason,
+      _provider: 'anthropic'
+    }
+  };
 }
 
 /**
@@ -106,15 +111,22 @@ async function callLLM(context) {
  * Processes user input, manages context, and executes tools
  * @param {string} userId - The user's UUID
  * @param {string} userInput - The user's message
- * @param {Object} options - Optional parameters (sessionId, onEvent callback, currentWorkout)
- * @param {Function} options.onEvent - Optional callback for real-time event streaming
- *        Called with { type: 'tool_start' | 'tool_result' | 'message', tool?, data? }
+ * @param {Object} options - Optional parameters
+ * @param {string} options.sessionId - Existing session ID to continue
+ * @param {Function} options.onEvent - Callback for real-time event streaming
  * @param {Object} options.currentWorkout - Current workout session state from client
+ * @param {string} options.model - Model to use (defaults to PRIMARY_MODEL env var)
  * @returns {Object} Result with sessionId, actions, and iterations
  */
 async function runAgentLoop(userId, userInput, options = {}) {
-  const { sessionId: existingSessionId, onEvent, currentWorkout } = options;
-  
+  const { sessionId: existingSessionId, onEvent, currentWorkout, model } = options;
+
+  // Determine which model to use (API param > env var > default)
+  const activeModel = model || DEFAULT_MODEL;
+
+  // Get Anthropic client
+  const client = getAnthropicClient();
+
   // Helper to emit events if callback provided
   const emit = (eventType, data) => {
     if (onEvent && typeof onEvent === 'function') {
@@ -125,12 +137,12 @@ async function runAgentLoop(userId, userInput, options = {}) {
       }
     }
   };
-  
+
   // Get or create session
-  const session = existingSessionId 
+  const session = existingSessionId
     ? await sessionObs.getSession(existingSessionId)
     : await sessionObs.getOrCreateSession(userId);
-  
+
   const sessionId = session.id;
 
   try {
@@ -138,7 +150,6 @@ async function runAgentLoop(userId, userInput, options = {}) {
     await sessionObs.logUserMessage(sessionId, userInput);
 
     // If client provided current workout state, inject it as knowledge
-    // This is client-provided data, not fetched from database
     if (currentWorkout && currentWorkout.exercises && currentWorkout.exercises.length > 0) {
       const formattedWorkout = formatCurrentWorkout(currentWorkout);
       await sessionObs.logKnowledge(sessionId, 'current_workout_session', formattedWorkout);
@@ -151,7 +162,6 @@ async function runAgentLoop(userId, userInput, options = {}) {
     }
 
     // Initialize context with relevant data
-    // Pass emit callback so knowledge events can be streamed to client
     try {
       await initializeContext(sessionId, userId, userInput, emit);
     } catch (error) {
@@ -167,126 +177,123 @@ async function runAgentLoop(userId, userInput, options = {}) {
     while (shouldContinue && iteration < MAX_ITERATIONS) {
       iteration++;
 
-      // Build XML context (uses context events from the session)
+      // Build context (fetches events, user data, formats messages)
       const context = await buildAgentContext(sessionId, userId);
-      
+
       // Check token estimate
       const tokenEstimate = estimateTokens(context);
-      
+
       // Log LLM request
-      await sessionObs.logLLMRequest(sessionId, MODEL, context.prompt, tokenEstimate);
+      await sessionObs.logLLMRequest(sessionId, activeModel, `[Native multi-turn: ${context.eventCount} events]`, tokenEstimate);
 
       // Call LLM
       const startTime = Date.now();
-      let response;
-      let toolCall;
-      let responseText;
-      
+
       try {
-        response = await callLLM(context);
+        const response = await callAnthropicModel(client, activeModel, context);
         const durationMs = Date.now() - startTime;
         totalDurationMs += durationMs;
-        
-        responseText = response.choices[0].message.content || '';
-        toolCall = parseToolCallFromJson(responseText);
-        
-        // Log LLM response (pass raw response for observability)
+
+        const toolCall = response.toolCall;
+
+        // Log cache performance
+        const cacheHitPct = response.usage.inputTokens > 0
+          ? ((response.usage.cacheReadTokens / response.usage.inputTokens) * 100).toFixed(1)
+          : 0;
+        console.log(`[CACHE] Read: ${response.usage.cacheReadTokens}, Write: ${response.usage.cacheCreationTokens}, Hit: ${cacheHitPct}%`);
+
+        // Log LLM response
         await sessionObs.logLLMResponse(sessionId, {
-          rawResponse: response,
+          rawResponse: response._rawResponse,
           durationMs
         });
-        
+
+        if (!toolCall) {
+          await sessionObs.logError(sessionId, 'No tool call in response', 'parse_response');
+          break;
+        }
+
+        // Log tool call
+        await sessionObs.logToolCall(sessionId, toolCall.name, toolCall.arguments, toolCall.id);
+
+        // Get status message for this tool (if any)
+        const statusMessage = getToolStatusMessage(toolCall.name);
+
+        // Emit tool start event for real-time streaming
+        emit('tool_start', { tool: toolCall.name, args: toolCall.arguments });
+
+        // Emit status update if tool has a status message
+        if (statusMessage?.start) {
+          emit('status', { message: statusMessage.start, tool: toolCall.name, phase: 'start' });
+        }
+
+        // Execute tool
+        const executionContext = { userId, sessionId };
+        const toolStartTime = Date.now();
+
+        try {
+          const { result, formatted, rawFormatted } = await executeTool(
+            toolCall.name,
+            toolCall.arguments,
+            executionContext
+          );
+
+          const toolDurationMs = Date.now() - toolStartTime;
+
+          // Log tool result
+          await sessionObs.logToolResult(sessionId, toolCall.name, rawFormatted, true, toolCall.id, toolDurationMs);
+
+          actions.push({
+            tool: toolCall.name,
+            args: toolCall.arguments,
+            result,
+            formatted
+          });
+
+          // Emit status completion if tool has a status message
+          if (statusMessage?.done) {
+            emit('status', { message: statusMessage.done, tool: toolCall.name, phase: 'done' });
+          }
+
+          // Emit tool result for real-time streaming
+          emit('tool_result', { tool: toolCall.name, result, formatted, success: true });
+
+          // Check for idle (completion signal)
+          if (toolCall.name === 'idle') {
+            shouldContinue = false;
+          }
+
+          // Check for question (wait for user response)
+          if (toolCall.name === 'message_ask_user') {
+            shouldContinue = false;
+          }
+
+        } catch (error) {
+          const toolDurationMs = Date.now() - toolStartTime;
+
+          // Log tool error result
+          await sessionObs.logToolResult(sessionId, toolCall.name, { error: error.message }, false, toolCall.id, toolDurationMs);
+
+          await sessionObs.logError(sessionId, error, `tool_execution:${toolCall.name}`);
+
+          actions.push({
+            tool: toolCall.name,
+            args: toolCall.arguments,
+            error: error.message
+          });
+
+          // Emit status error if tool has a status message
+          if (statusMessage?.start) {
+            emit('status', { message: 'Something went wrong', tool: toolCall.name, phase: 'error' });
+          }
+
+          // Emit tool error for real-time streaming
+          emit('tool_result', { tool: toolCall.name, error: error.message, success: false });
+        }
+
       } catch (error) {
         await sessionObs.logError(sessionId, error, 'llm_call');
         throw error;
-      }
-
-      if (!toolCall) {
-        // This should rarely happen with structured outputs
-        await sessionObs.logError(sessionId, 'Failed to parse structured output', 'parse_response', {
-          responsePreview: responseText.substring(0, 300)
-        });
-        break;
-      }
-
-      // Log tool call
-      await sessionObs.logToolCall(sessionId, toolCall.name, toolCall.arguments, toolCall.id);
-      
-      // Get status message for this tool (if any)
-      const statusMessage = getToolStatusMessage(toolCall.name);
-      
-      // Emit tool start event for real-time streaming
-      emit('tool_start', { tool: toolCall.name, args: toolCall.arguments });
-      
-      // Emit status update if tool has a status message
-      if (statusMessage?.start) {
-        emit('status', { message: statusMessage.start, tool: toolCall.name, phase: 'start' });
-      }
-
-      // Execute tool
-      const executionContext = { userId, sessionId };
-      const toolStartTime = Date.now();
-      
-      try {
-        const { result, formatted, rawFormatted } = await executeTool(
-          toolCall.name,
-          toolCall.arguments,
-          executionContext
-        );
-
-        const toolDurationMs = Date.now() - toolStartTime;
-
-        // Log tool result with raw formatted version for LLM context
-        // The contextBuilder will wrap it in <result> tags
-        await sessionObs.logToolResult(sessionId, toolCall.name, rawFormatted, true, toolCall.id, toolDurationMs);
-
-        actions.push({
-          tool: toolCall.name,
-          args: toolCall.arguments,
-          result,
-          formatted
-        });
-        
-        // Emit status completion if tool has a status message
-        if (statusMessage?.done) {
-          emit('status', { message: statusMessage.done, tool: toolCall.name, phase: 'done' });
-        }
-        
-        // Emit tool result for real-time streaming
-        // This sends message_notify_user, message_ask_user, etc. IMMEDIATELY
-        emit('tool_result', { tool: toolCall.name, result, formatted, success: true });
-
-        // Check for idle (completion signal)
-        if (toolCall.name === 'idle') {
-          shouldContinue = false;
-        }
-
-        // Check for question (wait for user response)
-        if (toolCall.name === 'message_ask_user') {
-          shouldContinue = false;
-        }
-
-      } catch (error) {
-        const toolDurationMs = Date.now() - toolStartTime;
-        
-        // Log tool error result
-        await sessionObs.logToolResult(sessionId, toolCall.name, { error: error.message }, false, toolCall.id, toolDurationMs);
-        
-        await sessionObs.logError(sessionId, error, `tool_execution:${toolCall.name}`);
-
-        actions.push({
-          tool: toolCall.name,
-          args: toolCall.arguments,
-          error: error.message
-        });
-        
-        // Emit status error if tool has a status message
-        if (statusMessage?.start) {
-          emit('status', { message: 'Something went wrong', tool: toolCall.name, phase: 'error' });
-        }
-        
-        // Emit tool error for real-time streaming
-        emit('tool_result', { tool: toolCall.name, error: error.message, success: false });
       }
     }
 
@@ -318,7 +325,7 @@ async function runAgentLoop(userId, userInput, options = {}) {
 async function getSessionState(sessionId) {
   const session = await sessionObs.getSession(sessionId);
   const events = await sessionObs.getContextEvents(sessionId, session.context_start_sequence);
-  
+
   // Extract last messages/results for client
   const recentActions = events
     .filter(e => e.event_type === 'tool_call' || e.event_type === 'tool_result')
@@ -332,6 +339,5 @@ async function getSessionState(sessionId) {
 
 module.exports = {
   runAgentLoop,
-  getSessionState,
-  parseToolCallFromJson  // Export for testing
+  getSessionState
 };

@@ -8,14 +8,14 @@ const { getUserSessions, getSession, createSession } = require('../services/sess
  */
 async function handleChat(req, res) {
   try {
-    const { message, sessionId, currentWorkout } = req.body;
+    const { message, sessionId, currentWorkout, model } = req.body;
     const userId = req.user.id;
 
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    const result = await runAgentLoop(userId, message, { sessionId, currentWorkout });
+    const result = await runAgentLoop(userId, message, { sessionId, currentWorkout, model });
 
     // Extract response for client
     const response = formatResponseForClient(result.actions);
@@ -38,7 +38,7 @@ async function handleChat(req, res) {
  */
 async function handleStreamChat(req, res) {
   try {
-    const { message, sessionId, currentWorkout } = req.body;
+    const { message, sessionId, currentWorkout, model } = req.body;
     const userId = req.user.id;
 
     if (!message) {
@@ -125,9 +125,10 @@ async function handleStreamChat(req, res) {
     };
 
     // Run the agent loop with real-time streaming callback
-    const result = await runAgentLoop(userId, message, { 
+    const result = await runAgentLoop(userId, message, {
       sessionId,
       currentWorkout,
+      model,
       onEvent  // This callback streams events as they happen!
     });
 

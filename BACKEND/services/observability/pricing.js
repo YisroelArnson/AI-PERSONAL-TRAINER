@@ -67,53 +67,146 @@ const MODEL_PRICING = {
   },
 
   // o1 models (reasoning)
-  'o1': { 
-    prompt: 15.00, 
+  'o1': {
+    prompt: 15.00,
     completion: 60.00,
     cached_prompt: 7.50
   },
-  'o1-preview': { 
-    prompt: 15.00, 
-    completion: 60.00 
+  'o1-preview': {
+    prompt: 15.00,
+    completion: 60.00
   },
-  'o1-mini': { 
-    prompt: 3.00, 
+  'o1-mini': {
+    prompt: 3.00,
     completion: 12.00,
     cached_prompt: 1.50
   },
 
+  // ═══════════════════════════════════════════════════════════════
+  // Anthropic Direct (native API) - Updated Jan 2026
+  // Source: https://platform.claude.com/docs/en/about-claude/pricing
+  // Cache pricing: write = 1.25x base, read = 0.1x base (90% discount!)
+  // ═══════════════════════════════════════════════════════════════
+  'claude-haiku-4-5': {
+    prompt: 1.00,
+    completion: 5.00,
+    cache_write: 1.25,    // 1.25x base = $1.25/M
+    cache_read: 0.10      // 0.1x base = $0.10/M (90% off!)
+  },
+  'claude-sonnet-4-5': {
+    prompt: 3.00,
+    completion: 15.00,
+    cache_write: 3.75,    // 1.25x base = $3.75/M
+    cache_read: 0.30      // 0.1x base = $0.30/M (90% off!)
+  },
+  'claude-sonnet-4-5-20250929': {
+    prompt: 3.00,
+    completion: 15.00,
+    cache_write: 3.75,
+    cache_read: 0.30
+  },
+  'claude-opus-4-5': {
+    prompt: 5.00,
+    completion: 25.00,
+    cache_write: 6.25,    // 1.25x base = $6.25/M
+    cache_read: 0.50      // 0.1x base = $0.50/M (90% off!)
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // Google via OpenRouter
+  // ═══════════════════════════════════════════════════════════════
+  'google/gemini-2.0-flash-exp:free': {
+    prompt: 0,
+    completion: 0
+  },
+  'google/gemini-pro-1.5': {
+    prompt: 1.25,
+    completion: 5.00
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // Moonshot via OpenRouter
+  // ═══════════════════════════════════════════════════════════════
+  'moonshotai/kimi-k2': {
+    prompt: 0.50,
+    completion: 2.40
+  },
+  'moonshotai/kimi-k2:free': {
+    prompt: 0,
+    completion: 0
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // DeepSeek via OpenRouter
+  // ═══════════════════════════════════════════════════════════════
+  'deepseek/deepseek-chat': {
+    prompt: 0.14,
+    completion: 0.28
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // Meta Llama via OpenRouter
+  // ═══════════════════════════════════════════════════════════════
+  'meta-llama/llama-3.1-405b-instruct': {
+    prompt: 0.80,
+    completion: 0.80
+  },
+
   // Default fallback for unknown models
-  'default': { 
-    prompt: 5.00, 
-    completion: 15.00 
+  'default': {
+    prompt: 5.00,
+    completion: 15.00
   }
 };
 
 /**
  * Calculate cost for a given model and token usage
- * @param {string} model - Model name (e.g., 'gpt-4o', 'gpt-4o-mini')
+ * @param {string} model - Model name (e.g., 'gpt-4o', 'claude-sonnet-4-5')
  * @param {number} promptTokens - Number of prompt/input tokens
  * @param {number} completionTokens - Number of completion/output tokens
- * @param {number} cachedTokens - Number of cached prompt tokens (optional)
+ * @param {Object|number} cacheInfo - Cache token info (number for OpenAI, object for Anthropic)
+ *   For OpenAI: number of cached_prompt tokens
+ *   For Anthropic: { cache_creation_input_tokens, cache_read_input_tokens }
  * @returns {number} Cost in USD (as a decimal, e.g., 0.0025 for $0.0025)
  */
-function calculateCost(model, promptTokens, completionTokens, cachedTokens = 0) {
+function calculateCost(model, promptTokens, completionTokens, cacheInfo = 0) {
   const pricing = MODEL_PRICING[model] || MODEL_PRICING['default'];
-  
-  // Calculate non-cached prompt tokens
-  const nonCachedPromptTokens = promptTokens - cachedTokens;
-  
-  // Calculate cost components
-  let promptCost = (nonCachedPromptTokens * pricing.prompt) / 1_000_000;
-  
-  // Add cached token cost if applicable
-  if (cachedTokens > 0 && pricing.cached_prompt) {
-    promptCost += (cachedTokens * pricing.cached_prompt) / 1_000_000;
+
+  let promptCost = 0;
+  let cacheCost = 0;
+
+  // Handle different cache formats
+  if (typeof cacheInfo === 'object' && cacheInfo !== null) {
+    // Anthropic format: { cache_creation_input_tokens, cache_read_input_tokens }
+    const cacheWrite = cacheInfo.cache_creation_input_tokens || 0;
+    const cacheRead = cacheInfo.cache_read_input_tokens || 0;
+
+    // Non-cached tokens = total input - cache read (cache write is separate)
+    const nonCachedPromptTokens = promptTokens;
+    promptCost = (nonCachedPromptTokens * pricing.prompt) / 1_000_000;
+
+    // Add cache costs if model supports it
+    if (pricing.cache_write && cacheWrite > 0) {
+      cacheCost += (cacheWrite * pricing.cache_write) / 1_000_000;
+    }
+    if (pricing.cache_read && cacheRead > 0) {
+      cacheCost += (cacheRead * pricing.cache_read) / 1_000_000;
+    }
+  } else {
+    // OpenAI format: single number for cached tokens
+    const cachedTokens = cacheInfo || 0;
+    const nonCachedPromptTokens = promptTokens - cachedTokens;
+    promptCost = (nonCachedPromptTokens * pricing.prompt) / 1_000_000;
+
+    // Add cached token cost if applicable (OpenAI style)
+    if (cachedTokens > 0 && pricing.cached_prompt) {
+      cacheCost = (cachedTokens * pricing.cached_prompt) / 1_000_000;
+    }
   }
-  
+
   const completionCost = (completionTokens * pricing.completion) / 1_000_000;
-  
-  return promptCost + completionCost;
+
+  return promptCost + cacheCost + completionCost;
 }
 
 /**
@@ -121,11 +214,11 @@ function calculateCost(model, promptTokens, completionTokens, cachedTokens = 0) 
  * @param {string} model - Model name
  * @param {number} promptTokens - Number of prompt tokens
  * @param {number} completionTokens - Number of completion tokens
- * @param {number} cachedTokens - Number of cached tokens (optional)
+ * @param {Object|number} cacheInfo - Cache token info (see calculateCost)
  * @returns {number} Cost in cents (e.g., 0.25 for $0.0025)
  */
-function calculateCostCents(model, promptTokens, completionTokens, cachedTokens = 0) {
-  return calculateCost(model, promptTokens, completionTokens, cachedTokens) * 100;
+function calculateCostCents(model, promptTokens, completionTokens, cacheInfo = 0) {
+  return calculateCost(model, promptTokens, completionTokens, cacheInfo) * 100;
 }
 
 /**

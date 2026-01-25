@@ -25,6 +25,9 @@ struct ChatMessage: Identifiable, Equatable {
     // Optional artifact attached to this message (e.g., workout plan)
     var artifact: Artifact?
 
+    // Optional question options for message_ask_user tool responses
+    var questionOptions: [String]?
+
     init(
         id: UUID = UUID(),
         role: MessageRole,
@@ -32,7 +35,8 @@ struct ChatMessage: Identifiable, Equatable {
         timestamp: Date = Date(),
         steps: [StepItem] = [],
         isStreaming: Bool = false,
-        artifact: Artifact? = nil
+        artifact: Artifact? = nil,
+        questionOptions: [String]? = nil
     ) {
         self.id = id
         self.role = role
@@ -41,6 +45,7 @@ struct ChatMessage: Identifiable, Equatable {
         self.steps = steps
         self.isStreaming = isStreaming
         self.artifact = artifact
+        self.questionOptions = questionOptions
     }
 }
 

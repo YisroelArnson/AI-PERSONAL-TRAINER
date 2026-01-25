@@ -18,6 +18,9 @@ struct FloatingMessageStack: View {
     var onAddToCurrent: ((Artifact) -> Void)? = nil
     var onReplaceCurrent: ((Artifact) -> Void)? = nil
 
+    // Question option selection callback
+    var onOptionSelected: ((String) -> Void)? = nil
+
     // Scroll state
     @State private var scrollProxy: ScrollViewProxy?
     @Namespace private var bottomID
@@ -65,6 +68,20 @@ struct FloatingMessageStack: View {
                                         onStartWorkout: { onStartWorkout?(artifact) },
                                         onAddToCurrent: { onAddToCurrent?(artifact) },
                                         onReplaceCurrent: { onReplaceCurrent?(artifact) }
+                                    )
+                                    .padding(.top, AppTheme.Spacing.xs)
+                                }
+
+                                // Show question options if message has options (from message_ask_user)
+                                if let options = message.questionOptions,
+                                   !options.isEmpty,
+                                   message.role == .assistant,
+                                   !message.isStreaming {
+                                    QuestionOptionsView(
+                                        options: options,
+                                        onOptionSelected: { option in
+                                            onOptionSelected?(option)
+                                        }
                                     )
                                     .padding(.top, AppTheme.Spacing.xs)
                                 }
@@ -241,6 +258,40 @@ struct StepsRow: View {
                     status: .running
                 ),
                 onExpandToggle: { print("Toggle expand") }
+            )
+            .padding()
+        }
+    }
+}
+
+#Preview("With Question Options") {
+    ZStack {
+        AnimatedGradientBackground()
+
+        VStack {
+            Spacer()
+
+            FloatingMessageStack(
+                messages: [
+                    ChatMessage(role: .user, content: "Generate me a workout"),
+                    ChatMessage(
+                        role: .assistant,
+                        content: "Would you like me to generate a new workout to replace your current one, or would you prefer to continue with your existing workout?",
+                        steps: [
+                            StepItem(tool: "fetch_workout_history", displayName: "Fetched workout history", status: .done),
+                            StepItem(tool: "fetch_preferences", displayName: "Loaded preferences", status: .done)
+                        ],
+                        questionOptions: [
+                            "Generate a new workout",
+                            "Keep my current workout"
+                        ]
+                    )
+                ],
+                isExpanded: true,
+                onExpandToggle: { print("Toggle expand") },
+                onOptionSelected: { option in
+                    print("Selected: \(option)")
+                }
             )
             .padding()
         }
