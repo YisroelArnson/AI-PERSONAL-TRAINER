@@ -48,7 +48,7 @@ The user experiences a *single coach* that:
 - **Screen anatomy**
   - **Header**: “Trainer Setup” + phase label (“Intake”) + compact progress indicator (e.g., a segmented bar).
   - **Focus prompt canvas (primary)**:
-    - **Coach prompt** in large text, centered-ish and vertically balanced for easy reading.
+    - **Coach prompt** in large text, top-ish and vertically balanced for easy reading.
     - Optional small subtext for examples (“You can say: ‘3 days/week, 45 minutes’”).
     - **Kinetic text animation**: words appear one-by-one quickly (typewriter-esque but word-based) to feel “spoken” and alive.
   - **History (secondary, user-invoked)**:
@@ -56,7 +56,7 @@ The user experiences a *single coach* that:
     - User can scroll up to reveal the full transcript (e.g., a “pull down / scroll up” affordance).
   - **Voice input panel**:
     - Live transcription text area (shows what the user is saying in real time).
-    - Controls: **Hold-to-talk** or **tap-to-record** (choose one), **Send** button, **Clear** / **Retry**.
+    - Controls: **tap-to-record**, **Send** button, **Clear** / **Retry**.
     - States: idle → recording → transcribing → ready-to-send → sending.
   - **Quick actions** (optional, context-dependent): suggestion chips like “Skip”, “Not sure”, “Prefer not to say”, “Show examples”.
   - **Safety/consent microcopy**: subtle line for privacy + “This isn’t medical advice” link where appropriate.
@@ -422,6 +422,7 @@ The user experiences a *single coach* that:
   - Exercise cards with sets/reps/weight + timers + rest.
   - “Glowing orb” / one-tap completion stays, but becomes set-level and session-level consistent.
   - Persistent top strip: elapsed time, next rest timer, quick actions.
+  - Quick RPE logging: an `RPE` pill/button on relevant strength/bodyweight cards; tap to pick `1–10` (optional, fast).
 - **Coach Overlay (lightweight, context-aware)**
   - A small “coach line” that occasionally surfaces cues (“Brace here”, “Slow down on the way down”) and can be expanded.
   - On-demand: tap/hold mic to ask anything; quick chips for common actions.
@@ -450,7 +451,7 @@ The user experiences a *single coach* that:
 - **Quick workout requests**: user can request a workout that deviates from today’s plan (e.g., “I’m at a hotel, 15 minutes, no equipment”).
 - **Exercise substitutions** (equipment mismatch, pain, preference) with rationale and safety constraints.
 - **Time-scaling** (auto “45→25 min” variant: reduce sets/accessories; preserve main lift intent) with one-tap UX.
-- **Logging**: sets, reps, load, time, rest, RPE, pain scale, notes, substitution reasons.
+- **Logging**: sets, reps, load, time, rest, RPE (easy), pain scale, notes, substitution reasons.
 - **Technique guidance**: short cues per exercise + deeper “How do I do this?” drill-down.
 - **Voice actions (push-to-talk)** (minimum set): “next”, “swap”, “timer”, “pain”, “change weight to X”.
 - **Resumability**: leaving the app mid-workout and returning restores state.
@@ -485,7 +486,7 @@ The user experiences a *single coach* that:
   - `swap_exercise` (with constraints + reason)
   - `adjust_prescription` (sets/reps/load/rest/tempo)
   - `set_timer` / `cancel_timer`
-  - `log_set_result` / `log_interval_result`
+  - `log_set_result` / `log_interval_result` (include optional `rpe_1_10` for applicable sets)
   - `flag_pain_and_modify` (forces safer alternatives + optionally ends session)
   - `end_session` (complete/stop/reschedule)
   - `set_coach_mode` (`quiet` / `ringer`)
@@ -661,6 +662,7 @@ Add tools that are explicit and easy to audit:
 - `recommend_program_adjustments`
 - `apply_program_patch` (creates a new `TrainingProgram` version)
 - `create_notification` (weekly report + program changes)
+- `upsert_user_memory` / `get_user_memory` / `forget_user_memory` (persistent user memory)
 
 ### 3.5 Safety layer (always-on guardrails)
 Implement a consistent “safety contract” across all modes:
@@ -732,6 +734,45 @@ Add a first-class calendar so the user can see and edit “what’s on which day
 - **How Phase F uses it**
   - Weekly adjustments can update upcoming `PlannedSessions` (intent) and/or shift the weekly template, then re-project future calendar events (respecting `user_modified`).
 
+### 3.8 User Memory (Persistent, user-scoped knowledge)
+Add a general-purpose memory system so the agent can persist stable user information (beyond “preferences”) and reliably reuse it across modes.
+
+- **What belongs in memory (vs not)**
+  - **Do store**: stable facts and durable preferences/constraints (injury constraints, equipment dislikes, coaching style, schedule constraints, “I hate burpees”, “I can’t run”, “I prefer 30-min sessions”).
+  - **Don’t store**: transient session chatter, one-off plans, or anything better represented as a document (`IntakeSummary`, `TrainingProgram`) or a log (`WorkoutLog`).
+- **Memory types (v1)**
+  - `preference` (likes/dislikes, coaching style)
+  - `constraint` (injuries/limitations, equipment constraints, schedule limits)
+  - `profile` (height, age range if collected; non-measurement identity fields)
+  - `capability` (self-reported ability: “can do push-ups on knees”, “can’t do pull-ups yet”)
+  - `note` (rare; only if it meaningfully changes coaching)
+- **Data model (suggested)**
+  - `trainer_user_memory_items`
+    - `id`, `user_id`, `memory_type`, `key`, `value_json`
+    - `status` (`active|deprecated`) + `confidence` (`low|med|high`)
+    - `sensitivity` (`normal|sensitive`) to gate medical-adjacent fields
+    - `source` (`intake|assessment|workout|goal_edit|user_edit`) + `source_event_id` (optional)
+    - Optional TTL: `expires_at` (nullable) for time-bounded memories (e.g., “traveling this week”, “temporary knee flare-up”)
+    - `created_at`, `updated_at`, `last_confirmed_at` (optional)
+  - `trainer_user_memory_events` (append-only audit of creates/updates/deprecations)
+- **Write policy (important)**
+  - The agent may *propose* memory updates; the backend enforces allowed keys/types and can require user confirmation for sensitive items.
+  - Prefer **idempotent upserts by key** (e.g., `constraint.running=not_allowed`) and **deprecate** old values rather than overwriting silently.
+- **Retrieval policy**
+  - Build a `MemoryContextAssembler` that selects a small, relevant subset per mode:
+    - Phase E: constraints + preferences + current injuries + coaching style
+    - Phase D/F: constraints + schedule + recovery notes + adherence patterns
+  - Always include “high impact” constraints (injuries, contraindications) even if older.
+  - Exclude expired items by default (`expires_at < now()`), but keep them in the audit trail (don’t hard-delete automatically).
+- **Tools**
+  - `upsert_user_memory` (create/update by `key`)
+  - `get_user_memory` (by keys/tags/type)
+  - `forget_user_memory` (deprecate/remove; user-initiated)
+- **UI surface (recommended)**
+  - “Coach Memory” screen in Settings:
+    - View/edit remembered items, mark something as wrong, and delete it (“forget this”).
+    - A lightweight confirmation prompt when the system wants to save a sensitive constraint (“Save ‘no running’?”).
+
 ---
 
 ## 4) UI/UX Workstreams (Concrete screens/flows)
@@ -740,6 +781,17 @@ Add a first-class calendar so the user can see and edit “what’s on which day
 - “Start Trainer Setup” CTA (first-run + Settings/Profile)
 - “Continue setup” persistent banner until program is active
 - Chat can always answer questions, but **setup progress lives in dedicated flows**
+
+### 4.1.1 Home Screen (Today-centric)
+- **Today’s Session (primary CTA)**: `Start/Resume` + today intent (focus + estimated duration) derived from `CalendarEvent` → `PlannedSession`.
+- **Coach mode toggle**: `Quiet` / `Ringer` visible on home; persists into the workout runner.
+- **Location/equipment chip**: shows current location; tap to change equipment context for today.
+- **Quick workout**: one-tap entry for off-plan sessions (e.g., “Hotel • 15 min • No equipment”).
+- **Calendar snippet**: next 3–5 upcoming sessions with quick actions `Move` / `Skip`.
+- **Progress at a glance**: “This week: 2/3 sessions” + 1–2 goal metrics (e.g., push-ups, plank, weight/waist if tracked).
+- **Latest update**: newest `WeeklyReport` / recent adjustment (“Changes we made”) with tap-to-view.
+- **Coach entry**: lightweight “Ask coach” entry point (push-to-talk or text), not a full chat wall.
+- **Safety shortcut**: “I have pain” quick action routes to safe modifications/help.
 
 ### 4.2 Intake flow UI
 - Focus prompt canvas with word-by-word prompt animation + live transcript + topic progress
@@ -780,6 +832,16 @@ Add a first-class calendar so the user can see and edit “what’s on which day
 ### 4.9 Check-ins UI
 - Weekly/monthly check-in card (1–2 minutes) when the system needs extra input or wants to confirm assumptions.
 - “Changes recommended” review + accept (used when adjustments are major or the user is in `Review-major` autopilot mode).
+
+### 4.10 User Data UI
+- A “Your Data” hub screen (in Profile/Settings) that exposes the core trainer artifacts and lets the user review/edit what the system is using:
+  - `Goals` (current approved `GoalContract` + history)
+  - `Program` (active `TrainingProgram` version + change log)
+  - `Calendar` (upcoming scheduled sessions + reschedule/skip)
+  - `Coach Memory` (view/edit/forget memory items, including TTL/expiry)
+  - `Measurements` (weight/waist/height time series)
+  - `Reports` (weekly reports + adjustments applied)
+- Each section should include “Why we store this” microcopy and a clear delete/export path (v2) for user trust.
 
 ---
 
