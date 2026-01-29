@@ -347,6 +347,21 @@ class APIService: ObservableObject {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         return request
     }
+
+    private func makeISO8601Decoder() -> JSONDecoder {
+        let decoder = JSONDecoder()
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        decoder.dateDecodingStrategy = .custom { decoder in
+            let container = try decoder.singleValueContainer()
+            let dateString = try container.decode(String.self)
+            if let date = formatter.date(from: dateString) {
+                return date
+            }
+            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format")
+        }
+        return decoder
+    }
     
     // MARK: - API Endpoints
     func fetchMessage() async throws -> String {
@@ -503,6 +518,100 @@ class APIService: ObservableObject {
                 onComplete(finalCount)
             }
         }
+    }
+
+    // MARK: - Trainer Workout Sessions (Phase E)
+
+    func createOrResumeWorkoutSession(forceNew: Bool, coachMode: String? = nil) async throws -> WorkoutSessionResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/workouts/sessions") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        var body: [String: Any] = ["force_new": forceNew]
+        if let coachMode = coachMode {
+            body["metadata"] = ["coach_mode": coachMode]
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try makeISO8601Decoder().decode(WorkoutSessionResponse.self, from: data)
+    }
+
+    func fetchWorkoutSession(sessionId: String) async throws -> WorkoutSessionDetailResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/workouts/sessions/\(sessionId)") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        return try makeISO8601Decoder().decode(WorkoutSessionDetailResponse.self, from: data)
+    }
+
+    func generateWorkoutInstance(sessionId: String, request: WorkoutGenerateRequest) async throws -> WorkoutInstanceResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/workouts/sessions/\(sessionId)/generate") else {
+            throw APIError.invalidURL
+        }
+
+        var httpRequest = try await createAuthenticatedRequest(url: url)
+        httpRequest.httpMethod = "POST"
+        httpRequest.httpBody = try JSONEncoder().encode(request)
+
+        let (data, httpResponse) = try await dataWithFallback(for: httpRequest)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        return try JSONDecoder().decode(WorkoutInstanceResponse.self, from: data)
+    }
+
+    func sendWorkoutAction(sessionId: String, actionType: String, payload: [String: CodableValue]) async throws -> WorkoutActionResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/workouts/sessions/\(sessionId)/actions") else {
+            throw APIError.invalidURL
+        }
+
+        let requestBody = WorkoutActionRequest(actionType: actionType, payload: payload)
+
+        var httpRequest = try await createAuthenticatedRequest(url: url)
+        httpRequest.httpMethod = "POST"
+        httpRequest.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, httpResponse) = try await dataWithFallback(for: httpRequest)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        return try JSONDecoder().decode(WorkoutActionResponse.self, from: data)
+    }
+
+    func completeWorkoutSession(sessionId: String, reflection: WorkoutReflection, log: WorkoutLogPayload) async throws -> WorkoutCompletionResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/workouts/sessions/\(sessionId)/complete") else {
+            throw APIError.invalidURL
+        }
+
+        var httpRequest = try await createAuthenticatedRequest(url: url)
+        httpRequest.httpMethod = "POST"
+
+        let requestBody = WorkoutCompletionRequest(reflection: reflection, log: log)
+        httpRequest.httpBody = try JSONEncoder().encode(requestBody)
+
+        let (data, httpResponse) = try await dataWithFallback(for: httpRequest)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        return try JSONDecoder().decode(WorkoutCompletionResponse.self, from: data)
     }
     
     func parsePreference(preferenceText: String, currentPreference: CurrentPreferenceContext? = nil) async throws -> ParsedPreference {
@@ -845,4 +954,3 @@ class APIService: ObservableObject {
         return apiResponse.data
     }
 }
-

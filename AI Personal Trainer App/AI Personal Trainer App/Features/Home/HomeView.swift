@@ -16,13 +16,19 @@ struct HomeView: View {
     
     @StateObject private var apiService = APIService()
     @StateObject private var exerciseStore = ExerciseStore.shared
+    @StateObject private var workoutSessionStore = WorkoutSessionStore.shared
     
-    @State private var isLoadingRecommendations = false
-    @State private var isStreamingExercises = false
-    @State private var showRefreshModal = false
     @State private var showCompletionFeedback = false
     @State private var showExerciseInfo = false
     @State private var errorMessage: String?
+
+    @State private var showReadinessSheet = false
+    @State private var showQuickWorkoutSheet = false
+    @State private var showReflectionSheet = false
+    @State private var showSummarySheet = false
+    @State private var showTimeScaleDialog = false
+    @State private var showPainDialog = false
+    @State private var selectedCoachMode: String = "quiet"
     
     // Swipe and animation states
     @State private var dragOffset: CGFloat = 0
@@ -72,18 +78,19 @@ struct HomeView: View {
                     topBar
                     
                     // Main content area
-                    if isLoadingRecommendations {
+                    if workoutSessionStore.isGenerating {
                         Spacer()
                         loadingState
                         Spacer()
                     } else if exercises.isEmpty {
                         Spacer()
-                        emptyState
+                        workoutHome
                         Spacer()
                     } else {
                         // Exercise content with header at top, content centered
                         exerciseContent
                             .padding(.top, AppTheme.Spacing.md)
+                        workoutQuickActions
                     }
                     
                     // Bottom controls (orb button + dots)
@@ -108,15 +115,64 @@ struct HomeView: View {
                     }
             )
         }
-        .sheet(isPresented: $showRefreshModal) {
-            RefreshModalView { feedback in
-                await fetchRecommendations(feedback: feedback)
+        .sheet(isPresented: $showReadinessSheet) {
+            ReadinessCheckSheet { input in
+                Task {
+                    await workoutSessionStore.startSession(
+                        intent: "planned",
+                        requestText: nil,
+                        timeAvailableMin: input.timeAvailableMin,
+                        readiness: input.readiness,
+                        equipment: input.equipmentOverride,
+                        coachMode: selectedCoachMode
+                    )
+                }
+            }
+        }
+        .sheet(isPresented: $showQuickWorkoutSheet) {
+            QuickWorkoutSheet { input in
+                Task {
+                    await workoutSessionStore.startSession(
+                        intent: "quick_request",
+                        requestText: input.requestText,
+                        timeAvailableMin: input.timeAvailableMin,
+                        readiness: input.readiness,
+                        equipment: input.equipmentOverride,
+                        coachMode: selectedCoachMode
+                    )
+                }
+            }
+        }
+        .sheet(isPresented: $showReflectionSheet) {
+            WorkoutReflectionSheet { reflection in
+                Task {
+                    let log = WorkoutLogPayload(
+                        exercisesCompleted: exercises.count,
+                        setsCompleted: completedSetsPerExercise.values.reduce(0) { $0 + $1.count },
+                        totalDurationMin: nil
+                    )
+                    await workoutSessionStore.completeSession(reflection: reflection, logPayload: log)
+                    showSummarySheet = workoutSessionStore.summary != nil
+                }
+            }
+        }
+        .sheet(isPresented: $showSummarySheet) {
+            if let summary = workoutSessionStore.summary {
+                WorkoutSummarySheet(summary: summary)
             }
         }
         .sheet(isPresented: $showExerciseInfo) {
             if !exercises.isEmpty {
                 ExerciseDetailSheet(exercise: exercises[currentExerciseIndex])
             }
+        }
+        .alert("Something went wrong", isPresented: Binding(
+            get: { workoutSessionStore.errorMessage != nil },
+            set: { _ in workoutSessionStore.errorMessage = nil }
+        )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(workoutSessionStore.errorMessage ?? "Please try again.")
         }
         .onChange(of: appCoordinator.shouldFetchRecommendations) { _, shouldFetch in
             if shouldFetch {
@@ -125,23 +181,22 @@ struct HomeView: View {
                 }
             }
         }
+        .task {
+            await loadRecommendationsIfNeeded()
+        }
         .onChange(of: allExercisesCompleted) { _, isAllCompleted in
-            if isAllCompleted && !isStreamingExercises {
-                Task {
-                    // Brief delay so user sees the last completion
-                    try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
-                    // Double-check we're still not streaming after the delay
-                    if !isStreamingExercises {
-                        await fetchMoreRecommendations()
-                    }
-                }
+            if isAllCompleted && !exercises.isEmpty {
+                showReflectionSheet = true
+            }
+        }
+        .onChange(of: workoutSessionStore.workoutInstance) { _, instance in
+            if instance != nil {
+                appCoordinator.markAsReady()
             }
         }
         .onChange(of: exerciseStore.needsRefresh) { _, needsRefresh in
-            if needsRefresh && !isStreamingExercises {
-                Task {
-                    await fetchRecommendations(feedback: nil)
-                }
+            if needsRefresh {
+                showReadinessSheet = true
             }
         }
     }
@@ -193,9 +248,15 @@ struct HomeView: View {
                 }
                 
                 Button(action: {
-                    showRefreshModal = true
+                    showReadinessSheet = true
                 }) {
-                    Label("Refresh", systemImage: "arrow.clockwise")
+                    Label("Start Workout", systemImage: "play.circle")
+                }
+
+                Button(action: {
+                    showQuickWorkoutSheet = true
+                }) {
+                    Label("Quick Workout", systemImage: "bolt")
                 }
             } label: {
                 Image(systemName: "ellipsis")
@@ -221,38 +282,75 @@ struct HomeView: View {
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
     
-    private var emptyState: some View {
+    private var workoutHome: some View {
         VStack(spacing: AppTheme.Spacing.xxl) {
-            Image(systemName: "figure.run")
+            Image(systemName: "figure.walk")
                 .font(.system(size: 48, weight: .light))
                 .foregroundColor(AppTheme.Colors.warmAccent)
-            
+
             VStack(spacing: AppTheme.Spacing.sm) {
-                Text("Ready when you are")
+                Text("Today’s session")
                     .font(.system(size: 24, weight: .semibold, design: .rounded))
                     .foregroundColor(AppTheme.Colors.primaryText)
-                
-                Text("Tap refresh to get your personalized workout")
+
+                Text("Start a guided workout or request something quick.")
                     .font(.system(size: 15, weight: .regular, design: .rounded))
                     .foregroundColor(AppTheme.Colors.secondaryText)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, AppTheme.Spacing.xxxxl)
             }
-            
-            Button(action: {
-                showRefreshModal = true
-            }) {
-                Text("Get started")
-                    .font(.system(size: 15, weight: .semibold, design: .rounded))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, AppTheme.Spacing.xxxl)
-                    .padding(.vertical, AppTheme.Spacing.md)
-                    .background(
-                        Capsule()
-                            .fill(AppTheme.Colors.warmAccent)
-                    )
+
+            HStack(spacing: AppTheme.Spacing.md) {
+                Button(action: {
+                    showReadinessSheet = true
+                }) {
+                    Text("Start")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, AppTheme.Spacing.xl)
+                        .padding(.vertical, AppTheme.Spacing.md)
+                        .background(
+                            Capsule()
+                                .fill(AppTheme.Colors.warmAccent)
+                        )
+                }
+
+                Button(action: {
+                    showQuickWorkoutSheet = true
+                }) {
+                    Text("Quick workout")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .padding(.horizontal, AppTheme.Spacing.xl)
+                        .padding(.vertical, AppTheme.Spacing.md)
+                        .background(
+                            Capsule()
+                                .fill(Color.white)
+                                .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: 2)
+                        )
+                }
             }
-            .padding(.top, AppTheme.Spacing.md)
+
+            if workoutSessionStore.activeSession != nil {
+                Button(action: {
+                    workoutSessionStore.restoreSessionIfNeeded()
+                }) {
+                    Text("Resume session")
+                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                }
+            }
+
+            Toggle(isOn: Binding(
+                get: { selectedCoachMode == "ringer" },
+                set: { selectedCoachMode = $0 ? "ringer" : "quiet" }
+            )) {
+                Text("Coach mode: \(selectedCoachMode == \"ringer\" ? "Ringer" : "Quiet")")
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+            }
+            .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.warmAccent))
+            .padding(.horizontal, AppTheme.Spacing.xl)
         }
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
@@ -283,6 +381,90 @@ struct HomeView: View {
             // Flexible space below content
             Spacer()
         }
+    }
+
+    private var workoutQuickActions: some View {
+        guard workoutSessionStore.activeSession != nil else {
+            return AnyView(EmptyView())
+        }
+
+        return AnyView(
+            ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: AppTheme.Spacing.sm) {
+            Button("Swap") {
+                Task {
+                    await workoutSessionStore.applyAction(
+                        actionType: "swap_exercise",
+                        payload: ["index": .int(currentExerciseIndex)]
+                    )
+                }
+            }
+            .buttonStyle(QuickActionButtonStyle())
+
+            Button("Easier") {
+                Task {
+                    await workoutSessionStore.applyAction(
+                        actionType: "adjust_prescription",
+                        payload: [
+                            "index": .int(currentExerciseIndex),
+                            "direction": .string("easier")
+                        ]
+                    )
+                }
+            }
+            .buttonStyle(QuickActionButtonStyle())
+
+            Button("Harder") {
+                Task {
+                    await workoutSessionStore.applyAction(
+                        actionType: "adjust_prescription",
+                        payload: [
+                            "index": .int(currentExerciseIndex),
+                            "direction": .string("harder")
+                        ]
+                    )
+                }
+            }
+            .buttonStyle(QuickActionButtonStyle())
+
+            Button("Short on time") {
+                showTimeScaleDialog = true
+            }
+            .buttonStyle(QuickActionButtonStyle())
+
+            Button("Pain") {
+                showPainDialog = true
+            }
+            .buttonStyle(QuickActionButtonStyle())
+        }
+        }
+        .padding(.horizontal, AppTheme.Spacing.lg)
+        .padding(.vertical, AppTheme.Spacing.sm)
+        .confirmationDialog("Short on time", isPresented: $showTimeScaleDialog) {
+            Button("15 min") {
+                Task { await timeScaleTo(15) }
+            }
+            Button("25 min") {
+                Task { await timeScaleTo(25) }
+            }
+            Button("35 min") {
+                Task { await timeScaleTo(35) }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        .confirmationDialog("Pain or discomfort", isPresented: $showPainDialog) {
+            Button("Mild") {
+                Task { await flagPain(severity: "mild") }
+            }
+            Button("Moderate") {
+                Task { await flagPain(severity: "moderate") }
+            }
+            Button("Severe") {
+                Task { await flagPain(severity: "severe") }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+        )
     }
     
     private var bottomControls: some View {
@@ -319,112 +501,10 @@ struct HomeView: View {
     // MARK: - Helper Methods
     
     private func loadRecommendationsIfNeeded() async {
-        // Check if we should fetch new recommendations based on user settings
-        if exerciseStore.shouldFetchNewExercises {
-            await fetchRecommendations(feedback: nil)
-        } else {
-            // Resume existing exercises - mark app as ready if we have exercises
-            if !exercises.isEmpty {
-                appCoordinator.markAsReady()
-                print("📦 Resuming \(exercises.count) persisted exercises at index \(currentExerciseIndex)")
-            }
-        }
-    }
-    
-    private func fetchMoreRecommendations() async {
-        isLoadingRecommendations = true
-        isStreamingExercises = true
-        errorMessage = nil
-        
-        // Don't clear exercises or completedExerciseIds - append new ones
-        let startingCount = exercises.count
-        
-        do {
-            try await apiService.streamRecommendations(
-                exerciseCount: nil,
-                onExercise: { streamingExercise in
-                    // Convert streaming exercise to UIExercise
-                    let uiExercise = self.convertStreamingToUIExercise(streamingExercise)
-                    
-                    // Turn off loading as soon as first exercise arrives
-                    if self.isLoadingRecommendations {
-                        self.isLoadingRecommendations = false
-                    }
-                    
-                    self.exerciseStore.addExercise(uiExercise)
-                    print("📊 Exercise \(self.exercises.count) added: \(streamingExercise.exercise_name)")
-                },
-                onComplete: { totalCount in
-                    print("✅ Loaded \(totalCount) more exercises (total: \(self.exercises.count))")
-                    self.exerciseStore.saveState()
-                    self.isLoadingRecommendations = false
-                    self.isStreamingExercises = false
-                    
-                    // Auto-scroll to first new uncompleted exercise
-                    if let firstNewIdx = self.exercises.indices.suffix(from: startingCount).first(where: {
-                        !self.completedExerciseIds.contains(self.exercises[$0].id)
-                    }) {
-                        self.exerciseStore.setCurrentIndex(firstNewIdx)
-                    }
-                },
-                onError: { error in
-                    self.errorMessage = error
-                    self.isLoadingRecommendations = false
-                    self.isStreamingExercises = false
-                    print("❌ Error loading exercises: \(error)")
-                }
-            )
-        } catch {
-            errorMessage = error.localizedDescription
-            isLoadingRecommendations = false
-            isStreamingExercises = false
-            print("❌ Failed to fetch more recommendations: \(error)")
-        }
-    }
-    
-    private func fetchRecommendations(feedback: String?) async {
-        isLoadingRecommendations = true
-        isStreamingExercises = true
-        errorMessage = nil
-        
-        // Clear existing exercises and completed state (manual refresh or auto-refresh)
-        exerciseStore.clearExercises()
-        exerciseStore.markFetchStarted()
-        
-        do {
-            try await apiService.streamRecommendations(
-                exerciseCount: nil,  // Let backend decide based on user context
-                onExercise: { streamingExercise in
-                    // Convert streaming exercise to UIExercise
-                    let uiExercise = self.convertStreamingToUIExercise(streamingExercise)
-                    
-                    // Turn off loading and mark app as ready when first exercise arrives
-                    if self.exercises.isEmpty {
-                        self.isLoadingRecommendations = false
-                        self.appCoordinator.markAsReady()
-                    }
-                    
-                    self.exerciseStore.addExercise(uiExercise)
-                    print("📊 Exercise \(self.exercises.count) added: \(streamingExercise.exercise_name)")
-                },
-                onComplete: { totalCount in
-                    print("✅ Loaded \(totalCount) exercises")
-                    self.exerciseStore.saveState()
-                    self.isLoadingRecommendations = false
-                    self.isStreamingExercises = false
-                },
-                onError: { error in
-                    self.errorMessage = error
-                    self.isLoadingRecommendations = false
-                    self.isStreamingExercises = false
-                    print("❌ Error loading exercises: \(error)")
-                }
-            )
-        } catch {
-            errorMessage = error.localizedDescription
-            isLoadingRecommendations = false
-            isStreamingExercises = false
-            print("❌ Failed to fetch recommendations: \(error)")
+        workoutSessionStore.restoreSessionIfNeeded()
+        if !exercises.isEmpty {
+            appCoordinator.markAsReady()
+            print("📦 Resuming \(exercises.count) persisted exercises at index \(currentExerciseIndex)")
         }
     }
     
@@ -529,6 +609,14 @@ struct HomeView: View {
             showCompletionFeedback = true
         }
         
+        // Log completion to workout session tracking
+        if let currentIdx = exercises.firstIndex(where: { $0.id == exercise.id }) {
+            let completedSets = completedSetsPerExercise[exercise.id]?.count ?? (exercise.sets ?? 1)
+            Task {
+                await workoutSessionStore.logExerciseCompletion(index: currentIdx, exercise: exercise, completedSets: completedSets)
+            }
+        }
+
         // Scroll to next uncompleted exercise
         if let currentIdx = exercises.firstIndex(where: { $0.id == exercise.id }) {
             // Find next uncompleted exercise
@@ -708,211 +796,19 @@ struct HomeView: View {
             set: { self.exerciseStore.updateAdjustedWeights(exerciseId: exerciseId, weights: $0) }
         )
     }
-}
 
-// MARK: - Data Models
-
-/// UI exercise model using the 4-type system: reps, hold, duration, intervals
-struct UIExercise: Identifiable, Codable {
-    let id: UUID
-    let exercise_name: String
-    let type: String // exercise type: "reps", "hold", "duration", "intervals"
-
-    // === METADATA ===
-    let muscles_utilized: [MuscleUtilization]?
-    let goals_addressed: [GoalUtilization]?
-    let reasoning: String?
-    let exercise_description: String?
-    let equipment: [String]?
-
-    // === TYPE: reps - Count repetitions across sets ===
-    let sets: Int?
-    let reps: [Int]?
-    let load_kg_each: [Double]?  // Weight per set
-    let load_unit: String?       // "lbs" or "kg"
-
-    // === TYPE: hold - Hold positions for time ===
-    let hold_duration_sec: [Int]? // Hold duration per set in seconds
-
-    // === TYPE: duration - Continuous effort ===
-    let duration_min: Int?
-    let distance_km: Double?
-    let distance_unit: String?   // "km" or "mi"
-    let target_pace: String?
-
-    // === TYPE: intervals - Work/rest cycles ===
-    let rounds: Int?
-    let work_sec: Int?           // Work interval in seconds
-    let total_duration_min: Int? // Total workout duration
-
-    // === SHARED TIMING ===
-    let rest_seconds: Int?       // Rest between sets/intervals in seconds
-
-    // === GROUPING (optional) ===
-    let group: ExerciseGroup?
-
-    // Custom initializer to generate UUID
-    init(
-        exercise_name: String,
-        type: String,
-        duration_min: Int? = nil,
-        reps: [Int]? = nil,
-        load_kg_each: [Double]? = nil,
-        load_unit: String? = nil,
-        sets: Int? = nil,
-        distance_km: Double? = nil,
-        distance_unit: String? = nil,
-        rounds: Int? = nil,
-        work_sec: Int? = nil,
-        total_duration_min: Int? = nil,
-        muscles_utilized: [MuscleUtilization]? = nil,
-        rest_seconds: Int? = nil,
-        target_pace: String? = nil,
-        hold_duration_sec: [Int]? = nil,
-        goals_addressed: [GoalUtilization]? = nil,
-        reasoning: String? = nil,
-        equipment: [String]? = nil,
-        exercise_description: String? = nil,
-        group: ExerciseGroup? = nil
-    ) {
-        self.id = UUID()
-        self.exercise_name = exercise_name
-        self.type = type
-        self.duration_min = duration_min
-        self.reps = reps
-        self.load_kg_each = load_kg_each
-        self.load_unit = load_unit
-        self.sets = sets
-        self.distance_km = distance_km
-        self.distance_unit = distance_unit
-        self.rounds = rounds
-        self.work_sec = work_sec
-        self.total_duration_min = total_duration_min
-        self.muscles_utilized = muscles_utilized
-        self.rest_seconds = rest_seconds
-        self.target_pace = target_pace
-        self.hold_duration_sec = hold_duration_sec
-        self.goals_addressed = goals_addressed
-        self.reasoning = reasoning
-        self.equipment = equipment
-        self.exercise_description = exercise_description
-        self.group = group
-    }
-
-    // Convert to Exercise model for logging
-    func toExercise() -> Exercise {
-        return Exercise(
-            name: exercise_name,
-            exercise_type: type,
-            sets: sets ?? 0,
-            reps: reps ?? [],
-            duration_min: duration_min ?? 0,
-            load_kg_each: load_kg_each ?? [],
-            muscles_utilized: muscles_utilized,
-            goals_addressed: goals_addressed,
-            reasoning: reasoning ?? "",
-            exercise_description: exercise_description,
-            distance_km: distance_km,
-            rounds: rounds,
-            rest_seconds: rest_seconds,
-            target_pace: target_pace,
-            hold_duration_sec: hold_duration_sec,
-            equipment: equipment
+    private func timeScaleTo(_ minutes: Int) async {
+        await workoutSessionStore.applyAction(
+            actionType: "time_scale",
+            payload: ["target_minutes": .int(minutes)]
         )
     }
 
-    enum CodingKeys: String, CodingKey {
-        case id, exercise_name, type
-        case duration_min, reps, sets, rounds
-        case load_kg_each, load_unit
-        case distance_km, distance_unit
-        case work_sec, total_duration_min
-        case muscles_utilized, rest_seconds, target_pace
-        case hold_duration_sec
-        case goals_addressed, reasoning, equipment
-        case exercise_description
-        case group
-    }
-
-    static var sampleExercises: [UIExercise] {
-        // Sample using new 4-type system
-        let benchPress = UIExercise(
-            exercise_name: "Barbell Bench Press",
-            type: "reps",
-            reps: [10, 10, 8],
-            load_kg_each: [40, 40, 45],
-            load_unit: "kg",
-            sets: 3,
-            muscles_utilized: [
-                MuscleUtilization(muscle: "Chest", share: 0.5),
-                MuscleUtilization(muscle: "Triceps", share: 0.3),
-                MuscleUtilization(muscle: "Shoulders", share: 0.2)
-            ],
-            rest_seconds: 90,
-            goals_addressed: [
-                GoalUtilization(goal: "strength", share: 0.8),
-                GoalUtilization(goal: "hypertrophy", share: 0.2)
-            ],
-            reasoning: "Compound pushing movement to build chest strength",
-            equipment: ["barbell", "bench"]
+    private func flagPain(severity: String) async {
+        await workoutSessionStore.applyAction(
+            actionType: "flag_pain",
+            payload: ["severity": .string(severity)]
         )
-
-        let plank = UIExercise(
-            exercise_name: "Plank",
-            type: "hold",
-            sets: 3,
-            muscles_utilized: [
-                MuscleUtilization(muscle: "Abs", share: 0.6),
-                MuscleUtilization(muscle: "Lower Back", share: 0.4)
-            ],
-            rest_seconds: 30,
-            hold_duration_sec: [45, 45, 60],
-            goals_addressed: [
-                GoalUtilization(goal: "stability", share: 1.0)
-            ],
-            reasoning: "Core stability exercise"
-        )
-
-        let run5k = UIExercise(
-            exercise_name: "5K Run",
-            type: "duration",
-            duration_min: 30,
-            distance_km: 5.0,
-            distance_unit: "km",
-            muscles_utilized: [
-                MuscleUtilization(muscle: "Quadriceps", share: 0.3),
-                MuscleUtilization(muscle: "Hamstrings", share: 0.25),
-                MuscleUtilization(muscle: "Calves", share: 0.25),
-                MuscleUtilization(muscle: "Glutes", share: 0.2)
-            ],
-            target_pace: "6:00/km",
-            goals_addressed: [
-                GoalUtilization(goal: "endurance", share: 0.7),
-                GoalUtilization(goal: "cardio", share: 0.3)
-            ],
-            reasoning: "Zone 2 cardio for aerobic base"
-        )
-
-        let tabata = UIExercise(
-            exercise_name: "Tabata Burpees",
-            type: "intervals",
-            rounds: 8,
-            work_sec: 20,
-            muscles_utilized: [
-                MuscleUtilization(muscle: "Quadriceps", share: 0.25),
-                MuscleUtilization(muscle: "Chest", share: 0.25),
-                MuscleUtilization(muscle: "Shoulders", share: 0.25),
-                MuscleUtilization(muscle: "Abs", share: 0.25)
-            ],
-            rest_seconds: 10,
-            goals_addressed: [
-                GoalUtilization(goal: "vo2max", share: 0.6),
-                GoalUtilization(goal: "conditioning", share: 0.4)
-            ],
-            reasoning: "High intensity intervals for metabolic conditioning"
-        )
-
-        return [benchPress, plank, run5k, tabata]
     }
 }
 
@@ -926,6 +822,21 @@ struct LocationInfo {
         temperature: "72°F",
         weatherCondition: "Sunny"
     )
+}
+
+struct QuickActionButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .foregroundColor(AppTheme.Colors.primaryText)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(configuration.isPressed ? 0.7 : 0.95))
+                    .shadow(color: AppTheme.Shadow.card.opacity(0.6), radius: 6, x: 0, y: 2)
+            )
+    }
 }
 
 // MARK: - UIExercise ExerciseDisplayable Conformance

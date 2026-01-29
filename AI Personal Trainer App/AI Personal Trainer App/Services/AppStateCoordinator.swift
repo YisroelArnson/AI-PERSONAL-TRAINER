@@ -108,13 +108,11 @@ class AppStateCoordinator: ObservableObject {
             try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5 seconds
         }
         
-        // Step 3: Signal ready for recommendations
-        // Stay in "Fetching recommendations..." state until first exercise arrives
-        loadingState = .fetchingRecommendations
-        shouldFetchRecommendations = true
-        
-        // Don't mark as ready yet - HomeView will mark us ready when first exercise arrives
-        print("⏳ Waiting for first recommendation to arrive...")
+        // Step 3: Signal ready for workout home
+        loadingState = .ready
+        shouldFetchRecommendations = false
+        isReady = true
+        print("✅ App initialization complete - ready for workout")
     }
     
     /// Call this from HomeView when the first exercise is received
@@ -206,4 +204,3 @@ class AppStateCoordinator: ObservableObject {
         shouldFetchRecommendations = false
     }
 }
-

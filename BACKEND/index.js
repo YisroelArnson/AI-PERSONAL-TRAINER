@@ -54,6 +54,9 @@ app.use('/user-settings', userSettingsRouter);
 const intervalRouter = require('./routes/interval.routes');
 app.use('/intervals', intervalRouter);
 
+const trainerWorkoutsRouter = require('./routes/trainerWorkouts.routes');
+app.use('/trainer/workouts', trainerWorkoutsRouter);
+
 // Observability/Admin routes
 const observabilityRouter = require('./routes/observability.routes');
 app.use('/api/admin', observabilityRouter);
