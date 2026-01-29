@@ -857,6 +857,7 @@ Support push-to-talk voice input across modes (especially Phase E commands) with
 - Treat it as a starting point, not a constraint: adjust and evolve the design as needed to produce the most effective UI/UX (clarity, accessibility, workout usability, safety).
 - When designing screens/components, prefer mapping to the schema’s primitives (colors, typography scale, spacing, orb behavior) so the app stays visually cohesive.
 
+
 ### 4.1 Entry points
 - “Start Trainer Setup” CTA (first-run + Settings/Profile)
 - “Continue setup” persistent banner until program is active

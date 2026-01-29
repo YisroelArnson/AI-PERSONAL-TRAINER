@@ -1,1 +1,8 @@
-AI Personal Trainer App/AI Personal Trainer App.xcodeproj/project.xcworkspace/xcuserdata/iswa.xcuserdatad/UserInterfaceState.xcuserstate
+# Xcode user-specific files
+*.xcuserstate
+*.xcuserdatad
+xcuserdata/
+
+# Xcode workspace and project user data
+*.xcodeproj/**/xcuserdata/
+*.xcworkspace/**/xcuserdata/
