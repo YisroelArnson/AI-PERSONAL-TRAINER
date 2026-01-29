@@ -1,8 +1,0 @@
-# Xcode user-specific files
-*.xcuserstate
-*.xcuserdatad
-xcuserdata/
-
-# Xcode workspace and project user data
-*.xcodeproj/**/xcuserdata/
-*.xcworkspace/**/xcuserdata/
