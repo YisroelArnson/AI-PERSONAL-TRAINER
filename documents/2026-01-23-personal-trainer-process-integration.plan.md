@@ -174,19 +174,23 @@ The user experiences a *single coach* that:
   - **Section 2 — Movement quality (≈5 min)**
     - `B2_squat_5reps`: instructions + diagram; user does 5 reps → answers:
       - depth (`below_parallel|parallel|above_parallel|minimal`)
-      - discomfort location (`none|knees|hips|low_back|ankles|other`)
+      - pain/discomfort location (`none|knees|hips|low_back|ankles|other`) + optional note (“sharp vs dull”, left/right)
       - heels (`flat|slight_lift|big_lift`)
     - `B3_single_leg_balance`: timer (20s) + “right then left” → answers:
       - balance (`steady_both|wobbly_both|one_side_harder|couldnt_hold`) + `harder_side` when relevant
+      - pain/discomfort? (`none|ankle|knee|hip|other`) + optional note
     - `B4_overhead_reach_wall`: instructions + diagram → answers:
       - result (`yes_easy|yes_stretch|close|restricted`)
       - tightness (`none|shoulders|upper_back|chest`)
+      - pain? (`none|shoulder|neck|upper_back|other`) + optional note
     - `B5_toe_touch`: instructions + diagram → answer:
       - reach (`floor|toes|ankles|mid_shin|knees_or_above`)
+      - pain? (`none|low_back|hamstring|other`) + optional note
     - `B6_pushup_position_hold_15s`: instructions + diagram; timer (15s) → answers:
       - position (`full|knees|couldnt_hold`)
       - felt_working (`core|shoulders|arms|low_back_strain`)
       - line (`straight|sag|pike|not_sure`)
+      - pain? (`none|wrist|shoulder|neck|low_back|other`) + optional note
   - **Section 3 — Strength & endurance (≈5 min)**
     - `B7_pushups_amrap`: “as many as you can with good form” → answers:
       - count (number)
@@ -195,12 +199,15 @@ The user experiences a *single coach* that:
     - `B8_squat_endurance_60s`: 60s timer + counter UI (user can tap per rep or speak final count) → answers:
       - count (number)
       - winded (`barely|moderately|very|stopped_early`)
+      - pain/discomfort? (`none|knees|hips|low_back|ankles|other`) + optional note
     - `B9_plank_hold`: timer runs until stop → answers:
       - duration_seconds (number) or bucket (`<15|15_30|30_60|>60`)
       - first_limit (`core|shoulders|low_back_strain|general_fatigue`)
+      - pain? (`none|shoulder|neck|wrist|low_back|other`) + optional note
     - `B10_cardiovascular_check`: protocol chooser:
       - choose `jumping_jacks_20` or `high_knees_march_30s` (auto-suggest march if impact is contraindicated)
       - answers: `felt` (`fine|slightly_elevated|winded|very_winded`) + recovery (`already|<30s|30_60s|>60s`)
+      - pain? (`none|knee|ankle|hip|other`) + optional note
   - **Section 4 — Body awareness (≈2 min)**
     - `B11_tight_areas`: multi-select chips + optional voice note
     - `B12_weak_areas`: multi-select chips + optional voice note
@@ -225,6 +232,7 @@ The user experiences a *single coach* that:
   - **Defaults + speed**: most inputs are chips/sliders; voice is for “other” and notes.
   - **Timer screens**: show big `Start`/`Stop` and auto-fill the measured time; user can override if needed.
   - **Rep count screens**: allow (a) typing, (b) speaking a number, or (c) tap-counter for 60s tests.
+  - **Pain capture is explicit**: each major pattern step includes a quick “Any pain/discomfort?” chip set + optional note.
   - **“Report pain” is always visible** and can branch the flow (auto-skip high-risk steps, downgrade intensity).
 - **Step types**
   - `QuestionStep`: single prompt + examples; voice + chips.
@@ -346,9 +354,12 @@ The user experiences a *single coach* that:
 - **Progression model**:
   - For each key movement pattern: how to progress (reps→load→sets), when to deload, and what to do on missed targets.
   - Time-scaling variants (e.g., `45min`, `30min`, `15min`) preserving intent.
+  - Progression is primarily driven by **effort signals** (`RPE`, `RIR`, “hit failure?”) rather than chasing specific weights.
 - **Exercise selection rules**: allowed movements given equipment/injuries + substitution preferences.
 - **Safety**: pain scale handling + “if pain then…” modifications + red-flag stop criteria.
 - **Coach guidance hooks**: short cues per movement pattern (used in Phase E Ringer mode).
+ - **Foundation block (conditional)**: for most new/returning users, the first 2–4 weeks emphasize proprioception (mobility/stability/flexibility) and tempo/time-under-tension; conditional skip/shorten when training history and assessment indicate higher competency.
+ - **Enjoyment weighting**: explicitly prioritize user “enjoy/avoid” preferences and modality enjoyment when selecting exercises and session formats (consistency-first), while preserving the intended stimulus.
 
 **UI/UX (Program Design Mode — draft + voice edits + Q&A)**
 - **Program Draft screen**
@@ -451,11 +462,15 @@ The user experiences a *single coach* that:
 - **Quick workout requests**: user can request a workout that deviates from today’s plan (e.g., “I’m at a hotel, 15 minutes, no equipment”).
 - **Exercise substitutions** (equipment mismatch, pain, preference) with rationale and safety constraints.
 - **Time-scaling** (auto “45→25 min” variant: reduce sets/accessories; preserve main lift intent) with one-tap UX.
-- **Logging**: sets, reps, load, time, rest, RPE (easy), pain scale, notes, substitution reasons.
+- **Logging**: sets, reps, load, time, rest, RPE (easy), RIR / “reps left” (easy), “hit failure?” (easy), pain scale, notes, substitution reasons.
 - **Technique guidance**: short cues per exercise + deeper “How do I do this?” drill-down.
-- **Voice actions (push-to-talk)** (minimum set): “next”, “swap”, “timer”, “pain”, “change weight to X”.
+- **Voice actions (push-to-talk)** (minimum set): “next”, “swap”, “timer”, “pain”, “change weight to X” (via on-device transcription; see Voice Transcription section).
 - **Resumability**: leaving the app mid-workout and returning restores state.
 - **Coach modes**: `Quiet` (only responds when asked / on safety triggers) vs `Ringer` (proactive cues at the right moments).
+- **Frictionless journaling** (end of session): 1–3 quick signals captured with one tap/voice:
+  - “How hard was it?” (overall RPE)
+  - “How many reps left in the tank?” (overall RIR or “to failure” yes/no)
+  - “What did you enjoy / hate?” (optional; feeds enjoyment memory and future exercise selection)
 
 **Agent/LLM roles in Phase E (keep it modular)**
 - **Workout Generator** (at start of session): produces `WorkoutInstance` from program + constraints.
@@ -486,7 +501,7 @@ The user experiences a *single coach* that:
   - `swap_exercise` (with constraints + reason)
   - `adjust_prescription` (sets/reps/load/rest/tempo)
   - `set_timer` / `cancel_timer`
-  - `log_set_result` / `log_interval_result` (include optional `rpe_1_10` for applicable sets)
+  - `log_set_result` / `log_interval_result` (include optional `rpe_1_10`, `rir_0_5`, `hit_failure_bool` for applicable sets)
   - `flag_pain_and_modify` (forces safer alternatives + optionally ends session)
   - `end_session` (complete/stop/reschedule)
   - `set_coach_mode` (`quiet` / `ringer`)
@@ -527,14 +542,15 @@ The user experiences a *single coach* that:
 
 **What gets adjusted (v1 adjustment menu)**
 - **Progression tuning**
-  - Increase/decrease load or reps targets based on success/failure and RPE.
-  - Swap progression method (add reps before load, or vice versa) if the user stalls.
+  - Increase/decrease targets based on success/failure and effort signals (`RPE`, `RIR`, “hit failure?”), not just weight.
+  - Swap progression method (reps-first, tempo-first, sets-first, load-last) if the user stalls or has limited equipment.
 - **Volume/frequency tuning**
   - Add/remove sets or accessories based on recovery signals and adherence.
   - Deload insertion when fatigue/pain patterns suggest it.
 - **Exercise selection**
   - Promote frequently-used substitutions into the plan (respecting equipment and preferences).
   - Replace exercises that repeatedly cause pain or confusion.
+  - Prefer exercises the user consistently enjoys; down-rank movements they repeatedly avoid, while preserving stimulus (multiple paths to same result).
 - **Time-budget alignment**
   - If the user repeatedly time-scales down, automatically shift the weekly template toward shorter sessions.
 - **Calendar alignment**
@@ -679,11 +695,14 @@ Store body measurements as an append-only time series so progress can be tracked
   - Support corrections by creating a new entry that references the prior one (e.g., `supersedes_id`).
   - Separate `measured_at` (when the user measured) from `created_at` (when they logged it).
 - **Measurement types (v1)**
-  - `weight`, `height`, `waist_circumference` (optionally later: `hip`, `chest`, `body_fat_percent`).
+  - `weight`, `height`, `waist_circumference`
+  - Body composition (optional): `body_fat_percent`, `lean_mass`, `fat_mass`
+  - (Optionally later: `hip`, `chest`, `body_fat_percent_method`, `skeletal_muscle_mass`)
 - **Data model (suggested)**
   - `trainer_measurements`
     - `id`, `user_id`, `measurement_type`, `value`, `unit`, `measured_at`, `created_at`
-    - `source` (`user_manual|intake|checkin|import`) + `notes` (optional)
+    - `source` (`user_manual|intake|checkin|import`) + optional `source_detail` (`dexa|inbody|scale|estimate|unknown`)
+    - `notes` (optional)
     - `supersedes_id` (nullable) to support corrections without deleting history
 - **API surface (suggested)**
   - `POST /trainer/measurements` (append measurement)
@@ -746,6 +765,7 @@ Add a general-purpose memory system so the agent can persist stable user informa
   - `profile` (height, age range if collected; non-measurement identity fields)
   - `capability` (self-reported ability: “can do push-ups on knees”, “can’t do pull-ups yet”)
   - `note` (rare; only if it meaningfully changes coaching)
+  - `health_flag` (short, non-diagnostic user-entered flags like “vitamin D low”, “iron low”, “thyroid issue (self-reported)”)
 - **Data model (suggested)**
   - `trainer_user_memory_items`
     - `id`, `user_id`, `memory_type`, `key`, `value_json`
@@ -773,9 +793,69 @@ Add a general-purpose memory system so the agent can persist stable user informa
     - View/edit remembered items, mark something as wrong, and delete it (“forget this”).
     - A lightweight confirmation prompt when the system wants to save a sensitive constraint (“Save ‘no running’?”).
 
+### 3.9 Premium Extension: Human Video Review (Future)
+Consider an optional “form check” feature where users submit short videos for review by a human trainer.
+
+- **Why**: bridges AI limitations for technique feedback and increases trust/safety.
+- **Scope note**: keep out of v1; it impacts storage, privacy, ops, and staffing.
+- **Integration point**: Phase E can suggest “Send a form check?” when repeated pain/failures occur or when the user requests it.
+
+### 3.10 Voice Transcription (iOS, on-device)
+Support push-to-talk voice input across modes (especially Phase E commands) with a hybrid, low-latency on-device transcription system.
+
+- **Goals**
+  - Sub-200ms perceived latency for short workout commands (“Next”, “Set done”, “Start timer”).
+  - Privacy-first: on-device recognition whenever possible.
+  - Robust in gym environments (music + background noise).
+- **Version/hardware strategy (engine selection)**
+  - **iOS 26+**: use `SpeechAnalyzer` + `SpeechTranscriber` with `.offlineTranscription` preset (on-device), and manage one-time language asset availability via `AssetInventory`.
+  - **iOS 18–25**: use `SFSpeechRecognizer` + `SFSpeechAudioBufferRecognitionRequest` with `requiresOnDeviceRecognition = true` (and gate by `supportsOnDeviceRecognition`).
+  - **Fallbacks**
+    - If on-device assets/models aren’t present: prompt for a one-time download, or degrade to typed input (do not silently fall back to network STT in v1).
+    - Always support a text input fallback for accessibility and failure cases.
+- **Audio pipeline**
+  - Configure `AVAudioSession` for recording while ducking other audio:
+    - Category: `.record`
+    - Mode: `.measurement` (voice-friendly)
+    - Options: `.duckOthers`
+  - Use `AVAudioEngine` with a tap; ensure the tap is removed on stop to prevent leaks and battery drain.
+  - Noise handling: prefer native voice processing where available; optionally add a high-pass filter to reduce low-frequency gym noise.
+- **Command biasing (“Gym Keywords”)**
+  - Maintain a small keyword/phrase list for commands (“rep”, “set”, “next”, “swap”, “timer”, “done”, “pause”, numbers).
+  - For `SFSpeechRecognizer`, use request customization features where available (e.g., partial results + language model customization when supported) to bias toward the command vocabulary.
+  - Keep the command grammar small and stable to maximize accuracy and speed.
+- **Partial results + instant execution**
+  - Stream partial transcripts to the UI immediately.
+  - For Phase E, if a high-confidence command is detected in partial results, execute instantly (don’t wait for final) and provide haptic confirmation.
+  - Apply debouncing to avoid double-fires (“next next”).
+- **Local-first command routing (recommended)**
+  - Parse common commands locally into structured actions (fast path), e.g.:
+    - “next” → `WorkoutAction.nextExercise`
+    - “set done” → `WorkoutAction.completeSet`
+    - “timer 90” → `WorkoutAction.setTimer(90)`
+    - “RPE 8” → `WorkoutAction.setRPE(8)`
+  - Send unknown/complex requests to the backend coach as text (“I’m at a hotel, quick workout”) for LLM handling (slow path).
+- **UI feedback**
+  - A clear listening indicator (pulsing/level meter); visual “voice detected” state.
+  - `UINotificationFeedbackGenerator` on successful command (and distinct haptic on failure).
+  - Show a short “heard” toast (“Timer: 90s”) so the user trusts it worked without reading a transcript wall.
+- **Implementation requirements**
+  - Permissions:
+    - `NSSpeechRecognitionUsageDescription`
+    - `NSMicrophoneUsageDescription`
+  - Wrap as a `SpeechManager` (Swift) with `@Published` state for SwiftUI:
+    - `isListening`, `partialTranscript`, `finalTranscript`, `lastCommand`, `error`
+  - Ensure `AVAudioEngine` tap cleanup and `AVAudioSession` deactivation on stop (`.notifyOthersOnDeactivation`).
+  - Track locale explicitly (avoid “no models installed” issues caused by region/language mismatch).
+
 ---
 
 ## 4) UI/UX Workstreams (Concrete screens/flows)
+
+### 4.0 Design System Reference
+- Use `documents/design-schema.json` as the **reference/inspiration guide** for visual styling (tokens, principles, components).
+- Treat it as a starting point, not a constraint: adjust and evolve the design as needed to produce the most effective UI/UX (clarity, accessibility, workout usability, safety).
+- When designing screens/components, prefer mapping to the schema’s primitives (colors, typography scale, spacing, orb behavior) so the app stays visually cohesive.
 
 ### 4.1 Entry points
 - “Start Trainer Setup” CTA (first-run + Settings/Profile)
@@ -818,7 +898,7 @@ Add a general-purpose memory system so the agent can persist stable user informa
 
 ### 4.7 Measurements UI
 - Simple “Measurements” screen in Profile/Settings:
-  - Quick add: `Weight`, `Waist`, `Height` (with unit toggle).
+  - Quick add: `Weight`, `Waist`, `Height`, and optional `Body fat %` / `Lean mass` / `Fat mass` (with unit toggle + source selector like DEXA/InBody/Estimate).
   - Timeline chart + latest value + last updated date.
   - Edit history via “Correct” (creates a new entry; doesn’t erase old data).
 
