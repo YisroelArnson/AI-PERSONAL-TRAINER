@@ -49,6 +49,7 @@ struct MainAppView: View {
 
     // Sheet states
     @State private var showingProfile = false
+    @State private var showingCustomWorkoutMenu = false
 
     // User info
     @State private var userEmail: String = ""
@@ -61,16 +62,7 @@ struct MainAppView: View {
             AssistantOverlayView()
                 .environment(\.assistantManager, assistantManager)
 
-            if currentPage == .home {
-                ExpandingFabMenu(isExpanded: $isFabExpanded, items: menuItems)
-            } else {
-                MinimalBackBar(title: pageTitle) {
-                    withAnimation(AppTheme.Animation.gentle) {
-                        currentPage = .home
-                    }
-                }
-            }
-
+            // Tap-to-close overlay must come BEFORE the FAB menu so menu buttons are on top
             if isFabExpanded {
                 Color.black.opacity(0.001)
                     .ignoresSafeArea()
@@ -79,6 +71,23 @@ struct MainAppView: View {
                             isFabExpanded = false
                         }
                     }
+            }
+
+            if currentPage == .home {
+                // Home header: FAB menu only (plus button moved to bottom bar)
+                VStack {
+                    HStack(alignment: .top) {
+                        ExpandingFabMenu(isExpanded: $isFabExpanded, items: menuItems)
+                        Spacer()
+                    }
+                    Spacer()
+                }
+            } else {
+                MinimalBackBar(title: pageTitle) {
+                    withAnimation(AppTheme.Animation.gentle) {
+                        currentPage = .home
+                    }
+                }
             }
         }
         .sheet(isPresented: $showingProfile) {
@@ -177,7 +186,8 @@ struct TwoLineMenuIcon: View {
 struct StatsPageView: View {
     var body: some View {
         ZStack {
-            AnimatedGradientBackground()
+            AppTheme.Colors.background
+                .ignoresSafeArea()
             StatsContentView()
         }
     }
@@ -190,7 +200,8 @@ struct InfoPageView: View {
 
     var body: some View {
         ZStack {
-            AnimatedGradientBackground()
+            AppTheme.Colors.background
+                .ignoresSafeArea()
             InfoContentView()
                 .environmentObject(userDataStore)
         }
@@ -225,6 +236,14 @@ struct MinimalBackBar: View {
         }
         .ignoresSafeArea(edges: .top)
     }
+}
+
+// MARK: - Notification Names
+
+extension Notification.Name {
+    static let showQuickWorkoutSheet = Notification.Name("showQuickWorkoutSheet")
+    static let showScheduleWorkoutSheet = Notification.Name("showScheduleWorkoutSheet")
+    static let showStartRunSheet = Notification.Name("showStartRunSheet")
 }
 
 #Preview {

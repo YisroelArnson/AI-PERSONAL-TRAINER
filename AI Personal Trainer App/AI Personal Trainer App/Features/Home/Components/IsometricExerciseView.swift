@@ -32,7 +32,8 @@ struct IsometricExerciseView: View {
                             }
                         }
                     )
-                    .emergingAnimation(isVisible: showContent, delay: 0.1 + Double(index) * 0.06)
+                    .opacity(showContent ? 1 : 0)
+                    .animation(AppTheme.Animation.gentle.delay(0.1 + Double(index) * 0.06), value: showContent)
                 }
             }
         }

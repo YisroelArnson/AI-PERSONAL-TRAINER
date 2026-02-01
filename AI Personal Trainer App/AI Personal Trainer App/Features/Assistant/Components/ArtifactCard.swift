@@ -185,7 +185,7 @@ private struct SummaryPill: View {
 
 #Preview("Artifact Card") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack(spacing: AppTheme.Spacing.lg) {
             ArtifactCard(
@@ -201,7 +201,7 @@ private struct SummaryPill: View {
 
 #Preview("Full Width") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         ArtifactCard(
             artifact: Artifact(

@@ -40,7 +40,8 @@ struct ExerciseHeaderView: View {
                     .font(AppTheme.Typography.label)
                     .foregroundColor(AppTheme.Colors.secondaryText)
                     .textCase(.lowercase)
-                    .fadeAnimation(isVisible: showContent)
+                    .opacity(showContent ? 1 : 0)
+                    .animation(AppTheme.Animation.gentle, value: showContent)
             }
             
             // Exercise name
@@ -49,7 +50,8 @@ struct ExerciseHeaderView: View {
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .minimumScaleFactor(0.7)
                 .lineLimit(2)
-                .fadeAnimation(isVisible: showContent, delay: 0.05)
+                .opacity(showContent ? 1 : 0)
+                .animation(AppTheme.Animation.gentle.delay(0.05), value: showContent)
             
             // Expandable description
             if let description = exercise.exercise_description, !description.isEmpty {
@@ -86,7 +88,8 @@ struct ExerciseContentView: View {
                     exerciseContent
                 }
                 .padding(.horizontal, AppTheme.Spacing.xl)
-                .emergingAnimation(isVisible: showContent, delay: 0.15)
+                .opacity(showContent ? 1 : 0)
+                .animation(AppTheme.Animation.gentle.delay(0.15), value: showContent)
             }
         }
     }

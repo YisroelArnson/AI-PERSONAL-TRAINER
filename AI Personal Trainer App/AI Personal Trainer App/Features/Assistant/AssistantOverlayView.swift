@@ -121,8 +121,8 @@ struct AssistantOverlayView: View {
                                     manager.open()
                                 }
                             )
-                            .padding(.trailing, AppTheme.Spacing.xl)
-                            .padding(.bottom, AppTheme.Spacing.xxxl)
+                            .padding(.trailing, 20)
+                            .padding(.bottom, 16)
                         }
                         .transition(.scale.combined(with: .opacity))
                     }
@@ -361,7 +361,7 @@ struct AssistantOverlayView: View {
 #Preview {
     ZStack {
         // Background content
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
         
         VStack {
             Text("Home Screen Content")

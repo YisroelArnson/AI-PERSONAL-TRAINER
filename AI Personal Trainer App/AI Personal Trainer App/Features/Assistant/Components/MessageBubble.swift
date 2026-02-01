@@ -90,7 +90,7 @@ struct MessageBubble: View {
 
 #Preview("Basic Messages") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack(spacing: AppTheme.Spacing.lg) {
             MessageBubble(
@@ -113,7 +113,7 @@ struct MessageBubble: View {
 
 #Preview("Long Message") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack(spacing: AppTheme.Spacing.lg) {
             MessageBubble(

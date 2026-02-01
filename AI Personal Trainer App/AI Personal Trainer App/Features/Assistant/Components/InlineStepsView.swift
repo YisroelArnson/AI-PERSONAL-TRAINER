@@ -43,7 +43,7 @@ struct InlineStepsView: View {
 
 #Preview("Streaming") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack(alignment: .leading, spacing: 20) {
             // Simulated message bubble with streaming steps
@@ -76,7 +76,7 @@ struct InlineStepsView: View {
 
 #Preview("Completed") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack(alignment: .leading, spacing: 20) {
             // Simulated message bubble with completed steps

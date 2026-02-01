@@ -29,6 +29,9 @@ enum AppTheme {
         static let divider = dynamic(light: UIColor(hex: "000000").withAlphaComponent(0.06), dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.08))
         static let highlight = dynamic(light: UIColor(hex: "000000").withAlphaComponent(0.06), dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.1))
 
+        // Stat highlight - for inline text highlights (matches design-schema.json)
+        static let statHighlight = dynamic(light: UIColor(hex: "000000").withAlphaComponent(0.06), dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.1))
+
         static let accent = primaryText
         static let danger = Color(hex: "FF3B30")
 
@@ -41,10 +44,16 @@ enum AppTheme {
         static let warning = primaryText
         static let border = Color.clear
 
-        // Orb colors (only color in UI)
-        static let orbBlue = Color(hex: "1E90FF")
-        static let orbBlueLight = Color(hex: "64B4FF")
-        static let orbBlueDeep = Color(hex: "0064C8")
+        // Orb colors - sky blue/cloud palette (matching AIOrb from intake)
+        static let orbSkyLight = Color(red: 0.7, green: 0.85, blue: 0.95)
+        static let orbSkyMid = Color(red: 0.4, green: 0.7, blue: 0.9)
+        static let orbSkyDeep = Color(red: 0.2, green: 0.5, blue: 0.85)
+        static let orbCloudWhite = Color(red: 0.95, green: 0.97, blue: 1.0)
+
+        // Legacy orb colors (kept for compatibility)
+        static let orbBlue = orbSkyMid
+        static let orbBlueLight = orbSkyLight
+        static let orbBlueDeep = orbSkyDeep
     }
 
     // MARK: - Gradients
@@ -57,17 +66,16 @@ enum AppTheme {
             )
         }
 
-        static var orb: RadialGradient {
-            RadialGradient(
-                gradient: Gradient(colors: [
-                    Color.white.opacity(0.9),
-                    Colors.orbBlueLight,
-                    Colors.orbBlue,
-                    Colors.orbBlueDeep
+        static var orb: LinearGradient {
+            LinearGradient(
+                gradient: Gradient(stops: [
+                    .init(color: Colors.orbCloudWhite.opacity(0.95), location: 0),
+                    .init(color: Colors.orbSkyLight, location: 0.3),
+                    .init(color: Colors.orbSkyMid, location: 0.6),
+                    .init(color: Colors.orbSkyDeep, location: 1.0)
                 ]),
-                center: .center,
-                startRadius: 6,
-                endRadius: 60
+                startPoint: .top,
+                endPoint: .bottom
             )
         }
 
@@ -107,7 +115,7 @@ enum AppTheme {
         static let cardRadius: CGFloat = 0
         static let cardOffset = CGSize(width: 0, height: 0)
 
-        static let orb = Colors.orbBlue.opacity(0.3)
+        static let orb = Colors.orbSkyDeep.opacity(0.3)
         static let orbRadius: CGFloat = 12
 
         static let button = Color.clear
@@ -138,6 +146,5 @@ enum AppTheme {
         static let gentle = SwiftUI.Animation.easeInOut(duration: 0.15)
         static let slow = SwiftUI.Animation.easeInOut(duration: 0.3)
         static let spring = SwiftUI.Animation.spring(response: 0.3, dampingFraction: 0.8)
-        static let breathing = SwiftUI.Animation.easeInOut(duration: 2.0).repeatForever(autoreverses: true)
     }
 }

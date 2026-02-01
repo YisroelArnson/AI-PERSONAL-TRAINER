@@ -82,13 +82,14 @@ struct ExpandableDescriptionView: View {
         }
         .buttonStyle(PlainButtonStyle())
         .disabled(!needsExpansion)
-        .fadeAnimation(isVisible: showContent, delay: 0.08)
+        .opacity(showContent ? 1 : 0)
+        .animation(AppTheme.Animation.gentle.delay(0.08), value: showContent)
     }
 }
 
 #Preview {
     ZStack {
-        AppTheme.Gradients.background
+        AppTheme.Colors.background
             .ignoresSafeArea()
         
         VStack(alignment: .leading, spacing: 40) {

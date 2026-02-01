@@ -198,7 +198,7 @@ struct StepsRow: View {
 
 #Preview {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack {
             Spacer()
@@ -215,7 +215,7 @@ struct StepsRow: View {
 
 #Preview("Expanded") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack {
             Spacer()
@@ -232,7 +232,7 @@ struct StepsRow: View {
 
 #Preview("With Streaming") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack {
             Spacer()
@@ -257,7 +257,7 @@ struct StepsRow: View {
 
 #Preview("With Question Options") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack {
             Spacer()

@@ -101,7 +101,7 @@ struct CollapsedStepsSummary: View {
 
 #Preview("Collapsed") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack(spacing: 20) {
             CollapsedStepsSummary(steps: StepItem.samples)
@@ -112,7 +112,7 @@ struct CollapsedStepsSummary: View {
 
 #Preview("Expanded") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack(alignment: .leading, spacing: 20) {
             // Simulate expanded state

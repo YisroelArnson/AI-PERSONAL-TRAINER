@@ -1,648 +1,975 @@
 {
-    "designSystem": {
-      "name": "AI Fitness Trainer — Minimal Flat Design",
-      "version": "2.1",
-      "description": "An ultra-minimal, flat design system for an AI-powered fitness trainer app. Text-driven interface with inline stat highlights. The AI orb is the only element with depth and color. Black and white UI with no accent colors.",
-  
-      "designPrinciples": {
-        "textFirst": "Information is delivered through natural language with inline highlights, not separate UI components. The AI speaks to you in sentences, not cards.",
-        "flatness": "No shadows, no borders, no 3D effects on UI elements. Depth is reserved exclusively for the AI orb.",
-        "monochromeUI": "The interface is purely black and white. The only color comes from the AI orb's sky blue gradient.",
-        "colorContrast": "Elements are distinguished by subtle shifts in background color, not by outlines or elevation.",
-        "signatureElement": "The AI orb is the single point of visual richness — it earns attention by being the only element with glow and gradient.",
-        "contextualUI": "The bottom bar adapts to context: home shows workout pill + orb, exercise shows edit + done + orb.",
-        "restraint": "If it doesn't need to be there, remove it. Every element must justify its existence."
+  "designSystem": {
+    "name": "AI Fitness Trainer — Unified Design System",
+    "version": "3.0",
+    "description": "A comprehensive, ultra-minimal flat design system for an AI-powered fitness trainer app supporting both strength training and running workouts. Text-driven interface with inline stat highlights. The AI orb is the only element with depth and color.",
+
+    "designPrinciples": {
+      "textFirst": "Information is delivered through natural language with inline highlights, not separate UI components. The AI speaks to you in sentences, not cards.",
+      "flatness": "No shadows, no borders, no 3D effects on UI elements. Depth is reserved exclusively for the AI orb.",
+      "monochromeUI": "The interface is purely black and white. The only color comes from the AI orb's sky blue gradient and the running route on maps.",
+      "colorContrast": "Elements are distinguished by subtle shifts in background color, not by outlines or elevation.",
+      "signatureElement": "The AI orb is the single point of visual richness — it earns attention by being the only element with glow and gradient.",
+      "contextualUI": "The bottom bar adapts to context: home shows workout pill + orb, exercise shows edit + done + orb, running shows pause + stop.",
+      "restraint": "If it doesn't need to be there, remove it. Every element must justify its existence.",
+      "unifiedExperience": "Strength training and cardio share the same visual language, creating a cohesive experience across workout types."
+    },
+
+    "color": {
+      "dark": {
+        "background": "#000000",
+        "surface": "#111111",
+        "surfaceHover": "#1A1A1A",
+        "mapBackground": "#0a0a0a",
+        "text": {
+          "primary": "#FFFFFF",
+          "secondary": "rgba(255, 255, 255, 0.6)",
+          "tertiary": "rgba(255, 255, 255, 0.4)"
+        },
+        "divider": "rgba(255, 255, 255, 0.08)",
+        "accent": "#FFFFFF",
+        "highlight": "rgba(255, 255, 255, 0.1)",
+        "danger": "#FF3B30",
+        "mapGrid": "rgba(255, 255, 255, 0.1)",
+        "mapStreets": "rgba(255, 255, 255, 0.15)"
       },
-  
-      "color": {
-        "dark": {
-          "background": "#000000",
-          "surface": "#111111",
-          "surfaceHover": "#1A1A1A",
-          "text": {
-            "primary": "#FFFFFF",
-            "secondary": "rgba(255, 255, 255, 0.6)",
-            "tertiary": "rgba(255, 255, 255, 0.4)"
-          },
-          "divider": "rgba(255, 255, 255, 0.08)",
-          "accent": "#FFFFFF",
-          "highlight": "rgba(255, 255, 255, 0.1)",
-          "danger": "#FF3B30"
+      "light": {
+        "background": "#FFFFFF",
+        "surface": "#F5F5F7",
+        "surfaceHover": "#EBEBED",
+        "mapBackground": "#E8E8E8",
+        "text": {
+          "primary": "#000000",
+          "secondary": "rgba(0, 0, 0, 0.6)",
+          "tertiary": "rgba(0, 0, 0, 0.4)"
         },
-        "light": {
-          "background": "#FFFFFF",
-          "surface": "#F5F5F7",
-          "surfaceHover": "#EBEBED",
-          "text": {
-            "primary": "#000000",
-            "secondary": "rgba(0, 0, 0, 0.6)",
-            "tertiary": "rgba(0, 0, 0, 0.4)"
-          },
-          "divider": "rgba(0, 0, 0, 0.06)",
-          "accent": "#000000",
-          "highlight": "rgba(0, 0, 0, 0.06)",
-          "danger": "#FF3B30"
+        "divider": "rgba(0, 0, 0, 0.06)",
+        "accent": "#000000",
+        "highlight": "rgba(0, 0, 0, 0.06)",
+        "danger": "#FF3B30",
+        "mapGrid": "rgba(0, 0, 0, 0.08)",
+        "mapStreets": "rgba(0, 0, 0, 0.1)"
+      },
+      "orb": {
+        "description": "The AI orb is the ONLY element with color, gradient, and glow in the entire UI.",
+        "gradientCSS": "radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.9) 0%, transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(0,150,255,0.8) 0%, transparent 50%), radial-gradient(ellipse at 50% 50%, rgba(100,180,255,0.9) 0%, rgba(30,144,255,1) 60%, rgba(0,100,200,1) 100%)",
+        "glow": "0 3px 12px rgba(30,144,255,0.3)"
+      },
+      "route": {
+        "description": "The running route uses the same blue as the orb, creating visual connection.",
+        "gradientCSS": "linear-gradient(to bottom right, #64B4FF, #1E90FF)",
+        "startColor": "#64B4FF",
+        "endColor": "#1E90FF",
+        "currentPosition": "#1E90FF",
+        "currentPositionPulse": "rgba(30, 144, 255, 0.3)"
+      }
+    },
+
+    "typography": {
+      "fontFamily": "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "scale": {
+        "heroStat": {
+          "size": "42px",
+          "weight": 700,
+          "letterSpacing": "-0.02em",
+          "fontVariantNumeric": "tabular-nums",
+          "usage": "Primary running stats (time, distance)"
         },
-        "orb": {
-          "description": "The AI orb is the ONLY element with color, gradient, and glow in the entire UI.",
-          "gradientCSS": "radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.9) 0%, transparent 50%), radial-gradient(ellipse at 70% 80%, rgba(0,150,255,0.8) 0%, transparent 50%), radial-gradient(ellipse at 50% 50%, rgba(100,180,255,0.9) 0%, rgba(30,144,255,1) 60%, rgba(0,100,200,1) 100%)",
-          "glow": "0 3px 12px rgba(30,144,255,0.3)"
+        "largeStat": {
+          "size": "32px",
+          "weight": 700,
+          "letterSpacing": "-0.02em",
+          "usage": "Post-run summary primary stats"
+        },
+        "statNumber": {
+          "size": "24px",
+          "weight": 700,
+          "letterSpacing": "-0.02em",
+          "usage": "Profile stats, workout detail stats"
+        },
+        "mediumStat": {
+          "size": "20px",
+          "weight": 700,
+          "usage": "Secondary running stats (pace, calories, heart rate)"
+        },
+        "largeStat2": {
+          "size": "18px",
+          "weight": 700,
+          "usage": "Workout detail stats, menu items"
+        },
+        "screenTitle": {
+          "size": "17px",
+          "weight": 600,
+          "usage": "Screen titles in headers"
+        },
+        "aiMessageLarge": {
+          "size": "19px",
+          "weight": 400,
+          "lineHeight": 1.55,
+          "usage": "Home screen AI-generated message"
+        },
+        "aiMessageMedium": {
+          "size": "16px",
+          "weight": 400,
+          "lineHeight": 1.55,
+          "usage": "AI summaries, pre-run message, exercise coaching"
+        },
+        "profileName": {
+          "size": "18px",
+          "weight": 600,
+          "usage": "User name on profile"
+        },
+        "cardTitle": {
+          "size": "15px",
+          "weight": 600,
+          "usage": "Workout card titles, exercise names, menu item labels"
+        },
+        "button": {
+          "size": "15px",
+          "weight": 600,
+          "usage": "Primary button labels (Start Run, Done)"
+        },
+        "buttonSmall": {
+          "size": "14px",
+          "weight": 600,
+          "usage": "Secondary button labels"
+        },
+        "aiCoachingInline": {
+          "size": "14px",
+          "weight": 400,
+          "lineHeight": 1.5,
+          "usage": "AI coaching card during run"
+        },
+        "bodyText": {
+          "size": "14px",
+          "weight": 400,
+          "usage": "Run details, form fields"
+        },
+        "cardSubtitle": {
+          "size": "13px",
+          "weight": 400,
+          "usage": "Secondary info on cards, suggested prompts"
+        },
+        "label": {
+          "size": "12px",
+          "weight": 500,
+          "textTransform": "uppercase",
+          "letterSpacing": "0.03em",
+          "usage": "Section labels, date labels, stat labels"
+        },
+        "labelSmall": {
+          "size": "11px",
+          "weight": 500,
+          "textTransform": "uppercase",
+          "letterSpacing": "0.05em",
+          "usage": "Running stat labels"
+        },
+        "labelTiny": {
+          "size": "10px",
+          "weight": 400,
+          "textTransform": "uppercase",
+          "letterSpacing": "0.03em",
+          "usage": "Secondary running stat labels"
+        },
+        "pillText": {
+          "size": "14px",
+          "weight": 500,
+          "usage": "Workout pill text, muscle/goal pills"
+        },
+        "splitNumber": {
+          "size": "13px",
+          "weight": 600,
+          "usage": "Mile split numbers"
         }
+      }
+    },
+
+    "spacing": {
+      "scale": {
+        "xs": "4px",
+        "sm": "6px",
+        "md": "8px",
+        "lg": "10px",
+        "xl": "12px",
+        "2xl": "14px",
+        "3xl": "16px",
+        "4xl": "20px",
+        "5xl": "24px"
       },
-  
-      "typography": {
-        "fontFamily": "'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
-        "scale": {
-          "screenTitle": {
-            "size": "17px",
-            "weight": 600,
-            "usage": "Screen titles in headers (History, Profile)"
-          },
-          "aiMessageLarge": {
-            "size": "19px",
-            "weight": 400,
-            "lineHeight": 1.55,
-            "usage": "Home screen AI-generated message"
-          },
-          "aiMessageMedium": {
-            "size": "16px",
-            "weight": 400,
-            "lineHeight": 1.55,
-            "usage": "History/Profile AI summaries, exercise coaching"
-          },
-          "profileName": {
-            "size": "18px",
-            "weight": 600,
-            "usage": "User name on profile"
-          },
-          "statNumber": {
-            "size": "24px",
-            "weight": 700,
-            "letterSpacing": "-0.02em",
-            "usage": "Large stat numbers on profile"
-          },
-          "cardTitle": {
-            "size": "15px",
-            "weight": 600,
-            "usage": "Workout card titles, menu item labels"
-          },
-          "cardSubtitle": {
-            "size": "13px",
-            "weight": 400,
-            "usage": "Secondary info on cards (duration, exercise count)"
-          },
-          "button": {
-            "size": "14px",
-            "weight": 600,
-            "usage": "Button labels"
-          },
-          "caption": {
-            "size": "14px",
-            "weight": 500,
-            "usage": "Progress indicators, secondary info"
-          },
-          "label": {
-            "size": "12px",
-            "weight": 500,
-            "textTransform": "uppercase",
-            "letterSpacing": "0.03em",
-            "usage": "Date labels, stat labels"
-          },
-          "input": {
-            "size": "15px",
-            "weight": 400,
-            "usage": "Text input fields"
-          },
-          "pillText": {
-            "size": "14px",
-            "weight": 500,
-            "usage": "Workout pill text"
-          },
-          "modalItem": {
-            "size": "15px",
-            "weight": 500,
-            "usage": "Modal list items"
-          },
-          "suggestedPrompt": {
-            "size": "13px",
-            "weight": 500,
-            "usage": "Chat suggested prompt chips"
-          }
-        }
+      "screenPadding": {
+        "horizontal": "20px",
+        "top": "16px",
+        "bottom": "24px"
       },
-  
-      "spacing": {
-        "scale": {
-          "xs": "4px",
-          "sm": "8px",
-          "md": "10px",
-          "lg": "14px",
-          "xl": "16px",
-          "2xl": "20px",
-          "3xl": "24px"
+      "gaps": {
+        "bottomBarItems": "10px",
+        "cardList": "8px",
+        "statsGrid": "8px",
+        "modalItems": "4px",
+        "pillTags": "8px",
+        "setItems": "6px",
+        "splitItems": "6px"
+      }
+    },
+
+    "borderRadius": {
+      "scale": {
+        "small": "7px",
+        "medium": "11px",
+        "large": "15px",
+        "pill": "44px",
+        "full": "50%",
+        "modal": "20px"
+      },
+      "usage": {
+        "cards": "large (15px)",
+        "statsCards": "medium (11px) for small, large (15px) for big",
+        "buttons": "pill (44px)",
+        "inputs": "medium (11px)",
+        "iconButtons": "full (50%)",
+        "modalSheet": "modal (20px) on top corners",
+        "statHighlights": "4px",
+        "avatar": "full (50%)",
+        "mapContainer": "large (15px)",
+        "pillTags": "pill (44px)"
+      }
+    },
+
+    "shadows": {
+      "philosophy": "No shadows on UI elements. Exceptions: AI orb and floating buttons over map.",
+      "ui": "none",
+      "orb": "0 3px 12px rgba(30,144,255,0.3)",
+      "floatingButton": "0 2px 8px rgba(0,0,0,0.15)"
+    },
+
+    "borders": {
+      "philosophy": "No borders on any elements. Distinction comes from background color alone.",
+      "ui": "none"
+    },
+
+    "components": {
+      "statHighlight": {
+        "description": "Inline highlighted text for numbers and key data within AI messages.",
+        "properties": {
+          "display": "inline-flex",
+          "padding": "0px 5px",
+          "background": "highlight",
+          "borderRadius": "4px",
+          "fontWeight": 600
         },
-        "screenPadding": {
-          "horizontal": "20px",
-          "top": "16px",
-          "bottom": "24px"
-        },
-        "gaps": {
-          "bottomBarItems": "10px",
-          "cardList": "8px",
-          "modalItems": "4px",
-          "statsRow": "8px",
-          "suggestedPrompts": "8px"
-        }
+        "usage": "Wrap numbers, exercise names, percentages, distances, paces, and key stats in flowing text"
       },
-  
-      "borderRadius": {
-        "scale": {
-          "small": "7px",
-          "medium": "11px",
-          "large": "15px",
-          "pill": "44px",
-          "full": "50%",
-          "modal": "20px"
+      "aiOrb": {
+        "description": "The signature AI element. The ONLY component with gradient, glow, and color.",
+        "sizes": {
+          "tiny": "24px",
+          "small": "32px",
+          "medium": "36px",
+          "standard": "50px",
+          "large": "56px",
+          "hero": "100px"
+        },
+        "properties": {
+          "borderRadius": "full",
+          "border": "none",
+          "background": "orb.gradientCSS",
+          "boxShadow": "orb.glow"
+        },
+        "interactions": {
+          "tap": "Opens chat or triggers action",
+          "tapAndHold": "Activates voice input",
+          "hover": "scale(1.05)"
         },
         "usage": {
-          "cards": "large (15px)",
-          "buttons": "pill (44px) or medium (11px)",
-          "inputs": "medium (11px)",
-          "iconButtons": "full (50%)",
-          "modalSheet": "modal (20px) on top corners",
-          "statHighlights": "4px",
-          "avatar": "full (50%)"
+          "tiny": "Section headers (Why This Exercise)",
+          "small": "AI coaching card during run",
+          "medium": "Post-run summary AI message",
+          "standard": "Bottom bar, navigation",
+          "large": "Pre-run start button area",
+          "hero": "Chat screen center"
         }
       },
-  
-      "shadows": {
-        "philosophy": "No shadows on UI elements. The only exception is the AI orb.",
-        "ui": "none",
-        "orb": "0 3px 12px rgba(30,144,255,0.3)"
-      },
-  
-      "borders": {
-        "philosophy": "No borders on any elements. Distinction comes from background color alone.",
-        "ui": "none"
-      },
-  
-      "components": {
-        "statHighlight": {
-          "description": "Inline highlighted text for numbers and key data within AI messages.",
-          "properties": {
-            "display": "inline-flex",
-            "padding": "0px 5px",
-            "background": "highlight",
-            "borderRadius": "4px",
-            "fontWeight": 600
-          },
-          "usage": "Wrap numbers, exercise names, percentages, and key stats in flowing text"
+      "workoutPill": {
+        "description": "Pill-shaped button showing current workout with play icon.",
+        "properties": {
+          "display": "flex",
+          "alignItems": "center",
+          "gap": "11px",
+          "padding": "10px 10px 10px 16px",
+          "background": "surface",
+          "borderRadius": "pill",
+          "border": "none"
         },
-        "aiOrb": {
-          "description": "The signature AI element. The ONLY component with gradient, glow, and color.",
-          "sizes": {
-            "standard": "50px",
-            "small": "44px",
-            "large": "100px"
-          },
-          "properties": {
-            "borderRadius": "full",
-            "border": "none",
-            "background": "orb.gradientCSS",
-            "boxShadow": "orb.glow"
-          },
-          "interactions": {
-            "tap": "Opens chat or triggers text input",
-            "tapAndHold": "Activates voice input",
-            "hover": "scale(1.05)"
-          }
-        },
-        "workoutPill": {
-          "description": "Pill-shaped button showing current workout with play icon.",
-          "properties": {
-            "display": "flex",
-            "alignItems": "center",
-            "gap": "11px",
-            "padding": "10px 10px 10px 16px",
-            "background": "surface",
-            "borderRadius": "pill",
-            "border": "none"
-          },
-          "children": {
-            "text": {
-              "format": "{workoutName} ({duration})",
-              "fontSize": "14px",
-              "fontWeight": 500,
-              "overflow": "scrolling animation if too long"
-            },
-            "playButton": {
-              "size": "32px",
-              "background": "accent",
-              "iconSize": "12px",
-              "iconColor": "background"
-            }
-          }
-        },
-        "iconButton": {
-          "description": "Circular button with icon (menu, close, back, edit).",
-          "properties": {
-            "width": "44px",
-            "height": "44px",
-            "borderRadius": "full",
-            "background": "surface",
-            "border": "none",
-            "iconSize": "18px",
-            "color": "text.primary"
-          }
-        },
-        "primaryButton": {
-          "description": "Main action button (e.g., Done).",
-          "properties": {
-            "display": "flex",
-            "alignItems": "center",
-            "justifyContent": "center",
-            "gap": "8px",
-            "padding": "12px 20px",
-            "background": "accent",
-            "color": "background",
-            "border": "none",
-            "borderRadius": "pill",
+        "children": {
+          "text": {
+            "format": "{workoutName} ({duration})",
             "fontSize": "14px",
-            "fontWeight": 600
+            "fontWeight": 500,
+            "overflow": "scrolling animation if too long"
           },
-          "withIcon": {
-            "icon": "checkmark",
-            "iconSize": "16px",
-            "iconStrokeWidth": 3,
-            "label": "Done"
+          "playButton": {
+            "size": "32px",
+            "background": "accent",
+            "iconSize": "12px",
+            "iconColor": "background"
           }
+        }
+      },
+      "iconButton": {
+        "description": "Circular button with icon (menu, close, back, edit, stop).",
+        "sizes": {
+          "standard": { "width": "44px", "height": "44px", "iconSize": "18px" },
+          "medium": { "width": "50px", "height": "50px", "iconSize": "20px" },
+          "large": { "width": "56px", "height": "56px", "iconSize": "20px" }
         },
-        "progressBar": {
-          "description": "Thin horizontal progress indicator.",
-          "properties": {
-            "height": "3px",
-            "background": "surface",
-            "borderRadius": "2px"
-          },
-          "fill": {
-            "background": "text.primary",
-            "borderRadius": "2px"
-          }
+        "properties": {
+          "borderRadius": "full",
+          "background": "surface",
+          "border": "none",
+          "color": "text.primary"
         },
-        "expandingFab": {
-          "description": "Menu button that expands to reveal navigation icons.",
-          "position": "top-left",
-          "direction": "expands downward",
-          "mainButton": {
-            "size": "44px",
-            "icon": "menu (2 lines) or close (X)",
-            "iconSize": "18px"
-          },
-          "expandedItems": {
-            "size": "40px",
-            "spacing": "48px vertical",
-            "icons": ["history (clock)", "profile (user)"],
-            "animation": "staggered fade + slide, 50ms delay each"
-          }
-        },
-        "bottomSheet": {
-          "description": "Modal that slides up from bottom for contextual actions.",
-          "properties": {
+        "variants": {
+          "floating": {
             "background": "background",
-            "borderTopLeftRadius": "20px",
-            "borderTopRightRadius": "20px",
-            "padding": "12px 20px 32px"
-          },
-          "handle": {
-            "width": "36px",
-            "height": "4px",
-            "background": "text.tertiary",
-            "borderRadius": "2px",
-            "marginBottom": "20px"
-          },
-          "backdrop": {
-            "background": "rgba(0,0,0,0.4)"
+            "boxShadow": "floatingButton"
+          }
+        }
+      },
+      "primaryButton": {
+        "description": "Main action button (Start Run, Done, Pause, Resume).",
+        "properties": {
+          "display": "flex",
+          "alignItems": "center",
+          "justifyContent": "center",
+          "gap": "8px",
+          "padding": "16px 20px",
+          "background": "accent",
+          "color": "background",
+          "border": "none",
+          "borderRadius": "pill",
+          "fontSize": "15px",
+          "fontWeight": 600
+        },
+        "variants": {
+          "small": {
+            "padding": "12px 20px",
+            "fontSize": "14px"
           }
         },
-        "modalListItem": {
-          "description": "Tappable row in bottom sheet modal.",
-          "properties": {
-            "display": "flex",
-            "alignItems": "center",
-            "gap": "14px",
-            "padding": "14px 16px",
-            "background": "surface",
-            "border": "none",
-            "borderRadius": "medium"
+        "withIcon": {
+          "iconSize": "16-18px",
+          "gap": "8-10px"
+        }
+      },
+      "progressBar": {
+        "description": "Thin horizontal progress indicator for strength workouts.",
+        "properties": {
+          "height": "3px",
+          "background": "surface",
+          "borderRadius": "2px"
+        },
+        "fill": {
+          "background": "text.primary",
+          "borderRadius": "2px"
+        }
+      },
+      "expandingFab": {
+        "description": "Menu button that expands to reveal navigation icons.",
+        "position": "top-left",
+        "direction": "expands downward",
+        "mainButton": {
+          "size": "44px",
+          "icon": "menu (2 lines) or close (X)",
+          "iconSize": "18px"
+        },
+        "expandedItems": {
+          "size": "40px",
+          "spacing": "48px vertical",
+          "icons": ["history (clock)", "profile (user)"],
+          "animation": "staggered fade + slide, 50ms delay each"
+        }
+      },
+      "bottomSheet": {
+        "description": "Modal that slides up from bottom for contextual actions.",
+        "properties": {
+          "background": "background",
+          "borderTopLeftRadius": "20px",
+          "borderTopRightRadius": "20px",
+          "padding": "12px 20px 32px"
+        },
+        "handle": {
+          "width": "36px",
+          "height": "4px",
+          "background": "text.tertiary",
+          "borderRadius": "2px",
+          "marginBottom": "20px"
+        },
+        "backdrop": {
+          "background": "rgba(0,0,0,0.4)"
+        }
+      },
+      "modalListItem": {
+        "description": "Tappable row in bottom sheet modal.",
+        "properties": {
+          "display": "flex",
+          "alignItems": "center",
+          "gap": "14px",
+          "padding": "14px 16px",
+          "background": "surface",
+          "border": "none",
+          "borderRadius": "medium"
+        },
+        "icon": {
+          "size": "20px",
+          "color": "text.secondary"
+        },
+        "label": {
+          "fontSize": "15px",
+          "fontWeight": 500,
+          "color": "text.primary"
+        },
+        "destructive": {
+          "iconColor": "#FF3B30",
+          "labelColor": "#FF3B30"
+        }
+      },
+      "workoutCard": {
+        "description": "Card displaying a past workout in history.",
+        "properties": {
+          "padding": "16px",
+          "background": "surface",
+          "borderRadius": "large",
+          "marginBottom": "8px"
+        },
+        "children": {
+          "dateLabel": {
+            "fontSize": "12px",
+            "fontWeight": 500,
+            "color": "text.tertiary",
+            "textTransform": "uppercase",
+            "letterSpacing": "0.03em"
           },
-          "icon": {
-            "size": "20px",
+          "title": {
+            "fontSize": "15px",
+            "fontWeight": 600,
+            "color": "text.primary"
+          },
+          "subtitle": {
+            "fontSize": "13px",
+            "color": "text.secondary",
+            "format": "{duration} · {type === 'run' ? 'Run' : '{exercises} exercises'}"
+          },
+          "checkmark": {
+            "size": "16px",
+            "strokeWidth": 2.5,
             "color": "text.secondary"
+          }
+        },
+        "states": {
+          "completed": { "opacity": 1 },
+          "inProgress": { "opacity": 0.6 }
+        }
+      },
+      "statCard": {
+        "description": "Card displaying a single stat.",
+        "sizes": {
+          "small": {
+            "padding": "12px",
+            "borderRadius": "medium",
+            "valueSize": "18-20px",
+            "labelSize": "10-11px"
           },
+          "medium": {
+            "padding": "14px",
+            "borderRadius": "medium",
+            "valueSize": "18px",
+            "labelSize": "11px"
+          },
+          "large": {
+            "padding": "16-20px",
+            "borderRadius": "large",
+            "valueSize": "24-32px",
+            "labelSize": "12px"
+          }
+        },
+        "properties": {
+          "background": "surface",
+          "textAlign": "center"
+        },
+        "children": {
+          "value": {
+            "fontWeight": 700,
+            "letterSpacing": "-0.02em",
+            "color": "text.primary"
+          },
+          "label": {
+            "color": "text.tertiary",
+            "textTransform": "uppercase",
+            "letterSpacing": "0.03em"
+          }
+        }
+      },
+      "menuItem": {
+        "description": "Tappable row in profile settings menu or run details.",
+        "properties": {
+          "display": "flex",
+          "alignItems": "center",
+          "gap": "14px",
+          "padding": "14px 16px",
+          "background": "surface",
+          "borderRadius": "large or medium",
+          "marginBottom": "8px"
+        },
+        "withIcon": {
+          "iconSize": "20px",
+          "iconColor": "text.secondary"
+        },
+        "withChevron": {
+          "chevronSize": "16px",
+          "chevronColor": "text.tertiary"
+        },
+        "content": {
           "label": {
             "fontSize": "15px",
             "fontWeight": 500,
             "color": "text.primary"
           },
-          "destructive": {
-            "iconColor": "#FF3B30",
-            "labelColor": "#FF3B30"
-          }
-        },
-        "workoutCard": {
-          "description": "Card displaying a past workout in history.",
-          "properties": {
-            "padding": "16px",
-            "background": "surface",
-            "borderRadius": "large",
-            "marginBottom": "8px"
-          },
-          "children": {
-            "dateLabel": {
-              "fontSize": "12px",
-              "fontWeight": 500,
-              "color": "text.tertiary",
-              "textTransform": "uppercase",
-              "letterSpacing": "0.03em"
-            },
-            "title": {
-              "fontSize": "15px",
-              "fontWeight": 600,
-              "color": "text.primary"
-            },
-            "subtitle": {
-              "fontSize": "13px",
-              "color": "text.secondary"
-            },
-            "checkmark": {
-              "size": "16px",
-              "strokeWidth": 2.5,
-              "color": "text.secondary"
-            }
-          },
-          "states": {
-            "completed": { "opacity": 1 },
-            "inProgress": { "opacity": 0.6 }
-          }
-        },
-        "statCard": {
-          "description": "Card displaying a single stat on profile.",
-          "properties": {
-            "flex": 1,
-            "padding": "16px",
-            "background": "surface",
-            "borderRadius": "large",
-            "textAlign": "center"
-          },
-          "children": {
-            "value": {
-              "fontSize": "24px",
-              "fontWeight": 700,
-              "letterSpacing": "-0.02em",
-              "color": "text.primary"
-            },
-            "label": {
-              "fontSize": "12px",
-              "color": "text.tertiary",
-              "textTransform": "uppercase",
-              "letterSpacing": "0.03em"
-            }
-          }
-        },
-        "menuItem": {
-          "description": "Tappable row in profile settings menu.",
-          "properties": {
-            "display": "flex",
-            "alignItems": "center",
-            "gap": "14px",
-            "padding": "14px 16px",
-            "background": "surface",
-            "borderRadius": "large",
-            "marginBottom": "8px"
-          },
-          "icon": {
-            "size": "20px",
-            "color": "text.secondary"
-          },
-          "content": {
-            "label": {
-              "fontSize": "15px",
-              "fontWeight": 500,
-              "color": "text.primary"
-            },
-            "subtitle": {
-              "fontSize": "13px",
-              "color": "text.tertiary"
-            }
-          },
-          "chevron": {
-            "size": "16px",
+          "subtitle": {
+            "fontSize": "13px",
             "color": "text.tertiary"
           }
         },
-        "avatar": {
-          "description": "User avatar on profile screen.",
-          "properties": {
-            "size": "64px",
-            "borderRadius": "full",
-            "background": "surface"
+        "simpleRow": {
+          "justifyContent": "space-between",
+          "leftText": {
+            "fontSize": "14px",
+            "color": "text.secondary"
           },
-          "placeholder": {
-            "fontSize": "24px",
+          "rightText": {
+            "fontSize": "14px",
             "fontWeight": 600,
-            "color": "text.secondary"
+            "color": "text.primary"
           }
+        }
+      },
+      "avatar": {
+        "description": "User avatar on profile screen.",
+        "properties": {
+          "size": "64px",
+          "borderRadius": "full",
+          "background": "surface"
         },
-        "chatInput": {
-          "description": "Text input for messaging the AI.",
-          "properties": {
-            "flex": 1,
-            "background": "surface",
-            "borderRadius": "medium",
-            "padding": "14px 16px",
-            "fontSize": "15px"
+        "placeholder": {
+          "fontSize": "24px",
+          "fontWeight": 600,
+          "color": "text.secondary"
+        }
+      },
+      "chatInput": {
+        "description": "Text input for messaging the AI.",
+        "properties": {
+          "flex": 1,
+          "background": "surface",
+          "borderRadius": "medium",
+          "padding": "14px 16px",
+          "fontSize": "15px"
+        },
+        "placeholder": "Ask anything...",
+        "micButton": {
+          "size": "50px",
+          "background": "surface",
+          "borderRadius": "medium",
+          "icon": "microphone",
+          "iconSize": "20px"
+        }
+      },
+      "suggestedPromptChip": {
+        "description": "Quick action chip on chat screen.",
+        "properties": {
+          "padding": "10px 14px",
+          "background": "surface",
+          "borderRadius": "medium",
+          "fontSize": "13px",
+          "fontWeight": 500,
+          "color": "text.secondary"
+        }
+      },
+      "pillTag": {
+        "description": "Pill-shaped tag for muscles and goals.",
+        "properties": {
+          "padding": "8px 12px",
+          "background": "surface",
+          "borderRadius": "pill",
+          "fontSize": "13px",
+          "fontWeight": 500,
+          "color": "text.primary"
+        }
+      },
+      "setRow": {
+        "description": "Row displaying a single set in exercise detail.",
+        "properties": {
+          "display": "flex",
+          "alignItems": "center",
+          "gap": "12px",
+          "padding": "12px 16px",
+          "background": "surface",
+          "borderRadius": "medium",
+          "marginBottom": "6px"
+        },
+        "children": {
+          "number": {
+            "width": "24px",
+            "height": "24px",
+            "borderRadius": "full",
+            "background": "highlight",
+            "fontSize": "12px",
+            "fontWeight": 600
           },
-          "placeholder": "Ask anything...",
-          "micButton": {
-            "size": "50px",
-            "background": "surface",
-            "borderRadius": "medium",
-            "icon": "microphone",
-            "iconSize": "20px"
-          }
-        },
-        "suggestedPromptChip": {
-          "description": "Quick action chip on chat screen.",
-          "properties": {
-            "padding": "10px 14px",
-            "background": "surface",
-            "borderRadius": "medium",
-            "fontSize": "13px",
+          "reps": {
+            "fontSize": "15px",
             "fontWeight": 500,
+            "flex": 1
+          },
+          "weight": {
+            "fontSize": "15px",
+            "color": "text.secondary"
+          },
+          "checkmark": {
+            "size": "16px",
             "color": "text.secondary"
           }
         }
       },
-  
-      "screens": {
-        "home": {
-          "layout": [
-            "Top-left: Expanding FAB menu (drops down to History, Profile)",
-            "Middle: AI message with inline stat highlights",
-            "Bottom: Workout pill (left/center) + AI orb (right)"
-          ],
-          "aiMessage": {
-            "content": "Dynamic, AI-generated summary of user's progress",
-            "example": "You've completed [3 workouts] this week. Your push strength is up [12%] from last month. Day [12] of your streak. Let's keep building.",
-            "highlightedItems": ["workout count", "strength change %", "streak days"]
-          }
+      "splitRow": {
+        "description": "Row displaying a mile split in post-run summary.",
+        "properties": {
+          "display": "flex",
+          "justifyContent": "space-between",
+          "alignItems": "center",
+          "padding": "12px 16px",
+          "background": "surface",
+          "borderRadius": "medium",
+          "marginBottom": "6px"
         },
-        "exercise": {
-          "layout": [
-            "Top-left: Close (X) button",
-            "Top-center: Progress text (e.g., '2 of 6')",
-            "Below header: Thin progress bar",
-            "Middle: AI coaching message with inline highlights",
-            "Bottom-left: Edit (pencil) button",
-            "Bottom-center: Done button with checkmark",
-            "Bottom-right: AI orb"
-          ],
-          "aiMessage": {
-            "content": "Exercise instructions and coaching tips in natural language",
-            "example": "[Dumbbell Bench Press] — Set [2] of [3]. Aim for [10-12 reps] at [25 lb]. Keep your shoulder blades pinched together throughout.",
-            "highlightedItems": ["exercise name", "current set", "total sets", "rep range", "weight"]
+        "children": {
+          "mileNumber": {
+            "width": "28px",
+            "height": "28px",
+            "borderRadius": "full",
+            "background": "highlight",
+            "fontSize": "13px",
+            "fontWeight": 600
           },
-          "editModal": {
-            "trigger": "Pencil icon button",
-            "options": [
-              { "icon": "swap", "label": "Swap exercise" },
-              { "icon": "adjust", "label": "Adjust exercise" },
-              { "icon": "skip", "label": "Skip" },
-              { "icon": "delete", "label": "Delete exercise", "destructive": true }
-            ]
-          }
-        },
-        "history": {
-          "layout": [
-            "Top: Back button + 'History' title",
-            "Below header: AI summary with inline stats",
-            "Main: Scrollable list of workout cards"
-          ],
-          "aiMessage": {
-            "content": "Summary of workout history and trends",
-            "example": "You've completed [12 workouts] this month, averaging [38 min] per session. Your consistency is [↑ 20%] from last month."
+          "time": {
+            "fontSize": "15px",
+            "fontWeight": 600
           },
-          "workoutCard": {
-            "content": ["date label", "workout name", "duration + exercise count", "checkmark if completed"]
+          "comparison": {
+            "fontSize": "12px",
+            "color": "text.secondary"
           }
+        }
+      },
+      "runningMap": {
+        "description": "Map visualization for running workouts.",
+        "properties": {
+          "borderRadius": "large (when contained) or none (when full-width)",
+          "overflow": "hidden"
         },
-        "profile": {
-          "layout": [
-            "Top: Back button + 'Profile' title",
-            "Below header: Avatar + name + training start date",
-            "Stats row: 3 stat cards (Workouts, Hours, Streak)",
-            "Menu items: Goals, Equipment, Schedule, Settings"
-          ],
-          "statsRow": {
-            "items": ["Workouts (total)", "Hours (total)", "Streak (current)"]
+        "layers": {
+          "background": "mapBackground",
+          "grid": {
+            "pattern": "40px squares",
+            "stroke": "mapGrid",
+            "strokeWidth": 1,
+            "opacity": 0.3
           },
-          "menuItems": [
-            { "icon": "target", "label": "Goals", "subtitle": "e.g., Build muscle, 4x/week" },
-            { "icon": "dumbbell", "label": "Equipment", "subtitle": "e.g., Dumbbells, bench, bands" },
-            { "icon": "calendar", "label": "Schedule", "subtitle": "e.g., Mon, Tue, Thu, Sat" },
-            { "icon": "settings", "label": "Settings", "subtitle": "Notifications, preferences" }
-          ]
-        },
-        "chat": {
-          "layout": [
-            "Top-left: Back button",
-            "Center: Large AI orb (100px) + prompt text",
-            "Below center: Suggested prompt chips",
-            "Bottom: Text input + mic button"
-          ],
-          "suggestedPrompts": ["Form check", "Modify exercise", "I need rest", "Skip this"]
-        }
-      },
-  
-      "navigation": {
-        "fabMenu": {
-          "location": "top-left on home screen",
-          "items": [
-            { "icon": "clock", "destination": "history" },
-            { "icon": "user", "destination": "profile" }
-          ]
-        },
-        "backButton": {
-          "location": "top-left on secondary screens",
-          "destinations": {
-            "history": "home",
-            "profile": "home",
-            "chat": "previous screen",
-            "exercise": "home"
+          "streets": {
+            "stroke": "mapStreets",
+            "strokeWidth": 8
+          },
+          "route": {
+            "stroke": "route.gradientCSS",
+            "strokeWidth": 4,
+            "strokeLinecap": "round",
+            "strokeLinejoin": "round"
+          },
+          "startPoint": {
+            "outerCircle": { "radius": 8, "fill": "text.primary" },
+            "innerCircle": { "radius": 4, "fill": "background" }
+          },
+          "currentPosition": {
+            "pulse": { "radius": "12-18px animated", "fill": "route.currentPositionPulse" },
+            "dot": { "radius": 6, "fill": "route.currentPosition" }
           }
         }
       },
-  
-      "interactions": {
-        "orbTap": "Opens chat screen",
-        "orbHold": "Activates voice input (future feature)",
-        "workoutPillTap": "Starts workout, navigates to exercise screen",
-        "menuFabTap": "Expands/collapses navigation icons",
-        "editButtonTap": "Opens bottom sheet with exercise options",
-        "doneButtonTap": "Completes current set, advances to next",
-        "workoutCardTap": "Opens workout detail (future feature)",
-        "menuItemTap": "Opens corresponding settings screen (future feature)"
-      },
-  
-      "motion": {
-        "transitions": {
-          "default": "150ms ease",
-          "sheet": "300ms ease",
-          "fabExpand": "200ms ease with 50ms stagger per item"
+      "aiCoachingCard": {
+        "description": "Card showing AI coaching message during run.",
+        "properties": {
+          "display": "flex",
+          "alignItems": "flex-start",
+          "gap": "12px",
+          "padding": "14px 16px",
+          "background": "surface",
+          "borderRadius": "large"
         },
-        "hover": {
-          "orb": "scale(1.05)",
-          "button": "background shifts to surfaceHover"
-        },
-        "scrollingText": {
-          "speed": "0.4px per 30ms",
-          "pauseAtEnds": "1000ms"
+        "children": {
+          "orb": { "size": "32px" },
+          "message": {
+            "fontSize": "14px",
+            "fontWeight": 400,
+            "lineHeight": 1.5,
+            "flex": 1
+          }
         }
-      },
-  
-      "accessibility": {
-        "contrast": {
-          "primary": "21:1 (black on white, white on black)",
-          "secondary": "~7:1 at 60% opacity",
-          "tertiary": "~4.5:1 at 40% opacity"
-        },
-        "touchTargets": {
-          "minimum": "44px",
-          "recommended": "50px"
-        }
-      },
-  
-      "doAndDont": {
-        "do": [
-          "Use natural language with inline highlights instead of separate stat cards",
-          "Keep the AI orb as the only colorful, glowing element",
-          "Use background color alone to distinguish interactive surfaces",
-          "Keep bottom bar simple: 2-3 elements max",
-          "Use bottom sheets for contextual options",
-          "Let text scroll horizontally if it doesn't fit",
-          "Use checkmarks for completed items",
-          "Keep screens scrollable when content exceeds viewport"
-        ],
-        "dont": [
-          "Add shadows or borders to UI elements",
-          "Add any color besides the orb's sky blue",
-          "Create separate cards for each piece of data on home/exercise screens",
-          "Crowd the bottom bar with too many actions",
-          "Use multi-line text in pills or buttons",
-          "Hide the AI orb — it should always be accessible",
-          "Use colored buttons or highlights (keep everything monochrome)",
-          "Add decorative elements that don't serve a function"
-        ]
       }
+    },
+
+    "screens": {
+      "home": {
+        "layout": [
+          "Top-left: Expanding FAB menu (drops down to History, Profile)",
+          "Middle: AI message with inline stat highlights",
+          "Bottom: Workout pill (left/center) + AI orb (right)"
+        ],
+        "aiMessage": {
+          "content": "Dynamic, AI-generated summary of user's progress",
+          "example": "You've completed [3 workouts] this week. Your push strength is up [12%] from last month. Day [12] of your streak. Let's keep building.",
+          "highlightedItems": ["workout count", "strength change %", "streak days"]
+        }
+      },
+      "strengthExercise": {
+        "layout": [
+          "Top-left: Close (X) button",
+          "Top-center: Progress text (e.g., '2 of 6')",
+          "Below header: Thin progress bar",
+          "Middle: AI coaching message with inline highlights",
+          "Bottom-left: Edit (pencil) button",
+          "Bottom-center: Done button with checkmark",
+          "Bottom-right: AI orb"
+        ],
+        "aiMessage": {
+          "content": "Exercise instructions and coaching tips in natural language",
+          "example": "[Dumbbell Bench Press] — Set [2] of [3]. Aim for [10-12 reps] at [25 lb]. Keep your shoulder blades pinched together throughout."
+        },
+        "editModal": {
+          "trigger": "Pencil icon button",
+          "options": ["Swap exercise", "Adjust exercise", "Skip", "Delete exercise (destructive)"]
+        }
+      },
+      "preRun": {
+        "layout": [
+          "Top: Back button + 'Outdoor Run' title",
+          "Below header: AI message with goal, weather, target pace",
+          "Middle: Map preview (contained, rounded)",
+          "Below map: Run details list (Type, Target Distance, Est. Duration)",
+          "Bottom: Start Run button + AI orb"
+        ],
+        "aiMessage": {
+          "example": "Today's goal: [3 mile easy run]. Weather is [62°F] and clear — perfect conditions. Your target pace is [10:30-11:00 /mi]."
+        }
+      },
+      "running": {
+        "layout": [
+          "Top 45%: Full-width map with route",
+          "Floating: Close button (top-left over map)",
+          "Stats area: Primary stats (Time, Distance) large",
+          "Below: Secondary stats grid (Pace, Calories, Heart Rate)",
+          "Below: AI coaching card",
+          "Bottom: Pause/Resume button + Stop button"
+        ],
+        "primaryStats": {
+          "time": { "fontSize": "42px", "label": "Time" },
+          "distance": { "fontSize": "42px", "label": "Distance", "unit": "mi" }
+        },
+        "secondaryStats": {
+          "layout": "3-column grid",
+          "items": ["Pace /mi", "Calories", "Heart Rate"]
+        },
+        "controls": {
+          "pauseResume": {
+            "states": ["Pause (with pause icon)", "Resume (with play icon)"],
+            "style": "primary button, flex: 1"
+          },
+          "stop": {
+            "style": "icon button, 56px, square stop icon"
+          }
+        }
+      },
+      "postRun": {
+        "layout": [
+          "Top: Close button + 'Run Complete' title",
+          "AI summary with achievements",
+          "Primary stats: Distance + Time (large cards)",
+          "Secondary stats: 2x2 grid (Avg Pace, Calories, Avg Heart Rate, Elevation)",
+          "Mile splits section with comparison indicators",
+          "Bottom: Done button"
+        ],
+        "aiMessage": {
+          "example": "Excellent run! You finished [0.12 mi] over your goal and your pace improved with each mile. You hit [negative splits] — a sign of smart pacing."
+        },
+        "splits": {
+          "showComparison": true,
+          "comparisonText": "↓ faster or —"
+        }
+      },
+      "history": {
+        "layout": [
+          "Top: Back button + 'History' title",
+          "Below header: AI summary with inline stats",
+          "Main: Scrollable list of workout cards (strength + runs)"
+        ],
+        "workoutTypes": {
+          "strength": { "subtitle": "{duration} · {exercises} exercises" },
+          "run": { "subtitle": "{duration} · Run" }
+        },
+        "navigation": {
+          "tapStrengthWorkout": "→ workoutDetail",
+          "tapRunWorkout": "→ postRun (run summary)"
+        }
+      },
+      "workoutDetail": {
+        "layout": [
+          "Top: Back button + workout name title",
+          "Full date label",
+          "Stats row: Duration, Exercises count, Total Volume",
+          "Section: 'Exercises' label",
+          "Scrollable list of exercise cards"
+        ]
+      },
+      "exerciseDetail": {
+        "layout": [
+          "Top: Back button + exercise name title",
+          "Section: Sets (list of set rows)",
+          "Section: Muscles Targeted (pill tags)",
+          "Section: Goals Addressed (pill tags)",
+          "Section: Why This Exercise (orb + AI reasoning)"
+        ]
+      },
+      "profile": {
+        "layout": [
+          "Top: Back button + 'Profile' title",
+          "Profile info: Avatar + Name + Training since date",
+          "Stats row: 3 stat cards (Workouts, Hours, Streak)",
+          "Menu items: Goals, Equipment, Schedule, Settings"
+        ]
+      },
+      "chat": {
+        "layout": [
+          "Top-left: Back button",
+          "Center: Large AI orb (100px) + prompt text",
+          "Below center: Suggested prompt chips",
+          "Bottom: Text input + mic button"
+        ],
+        "suggestedPrompts": ["Form check", "Modify exercise", "I need rest", "Skip this"]
+      }
+    },
+
+    "navigation": {
+      "fabMenu": {
+        "location": "top-left on home screen",
+        "items": [
+          { "icon": "clock", "destination": "history" },
+          { "icon": "user", "destination": "profile" }
+        ]
+      },
+      "backButton": {
+        "location": "top-left on secondary screens",
+        "destinations": {
+          "history": "home",
+          "profile": "home",
+          "chat": "home",
+          "strengthExercise": "home",
+          "preRun": "home",
+          "running": "home",
+          "postRun": "home",
+          "workoutDetail": "history",
+          "exerciseDetail": "workoutDetail"
+        }
+      },
+      "flows": {
+        "startStrengthWorkout": "home → strengthExercise",
+        "startRun": "preRun → running → postRun",
+        "viewStrengthHistory": "history → workoutDetail → exerciseDetail",
+        "viewRunHistory": "history → postRun"
+      }
+    },
+
+    "interactions": {
+      "orbTap": "Opens chat screen",
+      "orbHold": "Activates voice input (future feature)",
+      "workoutPillTap": "Starts workout, navigates to exercise screen",
+      "menuFabTap": "Expands/collapses navigation icons",
+      "editButtonTap": "Opens bottom sheet with exercise options",
+      "doneButtonTap": "Completes current set, advances to next",
+      "startRunTap": "Begins run, navigates to running screen",
+      "pauseResumeTap": "Toggles run pause state",
+      "stopTap": "Ends run, navigates to post-run summary",
+      "workoutCardTap": "Opens workout detail (strength) or run summary (run)",
+      "exerciseCardTap": "Opens exercise detail",
+      "menuItemTap": "Opens corresponding settings screen (future feature)"
+    },
+
+    "motion": {
+      "transitions": {
+        "default": "150ms ease",
+        "sheet": "300ms ease",
+        "fabExpand": "200ms ease with 50ms stagger per item"
+      },
+      "hover": {
+        "orb": "scale(1.05)",
+        "button": "background shifts to surfaceHover"
+      },
+      "scrollingText": {
+        "speed": "0.4px per 30ms",
+        "pauseAtEnds": "1000ms"
+      },
+      "currentPositionPulse": {
+        "radiusAnimation": "12px → 18px → 12px",
+        "opacityAnimation": "0.3 → 0.1 → 0.3",
+        "duration": "2s",
+        "repeatCount": "indefinite"
+      }
+    },
+
+    "accessibility": {
+      "contrast": {
+        "primary": "21:1 (black on white, white on black)",
+        "secondary": "~7:1 at 60% opacity",
+        "tertiary": "~4.5:1 at 40% opacity"
+      },
+      "touchTargets": {
+        "minimum": "44px",
+        "recommended": "50px"
+      }
+    },
+
+    "doAndDont": {
+      "do": [
+        "Use natural language with inline highlights instead of separate stat cards",
+        "Keep the AI orb as the only colorful, glowing element",
+        "Use the route blue to visually connect the map to the orb",
+        "Use background color alone to distinguish interactive surfaces",
+        "Keep bottom bar simple: 2-3 elements max",
+        "Use bottom sheets for contextual options",
+        "Let text scroll horizontally if it doesn't fit",
+        "Use checkmarks for completed items",
+        "Keep screens scrollable when content exceeds viewport",
+        "Show mile splits with comparison indicators",
+        "Use the same visual language for both strength and cardio"
+      ],
+      "dont": [
+        "Add shadows or borders to UI elements (except orb and floating buttons)",
+        "Add any color besides the orb's sky blue (and route gradient)",
+        "Create separate cards for each piece of data on home/exercise screens",
+        "Crowd the bottom bar with too many actions",
+        "Use multi-line text in pills or buttons",
+        "Hide the AI orb — it should always be accessible",
+        "Use colored buttons or highlights (keep everything monochrome)",
+        "Add decorative elements that don't serve a function",
+        "Mix different visual styles between workout types"
+      ]
     }
   }
+}

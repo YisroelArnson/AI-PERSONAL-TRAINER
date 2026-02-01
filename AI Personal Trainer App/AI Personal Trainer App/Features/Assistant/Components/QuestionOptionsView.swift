@@ -104,7 +104,7 @@ private struct ScaleButtonStyle: ButtonStyle {
 
 #Preview("Question Options") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack(spacing: AppTheme.Spacing.lg) {
             // Sample message
@@ -133,7 +133,7 @@ private struct ScaleButtonStyle: ButtonStyle {
 
 #Preview("Multiple Options") {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack(spacing: AppTheme.Spacing.lg) {
             QuestionOptionsView(

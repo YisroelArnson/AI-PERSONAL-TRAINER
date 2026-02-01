@@ -136,7 +136,7 @@ struct MinimizedResponsePill: View {
 
 #Preview {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
         
         VStack {
             Spacer()

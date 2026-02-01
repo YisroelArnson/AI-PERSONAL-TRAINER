@@ -13,7 +13,8 @@ struct TrainerJourneyView: View {
 
     var body: some View {
         ZStack {
-            AnimatedGradientBackground()
+            AppTheme.Colors.background
+                .ignoresSafeArea()
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(spacing: AppTheme.Spacing.lg) {
@@ -166,130 +167,537 @@ struct JourneyCard: View {
     }
 }
 
+// MARK: - Intake Q&A Model
+struct IntakeQAPair: Identifiable, Equatable {
+    let id = UUID()
+    let question: String
+    let answer: String
+}
+
+// MARK: - Conversational Intake View
 struct IntakeView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var intakeStore = IntakeSessionStore.shared
+    @StateObject private var speechRecognizer = SpeechRecognizer()
+
     @State private var answerText: String = ""
     @State private var showSummary = false
+    @State private var qaPairs: [IntakeQAPair] = []
+    @State private var isRecording = false
+    @State private var pendingAnswer: String? = nil  // Track answer waiting for backend response
+    @State private var previousQuestion: String = "" // Track previous question to detect changes
+    @FocusState private var isTextFieldFocused: Bool
+
+    // Total questions for progress (configurable)
+    private let totalQuestions = 8
+
+    private var currentQuestionNumber: Int {
+        qaPairs.count + 1
+    }
+
+    private var progressPercent: CGFloat {
+        CGFloat(qaPairs.count) / CGFloat(totalQuestions)
+    }
+
+    private var hasText: Bool {
+        !answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
-        NavigationView {
-            ZStack {
-                AppTheme.Gradients.background
-                    .ignoresSafeArea()
+        ZStack {
+            AppTheme.Colors.background
+                .ignoresSafeArea()
 
-                VStack(spacing: AppTheme.Spacing.lg) {
-                    VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                        Text("Trainer Setup · Intake")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundColor(AppTheme.Colors.secondaryText)
+            VStack(spacing: 0) {
+                // MARK: - Fixed Header
+                IntakeHeaderView(
+                    currentQuestion: currentQuestionNumber,
+                    totalQuestions: totalQuestions,
+                    onClose: { dismiss() }
+                )
 
-                        Text(intakeStore.currentQuestion.isEmpty ? "Let’s get to know you." : intakeStore.currentQuestion)
-                            .font(.system(size: 20, weight: .regular, design: .rounded))
-                            .foregroundColor(AppTheme.Colors.primaryText)
-                            .multilineTextAlignment(.leading)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, AppTheme.Spacing.xl)
-                    .padding(.top, AppTheme.Spacing.xl)
+                // MARK: - Progress Bar
+                IntakeProgressBarView(progress: progressPercent)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 8)
 
-                    if let progress = intakeStore.progress {
-                        IntakeProgressView(progress: progress)
-                            .padding(.horizontal, AppTheme.Spacing.xl)
-                    }
+                // MARK: - Fixed AI Orb
+                AIOrb(size: 80)
+                    .padding(.top, 20)
+                    .padding(.bottom, 12)
 
+                // MARK: - Scrollable Conversation Area
+                ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                            ForEach(intakeStore.transcript, id: \.self) { line in
-                                Text(line)
-                                    .font(.system(size: 13, weight: .regular, design: .rounded))
-                                    .foregroundColor(AppTheme.Colors.secondaryText)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, AppTheme.Spacing.xl)
-                    }
+                        VStack(alignment: .leading, spacing: 24) {
+                            // Previous Q&A pairs (faded)
+                            ForEach(qaPairs) { pair in
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(pair.question)
+                                        .font(.system(size: 22, weight: .regular))
+                                        .foregroundColor(AppTheme.Colors.primaryText)
+                                        .lineSpacing(22 * 0.4)
 
-                    VStack(spacing: AppTheme.Spacing.sm) {
-                        TextField("Answer here...", text: $answerText, axis: .vertical)
-                            .lineLimit(2...5)
-                            .padding(AppTheme.Spacing.md)
-                            .background(
-                                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                    .fill(AppTheme.Colors.surface)
+                                    Text(pair.answer)
+                                        .font(.system(size: 18, weight: .regular))
+                                        .foregroundColor(AppTheme.Colors.secondaryText)
+                                        .lineSpacing(18 * 0.5)
+                                }
+                                .opacity(0.5)
+                            }
+
+                            // Current question with pending answer (if any)
+                            if !intakeStore.currentQuestion.isEmpty {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(intakeStore.currentQuestion)
+                                        .font(.system(size: 24, weight: .regular))
+                                        .foregroundColor(AppTheme.Colors.primaryText)
+                                        .lineSpacing(24 * 0.4)
+
+                                    // Show user's answer immediately after sending
+                                    if let answer = pendingAnswer {
+                                        Text(answer)
+                                            .font(.system(size: 18, weight: .regular))
+                                            .foregroundColor(AppTheme.Colors.secondaryText)
+                                            .lineSpacing(18 * 0.5)
+                                    }
+                                }
+                                .id("currentQuestion")
+                            }
+
+                            // Spacer to keep content at top
+                            Color.clear
+                                .frame(height: 50)
+                                .id("bottom")
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                    }
+                    .mask(
+                        VStack(spacing: 0) {
+                            // Top fade
+                            LinearGradient(
+                                colors: [.clear, .black],
+                                startPoint: .top,
+                                endPoint: .bottom
                             )
-                            .padding(.horizontal, AppTheme.Spacing.xl)
+                            .frame(height: 30)
 
-                        HStack(spacing: AppTheme.Spacing.md) {
-                            Button("Send") {
-                                let trimmed = answerText.trimmingCharacters(in: .whitespacesAndNewlines)
-                                guard !trimmed.isEmpty else { return }
-                                Task {
-                                    await intakeStore.submitAnswer(trimmed)
-                                    answerText = ""
-                                }
-                            }
-                            .buttonStyle(PrimaryCapsuleButton())
+                            Rectangle().fill(.black)
 
-                            Button("Confirm") {
-                                Task {
-                                    await intakeStore.confirmIntake()
-                                    showSummary = true
-                                }
-                            }
-                            .buttonStyle(SecondaryCapsuleButton())
+                            // Bottom fade
+                            LinearGradient(
+                                colors: [.black, .clear],
+                                startPoint: .top,
+                                endPoint: .bottom
+                            )
+                            .frame(height: 50)
                         }
-                        .padding(.bottom, AppTheme.Spacing.lg)
+                    )
+                    .onChange(of: qaPairs.count) { _, _ in
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            proxy.scrollTo("currentQuestion", anchor: .top)
+                        }
+                    }
+                    .onChange(of: intakeStore.currentQuestion) { oldQuestion, newQuestion in
+                        // When question changes and we have a pending answer, add the Q&A pair to history
+                        if let answer = pendingAnswer, !oldQuestion.isEmpty, newQuestion != oldQuestion {
+                            qaPairs.append(IntakeQAPair(question: oldQuestion, answer: answer))
+                            pendingAnswer = nil
+                        }
+
+                        withAnimation(.easeOut(duration: 0.3)) {
+                            proxy.scrollTo("currentQuestion", anchor: .top)
+                        }
                     }
                 }
+
+                // MARK: - Input Area
+                IntakeInputArea(
+                    answerText: $answerText,
+                    isRecording: $isRecording,
+                    isTextFieldFocused: $isTextFieldFocused,
+                    hasText: hasText,
+                    isLoading: intakeStore.isLoading,
+                    onMicTap: toggleRecording,
+                    onSend: submitAnswer
+                )
             }
-            .navigationTitle("Intake")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
+        }
+        .task {
+            if intakeStore.session == nil {
+                await intakeStore.startOrResume()
             }
-            .task {
-                if intakeStore.session == nil {
-                    await intakeStore.startOrResume()
-                }
+        }
+        .onChange(of: speechRecognizer.transcript) { _, newValue in
+            if isRecording {
+                answerText = newValue
             }
-            .sheet(isPresented: $showSummary) {
-                if let summary = intakeStore.summary {
-                    IntakeSummaryView(summary: summary)
-                }
+        }
+        .sheet(isPresented: $showSummary) {
+            if let summary = intakeStore.summary {
+                IntakeSummaryView(summary: summary)
+            }
+        }
+        .onChange(of: intakeStore.summary) { _, newSummary in
+            if newSummary != nil {
+                showSummary = true
+            }
+        }
+    }
+
+    private func toggleRecording() {
+        if isRecording {
+            speechRecognizer.stopTranscribing()
+            isRecording = false
+        } else {
+            answerText = ""
+            speechRecognizer.startTranscribing()
+            isRecording = true
+        }
+    }
+
+    private func submitAnswer() {
+        let trimmed = answerText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        // Stop recording if active
+        if isRecording {
+            speechRecognizer.stopTranscribing()
+            isRecording = false
+        }
+
+        // Store the pending answer - will be added to history when question changes
+        pendingAnswer = trimmed
+
+        // Clear input
+        answerText = ""
+        isTextFieldFocused = false
+
+        // Submit to backend
+        Task {
+            await intakeStore.submitAnswer(trimmed)
+
+            // Check if intake is complete
+            if let progress = intakeStore.progress,
+               progress.requiredDone >= progress.requiredTotal {
+                await intakeStore.confirmIntake()
             }
         }
     }
 }
 
-struct IntakeProgressView: View {
-    let progress: IntakeProgress
+// MARK: - Intake Header View
+struct IntakeHeaderView: View {
+    let currentQuestion: Int
+    let totalQuestions: Int
+    let onClose: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-            Text("Required: \(progress.requiredDone)/\(progress.requiredTotal)")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundColor(AppTheme.Colors.secondaryText)
-            ForEach(progress.topics, id: \.topic) { topic in
-                HStack {
-                    Text(topic.topic)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                    Spacer()
-                    Text("\(topic.completed)/\(topic.total)")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(AppTheme.Colors.secondaryText)
+        HStack {
+            // Close button
+            Button(action: onClose) {
+                ZStack {
+                    Circle()
+                        .fill(AppTheme.Colors.surface)
+                        .frame(width: 44, height: 44)
+
+                    Image(systemName: "xmark")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
                 }
             }
+
+            Spacer()
+
+            // Progress indicator
+            Text("\(currentQuestion) of \(totalQuestions)")
+                .font(.system(size: 14, weight: .regular))
+                .foregroundColor(AppTheme.Colors.secondaryText)
+
+            Spacer()
+
+            // Spacer for balance
+            Color.clear
+                .frame(width: 44, height: 44)
         }
-        .padding(AppTheme.Spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                .fill(AppTheme.Colors.surface)
-        )
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+    }
+}
+
+// MARK: - Intake Progress Bar View
+struct IntakeProgressBarView: View {
+    let progress: CGFloat
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                // Background
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(AppTheme.Colors.surface)
+                    .frame(height: 3)
+
+                // Fill
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(AppTheme.Colors.primaryText)
+                    .frame(width: geometry.size.width * min(progress, 1.0), height: 3)
+                    .animation(.easeOut(duration: 0.3), value: progress)
+            }
+        }
+        .frame(height: 3)
+    }
+}
+
+// MARK: - AI Orb Component
+struct AIOrb: View {
+    let size: CGFloat
+
+    // Cloud-like sky colors
+    private let skyBlueLight = Color(red: 0.7, green: 0.85, blue: 0.95)
+    private let skyBlueMid = Color(red: 0.4, green: 0.7, blue: 0.9)
+    private let skyBlueDeep = Color(red: 0.2, green: 0.5, blue: 0.85)
+    private let cloudWhite = Color(red: 0.95, green: 0.97, blue: 1.0)
+
+    var body: some View {
+        ZStack {
+            // Base gradient - sky blue bottom to light top
+            Circle()
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(stops: [
+                            .init(color: cloudWhite.opacity(0.95), location: 0),
+                            .init(color: skyBlueLight, location: 0.3),
+                            .init(color: skyBlueMid, location: 0.6),
+                            .init(color: skyBlueDeep, location: 1.0)
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .frame(width: size, height: size)
+
+            // Cloud layer 1 - top left wisp
+            Circle()
+                .fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [
+                            cloudWhite.opacity(0.9),
+                            cloudWhite.opacity(0.4),
+                            Color.clear
+                        ]),
+                        center: UnitPoint(x: 0.25, y: 0.2),
+                        startRadius: 0,
+                        endRadius: size * 0.4
+                    )
+                )
+                .frame(width: size, height: size)
+
+            // Cloud layer 2 - top right highlight
+            Circle()
+                .fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [
+                            cloudWhite.opacity(0.7),
+                            cloudWhite.opacity(0.2),
+                            Color.clear
+                        ]),
+                        center: UnitPoint(x: 0.7, y: 0.25),
+                        startRadius: 0,
+                        endRadius: size * 0.35
+                    )
+                )
+                .frame(width: size, height: size)
+
+            // Cloud layer 3 - middle soft cloud
+            Circle()
+                .fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [
+                            cloudWhite.opacity(0.5),
+                            skyBlueLight.opacity(0.3),
+                            Color.clear
+                        ]),
+                        center: UnitPoint(x: 0.5, y: 0.4),
+                        startRadius: 0,
+                        endRadius: size * 0.45
+                    )
+                )
+                .frame(width: size, height: size)
+
+            // Subtle inner shadow for depth
+            Circle()
+                .stroke(
+                    LinearGradient(
+                        colors: [
+                            Color.white.opacity(0.3),
+                            Color.clear,
+                            skyBlueDeep.opacity(0.2)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    ),
+                    lineWidth: 1
+                )
+                .frame(width: size - 1, height: size - 1)
+        }
+        .clipShape(Circle())
+    }
+}
+
+// MARK: - Intake Input Area
+struct IntakeInputArea: View {
+    @Binding var answerText: String
+    @Binding var isRecording: Bool
+    @FocusState.Binding var isTextFieldFocused: Bool
+    let hasText: Bool
+    let isLoading: Bool
+    let onMicTap: () -> Void
+    let onSend: () -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            // Microphone button
+            Button(action: onMicTap) {
+                ZStack {
+                    Circle()
+                        .fill(isRecording ? Color.red.opacity(0.2) : AppTheme.Colors.surface)
+                        .frame(width: 50, height: 50)
+
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(isRecording ? Color(hex: "FF3B30") : AppTheme.Colors.primaryText)
+                }
+            }
+            .disabled(isLoading)
+
+            // Text input
+            TextField("Type your answer...", text: $answerText, axis: .vertical)
+                .font(.system(size: 15, weight: .regular))
+                .lineLimit(1...3)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(
+                    Capsule()
+                        .fill(AppTheme.Colors.surface)
+                )
+                .focused($isTextFieldFocused)
+                .disabled(isLoading)
+                .onSubmit {
+                    onSend()
+                }
+
+            // Send button
+            Button(action: onSend) {
+                ZStack {
+                    Circle()
+                        .fill(hasText ? AppTheme.Colors.accent : AppTheme.Colors.surface)
+                        .frame(width: 50, height: 50)
+
+                    Image(systemName: "paperplane.fill")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(hasText ? AppTheme.Colors.background : AppTheme.Colors.tertiaryText)
+                }
+            }
+            .disabled(!hasText || isLoading)
+            .animation(.easeInOut(duration: 0.2), value: hasText)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 24)
+    }
+}
+
+// MARK: - Speech Recognizer
+import Speech
+import AVFoundation
+
+@MainActor
+class SpeechRecognizer: ObservableObject {
+    @Published var transcript: String = ""
+    @Published var isAvailable: Bool = false
+
+    private var audioEngine: AVAudioEngine?
+    private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
+    private var recognitionTask: SFSpeechRecognitionTask?
+    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
+
+    init() {
+        requestAuthorization()
+    }
+
+    private func requestAuthorization() {
+        SFSpeechRecognizer.requestAuthorization { [weak self] status in
+            DispatchQueue.main.async {
+                self?.isAvailable = status == .authorized
+            }
+        }
+    }
+
+    func startTranscribing() {
+        guard let speechRecognizer = speechRecognizer, speechRecognizer.isAvailable else {
+            return
+        }
+
+        transcript = ""
+
+        do {
+            let audioSession = AVAudioSession.sharedInstance()
+            try audioSession.setCategory(.record, mode: .measurement, options: .duckOthers)
+            try audioSession.setActive(true, options: .notifyOthersOnDeactivation)
+        } catch {
+            return
+        }
+
+        audioEngine = AVAudioEngine()
+        guard let audioEngine = audioEngine else { return }
+
+        recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
+        guard let recognitionRequest = recognitionRequest else { return }
+
+        recognitionRequest.shouldReportPartialResults = true
+        recognitionRequest.taskHint = .dictation
+
+        let inputNode = audioEngine.inputNode
+        let recordingFormat = inputNode.outputFormat(forBus: 0)
+
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+            recognitionRequest.append(buffer)
+        }
+
+        recognitionTask = speechRecognizer.recognitionTask(with: recognitionRequest) { [weak self] result, error in
+            guard let self = self else { return }
+
+            if let result = result {
+                DispatchQueue.main.async {
+                    self.transcript = result.bestTranscription.formattedString
+                }
+            }
+
+            if error != nil || result?.isFinal == true {
+                self.stopTranscribing()
+            }
+        }
+
+        do {
+            audioEngine.prepare()
+            try audioEngine.start()
+        } catch {
+            stopTranscribing()
+        }
+    }
+
+    func stopTranscribing() {
+        audioEngine?.stop()
+        audioEngine?.inputNode.removeTap(onBus: 0)
+        recognitionRequest?.endAudio()
+        recognitionTask?.cancel()
+
+        audioEngine = nil
+        recognitionRequest = nil
+        recognitionTask = nil
+
+        try? AVAudioSession.sharedInstance().setActive(false)
     }
 }
 

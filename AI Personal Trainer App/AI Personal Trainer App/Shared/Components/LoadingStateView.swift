@@ -9,29 +9,30 @@ import SwiftUI
 
 struct LoadingStateView: View {
     let state: AppLoadingState
-    
+
     @State private var textOpacity: Double = 1
     @State private var textScale: CGFloat = 1
-    @State private var orbScale: CGFloat = 1
-    
+
     var body: some View {
         ZStack {
-            // Animated gradient background
-            AnimatedGradientBackground()
-            
+            // Simple background
+            AppTheme.Colors.background
+                .ignoresSafeArea()
+
             // Content
             VStack(spacing: AppTheme.Spacing.xxxl) {
-                // Glowing orb loader
+                // Sky blue/cloud orb loader
                 ZStack {
-                    // Outer glow ring
+                    // Outer glow ring - sky blue gradient
                     Circle()
                         .stroke(
                             AngularGradient(
                                 colors: [
-                                    AppTheme.Colors.orbBlueLight,
-                                    AppTheme.Colors.orbBlue,
-                                    AppTheme.Colors.orbBlueDeep,
-                                    AppTheme.Colors.orbBlueLight
+                                    AppTheme.Colors.orbCloudWhite,
+                                    AppTheme.Colors.orbSkyLight,
+                                    AppTheme.Colors.orbSkyMid,
+                                    AppTheme.Colors.orbSkyDeep,
+                                    AppTheme.Colors.orbCloudWhite
                                 ],
                                 center: .center
                             ),
@@ -44,24 +45,18 @@ struct LoadingStateView: View {
                             x: 0,
                             y: 0
                         )
-                        .scaleEffect(orbScale)
-                    
-                    // Inner circle
+
+                    // Inner circle - sky gradient
                     Circle()
                         .fill(AppTheme.Gradients.orb)
                         .frame(width: 48, height: 48)
-                    
+
                     // Spinning indicator
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.orbBlue))
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.orbSkyMid))
                         .scaleEffect(0.8)
                 }
-                .onAppear {
-                    withAnimation(AppTheme.Animation.breathing) {
-                        orbScale = 1.05
-                    }
-                }
-                
+
                 // Status message with gentle animation
                 Text(state.message)
                     .font(AppTheme.Typography.aiMessageMedium)
@@ -76,14 +71,14 @@ struct LoadingStateView: View {
             performFlickerTransition()
         }
     }
-    
+
     private func performFlickerTransition() {
         // Quick flicker out - fade and scale down
         withAnimation(.easeOut(duration: 0.12)) {
             textOpacity = 0
             textScale = 0.95
         }
-        
+
         // Flicker in - fade and scale back up
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.12) {
             withAnimation(.easeIn(duration: 0.15)) {

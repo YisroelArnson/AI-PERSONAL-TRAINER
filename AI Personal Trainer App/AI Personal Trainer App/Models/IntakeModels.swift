@@ -58,7 +58,7 @@ struct IntakeSummaryResponse: Codable {
     let version: Int?
 }
 
-struct IntakeSummary: Codable {
+struct IntakeSummary: Codable, Equatable {
     let goals: IntakeGoalSummary
     let motivation: String?
     let history: IntakeHistorySummary
@@ -69,12 +69,12 @@ struct IntakeSummary: Codable {
     let notes: String?
 }
 
-struct IntakeGoalSummary: Codable {
+struct IntakeGoalSummary: Codable, Equatable {
     let primary: String?
     let secondary: String?
 }
 
-struct IntakeHistorySummary: Codable {
+struct IntakeHistorySummary: Codable, Equatable {
     let training: String?
     let activityLevel: String?
 
@@ -84,7 +84,7 @@ struct IntakeHistorySummary: Codable {
     }
 }
 
-struct IntakeScheduleSummary: Codable {
+struct IntakeScheduleSummary: Codable, Equatable {
     let daysPerWeek: String?
     let minutesPerSession: String?
     let preferences: String?
@@ -96,7 +96,7 @@ struct IntakeScheduleSummary: Codable {
     }
 }
 
-struct IntakePreferenceSummary: Codable {
+struct IntakePreferenceSummary: Codable, Equatable {
     let likes: String?
     let dislikes: String?
     let coachingStyle: String?

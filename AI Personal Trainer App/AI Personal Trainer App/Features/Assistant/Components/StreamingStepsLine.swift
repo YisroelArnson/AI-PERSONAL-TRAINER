@@ -87,7 +87,7 @@ struct StreamingStepsLine: View {
 
 #Preview {
     ZStack {
-        AnimatedGradientBackground()
+        AppTheme.Colors.background.ignoresSafeArea()
 
         VStack(spacing: 20) {
             // Thinking state
