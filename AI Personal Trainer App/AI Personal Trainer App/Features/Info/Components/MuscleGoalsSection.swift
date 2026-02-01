@@ -49,8 +49,7 @@ struct MuscleGoalsSection: View {
             // Section Header
             HStack(alignment: .center) {
                 Text("Muscle Goals")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(AppTheme.Typography.screenTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Spacer()
@@ -106,14 +105,8 @@ struct MuscleGoalsSection: View {
             }
         }
         .padding(AppTheme.Spacing.xl)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.large)
-        .shadow(
-            color: AppTheme.Shadow.card,
-            radius: AppTheme.Shadow.cardRadius,
-            x: AppTheme.Shadow.cardOffset.width,
-            y: AppTheme.Shadow.cardOffset.height
-        )
         .sheet(isPresented: $showingInfluenceModal) {
             MuscleInfluenceModal(
                 showingMuscleGoalSetter: $showingMuscleGoalSetter
@@ -166,10 +159,7 @@ private struct MuscleCell: View {
     let distributionData: DistributionData?
     
     var actualColor: Color {
-        guard let data = distributionData else {
-            return muscle.weight > 0 ? AppTheme.Colors.primaryText : AppTheme.Colors.border
-        }
-        return data.statusColor
+        AppTheme.Colors.primaryText
     }
     
     var body: some View {
@@ -178,7 +168,7 @@ private struct MuscleCell: View {
             ZStack {
                 // Background circle (target)
                 Circle()
-                    .stroke(Color.gray.opacity(0.2), lineWidth: 4)
+                    .stroke(AppTheme.Colors.divider, lineWidth: 4)
                     .frame(width: 44, height: 44)
                 
                 if let data = distributionData {
@@ -186,7 +176,7 @@ private struct MuscleCell: View {
                     Circle()
                         .trim(from: 0, to: data.target)
                         .stroke(
-                            Color.gray.opacity(0.4),
+                            AppTheme.Colors.highlight,
                             style: StrokeStyle(lineWidth: 4, lineCap: .round)
                         )
                         .frame(width: 44, height: 44)
@@ -196,7 +186,7 @@ private struct MuscleCell: View {
                     Circle()
                         .trim(from: 0, to: min(data.actual, 1.0))
                         .stroke(
-                            data.statusColor,
+                            AppTheme.Colors.primaryText,
                             style: StrokeStyle(lineWidth: 4, lineCap: .round)
                         )
                         .frame(width: 44, height: 44)
@@ -205,7 +195,7 @@ private struct MuscleCell: View {
                     // Show target percentage in center (not actual)
                     VStack(spacing: 0) {
                         Text("\(Int(data.target * 100))")
-                            .font(.system(size: 11, weight: .semibold))
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.primaryText)
                     }
                 } else {
@@ -213,21 +203,21 @@ private struct MuscleCell: View {
                     Circle()
                         .trim(from: 0, to: muscle.weight)
                         .stroke(
-                            actualColor,
+                            AppTheme.Colors.primaryText,
                             style: StrokeStyle(lineWidth: 4, lineCap: .round)
                         )
                         .frame(width: 44, height: 44)
                         .rotationEffect(.degrees(-90))
                     
                     Text("\(Int(muscle.weight * 100))")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(actualColor)
+                        .font(AppTheme.Typography.label)
+                        .foregroundColor(AppTheme.Colors.primaryText)
                 }
             }
             
             // Muscle name
             Text(muscle.name)
-                .font(.system(size: 11, weight: .medium))
+                .font(AppTheme.Typography.label)
                 .foregroundColor(muscle.weight > 0 ? AppTheme.Colors.primaryText : AppTheme.Colors.tertiaryText)
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
@@ -235,17 +225,17 @@ private struct MuscleCell: View {
             // Debt indicator (NEW)
             if let data = distributionData, !data.isOnTarget {
                 Text(data.debtText)
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(data.statusColor)
+                    .font(AppTheme.Typography.label)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
             } else if let data = distributionData, data.isOnTarget {
                 Image(systemName: "checkmark")
                     .font(.system(size: 8, weight: .bold))
-                    .foregroundColor(.green)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, AppTheme.Spacing.md)
-        .background(AppTheme.Colors.background.opacity(0.5))
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.small)
         .opacity(muscle.weight > 0 ? 1.0 : 0.5)
     }
@@ -269,14 +259,14 @@ private struct MuscleInfluenceRow: View {
                     HStack(spacing: 3) {
                         Image(systemName: influences[index].isIncrease ? "arrow.up" : "arrow.down")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(influences[index].isIncrease ? .green : .red)
+                            .foregroundColor(AppTheme.Colors.secondaryText)
                         
                         Text(influences[index].name)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.primaryText)
                         
                         Text(String(format: "%+.2f", influences[index].change))
-                            .font(.system(size: 12, weight: .medium))
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.secondaryText)
                     }
                 }
@@ -288,8 +278,8 @@ private struct MuscleInfluenceRow: View {
             
             Button(action: onWhyTapped) {
                 Text("Why?")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.blue)
+                    .font(AppTheme.Typography.label)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
             }
         }
     }
@@ -303,7 +293,7 @@ private struct EmptyMuscleGoalsState: View {
     var body: some View {
         VStack(spacing: AppTheme.Spacing.md) {
             Text("Start from equal weights or use AI Assist.")
-                .font(.body)
+                .font(AppTheme.Typography.cardSubtitle)
                 .foregroundColor(AppTheme.Colors.secondaryText)
             
             HStack(spacing: AppTheme.Spacing.md) {
@@ -314,12 +304,12 @@ private struct EmptyMuscleGoalsState: View {
                         Image(systemName: "sparkles")
                             .font(.system(size: 14, weight: .semibold))
                         Text("AI Assist")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(AppTheme.Typography.button)
                     }
-                    .foregroundColor(AppTheme.Colors.cardBackground)
+                    .foregroundColor(AppTheme.Colors.background)
                     .padding(.horizontal, AppTheme.Spacing.lg)
                     .padding(.vertical, 10)
-                    .background(AppTheme.Colors.primaryText)
+                    .background(AppTheme.Colors.accent)
                     .cornerRadius(AppTheme.CornerRadius.small)
                 }
                 
@@ -330,17 +320,13 @@ private struct EmptyMuscleGoalsState: View {
                         Image(systemName: "slider.horizontal.3")
                             .font(.system(size: 14, weight: .semibold))
                         Text("Set Goals")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(AppTheme.Typography.button)
                     }
                     .foregroundColor(AppTheme.Colors.primaryText)
                     .padding(.horizontal, AppTheme.Spacing.lg)
                     .padding(.vertical, 10)
-                    .background(AppTheme.Colors.background)
+                    .background(AppTheme.Colors.surface)
                     .cornerRadius(AppTheme.CornerRadius.small)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                            .stroke(AppTheme.Colors.border, lineWidth: 1)
-                    )
                 }
             }
             .padding(.top, AppTheme.Spacing.sm)
@@ -424,30 +410,30 @@ private struct MuscleInfluenceDriverRow: View {
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .frame(width: 32, height: 32)
-                .background(AppTheme.Colors.background)
+                .background(AppTheme.Colors.surface)
                 .cornerRadius(AppTheme.CornerRadius.small)
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(AppTheme.Typography.cardTitle)
                         .foregroundColor(AppTheme.Colors.primaryText)
                     
                     Spacer()
                     
                     Text(change)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(change.hasPrefix("+") ? .green : .red)
+                        .font(AppTheme.Typography.caption)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
                 }
                 
                 Text(description)
-                    .font(.system(size: 13))
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.secondaryText)
                     .lineLimit(2)
             }
         }
         .padding(AppTheme.Spacing.md)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.medium)
     }
 }
@@ -463,12 +449,8 @@ private struct ActionButton: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .frame(width: 36, height: 36)
-                .background(AppTheme.Colors.cardBackground)
+                .background(AppTheme.Colors.surface)
                 .cornerRadius(AppTheme.CornerRadius.small)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                )
         }
     }
 }
@@ -481,4 +463,3 @@ private struct ActionButton: View {
     .padding()
     .background(AppTheme.Colors.background)
 }
-

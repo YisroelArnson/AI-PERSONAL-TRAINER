@@ -56,18 +56,7 @@ protocol ExerciseDisplayable {
 // MARK: - Default Protocol Implementation
 extension ExerciseDisplayable {
     var typeColor: Color {
-        switch exercise_type {
-        case "reps":
-            return AppTheme.Colors.reps
-        case "hold":
-            return AppTheme.Colors.hold
-        case "duration":
-            return AppTheme.Colors.duration
-        case "intervals":
-            return AppTheme.Colors.intervals
-        default:
-            return .gray
-        }
+        AppTheme.Colors.primaryText
     }
 }
 
@@ -216,18 +205,7 @@ struct WorkoutHistoryItem: Codable, Identifiable, Equatable {
     
     // Helper to get the exercise type color
     var typeColor: Color {
-        switch exercise_type {
-        case "reps":
-            return AppTheme.Colors.reps
-        case "hold":
-            return AppTheme.Colors.hold
-        case "duration":
-            return AppTheme.Colors.duration
-        case "intervals":
-            return AppTheme.Colors.intervals
-        default:
-            return .gray
-        }
+        AppTheme.Colors.primaryText
     }
     
     // Helper to get formatted metrics
@@ -325,5 +303,4 @@ extension WorkoutHistoryItem: ExerciseDisplayable {
         return notes
     }
 }
-
 

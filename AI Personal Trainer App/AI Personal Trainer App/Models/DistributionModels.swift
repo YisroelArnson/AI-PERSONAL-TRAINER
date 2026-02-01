@@ -31,7 +31,7 @@ struct DistributionData: Codable {
     }
     
     var statusColor: Color {
-        isOnTarget ? .green : .red
+        isOnTarget ? AppTheme.Colors.primaryText : AppTheme.Colors.secondaryText
     }
     
     var debtText: String {
@@ -47,4 +47,3 @@ struct DistributionAPIResponse: Codable {
     let success: Bool
     let data: DistributionMetrics
 }
-

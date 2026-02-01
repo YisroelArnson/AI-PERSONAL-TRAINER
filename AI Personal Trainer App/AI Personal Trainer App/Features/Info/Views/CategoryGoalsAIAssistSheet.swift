@@ -42,35 +42,30 @@ struct CategoryGoalsAIAssistSheet: View {
                             // Text input
                             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                                 Text("Examples:")
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(AppTheme.Typography.label)
                                     .foregroundColor(AppTheme.Colors.secondaryText)
                                 
                                 Text("• \"I want to build muscle and strength\"")
-                                    .font(.system(size: 13))
+                                    .font(AppTheme.Typography.cardSubtitle)
                                     .foregroundColor(AppTheme.Colors.tertiaryText)
                                     .italic()
                                 
                                 Text("• \"Focus on longevity and injury prevention\"")
-                                    .font(.system(size: 13))
+                                    .font(AppTheme.Typography.cardSubtitle)
                                     .foregroundColor(AppTheme.Colors.tertiaryText)
                                     .italic()
                                 
                                 Text("• \"Train like Peter Attia\"")
-                                    .font(.system(size: 13))
+                                    .font(AppTheme.Typography.cardSubtitle)
                                     .foregroundColor(AppTheme.Colors.tertiaryText)
                                     .italic()
                                 
                                 TextEditor(text: $inputText)
                                     .frame(minHeight: 120)
                                     .padding(AppTheme.Spacing.md)
-                                    .background(AppTheme.Colors.cardBackground)
+                                    .background(AppTheme.Colors.surface)
                                     .cornerRadius(AppTheme.CornerRadius.medium)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                            .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                    )
                                     .scrollContentBackground(.hidden)
-                                    .colorScheme(.light)
                             }
                             .padding(.horizontal, AppTheme.Spacing.xl)
                             
@@ -81,19 +76,19 @@ struct CategoryGoalsAIAssistSheet: View {
                                 HStack(spacing: 8) {
                                     if isProcessing {
                                         ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.cardBackground))
+                                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
                                     } else {
                                         Image(systemName: "sparkles")
                                             .font(.system(size: 16, weight: .semibold))
                                     }
                                     
                                     Text(isProcessing ? "Generating..." : "Generate Suggestions")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(AppTheme.Typography.button)
                                 }
-                                .foregroundColor(AppTheme.Colors.cardBackground)
+                                .foregroundColor(inputText.isEmpty ? AppTheme.Colors.tertiaryText : AppTheme.Colors.background)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
-                                .background(inputText.isEmpty ? AppTheme.Colors.border : AppTheme.Colors.primaryText)
+                                .background(inputText.isEmpty ? AppTheme.Colors.surface : AppTheme.Colors.accent)
                                 .cornerRadius(AppTheme.CornerRadius.small)
                             }
                             .disabled(inputText.isEmpty || isProcessing)
@@ -180,26 +175,22 @@ private struct PreviewView: View {
             VStack(spacing: AppTheme.Spacing.md) {
                 Button(action: onAccept) {
                     Text("Accept & Save")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.cardBackground)
+                        .font(AppTheme.Typography.button)
+                        .foregroundColor(AppTheme.Colors.background)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(AppTheme.Colors.primaryText)
+                        .background(AppTheme.Colors.accent)
                         .cornerRadius(AppTheme.CornerRadius.small)
                 }
                 
                 Button(action: onReject) {
                     Text("Try Again")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(AppTheme.Typography.button)
                         .foregroundColor(AppTheme.Colors.primaryText)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(AppTheme.Colors.cardBackground)
+                        .background(AppTheme.Colors.surface)
                         .cornerRadius(AppTheme.CornerRadius.small)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                .stroke(AppTheme.Colors.border, lineWidth: 1)
-                        )
                 }
             }
             .padding(.horizontal, AppTheme.Spacing.xl)
@@ -214,25 +205,20 @@ private struct CategoryPreviewRow: View {
     let weight: Double
     
     var color: Color {
-        switch name {
-        case "Strength": return .orange
-        case "Cardio": return .blue
-        case "Stability": return .purple
-        default: return AppTheme.Colors.primaryText
-        }
+        AppTheme.Colors.primaryText
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
             HStack {
                 Text(name)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(AppTheme.Typography.cardTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Spacer()
                 
                 Text("\(Int(weight * 100))%")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(AppTheme.Typography.statNumber)
                     .foregroundColor(color)
             }
             
@@ -240,7 +226,7 @@ private struct CategoryPreviewRow: View {
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(AppTheme.Colors.background)
+                        .fill(AppTheme.Colors.highlight)
                         .frame(height: 8)
                     
                     RoundedRectangle(cornerRadius: 4)
@@ -251,18 +237,11 @@ private struct CategoryPreviewRow: View {
             .frame(height: 8)
         }
         .padding(AppTheme.Spacing.lg)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.medium)
-        .shadow(
-            color: AppTheme.Shadow.card,
-            radius: AppTheme.Shadow.cardRadius,
-            x: AppTheme.Shadow.cardOffset.width,
-            y: AppTheme.Shadow.cardOffset.height
-        )
     }
 }
 
 #Preview {
     CategoryGoalsAIAssistSheet()
 }
-

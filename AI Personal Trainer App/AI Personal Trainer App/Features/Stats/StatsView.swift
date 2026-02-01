@@ -75,8 +75,8 @@ struct StatsView: View {
                             ProgressView()
                                 .scaleEffect(1.5)
                             Text("Loading workout history...")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
+                                .font(AppTheme.Typography.cardSubtitle)
+                                .foregroundColor(AppTheme.Colors.secondaryText)
                         }
                         Spacer()
                     } else if let error = historyStore.error {
@@ -85,12 +85,12 @@ struct StatsView: View {
                         VStack(spacing: 16) {
                             Image(systemName: "exclamationmark.triangle")
                                 .font(.system(size: 50))
-                                .foregroundColor(.red)
+                                .foregroundColor(AppTheme.Colors.danger)
                             Text("Error Loading History")
-                                .font(.headline)
+                                .font(AppTheme.Typography.cardTitle)
                             Text(error.localizedDescription)
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
+                                .font(AppTheme.Typography.cardSubtitle)
+                                .foregroundColor(AppTheme.Colors.secondaryText)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 40)
                             
@@ -101,8 +101,8 @@ struct StatsView: View {
                             }
                             .padding(.horizontal, 24)
                             .padding(.vertical, 12)
-                            .background(AppTheme.Colors.primaryText)
-                            .foregroundColor(.white)
+                            .background(AppTheme.Colors.accent)
+                            .foregroundColor(AppTheme.Colors.background)
                             .cornerRadius(AppTheme.CornerRadius.medium)
                         }
                         Spacer()
@@ -112,13 +112,12 @@ struct StatsView: View {
                         VStack(spacing: 16) {
                             Image(systemName: "calendar.badge.clock")
                                 .font(.system(size: 60))
-                                .foregroundColor(.gray)
+                                .foregroundColor(AppTheme.Colors.tertiaryText)
                             Text("No Workouts Yet")
-                                .font(.title2)
-                                .fontWeight(.semibold)
+                                .font(AppTheme.Typography.screenTitle)
                             Text("Complete exercises to see your workout history here")
-                                .font(.subheadline)
-                                .foregroundColor(.gray)
+                                .font(AppTheme.Typography.cardSubtitle)
+                                .foregroundColor(AppTheme.Colors.secondaryText)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 40)
                         }
@@ -127,12 +126,12 @@ struct StatsView: View {
                         // Exercise List
                         VStack(spacing: 0) {
                             // Exercise count
-                            HStack {
-                                Text("Showing \(filteredWorkoutHistory.count) exercise\(filteredWorkoutHistory.count == 1 ? "" : "s")")
-                                    .font(.caption)
-                                    .foregroundColor(AppTheme.Colors.tertiaryText)
-                                Spacer()
-                            }
+                        HStack {
+                            Text("Showing \(filteredWorkoutHistory.count) exercise\(filteredWorkoutHistory.count == 1 ? "" : "s")")
+                                .font(AppTheme.Typography.label)
+                                .foregroundColor(AppTheme.Colors.tertiaryText)
+                            Spacer()
+                        }
                             .padding(.horizontal, 20)
                             .padding(.top, 8)
                             .padding(.bottom, 12)
@@ -197,7 +196,7 @@ struct StatsView: View {
             .datePickerStyle(.compact)
             .labelsHidden()
             .scaleEffect(0.9)
-            .background(Color.white)
+            .background(AppTheme.Colors.surface)
             .onChange(of: customStartDate) { _, newValue in
                 selectedPeriod = .custom
                 filterWorkoutHistory()
@@ -217,21 +216,15 @@ struct StatsView: View {
             .datePickerStyle(.compact)
             .labelsHidden()
             .scaleEffect(0.9)
-            .background(Color.white)
+            .background(AppTheme.Colors.surface)
             .onChange(of: customEndDate) { _, newValue in
                 selectedPeriod = .custom
                 filterWorkoutHistory()
             }
         }
         .padding(8)
-        .background(Color.white)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.small)
-        .shadow(
-            color: AppTheme.Shadow.card,
-            radius: AppTheme.Shadow.cardRadius,
-            x: 0,
-            y: 2
-        )
     }
     
     private var presetPickerButton: some View {
@@ -288,14 +281,8 @@ struct StatsView: View {
                 .font(.system(size: 18))
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .frame(width: 44, height: 44)
-                .background(AppTheme.Colors.cardBackground)
+                .background(AppTheme.Colors.surface)
                 .cornerRadius(AppTheme.CornerRadius.small)
-                .shadow(
-                    color: AppTheme.Shadow.card,
-                    radius: AppTheme.Shadow.cardRadius,
-                    x: 0,
-                    y: 2
-                )
         }
     }
     
@@ -371,12 +358,12 @@ struct WorkoutHistoryCard: View {
             // Exercise Name and Date
             VStack(alignment: .leading, spacing: 4) {
                 Text(workout.exercise_name)
-                    .font(.system(size: 17, weight: .semibold))
+                    .font(AppTheme.Typography.cardTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                     .lineLimit(2)
                 
                 Text(workout.relativeDate)
-                    .font(.caption)
+                    .font(AppTheme.Typography.label)
                     .foregroundColor(AppTheme.Colors.tertiaryText)
             }
             
@@ -384,23 +371,16 @@ struct WorkoutHistoryCard: View {
             
             // Type Badge
             Text(workout.exercise_type.replacingOccurrences(of: "_", with: " ").capitalized)
-                .font(.caption)
-                .fontWeight(.medium)
-                .foregroundColor(.white)
+                .font(AppTheme.Typography.label)
+                .foregroundColor(AppTheme.Colors.primaryText)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
-                .background(workout.typeColor)
+                .background(AppTheme.Colors.highlight)
                 .cornerRadius(AppTheme.CornerRadius.small)
         }
         .padding(16)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.medium)
-        .shadow(
-            color: AppTheme.Shadow.card,
-            radius: AppTheme.Shadow.cardRadius,
-            x: AppTheme.Shadow.cardOffset.width,
-            y: AppTheme.Shadow.cardOffset.height
-        )
     }
 }
 
@@ -439,8 +419,8 @@ struct StatsContentView: View {
                     ProgressView()
                         .scaleEffect(1.5)
                     Text("Loading workout history...")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+                        .font(AppTheme.Typography.cardSubtitle)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
                 }
                 Spacer()
             } else if let error = historyStore.error {
@@ -449,12 +429,12 @@ struct StatsContentView: View {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 50))
-                        .foregroundColor(.red)
+                        .foregroundColor(AppTheme.Colors.danger)
                     Text("Error Loading History")
-                        .font(.headline)
+                        .font(AppTheme.Typography.cardTitle)
                     Text(error.localizedDescription)
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+                        .font(AppTheme.Typography.cardSubtitle)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                     
@@ -465,8 +445,8 @@ struct StatsContentView: View {
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
-                    .background(AppTheme.Colors.primaryText)
-                    .foregroundColor(.white)
+                    .background(AppTheme.Colors.accent)
+                    .foregroundColor(AppTheme.Colors.background)
                     .cornerRadius(AppTheme.CornerRadius.medium)
                 }
                 Spacer()
@@ -476,13 +456,12 @@ struct StatsContentView: View {
                 VStack(spacing: 16) {
                     Image(systemName: "calendar.badge.clock")
                         .font(.system(size: 60))
-                        .foregroundColor(.gray)
+                        .foregroundColor(AppTheme.Colors.tertiaryText)
                     Text("No Workouts Yet")
-                        .font(.title2)
-                        .fontWeight(.semibold)
+                        .font(AppTheme.Typography.screenTitle)
                     Text("Complete exercises to see your workout history here")
-                        .font(.subheadline)
-                        .foregroundColor(.gray)
+                        .font(AppTheme.Typography.cardSubtitle)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                 }
@@ -493,7 +472,7 @@ struct StatsContentView: View {
                     // Exercise count
                     HStack {
                         Text("Showing \(filteredWorkoutHistory.count) exercise\(filteredWorkoutHistory.count == 1 ? "" : "s")")
-                            .font(.caption)
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.tertiaryText)
                         Spacer()
                     }
@@ -546,7 +525,7 @@ struct StatsContentView: View {
             .datePickerStyle(.compact)
             .labelsHidden()
             .scaleEffect(0.9)
-            .background(Color.white)
+            .background(AppTheme.Colors.surface)
             .onChange(of: customStartDate) { _, newValue in
                 selectedPeriod = .custom
                 filterWorkoutHistory()
@@ -565,21 +544,15 @@ struct StatsContentView: View {
             .datePickerStyle(.compact)
             .labelsHidden()
             .scaleEffect(0.9)
-            .background(Color.white)
+            .background(AppTheme.Colors.surface)
             .onChange(of: customEndDate) { _, newValue in
                 selectedPeriod = .custom
                 filterWorkoutHistory()
             }
         }
         .padding(8)
-        .background(Color.white)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.small)
-        .shadow(
-            color: AppTheme.Shadow.card,
-            radius: AppTheme.Shadow.cardRadius,
-            x: 0,
-            y: 2
-        )
     }
     
     private var presetPickerButton: some View {
@@ -636,14 +609,8 @@ struct StatsContentView: View {
                 .font(.system(size: 18))
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .frame(width: 44, height: 44)
-                .background(AppTheme.Colors.cardBackground)
+                .background(AppTheme.Colors.surface)
                 .cornerRadius(AppTheme.CornerRadius.small)
-                .shadow(
-                    color: AppTheme.Shadow.card,
-                    radius: AppTheme.Shadow.cardRadius,
-                    x: 0,
-                    y: 2
-                )
         }
     }
     
@@ -700,4 +667,3 @@ struct StatsContentView: View {
 #Preview {
     StatsView()
 }
-

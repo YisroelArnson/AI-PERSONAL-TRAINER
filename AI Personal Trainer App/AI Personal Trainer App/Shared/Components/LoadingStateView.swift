@@ -28,14 +28,14 @@ struct LoadingStateView: View {
                         .stroke(
                             AngularGradient(
                                 colors: [
-                                    AppTheme.Colors.warmAccentLight,
-                                    AppTheme.Colors.warmAccent,
-                                    Color(hex: "F7C4D4"),
-                                    AppTheme.Colors.warmAccentLight
+                                    AppTheme.Colors.orbBlueLight,
+                                    AppTheme.Colors.orbBlue,
+                                    AppTheme.Colors.orbBlueDeep,
+                                    AppTheme.Colors.orbBlueLight
                                 ],
                                 center: .center
                             ),
-                            lineWidth: 3
+                            lineWidth: 2
                         )
                         .frame(width: 56, height: 56)
                         .shadow(
@@ -48,12 +48,12 @@ struct LoadingStateView: View {
                     
                     // Inner circle
                     Circle()
-                        .fill(Color.white.opacity(0.9))
+                        .fill(AppTheme.Gradients.orb)
                         .frame(width: 48, height: 48)
                     
                     // Spinning indicator
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.warmAccent))
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.orbBlue))
                         .scaleEffect(0.8)
                 }
                 .onAppear {
@@ -64,7 +64,7 @@ struct LoadingStateView: View {
                 
                 // Status message with gentle animation
                 Text(state.message)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .font(AppTheme.Typography.aiMessageMedium)
                     .foregroundColor(AppTheme.Colors.secondaryText)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, AppTheme.Spacing.xxxxl)

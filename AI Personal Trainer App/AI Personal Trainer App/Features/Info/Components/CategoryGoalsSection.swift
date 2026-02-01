@@ -29,8 +29,7 @@ struct CategoryGoalsSection: View {
             // Section Header
             HStack(alignment: .center) {
                 Text("Category Goals")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(AppTheme.Typography.screenTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Spacer()
@@ -75,7 +74,7 @@ struct CategoryGoalsSection: View {
                         showingCategoryGoalSetter = true
                     }) {
                         Text("View presets")
-                            .font(.system(size: 13, weight: .medium))
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.secondaryText)
                     }
                     
@@ -95,14 +94,8 @@ struct CategoryGoalsSection: View {
             }
         }
         .padding(AppTheme.Spacing.xl)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.large)
-        .shadow(
-            color: AppTheme.Shadow.card,
-            radius: AppTheme.Shadow.cardRadius,
-            x: AppTheme.Shadow.cardOffset.width,
-            y: AppTheme.Shadow.cardOffset.height
-        )
         .sheet(isPresented: $showingInfluenceModal) {
             CategoryInfluenceModal(
                 showingCategoryGoalSetter: $showingCategoryGoalSetter
@@ -148,31 +141,18 @@ private struct CategoryChip: View {
     let distributionData: DistributionData?
     
     var categoryColor: Color {
-        // Assign colors based on category name
-        switch category.category.lowercased() {
-        case let name where name.contains("strength"):
-            return .orange
-        case let name where name.contains("cardio") || name.contains("zone"):
-            return .blue
-        case let name where name.contains("stability") || name.contains("mobility"):
-            return .purple
-        case let name where name.contains("vo₂") || name.contains("vo2"):
-            return .red
-        default:
-            return .green
-        }
+        AppTheme.Colors.primaryText
     }
     
     var actualColor: Color {
-        guard let data = distributionData else { return categoryColor }
-        return data.statusColor
+        AppTheme.Colors.primaryText
     }
     
     var body: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
             HStack(spacing: 6) {
                 Text(category.category)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(AppTheme.Typography.cardTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Spacer()
@@ -182,12 +162,12 @@ private struct CategoryChip: View {
                     HStack(spacing: 3) {
                         // Actual percentage (bold, primary)
                         Text("\(Int(data.actual * 100))%")
-                            .font(.system(size: 15, weight: .bold))
+                            .font(AppTheme.Typography.cardTitle)
                             .foregroundColor(AppTheme.Colors.primaryText)
                         
                         // Separator and goal percentage (lighter, secondary)
                         Text("/ \(Int(data.target * 100))% goal")
-                            .font(.system(size: 13, weight: .regular))
+                            .font(AppTheme.Typography.cardSubtitle)
                             .foregroundColor(AppTheme.Colors.secondaryText)
                     }
                     
@@ -196,23 +176,23 @@ private struct CategoryChip: View {
                         // Actual exceeds or falls short of goal - just show arrow
                         Image(systemName: data.debt > 0 ? "arrow.up" : "arrow.down")
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(data.debt > 0 ? .green : .red)
+                            .foregroundColor(AppTheme.Colors.secondaryText)
                     } else {
                         // On target - show checkmark
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 14))
-                            .foregroundColor(.green)
+                            .foregroundColor(AppTheme.Colors.secondaryText)
                     }
                 } else {
                     // No distribution data - show target only
                     Text("\(Int(category.weight * 100))% goal")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(AppTheme.Typography.cardSubtitle)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                 }
             }
         }
         .padding(AppTheme.Spacing.md)
-        .background(AppTheme.Colors.background.opacity(0.5))
+        .background(AppTheme.Colors.highlight)
         .cornerRadius(AppTheme.CornerRadius.small)
     }
 }
@@ -235,14 +215,14 @@ private struct InfluenceRow: View {
                     HStack(spacing: 3) {
                         Image(systemName: influences[index].isIncrease ? "arrow.up" : "arrow.down")
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(influences[index].isIncrease ? .green : .red)
+                            .foregroundColor(AppTheme.Colors.secondaryText)
                         
                         Text(influences[index].name)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.primaryText)
                         
                         Text(String(format: "%+.2f", influences[index].change))
-                            .font(.system(size: 12, weight: .medium))
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.secondaryText)
                     }
                 }
@@ -254,8 +234,8 @@ private struct InfluenceRow: View {
             
             Button(action: onWhyTapped) {
                 Text("Why?")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.blue)
+                    .font(AppTheme.Typography.label)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
             }
         }
     }
@@ -269,11 +249,11 @@ private struct EmptyCategoryGoalsState: View {
     var body: some View {
         VStack(spacing: AppTheme.Spacing.md) {
             Text("No goals yet.")
-                .font(.body)
+                .font(AppTheme.Typography.cardSubtitle)
                 .foregroundColor(AppTheme.Colors.secondaryText)
             
             Text("Pick a preset or use AI Assist.")
-                .font(.body)
+                .font(AppTheme.Typography.cardSubtitle)
                 .foregroundColor(AppTheme.Colors.secondaryText)
             
             HStack(spacing: AppTheme.Spacing.md) {
@@ -284,12 +264,12 @@ private struct EmptyCategoryGoalsState: View {
                         Image(systemName: "sparkles")
                             .font(.system(size: 14, weight: .semibold))
                         Text("AI Assist")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(AppTheme.Typography.button)
                     }
-                    .foregroundColor(AppTheme.Colors.cardBackground)
+                    .foregroundColor(AppTheme.Colors.background)
                     .padding(.horizontal, AppTheme.Spacing.lg)
                     .padding(.vertical, 10)
-                    .background(AppTheme.Colors.primaryText)
+                    .background(AppTheme.Colors.accent)
                     .cornerRadius(AppTheme.CornerRadius.small)
                 }
                 
@@ -300,17 +280,13 @@ private struct EmptyCategoryGoalsState: View {
                         Image(systemName: "slider.horizontal.3")
                             .font(.system(size: 14, weight: .semibold))
                         Text("Set Goals")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(AppTheme.Typography.button)
                     }
                     .foregroundColor(AppTheme.Colors.primaryText)
                     .padding(.horizontal, AppTheme.Spacing.lg)
                     .padding(.vertical, 10)
-                    .background(AppTheme.Colors.background)
+                    .background(AppTheme.Colors.surface)
                     .cornerRadius(AppTheme.CornerRadius.small)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                            .stroke(AppTheme.Colors.border, lineWidth: 1)
-                    )
                 }
             }
             .padding(.top, AppTheme.Spacing.sm)
@@ -329,8 +305,7 @@ private struct CategoryInfluenceModal: View {
         NavigationView {
             VStack(spacing: AppTheme.Spacing.xl) {
                 Text("What's Influencing Your Categories")
-                    .font(.title3)
-                    .fontWeight(.bold)
+                    .font(AppTheme.Typography.screenTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                     .padding(.top, AppTheme.Spacing.xl)
                 
@@ -360,11 +335,11 @@ private struct CategoryInfluenceModal: View {
                     }
                 }) {
                     Text("Adjust Category Goals")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.cardBackground)
+                        .font(AppTheme.Typography.button)
+                        .foregroundColor(AppTheme.Colors.background)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(AppTheme.Colors.primaryText)
+                        .background(AppTheme.Colors.accent)
                         .cornerRadius(AppTheme.CornerRadius.small)
                 }
                 .padding(.horizontal, AppTheme.Spacing.xl)
@@ -394,30 +369,30 @@ private struct InfluenceDriverRow: View {
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .frame(width: 32, height: 32)
-                .background(AppTheme.Colors.background)
+                .background(AppTheme.Colors.surface)
                 .cornerRadius(AppTheme.CornerRadius.small)
             
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
                     Text(title)
-                        .font(.system(size: 15, weight: .semibold))
+                        .font(AppTheme.Typography.cardTitle)
                         .foregroundColor(AppTheme.Colors.primaryText)
                     
                     Spacer()
                     
                     Text(change)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(change.hasPrefix("+") ? .green : .red)
+                        .font(AppTheme.Typography.caption)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
                 }
                 
                 Text(description)
-                    .font(.system(size: 13))
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.secondaryText)
                     .lineLimit(2)
             }
         }
         .padding(AppTheme.Spacing.md)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.medium)
     }
 }
@@ -433,12 +408,8 @@ private struct ActionButton: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .frame(width: 36, height: 36)
-                .background(AppTheme.Colors.cardBackground)
+                .background(AppTheme.Colors.surface)
                 .cornerRadius(AppTheme.CornerRadius.small)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                )
         }
     }
 }
@@ -451,4 +422,3 @@ private struct ActionButton: View {
     .padding()
     .background(AppTheme.Colors.background)
 }
-

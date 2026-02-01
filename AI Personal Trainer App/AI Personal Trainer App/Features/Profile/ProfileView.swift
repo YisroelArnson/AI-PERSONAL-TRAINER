@@ -18,6 +18,7 @@ struct ProfileView: View {
     @State private var showSettingsAlert = false
     @State private var isRequestingPermission = false
     @State private var hoursInputText: String = ""
+    @State private var showDataHub = false
     
     // Track initial unit values to detect changes
     @State private var initialWeightUnit: WeightUnit?
@@ -31,6 +32,7 @@ struct ProfileView: View {
                 
                 ScrollView {
                     VStack(spacing: AppTheme.Spacing.xxl) {
+                        trainerDataSection
                         // Settings Section
                         settingsSection
                     }
@@ -75,6 +77,9 @@ struct ProfileView: View {
                 initialWeightUnit = userSettings.weightUnit
                 initialDistanceUnit = userSettings.distanceUnit
             }
+            .sheet(isPresented: $showDataHub) {
+                TrainerDataHubView()
+            }
         }
     }
     
@@ -83,7 +88,7 @@ struct ProfileView: View {
     private var settingsSection: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
             Text("Settings")
-                .font(.system(size: 20, weight: .bold))
+                .font(AppTheme.Typography.screenTitle)
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .padding(.horizontal, AppTheme.Spacing.md)
             
@@ -92,13 +97,13 @@ struct ProfileView: View {
                 weightUnitRow
                 
                 Divider()
-                    .background(AppTheme.Colors.border)
+                    .background(AppTheme.Colors.divider)
                 
                 // Distance Unit Picker
                 distanceUnitRow
                 
                 Divider()
-                    .background(AppTheme.Colors.border)
+                    .background(AppTheme.Colors.divider)
                 
                 // Auto-Detect Location Toggle
                 autoDetectLocationRow
@@ -109,7 +114,7 @@ struct ProfileView: View {
                 }
                 
                 Divider()
-                    .background(AppTheme.Colors.border)
+                    .background(AppTheme.Colors.divider)
                 
                 // Auto-Refresh Exercises Toggle
                 autoRefreshExercisesRow
@@ -121,12 +126,34 @@ struct ProfileView: View {
             }
             .background(AppTheme.Colors.cardBackground)
             .cornerRadius(AppTheme.CornerRadius.medium)
-            .shadow(
-                color: AppTheme.Shadow.card,
-                radius: AppTheme.Shadow.cardRadius,
-                x: AppTheme.Shadow.cardOffset.width,
-                y: AppTheme.Shadow.cardOffset.height
-            )
+        }
+    }
+
+    private var trainerDataSection: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+            Text("Trainer Data")
+                .font(AppTheme.Typography.screenTitle)
+                .foregroundColor(AppTheme.Colors.primaryText)
+                .padding(.horizontal, AppTheme.Spacing.md)
+
+            Button(action: { showDataHub = true }) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Your Data Hub")
+                            .font(AppTheme.Typography.cardTitle)
+                            .foregroundColor(AppTheme.Colors.primaryText)
+                        Text("Calendar, measurements, memory, reports")
+                            .font(AppTheme.Typography.cardSubtitle)
+                            .foregroundColor(AppTheme.Colors.secondaryText)
+                    }
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                }
+                .padding(AppTheme.Spacing.md)
+            }
+            .background(AppTheme.Colors.cardBackground)
+            .cornerRadius(AppTheme.CornerRadius.medium)
         }
     }
     
@@ -135,16 +162,16 @@ struct ProfileView: View {
             Toggle(isOn: $userSettings.isAutoDetectLocationEnabled) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Auto-Detect Location")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(AppTheme.Typography.cardTitle)
                         .foregroundColor(AppTheme.Colors.primaryText)
                     
                     Text("Automatically switch to your nearest saved location (within 500m) when you open the app.")
-                        .font(.caption)
+                        .font(AppTheme.Typography.cardSubtitle)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.primaryText))
+            .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.accent))
             .disabled(isRequestingPermission)
             .onChange(of: userSettings.isAutoDetectLocationEnabled) { oldValue, newValue in
                 if newValue {
@@ -158,15 +185,15 @@ struct ProfileView: View {
     private var permissionStatusRow: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
             Divider()
-                .background(AppTheme.Colors.border)
+                .background(AppTheme.Colors.divider)
             
             HStack(spacing: AppTheme.Spacing.sm) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .font(.system(size: 14))
-                    .foregroundColor(.orange)
+                    .foregroundColor(AppTheme.Colors.danger)
                 
                 Text("Location permission needed")
-                    .font(.caption)
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.secondaryText)
                 
                 Spacer()
@@ -177,12 +204,11 @@ struct ProfileView: View {
                     }
                 }) {
                     Text("Grant Access")
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                        .font(AppTheme.Typography.button)
                         .foregroundColor(AppTheme.Colors.primaryText)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(AppTheme.Colors.background)
+                        .background(AppTheme.Colors.surface)
                         .cornerRadius(AppTheme.CornerRadius.small)
                 }
             }
@@ -195,16 +221,16 @@ struct ProfileView: View {
             Toggle(isOn: $userSettings.isAutoRefreshExercisesEnabled) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Auto-Refresh Exercises")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(AppTheme.Typography.cardTitle)
                         .foregroundColor(AppTheme.Colors.primaryText)
                     
                     Text("Automatically fetch new exercises when you open the app after the specified time has passed.")
-                        .font(.caption)
+                        .font(AppTheme.Typography.cardSubtitle)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.primaryText))
+            .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.accent))
             .onChange(of: userSettings.isAutoRefreshExercisesEnabled) { _, newValue in
                 if newValue {
                     // Initialize the text field with current value
@@ -218,22 +244,22 @@ struct ProfileView: View {
     private var autoRefreshHoursRow: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
             Divider()
-                .background(AppTheme.Colors.border)
+                .background(AppTheme.Colors.divider)
             
             HStack(spacing: AppTheme.Spacing.md) {
                 Text("Refresh after")
-                    .font(.system(size: 15))
+                    .font(AppTheme.Typography.input)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 TextField("12", text: $hoursInputText)
                     .keyboardType(.numberPad)
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(AppTheme.Typography.input)
                     .foregroundColor(AppTheme.Colors.primaryText)
                     .frame(width: 50)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 6)
-                    .background(AppTheme.Colors.background)
+                    .background(AppTheme.Colors.surface)
                     .cornerRadius(AppTheme.CornerRadius.small)
                     .onChange(of: hoursInputText) { _, newValue in
                         // Filter to only digits
@@ -248,7 +274,7 @@ struct ProfileView: View {
                     }
                 
                 Text("hours")
-                    .font(.system(size: 15))
+                    .font(AppTheme.Typography.input)
                     .foregroundColor(AppTheme.Colors.secondaryText)
                 
                 Spacer()
@@ -266,11 +292,11 @@ struct ProfileView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Weight Unit")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(AppTheme.Typography.cardTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Text("Used for exercise weights and body stats")
-                    .font(.caption)
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.secondaryText)
             }
             
@@ -298,11 +324,11 @@ struct ProfileView: View {
         HStack {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Distance Unit")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(AppTheme.Typography.cardTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Text("Used for cardio and running exercises")
-                    .font(.caption)
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.secondaryText)
             }
             
@@ -394,4 +420,3 @@ struct ProfileView: View {
 #Preview {
     ProfileView()
 }
-

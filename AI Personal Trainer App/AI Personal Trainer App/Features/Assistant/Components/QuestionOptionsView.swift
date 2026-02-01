@@ -54,26 +54,17 @@ private struct OptionButton: View {
                 // Option indicator
                 ZStack {
                     Circle()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    AppTheme.Colors.warmAccentLight.opacity(0.3),
-                                    AppTheme.Colors.warmAccent.opacity(0.2)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(AppTheme.Colors.highlight)
                         .frame(width: 28, height: 28)
 
                     Text("\(index + 1)")
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                        .foregroundColor(AppTheme.Colors.warmAccent)
+                        .font(AppTheme.Typography.label)
+                        .foregroundColor(AppTheme.Colors.primaryText)
                 }
 
                 // Option text
                 Text(option)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .font(AppTheme.Typography.input)
                     .foregroundColor(AppTheme.Colors.primaryText)
                     .multilineTextAlignment(.leading)
                     .lineLimit(3)
@@ -94,16 +85,7 @@ private struct OptionButton: View {
 
     private var optionBackground: some View {
         RoundedRectangle(cornerRadius: 12)
-            .fill(Color.white.opacity(0.95))
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(.ultraThinMaterial)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(AppTheme.Colors.warmAccent.opacity(0.2), lineWidth: 1)
-            )
-            .shadow(color: AppTheme.Shadow.card.opacity(0.5), radius: 4, x: 0, y: 2)
+            .fill(AppTheme.Colors.surface)
     }
 }
 

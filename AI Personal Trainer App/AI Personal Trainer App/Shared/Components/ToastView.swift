@@ -31,11 +31,11 @@ struct ToastView: View {
         HStack(spacing: 12) {
             Image(systemName: data.icon)
                 .font(.system(size: 20))
-                .foregroundColor(.white)
+                .foregroundColor(AppTheme.Colors.primaryText)
             
             Text(data.message)
                 .font(.system(size: 15, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(AppTheme.Colors.primaryText)
                 .lineLimit(2)
             
             Spacer()
@@ -44,9 +44,8 @@ struct ToastView: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 12)
-                .fill(Color.black.opacity(0.85))
+                .fill(AppTheme.Colors.surface)
         )
-        .shadow(color: Color.black.opacity(0.2), radius: 10, x: 0, y: 5)
         .padding(.horizontal, 20)
         .onTapGesture {
             onDismiss()
@@ -122,4 +121,3 @@ extension View {
     }
     .toast(.constant(ToastData(message: "Switched to Home Gym", icon: "location.fill")))
 }
-

@@ -14,13 +14,12 @@ enum DrawerDestination: Equatable {
     case stats
     case info
     case profile
+    case coach
 }
 
 // MARK: - Side Drawer View
 
 struct SideDrawerView: View {
-    @Environment(\.colorScheme) private var colorScheme
-    
     @Binding var currentPage: DrawerDestination
     let onNavigate: (DrawerDestination) -> Void
     let onProfileTap: () -> Void
@@ -54,6 +53,13 @@ struct SideDrawerView: View {
                     isSelected: currentPage == .info,
                     onTap: { onNavigate(.info) }
                 )
+
+                DrawerNavItem(
+                    icon: "person.text.rectangle",
+                    title: "Coach",
+                    isSelected: currentPage == .coach,
+                    onTap: { onNavigate(.coach) }
+                )
             }
             .padding(.horizontal, AppTheme.Spacing.md)
             
@@ -75,28 +81,24 @@ struct SideDrawerView: View {
             HStack(spacing: AppTheme.Spacing.md) {
                 // Initials circle
                 Circle()
-                    .fill(initialsBackgroundColor)
+                    .fill(AppTheme.Colors.surface)
                     .frame(width: 36, height: 36)
                     .overlay(
                         Text(userInitials)
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
-                            .foregroundColor(.white)
+                            .font(AppTheme.Typography.label)
+                            .foregroundColor(AppTheme.Colors.primaryText)
                     )
                 
                 // User email/name
                 Text(displayName)
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
-                    .foregroundColor(textColor)
+                    .font(AppTheme.Typography.input)
+                    .foregroundColor(AppTheme.Colors.primaryText)
                     .lineLimit(1)
                 
                 Spacer()
             }
             .padding(.horizontal, AppTheme.Spacing.lg)
             .padding(.vertical, AppTheme.Spacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                    .fill(Color.clear)
-            )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -122,29 +124,14 @@ struct SideDrawerView: View {
         return email
     }
     
-    private var initialsBackgroundColor: Color {
-        // Warm accent color that works in both light and dark mode
-        AppTheme.Colors.warmAccent
-    }
-    
     private var drawerBackground: Color {
-        colorScheme == .dark
-            ? Color(UIColor.systemBackground)
-            : Color.white
-    }
-    
-    private var textColor: Color {
-        colorScheme == .dark
-            ? Color.white
-            : AppTheme.Colors.primaryText
+        AppTheme.Colors.background
     }
 }
 
 // MARK: - Drawer Navigation Item
 
 struct DrawerNavItem: View {
-    @Environment(\.colorScheme) private var colorScheme
-    
     let icon: String
     let title: String
     let isSelected: Bool
@@ -159,7 +146,7 @@ struct DrawerNavItem: View {
                     .frame(width: 24)
                 
                 Text(title)
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .font(AppTheme.Typography.input)
                     .foregroundColor(textColor)
                 
                 Spacer()
@@ -179,31 +166,23 @@ struct DrawerNavItem: View {
     
     private var backgroundColor: Color {
         if isSelected {
-            return colorScheme == .dark
-                ? Color.white.opacity(0.1)
-                : Color.black.opacity(0.05)
+            return AppTheme.Colors.highlight
         }
         return Color.clear
     }
     
     private var iconColor: Color {
         if isSelected {
-            return colorScheme == .dark
-                ? Color.white
-                : AppTheme.Colors.primaryText
+            return AppTheme.Colors.primaryText
         }
         return AppTheme.Colors.secondaryText
     }
     
     private var textColor: Color {
         if isSelected {
-            return colorScheme == .dark
-                ? Color.white
-                : AppTheme.Colors.primaryText
+            return AppTheme.Colors.primaryText
         }
-        return colorScheme == .dark
-            ? Color.white.opacity(0.8)
-            : AppTheme.Colors.primaryText
+        return AppTheme.Colors.primaryText
     }
 }
 

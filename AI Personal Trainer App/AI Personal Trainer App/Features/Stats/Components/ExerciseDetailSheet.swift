@@ -24,12 +24,11 @@ struct ExerciseDetailSheet: View {
                         
                         HStack(spacing: 8) {
                             Text(exercise.exercise_type.replacingOccurrences(of: "_", with: " ").capitalized)
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.white)
+                                .font(AppTheme.Typography.label)
+                                .foregroundColor(AppTheme.Colors.primaryText)
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 6)
-                                .background(exercise.typeColor)
+                                .background(AppTheme.Colors.highlight)
                                 .cornerRadius(AppTheme.CornerRadius.small)
                             
                             // Only show date for completed exercises
@@ -49,7 +48,7 @@ struct ExerciseDetailSheet: View {
                     // Primary Metrics Section
                     VStack(alignment: .leading, spacing: 16) {
                         Text("Workout Details")
-                            .font(.headline)
+                            .font(AppTheme.Typography.cardTitle)
                             .foregroundColor(AppTheme.Colors.primaryText)
                         
                         metricsView
@@ -63,21 +62,21 @@ struct ExerciseDetailSheet: View {
                         
                         VStack(alignment: .leading, spacing: 16) {
                             Text("Muscles Utilized")
-                                .font(.headline)
+                                .font(AppTheme.Typography.cardTitle)
                                 .foregroundColor(AppTheme.Colors.primaryText)
                             
                             let sortedMuscles = exercise.displayMusclesUtilized.sorted(by: { $0.share > $1.share })
                             let colors: [Color] = [
-                                Color.blue,
-                                Color.orange,
-                                Color.green,
-                                Color.purple,
-                                Color.pink,
-                                Color.cyan,
-                                Color.yellow,
-                                Color.indigo,
-                                Color.mint,
-                                Color.teal
+                                AppTheme.Colors.primaryText.opacity(0.08),
+                                AppTheme.Colors.primaryText.opacity(0.14),
+                                AppTheme.Colors.primaryText.opacity(0.2),
+                                AppTheme.Colors.primaryText.opacity(0.26),
+                                AppTheme.Colors.primaryText.opacity(0.32),
+                                AppTheme.Colors.primaryText.opacity(0.38),
+                                AppTheme.Colors.primaryText.opacity(0.44),
+                                AppTheme.Colors.primaryText.opacity(0.5),
+                                AppTheme.Colors.primaryText.opacity(0.56),
+                                AppTheme.Colors.primaryText.opacity(0.62)
                             ]
                             
                             ZStack {
@@ -130,7 +129,7 @@ struct ExerciseDetailSheet: View {
                         
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Goals Addressed")
-                                .font(.headline)
+                                .font(AppTheme.Typography.cardTitle)
                                 .foregroundColor(AppTheme.Colors.primaryText)
                             
                             ForEach(goals.sorted(by: { $0.share > $1.share }), id: \.goal) { goal in
@@ -158,7 +157,7 @@ struct ExerciseDetailSheet: View {
                         
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Equipment")
-                                .font(.headline)
+                                .font(AppTheme.Typography.cardTitle)
                                 .foregroundColor(AppTheme.Colors.primaryText)
                             
                             FlowLayout(spacing: 8) {
@@ -168,7 +167,7 @@ struct ExerciseDetailSheet: View {
                                         .foregroundColor(AppTheme.Colors.primaryText)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 6)
-                                        .background(AppTheme.Colors.background)
+                                        .background(AppTheme.Colors.highlight)
                                         .cornerRadius(AppTheme.CornerRadius.small)
                                 }
                             }
@@ -183,7 +182,7 @@ struct ExerciseDetailSheet: View {
                         
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Reasoning")
-                                .font(.headline)
+                                .font(AppTheme.Typography.cardTitle)
                                 .foregroundColor(AppTheme.Colors.primaryText)
                             
                             Text(reasoning)
@@ -201,7 +200,7 @@ struct ExerciseDetailSheet: View {
                         
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Exercise Description")
-                                .font(.headline)
+                                .font(AppTheme.Typography.cardTitle)
                                 .foregroundColor(AppTheme.Colors.primaryText)
                             
                             Text(description)
@@ -219,7 +218,7 @@ struct ExerciseDetailSheet: View {
                         
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Your Feedback")
-                                .font(.headline)
+                                .font(AppTheme.Typography.cardTitle)
                                 .foregroundColor(AppTheme.Colors.primaryText)
                             
                             if let rpe = exercise.displayRpe {
@@ -470,7 +469,7 @@ struct PreviewWrapper: View {
                 ExerciseDetailSheet(exercise: firstItem)
             } else {
                 Text("No workout history found")
-                    .foregroundColor(.gray)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
             }
         }
         .task {
@@ -494,4 +493,3 @@ struct PreviewWrapper: View {
         }
     }
 }
-

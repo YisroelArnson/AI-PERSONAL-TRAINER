@@ -167,9 +167,8 @@ struct AssistantOverlayView: View {
         .padding(.vertical, AppTheme.Spacing.md)
         .background(
             RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                .fill(Color.red.opacity(0.9))
+                .fill(AppTheme.Colors.danger)
         )
-        .shadow(color: Color.black.opacity(0.15), radius: 10, x: 0, y: 5)
     }
     
     // MARK: - Computed Properties
@@ -366,7 +365,7 @@ struct AssistantOverlayView: View {
         
         VStack {
             Text("Home Screen Content")
-                .font(AppTheme.Typography.titleFont)
+                .font(AppTheme.Typography.screenTitle)
                 .foregroundColor(AppTheme.Colors.primaryText)
         }
         

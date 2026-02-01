@@ -59,14 +59,9 @@ struct AddPreferenceSheet: View {
                             TextEditor(text: $description)
                                 .frame(minHeight: 100)
                                 .padding(AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                )
                                 .scrollContentBackground(.hidden)
-                                .colorScheme(.light)
                                 .disabled(isProcessingAI)
                                 .opacity(isProcessingAI ? 0.5 : 1.0)
                         }
@@ -80,14 +75,9 @@ struct AddPreferenceSheet: View {
                             TextEditor(text: $userTranscription)
                                 .frame(minHeight: 80)
                                 .padding(AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                )
                                 .scrollContentBackground(.hidden)
-                                .colorScheme(.light)
                                 .disabled(isProcessingAI)
                                 .opacity(isProcessingAI ? 0.5 : 1.0)
                         }
@@ -101,14 +91,9 @@ struct AddPreferenceSheet: View {
                             TextEditor(text: $recommendationsGuidance)
                                 .frame(minHeight: 80)
                                 .padding(AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                )
                                 .scrollContentBackground(.hidden)
-                                .colorScheme(.light)
                                 .disabled(isProcessingAI)
                                 .opacity(isProcessingAI ? 0.5 : 1.0)
                         }
@@ -184,8 +169,8 @@ struct AddPreferenceSheet: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding()
-                            .background(type.isEmpty || description.isEmpty ? AppTheme.Colors.secondaryText : Color.blue)
-                            .foregroundColor(.white)
+                            .background(type.isEmpty || description.isEmpty ? AppTheme.Colors.surface : AppTheme.Colors.accent)
+                            .foregroundColor(type.isEmpty || description.isEmpty ? AppTheme.Colors.tertiaryText : AppTheme.Colors.background)
                             .cornerRadius(AppTheme.CornerRadius.medium)
                         }
                         .disabled(type.isEmpty || description.isEmpty || isProcessingAI || isSaving)
@@ -202,7 +187,7 @@ struct AddPreferenceSheet: View {
                         TextField("Describe your preference...", text: $aiInputText)
                             .textFieldStyle(PlainTextFieldStyle())
                             .padding(AppTheme.Spacing.md)
-                            .background(AppTheme.Colors.cardBackground)
+                            .background(AppTheme.Colors.surface)
                             .cornerRadius(AppTheme.CornerRadius.medium)
                             .disabled(isProcessingAI)
                         
@@ -214,7 +199,6 @@ struct AddPreferenceSheet: View {
                     }
                     .padding(AppTheme.Spacing.md)
                     .background(AppTheme.Colors.background)
-                    .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: -2)
                 }
             }
             .navigationTitle("Add Preference")
@@ -398,14 +382,9 @@ private struct CustomTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding(AppTheme.Spacing.md)
-            .background(AppTheme.Colors.cardBackground)
+            .background(AppTheme.Colors.surface)
             .cornerRadius(AppTheme.CornerRadius.medium)
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                    .stroke(AppTheme.Colors.border, lineWidth: 1)
-            )
             .foregroundColor(AppTheme.Colors.primaryText)
-            .colorScheme(.light)
     }
 }
 
@@ -420,18 +399,18 @@ private struct SendButton: View {
             ZStack {
                 // Background circle
                 Circle()
-                    .fill(isEnabled && !isProcessing ? Color.blue : AppTheme.Colors.secondaryText)
+                    .fill(isEnabled && !isProcessing ? AppTheme.Colors.accent : AppTheme.Colors.surface)
                     .frame(width: 44, height: 44)
                 
                 // Icon
                 if isProcessing {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
                         .scaleEffect(0.9)
                 } else {
                     Image(systemName: "paperplane.fill")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppTheme.Colors.background)
                 }
             }
         }

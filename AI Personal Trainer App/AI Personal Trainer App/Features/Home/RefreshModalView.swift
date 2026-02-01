@@ -25,11 +25,11 @@ struct RefreshModalView: View {
                     // Title and description
                     VStack(spacing: AppTheme.Spacing.md) {
                         Text("Refresh Recommendations")
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
+                            .font(AppTheme.Typography.screenTitle)
                             .foregroundColor(AppTheme.Colors.primaryText)
                         
                         Text("Get new exercise recommendations. Optionally, tell us what you'd like different.")
-                            .font(.system(size: 15, weight: .regular, design: .rounded))
+                            .font(AppTheme.Typography.cardSubtitle)
                             .foregroundColor(AppTheme.Colors.secondaryText)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal)
@@ -39,17 +39,16 @@ struct RefreshModalView: View {
                     // Feedback text field
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                         Text("Feedback (optional)")
-                            .font(.system(size: 13, weight: .medium, design: .rounded))
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.secondaryText)
                         
                         TextField("E.g., 'More leg exercises' or 'Less intense'", text: $feedbackText, axis: .vertical)
-                            .font(.system(size: 15, design: .rounded))
+                            .font(AppTheme.Typography.input)
                             .lineLimit(3...6)
                             .padding(AppTheme.Spacing.md)
                             .background(
                                 RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                    .fill(Color.white)
-                                    .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: 2)
+                                    .fill(AppTheme.Colors.surface)
                             )
                     }
                     .padding(.horizontal, AppTheme.Spacing.xl)
@@ -71,20 +70,20 @@ struct RefreshModalView: View {
                                 HStack {
                                     if isLoading {
                                         ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
                                     } else {
                                         Image(systemName: "sparkles")
                                         Text("Refresh with Feedback")
                                     }
                                 }
-                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                .font(AppTheme.Typography.button)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, AppTheme.Spacing.md)
                                 .background(
                                     RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                        .fill(AppTheme.Colors.warmAccent)
+                                        .fill(AppTheme.Colors.accent)
                                 )
-                                .foregroundColor(.white)
+                                .foregroundColor(AppTheme.Colors.background)
                             }
                             .disabled(isLoading)
                         }
@@ -102,18 +101,17 @@ struct RefreshModalView: View {
                                 if isLoading && feedbackText.isEmpty {
                                     ProgressView()
                                         .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.primaryText))
-                                } else {
-                                    Image(systemName: "arrow.clockwise")
-                                    Text("Quick Refresh")
-                                }
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Quick Refresh")
                             }
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        }
+                        .font(AppTheme.Typography.button)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, AppTheme.Spacing.md)
                             .background(
                                 RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                    .fill(Color.white)
-                                    .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: 2)
+                                    .fill(AppTheme.Colors.surface)
                             )
                             .foregroundColor(AppTheme.Colors.primaryText)
                         }

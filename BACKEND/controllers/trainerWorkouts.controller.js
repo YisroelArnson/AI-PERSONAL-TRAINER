@@ -1,4 +1,5 @@
 const workoutService = require('../services/trainerWorkouts.service');
+const calendarService = require('../services/trainerCalendar.service');
 
 async function createOrResumeSession(req, res) {
   try {
@@ -57,7 +58,15 @@ async function generateWorkout(req, res) {
       return res.status(403).json({ success: false, error: 'Forbidden' });
     }
 
-    const instance = await workoutService.generateWorkoutInstance(userId, constraints);
+    let plannedSession = null;
+    if (session.planned_session_id) {
+      plannedSession = await calendarService.getPlannedSession(session.planned_session_id, userId);
+    }
+
+    const instance = await workoutService.generateWorkoutInstance(userId, {
+      ...constraints,
+      planned_session: plannedSession?.intent_json || null
+    });
     const instanceRecord = await workoutService.createWorkoutInstance(id, instance);
 
     await workoutService.logEvent(id, workoutService.EVENT_TYPES.instanceGenerated, {
@@ -145,6 +154,10 @@ async function completeSession(req, res) {
       status: 'completed',
       completed_at: new Date().toISOString()
     });
+
+    if (session.calendar_event_id) {
+      await calendarService.completeEvent(userId, session.calendar_event_id);
+    }
 
     await workoutService.logEvent(id, workoutService.EVENT_TYPES.sessionCompleted, {
       summary,

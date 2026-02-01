@@ -50,11 +50,11 @@ struct LocationsListSheet: View {
                             .foregroundColor(AppTheme.Colors.secondaryText)
                         
                         Text("No locations yet")
-                            .font(.headline)
+                            .font(AppTheme.Typography.screenTitle)
                             .foregroundColor(AppTheme.Colors.primaryText)
                         
                         Text("Add your first location to get started")
-                            .font(.caption)
+                            .font(AppTheme.Typography.cardSubtitle)
                             .foregroundColor(AppTheme.Colors.secondaryText)
                             .multilineTextAlignment(.center)
                         
@@ -62,11 +62,11 @@ struct LocationsListSheet: View {
                             editingLocation = EditorLocation(location: nil)
                         }) {
                             Text("Add Location")
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundColor(.white)
+                                .font(AppTheme.Typography.button)
+                                .foregroundColor(AppTheme.Colors.background)
                                 .padding(.horizontal, AppTheme.Spacing.xl)
                                 .padding(.vertical, AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.primaryText)
+                                .background(AppTheme.Colors.accent)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
                         }
                     }
@@ -175,7 +175,7 @@ private struct LocationRow: View {
             if isCurrent {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 20))
-                    .foregroundColor(.green)
+                    .foregroundColor(AppTheme.Colors.primaryText)
             } else {
                 Image(systemName: "circle")
                     .font(.system(size: 20))
@@ -185,24 +185,24 @@ private struct LocationRow: View {
             // Location info
             VStack(alignment: .leading, spacing: 4) {
                 Text(location.name)
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(AppTheme.Typography.cardTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 if let description = location.description, !description.isEmpty {
                     Text(description)
-                        .font(.caption)
+                        .font(AppTheme.Typography.cardSubtitle)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                         .lineLimit(2)
                 }
                 
                 HStack(spacing: AppTheme.Spacing.sm) {
                     Label("\(location.equipment.count)", systemImage: "dumbbell.fill")
-                        .font(.caption2)
+                        .font(AppTheme.Typography.label)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                     
                     if location.geoData != nil {
                         Label("GPS", systemImage: "location.fill")
-                            .font(.caption2)
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.secondaryText)
                     }
                 }
@@ -214,29 +214,18 @@ private struct LocationRow: View {
             if !isCurrent {
                 Button(action: onSetCurrent) {
                     Text("Set Current")
-                        .font(.caption)
-                        .fontWeight(.semibold)
+                        .font(AppTheme.Typography.button)
                         .foregroundColor(AppTheme.Colors.primaryText)
                         .padding(.horizontal, AppTheme.Spacing.md)
                         .padding(.vertical, AppTheme.Spacing.xs)
-                        .background(AppTheme.Colors.cardBackground)
+                        .background(AppTheme.Colors.surface)
                         .cornerRadius(AppTheme.CornerRadius.small)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                .stroke(AppTheme.Colors.border, lineWidth: 1)
-                        )
                 }
             }
         }
         .padding(AppTheme.Spacing.md)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.medium)
-        .shadow(
-            color: AppTheme.Shadow.card,
-            radius: AppTheme.Shadow.cardRadius,
-            x: AppTheme.Shadow.cardOffset.width,
-            y: AppTheme.Shadow.cardOffset.height
-        )
         .contentShape(Rectangle())
         .onTapGesture {
             onTap()
@@ -266,4 +255,3 @@ private struct LocationRow: View {
     )
         .environmentObject(UserDataStore.shared)
 }
-

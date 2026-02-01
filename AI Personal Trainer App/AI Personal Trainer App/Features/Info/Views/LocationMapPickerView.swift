@@ -49,7 +49,7 @@ struct LocationMapPickerView: View {
                     if let coordinate = annotationCoordinate {
                         Annotation("Selected Location", coordinate: coordinate) {
                             Image(systemName: "mappin.circle.fill")
-                                .foregroundColor(.red)
+                                .foregroundColor(AppTheme.Colors.primaryText)
                                 .font(.system(size: 30))
                         }
                     }
@@ -64,7 +64,7 @@ struct LocationMapPickerView: View {
                     Spacer()
                     Image(systemName: "mappin.circle.fill")
                         .font(.system(size: 40))
-                        .foregroundColor(.red)
+                        .foregroundColor(AppTheme.Colors.primaryText)
                         .offset(y: -20)
                     Spacer()
                 }
@@ -81,17 +81,17 @@ struct LocationMapPickerView: View {
                                     ProgressView()
                                         .scaleEffect(0.8)
                                         .frame(width: 14, height: 14)
-                                        .tint(.white)
+                                        .tint(AppTheme.Colors.background)
                                 } else {
                                     Image(systemName: "location.fill")
                                 }
                                 Text("Current Location")
                             }
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
+                            .font(AppTheme.Typography.button)
+                            .foregroundColor(AppTheme.Colors.primaryText)
                             .padding(.horizontal, AppTheme.Spacing.md)
                             .padding(.vertical, AppTheme.Spacing.sm)
-                            .background(AppTheme.Colors.primaryText)
+                            .background(AppTheme.Colors.surface)
                             .cornerRadius(AppTheme.CornerRadius.medium)
                         }
                         .disabled(isRequestingLocation)
@@ -102,11 +102,11 @@ struct LocationMapPickerView: View {
                             confirmLocation()
                         }) {
                             Text("Confirm")
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundColor(.white)
+                                .font(AppTheme.Typography.button)
+                                .foregroundColor(AppTheme.Colors.background)
                                 .padding(.horizontal, AppTheme.Spacing.xl)
                                 .padding(.vertical, AppTheme.Spacing.sm)
-                                .background(Color.green)
+                                .background(AppTheme.Colors.accent)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
                         }
                     }
@@ -210,4 +210,3 @@ struct LocationMapPickerView: View {
 #Preview {
     LocationMapPickerView(selectedCoordinate: .constant(nil))
 }
-

@@ -18,9 +18,6 @@ struct ChatInputBar: View {
     // Focus state (owned by this view)
     @FocusState private var isInputFocused: Bool
     
-    // Animation state
-    @State private var isBreathing = false
-    
     var body: some View {
         HStack(spacing: AppTheme.Spacing.md) {
             // Text input field
@@ -42,11 +39,6 @@ struct ChatInputBar: View {
                     }
                 }
         )
-        .onAppear {
-            withAnimation(AppTheme.Animation.breathing) {
-                isBreathing = true
-            }
-        }
         .onChange(of: isInputFocused) { _, focused in
             onFocusChange?(focused)
         }
@@ -56,7 +48,7 @@ struct ChatInputBar: View {
 
     private var inputField: some View {
         TextField("Ask your trainer...", text: $text, axis: .vertical)
-            .font(.system(size: 16, weight: .regular, design: .rounded))
+            .font(AppTheme.Typography.input)
             .foregroundColor(AppTheme.Colors.primaryText)
             .lineLimit(1...4)
             .focused($isInputFocused)
@@ -83,47 +75,19 @@ struct ChatInputBar: View {
             }
         }) {
             ZStack {
-                // Outer glow ring
                 Circle()
-                    .stroke(
-                        AngularGradient(
-                            colors: canSend ? [
-                                AppTheme.Colors.warmAccentLight,
-                                AppTheme.Colors.warmAccent,
-                                Color(hex: "F7C4D4"),
-                                AppTheme.Colors.warmAccentLight
-                            ] : [
-                                AppTheme.Colors.tertiaryText.opacity(0.3),
-                                AppTheme.Colors.tertiaryText.opacity(0.3)
-                            ],
-                            center: .center
-                        ),
-                        lineWidth: 2
-                    )
+                    .fill(canSend ? AppTheme.Colors.accent : AppTheme.Colors.surface)
                     .frame(width: 40, height: 40)
-                    .shadow(
-                        color: canSend ? AppTheme.Shadow.orb : .clear,
-                        radius: isBreathing ? 8 : 6,
-                        x: 0,
-                        y: 2
-                    )
-                    .scaleEffect(canSend && isBreathing ? 1.02 : 1.0)
-                
-                // Inner circle
-                Circle()
-                    .fill(Color.white)
-                    .frame(width: 34, height: 34)
-                    .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                 
                 // Icon
                 if isProcessing {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.warmAccent))
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.primaryText))
                         .scaleEffect(0.8)
                 } else {
                     Image(systemName: canSend ? "arrow.up" : "mic.fill")
                         .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(canSend ? AppTheme.Colors.warmAccent : AppTheme.Colors.tertiaryText)
+                        .foregroundColor(canSend ? AppTheme.Colors.background : AppTheme.Colors.tertiaryText)
                 }
             }
         }
@@ -132,13 +96,8 @@ struct ChatInputBar: View {
     }
     
     private var inputBackground: some View {
-        RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
-            .fill(Color.white.opacity(0.95))
-            .shadow(color: AppTheme.Shadow.card, radius: AppTheme.Shadow.cardRadius, x: 0, y: 4)
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
-                    .stroke(AppTheme.Colors.border, lineWidth: 1)
-            )
+        RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+            .fill(AppTheme.Colors.surface)
     }
     
     // MARK: - Computed Properties

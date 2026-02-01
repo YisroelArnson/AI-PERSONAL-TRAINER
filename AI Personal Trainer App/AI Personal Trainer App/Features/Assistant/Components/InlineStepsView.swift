@@ -67,7 +67,7 @@ struct InlineStepsView: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.white.opacity(0.9))
+                    .fill(AppTheme.Colors.surface)
             )
             .padding()
         }
@@ -94,7 +94,7 @@ struct InlineStepsView: View {
             .padding()
             .background(
                 RoundedRectangle(cornerRadius: 20)
-                    .fill(Color.white.opacity(0.9))
+                    .fill(AppTheme.Colors.surface)
             )
             .padding()
         }

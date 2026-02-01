@@ -62,7 +62,7 @@ struct WorkoutSession: Codable, Identifiable {
     }
 }
 
-struct WorkoutInstance: Codable {
+struct WorkoutInstance: Codable, Equatable {
     let title: String
     let estimatedDurationMin: Int?
     let focus: [String]?
@@ -78,7 +78,7 @@ struct WorkoutInstance: Codable {
     }
 }
 
-struct WorkoutInstanceMetadata: Codable {
+struct WorkoutInstanceMetadata: Codable, Equatable {
     let intent: String?
     let requestText: String?
     let generatedAt: String?
@@ -183,10 +183,16 @@ enum CodableValue: Codable {
     case double(Double)
     case bool(Bool)
     case stringArray([String])
+    case array([CodableValue])
+    case object([String: CodableValue])
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let value = try? container.decode(String.self) {
+        if let value = try? container.decode([String: CodableValue].self) {
+            self = .object(value)
+        } else if let value = try? container.decode([CodableValue].self) {
+            self = .array(value)
+        } else if let value = try? container.decode(String.self) {
             self = .string(value)
         } else if let value = try? container.decode(Int.self) {
             self = .int(value)
@@ -204,6 +210,10 @@ enum CodableValue: Codable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
+        case .object(let value):
+            try container.encode(value)
+        case .array(let value):
+            try container.encode(value)
         case .string(let value):
             try container.encode(value)
         case .int(let value):
@@ -214,6 +224,25 @@ enum CodableValue: Codable {
             try container.encode(value)
         case .stringArray(let value):
             try container.encode(value)
+        }
+    }
+
+    func asAny() -> Any {
+        switch self {
+        case .string(let value):
+            return value
+        case .int(let value):
+            return value
+        case .double(let value):
+            return value
+        case .bool(let value):
+            return value
+        case .stringArray(let value):
+            return value
+        case .array(let value):
+            return value.map { $0.asAny() }
+        case .object(let value):
+            return value.mapValues { $0.asAny() }
         }
     }
 }

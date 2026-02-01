@@ -57,6 +57,36 @@ app.use('/intervals', intervalRouter);
 const trainerWorkoutsRouter = require('./routes/trainerWorkouts.routes');
 app.use('/trainer/workouts', trainerWorkoutsRouter);
 
+const trainerIntakeRouter = require('./routes/trainerIntake.routes');
+app.use('/trainer/intake', trainerIntakeRouter);
+
+const trainerAssessmentRouter = require('./routes/trainerAssessment.routes');
+app.use('/trainer/assessment', trainerAssessmentRouter);
+
+const trainerGoalsRouter = require('./routes/trainerGoals.routes');
+app.use('/trainer/goals', trainerGoalsRouter);
+
+const trainerProgramRouter = require('./routes/trainerProgram.routes');
+app.use('/trainer/programs', trainerProgramRouter);
+
+const trainerMeasurementsRouter = require('./routes/trainerMeasurements.routes');
+app.use('/trainer/measurements', trainerMeasurementsRouter);
+
+const trainerMemoryRouter = require('./routes/trainerMemory.routes');
+app.use('/trainer/memory', trainerMemoryRouter);
+
+const trainerCalendarRouter = require('./routes/trainerCalendar.routes');
+app.use('/trainer/calendar', trainerCalendarRouter);
+
+const trainerMonitoringRouter = require('./routes/trainerMonitoring.routes');
+app.use('/trainer/monitoring', trainerMonitoringRouter);
+
+const trainerJourneyRouter = require('./routes/trainerJourney.routes');
+app.use('/trainer/journey', trainerJourneyRouter);
+
+const trainerCheckinsRouter = require('./routes/trainerCheckins.routes');
+app.use('/trainer/checkins', trainerCheckinsRouter);
+
 // Observability/Admin routes
 const observabilityRouter = require('./routes/observability.routes');
 app.use('/api/admin', observabilityRouter);

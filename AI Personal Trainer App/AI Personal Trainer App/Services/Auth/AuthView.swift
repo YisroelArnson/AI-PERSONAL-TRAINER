@@ -38,7 +38,8 @@ struct AuthView: View {
           case .success:
             Text("Check your inbox.")
           case .failure(let error):
-            Text(error.localizedDescription).foregroundStyle(.red)
+            Text(error.localizedDescription)
+              .foregroundColor(AppTheme.Colors.danger)
           }
         }
       }

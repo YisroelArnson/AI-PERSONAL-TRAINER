@@ -28,12 +28,11 @@ struct MuscleGoalsAIAssistSheet: View {
                         VStack(spacing: AppTheme.Spacing.xl) {
                             VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
                                 Text("Describe Your Muscle Focus")
-                                    .font(.title3)
-                                    .fontWeight(.bold)
+                                    .font(AppTheme.Typography.screenTitle)
                                     .foregroundColor(AppTheme.Colors.primaryText)
                                 
                                 Text("Tell me which muscles you want to prioritize, and I'll suggest weight distribution.")
-                                    .font(.body)
+                                    .font(AppTheme.Typography.cardSubtitle)
                                     .foregroundColor(AppTheme.Colors.secondaryText)
                             }
                             .padding(.horizontal, AppTheme.Spacing.xl)
@@ -42,35 +41,30 @@ struct MuscleGoalsAIAssistSheet: View {
                             // Text input
                             VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                                 Text("Examples:")
-                                    .font(.system(size: 13, weight: .medium))
+                                    .font(AppTheme.Typography.label)
                                     .foregroundColor(AppTheme.Colors.secondaryText)
                                 
                                 Text("• \"Focus on glutes and hamstrings\"")
-                                    .font(.system(size: 13))
+                                    .font(AppTheme.Typography.cardSubtitle)
                                     .foregroundColor(AppTheme.Colors.tertiaryText)
                                     .italic()
                                 
                                 Text("• \"Build upper body, especially chest and back\"")
-                                    .font(.system(size: 13))
+                                    .font(AppTheme.Typography.cardSubtitle)
                                     .foregroundColor(AppTheme.Colors.tertiaryText)
                                     .italic()
                                 
                                 Text("• \"Balanced full body with leg emphasis\"")
-                                    .font(.system(size: 13))
+                                    .font(AppTheme.Typography.cardSubtitle)
                                     .foregroundColor(AppTheme.Colors.tertiaryText)
                                     .italic()
                                 
                                 TextEditor(text: $inputText)
                                     .frame(minHeight: 120)
                                     .padding(AppTheme.Spacing.md)
-                                    .background(AppTheme.Colors.cardBackground)
+                                    .background(AppTheme.Colors.surface)
                                     .cornerRadius(AppTheme.CornerRadius.medium)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                            .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                    )
                                     .scrollContentBackground(.hidden)
-                                    .colorScheme(.light)
                             }
                             .padding(.horizontal, AppTheme.Spacing.xl)
                             
@@ -81,19 +75,19 @@ struct MuscleGoalsAIAssistSheet: View {
                                 HStack(spacing: 8) {
                                     if isProcessing {
                                         ProgressView()
-                                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.cardBackground))
+                                            .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
                                     } else {
                                         Image(systemName: "sparkles")
                                             .font(.system(size: 16, weight: .semibold))
                                     }
                                     
                                     Text(isProcessing ? "Generating..." : "Generate Suggestions")
-                                        .font(.system(size: 16, weight: .semibold))
+                                        .font(AppTheme.Typography.button)
                                 }
-                                .foregroundColor(AppTheme.Colors.cardBackground)
+                                .foregroundColor(inputText.isEmpty ? AppTheme.Colors.tertiaryText : AppTheme.Colors.background)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 14)
-                                .background(inputText.isEmpty ? AppTheme.Colors.border : AppTheme.Colors.primaryText)
+                                .background(inputText.isEmpty ? AppTheme.Colors.surface : AppTheme.Colors.accent)
                                 .cornerRadius(AppTheme.CornerRadius.small)
                             }
                             .disabled(inputText.isEmpty || isProcessing)
@@ -185,26 +179,22 @@ private struct PreviewView: View {
             VStack(spacing: AppTheme.Spacing.md) {
                 Button(action: onAccept) {
                     Text("Accept & Save")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.cardBackground)
+                        .font(AppTheme.Typography.button)
+                        .foregroundColor(AppTheme.Colors.background)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(AppTheme.Colors.primaryText)
+                        .background(AppTheme.Colors.accent)
                         .cornerRadius(AppTheme.CornerRadius.small)
                 }
                 
                 Button(action: onReject) {
                     Text("Try Again")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(AppTheme.Typography.button)
                         .foregroundColor(AppTheme.Colors.primaryText)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 14)
-                        .background(AppTheme.Colors.cardBackground)
+                        .background(AppTheme.Colors.surface)
                         .cornerRadius(AppTheme.CornerRadius.small)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                .stroke(AppTheme.Colors.border, lineWidth: 1)
-                        )
                 }
             }
             .padding(.horizontal, AppTheme.Spacing.xl)
@@ -254,4 +244,3 @@ private struct MusclePreviewRow: View {
 #Preview {
     MuscleGoalsAIAssistSheet()
 }
-

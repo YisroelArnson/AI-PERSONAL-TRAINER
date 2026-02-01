@@ -26,11 +26,11 @@ struct MinimizedResponsePill: View {
                 // Message preview
                 VStack(alignment: .leading, spacing: 2) {
                     Text("AI Trainer")
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundColor(AppTheme.Colors.warmAccent)
+                        .font(AppTheme.Typography.label)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
                     
                     Text(messagePreview)
-                        .font(.system(size: 14, weight: .regular, design: .rounded))
+                        .font(AppTheme.Typography.cardSubtitle)
                         .foregroundColor(AppTheme.Colors.primaryText)
                         .lineLimit(1)
                 }
@@ -74,44 +74,29 @@ struct MinimizedResponsePill: View {
     private var avatar: some View {
         ZStack {
             Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            AppTheme.Colors.warmAccentLight,
-                            AppTheme.Colors.warmAccent
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(AppTheme.Colors.surface)
                 .frame(width: 36, height: 36)
             
             Image(systemName: "waveform")
                 .font(.system(size: 14, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(AppTheme.Colors.primaryText)
         }
-        .shadow(color: AppTheme.Shadow.orb.opacity(0.5), radius: 4, x: 0, y: 2)
     }
     
     private var badge: some View {
         Text("\(pendingCount)")
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .foregroundColor(.white)
+            .font(AppTheme.Typography.label)
+            .foregroundColor(AppTheme.Colors.primaryText)
             .frame(width: 20, height: 20)
             .background(
                 Circle()
-                    .fill(AppTheme.Colors.warmAccent)
+                    .fill(AppTheme.Colors.highlight)
             )
     }
     
     private var pillBackground: some View {
         RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
-            .fill(Color.white.opacity(0.95))
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
-                    .stroke(AppTheme.Colors.border, lineWidth: 0.5)
-            )
-            .shadow(color: AppTheme.Shadow.card, radius: AppTheme.Shadow.cardRadius, x: 0, y: 4)
+            .fill(AppTheme.Colors.surface)
     }
     
     // MARK: - Computed Properties

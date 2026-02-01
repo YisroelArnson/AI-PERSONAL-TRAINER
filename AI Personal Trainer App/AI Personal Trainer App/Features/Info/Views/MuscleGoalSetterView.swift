@@ -82,17 +82,13 @@ struct MuscleGoalSetterView: View {
                                     Image(systemName: "equal.square")
                                         .font(.system(size: 14, weight: .semibold))
                                     Text("Equalize")
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .font(AppTheme.Typography.button)
                                 }
                                 .foregroundColor(AppTheme.Colors.primaryText)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.small)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                )
                             }
                             
                             Button(action: normalize) {
@@ -100,17 +96,13 @@ struct MuscleGoalSetterView: View {
                                     Image(systemName: "equal.circle")
                                         .font(.system(size: 14, weight: .semibold))
                                     Text("Normalize")
-                                        .font(.system(size: 14, weight: .semibold))
+                                        .font(AppTheme.Typography.button)
                                 }
                                 .foregroundColor(AppTheme.Colors.primaryText)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.small)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                )
                             }
                         }
                         .padding(.horizontal, AppTheme.Spacing.xl)
@@ -171,7 +163,7 @@ struct MuscleGoalSetterView: View {
                         TextField("Describe your muscle focus...", text: $aiInputText)
                             .textFieldStyle(PlainTextFieldStyle())
                             .padding(AppTheme.Spacing.md)
-                            .background(AppTheme.Colors.cardBackground)
+                            .background(AppTheme.Colors.surface)
                             .cornerRadius(AppTheme.CornerRadius.medium)
                             .disabled(isProcessingAI)
                         
@@ -183,7 +175,6 @@ struct MuscleGoalSetterView: View {
                     }
                     .padding(AppTheme.Spacing.md)
                     .background(AppTheme.Colors.background)
-                    .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: -2)
                 }
             }
             .navigationTitle("Muscle Goals")
@@ -411,22 +402,22 @@ private struct TotalIndicator: View {
         HStack(spacing: AppTheme.Spacing.md) {
             Image(systemName: isValid ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(isValid ? .green : .orange)
+                .foregroundColor(isValid ? AppTheme.Colors.primaryText : AppTheme.Colors.secondaryText)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text("Total: \(Int(total * 100))%")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(AppTheme.Typography.cardTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Text(isValid ? "Perfect! Sum equals 100%" : "Adjust to reach 100% total")
-                    .font(.system(size: 13))
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.secondaryText)
             }
             
             Spacer()
         }
         .padding(AppTheme.Spacing.lg)
-        .background(isValid ? Color.green.opacity(0.1) : Color.orange.opacity(0.1))
+        .background(isValid ? AppTheme.Colors.highlight : AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.medium)
         .padding(.horizontal, AppTheme.Spacing.xl)
     }
@@ -440,7 +431,7 @@ private struct MuscleSliderRow: View {
     var body: some View {
         HStack(spacing: AppTheme.Spacing.md) {
             Text(name)
-                .font(.system(size: 15, weight: .medium))
+                .font(AppTheme.Typography.cardTitle)
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .frame(width: 100, alignment: .leading)
             
@@ -448,13 +439,13 @@ private struct MuscleSliderRow: View {
                 .tint(AppTheme.Colors.primaryText)
             
             Text("\(Int(weight * 100))%")
-                .font(.system(size: 14, weight: .semibold))
+                .font(AppTheme.Typography.caption)
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .frame(width: 45, alignment: .trailing)
         }
         .padding(.horizontal, AppTheme.Spacing.lg)
         .padding(.vertical, AppTheme.Spacing.md)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.small)
     }
 }
@@ -485,7 +476,7 @@ private struct PresetButton: View {
                     .foregroundColor(AppTheme.Colors.tertiaryText)
             }
             .padding(AppTheme.Spacing.lg)
-            .background(AppTheme.Colors.cardBackground)
+            .background(AppTheme.Colors.surface)
             .cornerRadius(AppTheme.CornerRadius.medium)
         }
     }
@@ -502,18 +493,18 @@ private struct SendButton: View {
             ZStack {
                 // Background circle
                 Circle()
-                    .fill(isEnabled && !isProcessing ? Color.blue : AppTheme.Colors.secondaryText)
+                    .fill(isEnabled && !isProcessing ? AppTheme.Colors.accent : AppTheme.Colors.surface)
                     .frame(width: 44, height: 44)
                 
                 // Icon
                 if isProcessing {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
                         .scaleEffect(0.9)
                 } else {
                     Image(systemName: "paperplane.fill")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppTheme.Colors.background)
                 }
             }
         }
@@ -524,4 +515,3 @@ private struct SendButton: View {
 #Preview {
     MuscleGoalSetterView()
 }
-

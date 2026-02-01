@@ -133,16 +133,7 @@ struct FloatingMessageStack: View {
     
     private var stackBackground: some View {
         RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
-            .fill(Color.white.opacity(0.85))
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
-                    .fill(.ultraThinMaterial)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
-                    .stroke(AppTheme.Colors.border, lineWidth: 0.5)
-            )
-            .shadow(color: AppTheme.Shadow.card, radius: AppTheme.Shadow.cardRadius, x: 0, y: -2)
+            .fill(AppTheme.Colors.surface)
     }
     
     // MARK: - Gestures

@@ -79,14 +79,9 @@ struct PreferenceManagerView: View {
                             TextEditor(text: $description)
                                 .frame(minHeight: 100)
                                 .padding(AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                )
                                 .scrollContentBackground(.hidden)
-                                .colorScheme(.light)
                         }
                         
                         // User Transcription Field
@@ -98,14 +93,9 @@ struct PreferenceManagerView: View {
                             TextEditor(text: $userTranscription)
                                 .frame(minHeight: 80)
                                 .padding(AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                )
                                 .scrollContentBackground(.hidden)
-                                .colorScheme(.light)
                         }
                         
                         // Recommendations Guidance Field
@@ -117,14 +107,9 @@ struct PreferenceManagerView: View {
                             TextEditor(text: $recommendationsGuidance)
                                 .frame(minHeight: 80)
                                 .padding(AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                )
                                 .scrollContentBackground(.hidden)
-                                .colorScheme(.light)
                         }
                         
                         // Delete After Call Toggle
@@ -139,7 +124,7 @@ struct PreferenceManagerView: View {
                                 }
                             }
                             .padding(AppTheme.Spacing.md)
-                            .background(AppTheme.Colors.cardBackground)
+                            .background(AppTheme.Colors.surface)
                             .cornerRadius(AppTheme.CornerRadius.medium)
                             
                             Text("This preference will be removed after the next recommendation call")
@@ -176,7 +161,7 @@ struct PreferenceManagerView: View {
                                     set: { expireTime = $0 }
                                 ), displayedComponents: [.date, .hourAndMinute])
                                 .padding(AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
                             }
                         }
@@ -198,7 +183,7 @@ struct PreferenceManagerView: View {
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding()
-                                .background(Color.red)
+                                .background(AppTheme.Colors.danger)
                                 .foregroundColor(.white)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
                             }
@@ -392,14 +377,9 @@ private struct CustomTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding(AppTheme.Spacing.md)
-            .background(AppTheme.Colors.cardBackground)
+            .background(AppTheme.Colors.surface)
             .cornerRadius(AppTheme.CornerRadius.medium)
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                    .stroke(AppTheme.Colors.border, lineWidth: 1)
-            )
             .foregroundColor(AppTheme.Colors.primaryText)
-            .colorScheme(.light)
     }
 }
 

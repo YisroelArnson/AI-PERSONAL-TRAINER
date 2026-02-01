@@ -19,28 +19,10 @@ struct ExerciseCard<Content: View>: View {
         content
             .padding(AppTheme.Spacing.xxl)
             .background(
-                ZStack {
-                    // Frosted glass background
-                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
-                        .fill(AppTheme.Colors.cardBackground)
-                        .background(
-                            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
-                                .fill(.ultraThinMaterial)
-                        )
-                    
-                    // Subtle top-left shine
-                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
-                        .fill(AppTheme.Gradients.cardShine)
-                        .opacity(0.5)
-                }
+                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge)
+                    .fill(AppTheme.Colors.surface)
             )
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.xlarge))
-            .shadow(
-                color: AppTheme.Shadow.card,
-                radius: AppTheme.Shadow.cardRadius,
-                x: AppTheme.Shadow.cardOffset.width,
-                y: AppTheme.Shadow.cardOffset.height
-            )
     }
 }
 
@@ -55,7 +37,7 @@ struct ExerciseHeaderView: View {
             // Equipment tags (tiny, faded)
             if let equipment = exercise.equipment, !equipment.isEmpty {
                 Text(equipment.joined(separator: " · "))
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .font(AppTheme.Typography.label)
                     .foregroundColor(AppTheme.Colors.secondaryText)
                     .textCase(.lowercase)
                     .fadeAnimation(isVisible: showContent)
@@ -63,7 +45,7 @@ struct ExerciseHeaderView: View {
             
             // Exercise name
             Text(exercise.exercise_name)
-                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .font(AppTheme.Typography.screenTitle)
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .minimumScaleFactor(0.7)
                 .lineLimit(2)

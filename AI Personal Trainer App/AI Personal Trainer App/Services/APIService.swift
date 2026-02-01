@@ -613,6 +613,548 @@ class APIService: ObservableObject {
 
         return try JSONDecoder().decode(WorkoutCompletionResponse.self, from: data)
     }
+
+    // MARK: - Trainer Intake (Phase A)
+
+    func createIntakeSession() async throws -> IntakeSessionResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/intake/sessions") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        return try makeISO8601Decoder().decode(IntakeSessionResponse.self, from: data)
+    }
+
+    func streamIntakeAnswer(sessionId: String, answerText: String, onEvent: @escaping (IntakeStreamEvent) -> Void) async throws {
+        guard let url = URL(string: "\(baseURL)/trainer/intake/sessions/\(sessionId)/answers") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        let body = IntakeAnswerRequest(answerText: answerText)
+        request.httpBody = try JSONEncoder().encode(body)
+
+        let (asyncBytes, httpResponse) = try await bytesWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        for try await line in asyncBytes.lines {
+            guard !line.isEmpty else { continue }
+            let jsonString: String
+            if line.hasPrefix("data: ") {
+                jsonString = String(line.dropFirst(6))
+            } else {
+                jsonString = line
+            }
+            guard let jsonData = jsonString.data(using: .utf8) else { continue }
+            let event = try JSONDecoder().decode(IntakeStreamEvent.self, from: jsonData)
+            await MainActor.run {
+                onEvent(event)
+            }
+        }
+    }
+
+    func confirmIntake(sessionId: String) async throws -> IntakeSummaryResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/intake/sessions/\(sessionId)/confirm") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        return try JSONDecoder().decode(IntakeSummaryResponse.self, from: data)
+    }
+
+    func editIntake(sessionId: String, summary: IntakeSummary) async throws -> IntakeSummaryResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/intake/sessions/\(sessionId)/edit") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(IntakeEditRequest(changes: summary))
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        return try JSONDecoder().decode(IntakeSummaryResponse.self, from: data)
+    }
+
+    func fetchIntakeSummary(sessionId: String) async throws -> IntakeSummaryResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/intake/sessions/\(sessionId)/summary") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        return try JSONDecoder().decode(IntakeSummaryResponse.self, from: data)
+    }
+
+    // MARK: - Trainer Assessment (Phase B)
+
+    func createAssessmentSession() async throws -> AssessmentSessionResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/assessment/sessions") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(AssessmentSessionResponse.self, from: data)
+    }
+
+    func fetchAssessmentSteps() async throws -> [AssessmentStep] {
+        guard let url = URL(string: "\(baseURL)/trainer/assessment/steps") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        let response = try JSONDecoder().decode(AssessmentStepsResponse.self, from: data)
+        return response.steps
+    }
+
+    func submitAssessmentStep(sessionId: String, stepId: String, result: [String: CodableValue]) async throws -> AssessmentStep? {
+        guard let url = URL(string: "\(baseURL)/trainer/assessment/sessions/\(sessionId)/steps/\(stepId)/submit") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(AssessmentStepSubmitRequest(result: result))
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        let response = try JSONDecoder().decode(AssessmentStepSubmitResponse.self, from: data)
+        return response.nextStep
+    }
+
+    func skipAssessmentStep(sessionId: String, stepId: String, reason: String) async throws -> AssessmentStep? {
+        guard let url = URL(string: "\(baseURL)/trainer/assessment/sessions/\(sessionId)/steps/\(stepId)/skip") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(AssessmentStepSkipRequest(reason: reason))
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        let response = try JSONDecoder().decode(AssessmentStepSubmitResponse.self, from: data)
+        return response.nextStep
+    }
+
+    func completeAssessment(sessionId: String) async throws -> AssessmentBaselineResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/assessment/sessions/\(sessionId)/complete") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(AssessmentBaselineResponse.self, from: data)
+    }
+
+    // MARK: - Goal Contracts (Phase C)
+
+    func draftGoalContract() async throws -> GoalContractResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/goals/draft") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(GoalContractResponse.self, from: data)
+    }
+
+    func editGoalContract(goalId: String, instruction: String) async throws -> GoalContractResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/goals/\(goalId)/edit") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(GoalEditRequest(instruction: instruction))
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(GoalContractResponse.self, from: data)
+    }
+
+    func approveGoalContract(goalId: String) async throws -> GoalContractResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/goals/\(goalId)/approve") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(GoalContractResponse.self, from: data)
+    }
+
+    // MARK: - Training Program (Phase D)
+
+    func draftTrainingProgram() async throws -> ProgramResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/programs/draft") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(ProgramResponse.self, from: data)
+    }
+
+    func editTrainingProgram(programId: String, instruction: String) async throws -> ProgramResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/programs/\(programId)/edit") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(ProgramEditRequest(instruction: instruction))
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(ProgramResponse.self, from: data)
+    }
+
+    func approveTrainingProgram(programId: String) async throws -> ProgramResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/programs/\(programId)/approve") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(ProgramResponse.self, from: data)
+    }
+
+    func activateTrainingProgram(programId: String) async throws -> ProgramResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/programs/\(programId)/activate") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(ProgramResponse.self, from: data)
+    }
+
+    // MARK: - Monitoring + Calendar + Memory + Measurements (Phase F)
+
+    func logMeasurement(measurementType: String, value: Double, unit: String, measuredAt: Date) async throws -> MeasurementResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/measurements") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        let body: [String: Any] = [
+            "measurement_type": measurementType,
+            "value": value,
+            "unit": unit,
+            "measured_at": ISO8601DateFormatter().string(from: measuredAt)
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        return try makeISO8601Decoder().decode(MeasurementResponse.self, from: data)
+    }
+
+    func listMeasurements(types: [String] = []) async throws -> [Measurement] {
+        var components = URLComponents(string: "\(baseURL)/trainer/measurements")!
+        if !types.isEmpty {
+            components.queryItems = [URLQueryItem(name: "types", value: types.joined(separator: ","))]
+        }
+        guard let url = components.url else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(MeasurementsListResponse.self, from: data)
+        return response.measurements
+    }
+
+    func listMemory(types: [String] = []) async throws -> [MemoryItem] {
+        var components = URLComponents(string: "\(baseURL)/trainer/memory")!
+        if !types.isEmpty {
+            components.queryItems = [URLQueryItem(name: "types", value: types.joined(separator: ","))]
+        }
+        guard let url = components.url else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try JSONDecoder().decode(MemoryResponse.self, from: data)
+        return response.items ?? []
+    }
+
+    func upsertMemory(type: String, key: String, value: [String: String]) async throws -> MemoryItem {
+        guard let url = URL(string: "\(baseURL)/trainer/memory") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        let body: [String: Any] = [
+            "memory_type": type,
+            "key": key,
+            "value_json": value
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try JSONDecoder().decode(MemoryResponse.self, from: data)
+        if let memory = response.memory ?? response.items?.first {
+            return memory
+        }
+        let fallback = value.mapValues { CodableValue.string($0) }
+        return MemoryItem(id: UUID().uuidString, memoryType: type, key: key, valueJson: fallback, status: "active")
+    }
+
+    func listCalendarEvents(start: Date, end: Date) async throws -> [CalendarEvent] {
+        var components = URLComponents(string: "\(baseURL)/trainer/calendar")!
+        let formatter = ISO8601DateFormatter()
+        components.queryItems = [
+            URLQueryItem(name: "start", value: formatter.string(from: start)),
+            URLQueryItem(name: "end", value: formatter.string(from: end))
+        ]
+        guard let url = components.url else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(CalendarEventsResponse.self, from: data)
+        return response.events
+    }
+
+    func createCalendarEvent(
+        eventType: String,
+        startAt: Date,
+        endAt: Date? = nil,
+        title: String? = nil,
+        status: String? = nil,
+        notes: String? = nil,
+        intentJson: [String: CodableValue]? = nil
+    ) async throws -> CalendarEvent {
+        guard let url = URL(string: "\(baseURL)/trainer/calendar/events") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        var body: [String: Any] = [
+            "event_type": eventType,
+            "start_at": ISO8601DateFormatter().string(from: startAt)
+        ]
+        if let endAt = endAt {
+            body["end_at"] = ISO8601DateFormatter().string(from: endAt)
+        }
+        if let title = title { body["title"] = title }
+        if let status = status { body["status"] = status }
+        if let notes = notes { body["notes"] = notes }
+        if let intentJson = intentJson {
+            body["intent_json"] = intentJson.mapValues { $0.asAny() }
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(CalendarEventResponse.self, from: data)
+        return response.event
+    }
+
+    func rescheduleCalendarEvent(eventId: String, startAt: Date, endAt: Date? = nil) async throws -> CalendarEvent {
+        guard let url = URL(string: "\(baseURL)/trainer/calendar/events/\(eventId)/reschedule") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        var body: [String: Any] = [
+            "start_at": ISO8601DateFormatter().string(from: startAt)
+        ]
+        if let endAt = endAt {
+            body["end_at"] = ISO8601DateFormatter().string(from: endAt)
+        }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(CalendarEventResponse.self, from: data)
+        return response.event
+    }
+
+    func skipCalendarEvent(eventId: String, reason: String? = nil) async throws -> CalendarEvent {
+        guard let url = URL(string: "\(baseURL)/trainer/calendar/events/\(eventId)/skip") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        if let reason = reason {
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["reason": reason])
+        }
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(CalendarEventResponse.self, from: data)
+        return response.event
+    }
+
+    func completeCalendarEvent(eventId: String) async throws -> CalendarEvent {
+        guard let url = URL(string: "\(baseURL)/trainer/calendar/events/\(eventId)/complete") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(CalendarEventResponse.self, from: data)
+        return response.event
+    }
+
+    func syncCalendar() async throws {
+        guard let url = URL(string: "\(baseURL)/trainer/calendar/sync") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        _ = try await dataWithFallback(for: request)
+    }
+
+    func listWeeklyReports() async throws -> [WeeklyReport] {
+        guard let url = URL(string: "\(baseURL)/trainer/monitoring/weekly") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try JSONDecoder().decode(WeeklyReportsResponse.self, from: data)
+        return response.reports
+    }
+
+    func generateWeeklyReport(weekStart: String? = nil) async throws -> WeeklyReport {
+        guard let url = URL(string: "\(baseURL)/trainer/monitoring/weekly") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        if let weekStart = weekStart {
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["week_start": weekStart])
+        }
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try JSONDecoder().decode(WeeklyReportResponse.self, from: data)
+        return response.report
+    }
+
+    func correctMeasurement(id: String, measurementType: String, value: Double, unit: String, measuredAt: Date) async throws -> MeasurementResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/measurements/\(id)/correct") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        let body: [String: Any] = [
+            "measurement_type": measurementType,
+            "value": value,
+            "unit": unit,
+            "measured_at": ISO8601DateFormatter().string(from: measuredAt)
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        return try makeISO8601Decoder().decode(MeasurementResponse.self, from: data)
+    }
+
+    func forgetMemory(key: String) async throws {
+        guard let url = URL(string: "\(baseURL)/trainer/memory/\(key)") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "DELETE"
+        _ = try await dataWithFallback(for: request)
+    }
+
+    func fetchJourneyState() async throws -> JourneyState {
+        guard let url = URL(string: "\(baseURL)/trainer/journey") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(JourneyStateResponse.self, from: data)
+        return response.journey
+    }
+
+    func updateJourneyState(_ patch: [String: Any]) async throws -> JourneyState {
+        guard let url = URL(string: "\(baseURL)/trainer/journey") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONSerialization.data(withJSONObject: patch)
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(JourneyStateResponse.self, from: data)
+        return response.journey
+    }
+
+    func createCheckin(type: String = "weekly") async throws -> CheckinResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/checkins") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["type": type])
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        return try makeISO8601Decoder().decode(CheckinResponse.self, from: data)
+    }
+
+    func submitCheckin(id: String, responses: [String: CodableValue]) async throws -> CheckinResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/checkins/\(id)/submit") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        let body: [String: Any] = [
+            "responses": responses.mapValues { $0.asAny() }
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        return try makeISO8601Decoder().decode(CheckinResponse.self, from: data)
+    }
+
+    func listCheckins(limit: Int = 10) async throws -> [Checkin] {
+        var components = URLComponents(string: "\(baseURL)/trainer/checkins")!
+        components.queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
+        guard let url = components.url else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(CheckinListResponse.self, from: data)
+        return response.checkins
+    }
     
     func parsePreference(preferenceText: String, currentPreference: CurrentPreferenceContext? = nil) async throws -> ParsedPreference {
         guard let url = URL(string: "\(baseURL)/preferences/parse") else {

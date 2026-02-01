@@ -75,11 +75,11 @@ struct BodyweightSetCard: View {
                 Button(action: onTapReps) {
                     HStack(alignment: .firstTextBaseline, spacing: 3) {
                         Text("\(reps)")
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            .font(AppTheme.Typography.cardTitle)
                             .foregroundColor(isCompleted ? AppTheme.Colors.secondaryText : AppTheme.Colors.primaryText)
                         
                         Text("reps")
-                            .font(.system(size: 12, weight: .regular, design: .rounded))
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.tertiaryText)
                     }
                 }
@@ -91,13 +91,7 @@ struct BodyweightSetCard: View {
             .padding(.vertical, AppTheme.Spacing.lg)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                    .fill(isCompleted ? AppTheme.Colors.backgroundGradientEnd : Color.white)
-            )
-            .shadow(
-                color: isCompleted ? Color.clear : Color.black.opacity(0.06),
-                radius: isCompleted ? 0 : 8,
-                x: 0,
-                y: isCompleted ? 0 : 4
+                    .fill(isCompleted ? AppTheme.Colors.highlight : AppTheme.Colors.surface)
             )
         }
         .buttonStyle(.plain)
@@ -137,7 +131,7 @@ struct BodyweightRepsPickerSheet: View {
                         dismiss()
                     }
                     .fontWeight(.semibold)
-                    .foregroundColor(AppTheme.Colors.warmAccent)
+                    .foregroundColor(AppTheme.Colors.accent)
                 }
             }
         }

@@ -64,17 +64,13 @@ struct CategoryGoalSetterView: View {
                                     Image(systemName: "plus.circle.fill")
                                         .font(.system(size: 16, weight: .semibold))
                                     Text("Add Category")
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .font(AppTheme.Typography.button)
                                 }
-                                .foregroundColor(.blue)
+                                .foregroundColor(AppTheme.Colors.background)
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 12)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.accent)
                                 .cornerRadius(AppTheme.CornerRadius.small)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                        .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                                )
                             }
                             .padding(.horizontal, AppTheme.Spacing.xl)
                             
@@ -141,17 +137,13 @@ struct CategoryGoalSetterView: View {
                                         Image(systemName: "equal.circle")
                                             .font(.system(size: 14, weight: .semibold))
                                         Text("Normalize to 100%")
-                                            .font(.system(size: 15, weight: .semibold))
+                                            .font(AppTheme.Typography.button)
                                     }
                                     .foregroundColor(AppTheme.Colors.primaryText)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 12)
-                                    .background(AppTheme.Colors.cardBackground)
+                                    .background(AppTheme.Colors.surface)
                                     .cornerRadius(AppTheme.CornerRadius.small)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                            .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                    )
                                 }
                                 .padding(.horizontal, AppTheme.Spacing.xl)
                             }
@@ -210,7 +202,7 @@ struct CategoryGoalSetterView: View {
                         TextField("Describe your fitness goals...", text: $aiInputText)
                             .textFieldStyle(PlainTextFieldStyle())
                             .padding(AppTheme.Spacing.md)
-                            .background(AppTheme.Colors.cardBackground)
+                            .background(AppTheme.Colors.surface)
                             .cornerRadius(AppTheme.CornerRadius.medium)
                             .disabled(isProcessingAI)
                         
@@ -222,7 +214,6 @@ struct CategoryGoalSetterView: View {
                     }
                     .padding(AppTheme.Spacing.md)
                     .background(AppTheme.Colors.background)
-                    .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: -2)
                 }
             }
             .navigationTitle("Category Goals")
@@ -438,22 +429,22 @@ private struct TotalIndicator: View {
         HStack(spacing: AppTheme.Spacing.md) {
             Image(systemName: isValid ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(isValid ? .green : .orange)
+                .foregroundColor(isValid ? AppTheme.Colors.primaryText : AppTheme.Colors.secondaryText)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text("Total: \(Int(total * 100))%")
-                    .font(.system(size: 16, weight: .semibold))
+                    .font(AppTheme.Typography.cardTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Text(isValid ? "Perfect! Sum equals 100%" : "Adjust to reach 100% total")
-                    .font(.system(size: 13))
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.secondaryText)
             }
             
             Spacer()
         }
         .padding(AppTheme.Spacing.lg)
-        .background(isValid ? Color.green.opacity(0.1) : Color.orange.opacity(0.1))
+        .background(isValid ? AppTheme.Colors.highlight : AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.medium)
         .padding(.horizontal, AppTheme.Spacing.xl)
     }
@@ -471,34 +462,28 @@ private struct CategorySlider: View {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(name)
-                        .font(.system(size: 17, weight: .semibold))
+                        .font(AppTheme.Typography.cardTitle)
                         .foregroundColor(AppTheme.Colors.primaryText)
                     
                     Text(description)
-                        .font(.system(size: 13))
+                        .font(AppTheme.Typography.cardSubtitle)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                 }
                 
                 Spacer()
                 
                 Text("\(Int(weight * 100))%")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(color)
+                    .font(AppTheme.Typography.statNumber)
+                    .foregroundColor(AppTheme.Colors.primaryText)
                     .frame(minWidth: 60, alignment: .trailing)
             }
             
             Slider(value: $weight, in: 0...1, step: 0.01)
-                .tint(color)
+                .tint(AppTheme.Colors.primaryText)
         }
         .padding(AppTheme.Spacing.lg)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.medium)
-        .shadow(
-            color: AppTheme.Shadow.card,
-            radius: AppTheme.Shadow.cardRadius,
-            x: AppTheme.Shadow.cardOffset.width,
-            y: AppTheme.Shadow.cardOffset.height
-        )
     }
 }
 
@@ -547,46 +532,34 @@ private struct CategoryGoalRow: View {
     
     private var categoryNameField: some View {
         TextField("Category Name", text: $goal.category, axis: .vertical)
-            .font(.system(size: 17, weight: .semibold))
+            .font(AppTheme.Typography.cardTitle)
             .foregroundColor(AppTheme.Colors.primaryText)
             .textFieldStyle(PlainTextFieldStyle())
             .lineLimit(3)
             .padding(8)
             .background(categoryBackground)
-            .overlay(categoryBorder)
             .focused($focusedField, equals: .category)
     }
     
     private var descriptionField: some View {
         TextField("Description", text: $goal.description, axis: .vertical)
-            .font(.system(size: 13))
+            .font(AppTheme.Typography.cardSubtitle)
             .foregroundColor(AppTheme.Colors.secondaryText)
             .textFieldStyle(PlainTextFieldStyle())
             .lineLimit(5)
             .padding(8)
             .background(descriptionBackground)
-            .overlay(descriptionBorder)
             .focused($focusedField, equals: .description)
     }
     
     private var categoryBackground: some View {
         RoundedRectangle(cornerRadius: 6)
-            .fill(focusedField == .category ? Color.blue.opacity(0.05) : Color.gray.opacity(0.03))
-    }
-    
-    private var categoryBorder: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .stroke(focusedField == .category ? Color.blue.opacity(0.4) : Color.gray.opacity(0.2), lineWidth: 1)
+            .fill(focusedField == .category ? AppTheme.Colors.highlight : AppTheme.Colors.surface)
     }
     
     private var descriptionBackground: some View {
         RoundedRectangle(cornerRadius: 6)
-            .fill(focusedField == .description ? Color.blue.opacity(0.05) : Color.gray.opacity(0.03))
-    }
-    
-    private var descriptionBorder: some View {
-        RoundedRectangle(cornerRadius: 6)
-            .stroke(focusedField == .description ? Color.blue.opacity(0.4) : Color.gray.opacity(0.2), lineWidth: 1)
+            .fill(focusedField == .description ? AppTheme.Colors.highlight : AppTheme.Colors.surface)
     }
     
     var body: some View {
@@ -600,14 +573,14 @@ private struct CategoryGoalRow: View {
                 Spacer()
                 
                 Text("\(Int(goal.weight * 100))%")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundColor(.blue)
+                    .font(AppTheme.Typography.statNumber)
+                    .foregroundColor(AppTheme.Colors.primaryText)
                     .frame(minWidth: 60, alignment: .trailing)
                     .padding(.top, 8)
             }
             
             Slider(value: $goal.weight, in: 0...1, step: 0.01)
-                .tint(.blue)
+                .tint(AppTheme.Colors.primaryText)
                 .disabled(!goal.enabled)
             
             HStack(spacing: AppTheme.Spacing.md) {
@@ -615,27 +588,21 @@ private struct CategoryGoalRow: View {
                     .labelsHidden()
                 
                 Text(goal.enabled ? "Enabled" : "Disabled")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundColor(goal.enabled ? .green : AppTheme.Colors.tertiaryText)
+                    .font(AppTheme.Typography.cardSubtitle)
+                    .foregroundColor(goal.enabled ? AppTheme.Colors.primaryText : AppTheme.Colors.tertiaryText)
                 
                 Spacer()
                 
                 Button(action: onDelete) {
                     Image(systemName: "trash")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.red)
+                        .foregroundColor(AppTheme.Colors.danger)
                 }
             }
         }
         .padding(AppTheme.Spacing.lg)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.medium)
-        .shadow(
-            color: AppTheme.Shadow.card,
-            radius: AppTheme.Shadow.cardRadius,
-            x: AppTheme.Shadow.cardOffset.width,
-            y: AppTheme.Shadow.cardOffset.height
-        )
         .contentShape(Rectangle())
         .onTapGesture {
             hideKeyboard()
@@ -655,12 +622,11 @@ private struct EmptyCategoryGoalsSetterState: View {
             
             VStack(spacing: AppTheme.Spacing.sm) {
                 Text("No Category Goals")
-                    .font(.title3)
-                    .fontWeight(.bold)
+                    .font(AppTheme.Typography.screenTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Text("Add your first category goal or choose from presets below")
-                    .font(.body)
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.secondaryText)
                     .multilineTextAlignment(.center)
             }
@@ -670,12 +636,12 @@ private struct EmptyCategoryGoalsSetterState: View {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 16, weight: .semibold))
                     Text("Add Category Goal")
-                        .font(.system(size: 16, weight: .semibold))
+                        .font(AppTheme.Typography.button)
                 }
-                .foregroundColor(AppTheme.Colors.cardBackground)
+                .foregroundColor(AppTheme.Colors.background)
                 .padding(.horizontal, AppTheme.Spacing.xl)
                 .padding(.vertical, 14)
-                .background(AppTheme.Colors.primaryText)
+                .background(AppTheme.Colors.accent)
                 .cornerRadius(AppTheme.CornerRadius.small)
             }
         }
@@ -752,18 +718,18 @@ private struct SendButton: View {
             ZStack {
                 // Background circle
                 Circle()
-                    .fill(isEnabled && !isProcessing ? Color.blue : AppTheme.Colors.secondaryText)
+                    .fill(isEnabled && !isProcessing ? AppTheme.Colors.accent : AppTheme.Colors.surface)
                     .frame(width: 44, height: 44)
                 
                 // Icon
                 if isProcessing {
                     ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
                         .scaleEffect(0.9)
                 } else {
                     Image(systemName: "paperplane.fill")
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
+                        .foregroundColor(AppTheme.Colors.background)
                 }
             }
         }

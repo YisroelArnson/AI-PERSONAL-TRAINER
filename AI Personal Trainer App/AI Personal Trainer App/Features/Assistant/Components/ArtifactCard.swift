@@ -50,26 +50,17 @@ struct ArtifactCard: View {
             // Icon
             ZStack {
                 Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                AppTheme.Colors.warmAccentLight,
-                                AppTheme.Colors.warmAccent
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(AppTheme.Colors.surface)
                     .frame(width: 32, height: 32)
 
                 Image(systemName: artifactIcon)
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
+                    .foregroundColor(AppTheme.Colors.primaryText)
             }
 
             // Title
             Text(artifact.title)
-                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                .font(AppTheme.Typography.cardTitle)
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .lineLimit(1)
 
@@ -96,18 +87,18 @@ struct ArtifactCard: View {
     private func focusSection(areas: [String]) -> some View {
         HStack(spacing: AppTheme.Spacing.xs) {
             Text("Focus:")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(AppTheme.Typography.label)
                 .foregroundColor(AppTheme.Colors.secondaryText)
 
             ForEach(areas.prefix(3), id: \.self) { area in
                 Text(area)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(AppTheme.Colors.warmAccent)
+                    .font(AppTheme.Typography.label)
+                    .foregroundColor(AppTheme.Colors.primaryText)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .background(
                         Capsule()
-                            .fill(AppTheme.Colors.warmAccent.opacity(0.15))
+                            .fill(AppTheme.Colors.highlight)
                     )
             }
         }
@@ -121,25 +112,15 @@ struct ArtifactCard: View {
                     Image(systemName: "play.fill")
                         .font(.system(size: 12))
                     Text("Start")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
+                        .font(AppTheme.Typography.button)
                 }
-                .foregroundColor(.white)
+                .foregroundColor(AppTheme.Colors.background)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    AppTheme.Colors.warmAccent,
-                                    AppTheme.Colors.warmAccent.opacity(0.9)
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(AppTheme.Colors.accent)
                 )
-                .shadow(color: AppTheme.Colors.warmAccent.opacity(0.3), radius: 6, x: 0, y: 3)
             }
 
             // Add to Current (secondary action)
@@ -148,14 +129,14 @@ struct ArtifactCard: View {
                     Image(systemName: "plus")
                         .font(.system(size: 12))
                     Text("Add")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(AppTheme.Typography.button)
                 }
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(
                     Capsule()
-                        .stroke(AppTheme.Colors.border, lineWidth: 1)
+                        .fill(AppTheme.Colors.surface)
                 )
             }
 
@@ -166,16 +147,7 @@ struct ArtifactCard: View {
 
     private var cardBackground: some View {
         RoundedRectangle(cornerRadius: 16)
-            .fill(Color.white.opacity(0.95))
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(.ultraThinMaterial)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(AppTheme.Colors.warmAccent.opacity(0.3), lineWidth: 1)
-            )
-            .shadow(color: AppTheme.Shadow.card, radius: 10, x: 0, y: 4)
+            .fill(AppTheme.Colors.surface)
     }
 
     private var artifactIcon: String {
@@ -197,14 +169,14 @@ private struct SummaryPill: View {
             Image(systemName: icon)
                 .font(.system(size: 10))
             Text(text)
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .font(AppTheme.Typography.label)
         }
         .foregroundColor(AppTheme.Colors.secondaryText)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(
             Capsule()
-                .fill(Color.gray.opacity(0.1))
+                .fill(AppTheme.Colors.highlight)
         )
     }
 }

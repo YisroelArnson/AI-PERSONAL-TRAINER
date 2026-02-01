@@ -47,7 +47,7 @@ struct ExerciseDotTracker: View {
             if shouldShowOverflow && currentIndex >= maxVisibleDots / 2 {
                 // Show overflow indicator at start
                 Text("+\(currentIndex < totalExercises - maxVisibleDots / 2 ? currentIndex - maxVisibleDots / 2 + 1 : overflowCount)")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(AppTheme.Typography.label)
                     .foregroundColor(AppTheme.Colors.tertiaryText)
             }
             
@@ -55,19 +55,13 @@ struct ExerciseDotTracker: View {
                 Circle()
                     .fill(dotColor(for: index))
                     .frame(width: dotSize(for: index), height: dotSize(for: index))
-                    .shadow(
-                        color: index == currentIndex ? AppTheme.Colors.warmAccent.opacity(0.3) : .clear,
-                        radius: 4,
-                        x: 0,
-                        y: 0
-                    )
                     .animation(.spring(response: 0.4, dampingFraction: 0.7), value: currentIndex)
             }
             
             if shouldShowOverflow && currentIndex < totalExercises - maxVisibleDots / 2 {
                 // Show overflow indicator at end
                 Text("+\(totalExercises - visibleRange.upperBound)")
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(AppTheme.Typography.label)
                     .foregroundColor(AppTheme.Colors.tertiaryText)
             }
         }
@@ -77,11 +71,11 @@ struct ExerciseDotTracker: View {
     
     private func dotColor(for index: Int) -> Color {
         if isCompleted(for: index) {
-            return AppTheme.Colors.success
+            return AppTheme.Colors.primaryText
         } else if index == currentIndex {
-            return AppTheme.Colors.warmAccent
+            return AppTheme.Colors.primaryText
         } else {
-            return AppTheme.Colors.tertiaryText.opacity(0.4)
+            return AppTheme.Colors.tertiaryText.opacity(0.25)
         }
     }
     

@@ -28,7 +28,7 @@ struct ReadinessCheckSheet: View {
         NavigationView {
             VStack(spacing: AppTheme.Spacing.lg) {
                 Text("Quick readiness check")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(AppTheme.Typography.screenTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
 
                 Picker("Time", selection: $timeAvailable) {
@@ -49,10 +49,14 @@ struct ReadinessCheckSheet: View {
 
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                     Text("Equipment override (optional)")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(AppTheme.Typography.label)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                     TextField("e.g. dumbbells, mat", text: $equipmentText)
-                        .textFieldStyle(.roundedBorder)
+                        .padding(AppTheme.Spacing.md)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                                .fill(AppTheme.Colors.surface)
+                        )
                 }
                 .padding(.horizontal, AppTheme.Spacing.xl)
 
@@ -72,14 +76,14 @@ struct ReadinessCheckSheet: View {
                     dismiss()
                 } label: {
                     Text("Start workout")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .font(AppTheme.Typography.button)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AppTheme.Spacing.md)
                         .background(
                             RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                .fill(AppTheme.Colors.warmAccent)
+                                .fill(AppTheme.Colors.accent)
                         )
-                        .foregroundColor(.white)
+                        .foregroundColor(AppTheme.Colors.background)
                 }
                 .padding(.horizontal, AppTheme.Spacing.xl)
                 .padding(.bottom, AppTheme.Spacing.xl)
@@ -107,11 +111,15 @@ struct QuickWorkoutSheet: View {
         NavigationView {
             VStack(spacing: AppTheme.Spacing.lg) {
                 Text("Quick workout request")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(AppTheme.Typography.screenTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
 
                 TextField("e.g. Hotel room, no equipment", text: $requestText)
-                    .textFieldStyle(.roundedBorder)
+                    .padding(AppTheme.Spacing.md)
+                    .background(
+                        RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                            .fill(AppTheme.Colors.surface)
+                    )
                     .padding(.horizontal, AppTheme.Spacing.xl)
 
                 Picker("Time", selection: $timeAvailable) {
@@ -131,10 +139,14 @@ struct QuickWorkoutSheet: View {
 
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                     Text("Equipment override (optional)")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(AppTheme.Typography.label)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                     TextField("e.g. resistance bands", text: $equipmentText)
-                        .textFieldStyle(.roundedBorder)
+                        .padding(AppTheme.Spacing.md)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                                .fill(AppTheme.Colors.surface)
+                        )
                 }
                 .padding(.horizontal, AppTheme.Spacing.xl)
 
@@ -155,14 +167,14 @@ struct QuickWorkoutSheet: View {
                     dismiss()
                 } label: {
                     Text("Generate workout")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .font(AppTheme.Typography.button)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AppTheme.Spacing.md)
                         .background(
                             RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                .fill(AppTheme.Colors.warmAccent)
+                                .fill(AppTheme.Colors.accent)
                         )
-                        .foregroundColor(.white)
+                        .foregroundColor(AppTheme.Colors.background)
                 }
                 .padding(.horizontal, AppTheme.Spacing.xl)
                 .padding(.bottom, AppTheme.Spacing.xl)
@@ -188,12 +200,12 @@ struct WorkoutReflectionSheet: View {
         NavigationView {
             VStack(spacing: AppTheme.Spacing.lg) {
                 Text("Workout reflection")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
+                    .font(AppTheme.Typography.screenTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
 
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                     Text("Overall effort: \(Int(rpe))")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(AppTheme.Typography.cardSubtitle)
                     Slider(value: $rpe, in: 1...10, step: 1)
                 }
                 .padding(.horizontal, AppTheme.Spacing.xl)
@@ -206,10 +218,14 @@ struct WorkoutReflectionSheet: View {
 
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                     Text("Pain or notes")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(AppTheme.Typography.label)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                     TextField("Optional", text: $painNotes)
-                        .textFieldStyle(.roundedBorder)
+                        .padding(AppTheme.Spacing.md)
+                        .background(
+                            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                                .fill(AppTheme.Colors.surface)
+                        )
                 }
                 .padding(.horizontal, AppTheme.Spacing.xl)
 
@@ -227,14 +243,14 @@ struct WorkoutReflectionSheet: View {
                     dismiss()
                 } label: {
                     Text("Finish session")
-                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        .font(AppTheme.Typography.button)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, AppTheme.Spacing.md)
                         .background(
                             RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                .fill(AppTheme.Colors.warmAccent)
+                                .fill(AppTheme.Colors.accent)
                         )
-                        .foregroundColor(.white)
+                        .foregroundColor(AppTheme.Colors.background)
                 }
                 .padding(.horizontal, AppTheme.Spacing.xl)
                 .padding(.bottom, AppTheme.Spacing.xl)
@@ -253,26 +269,26 @@ struct WorkoutSummarySheet: View {
         NavigationView {
             VStack(spacing: AppTheme.Spacing.lg) {
                 Text(summary.title)
-                    .font(.system(size: 22, weight: .semibold, design: .rounded))
+                    .font(AppTheme.Typography.screenTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
 
                 Text("Completed \(summary.completion.exercises) exercises · \(summary.completion.totalSets) sets")
-                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.secondaryText)
 
                 if let rpe = summary.overallRpe {
                     Text("Overall effort: \(rpe)/10")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .font(AppTheme.Typography.cardSubtitle)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                 }
 
                 if !summary.wins.isEmpty {
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                         Text("Wins")
-                            .font(.system(size: 14, weight: .semibold, design: .rounded))
+                            .font(AppTheme.Typography.cardTitle)
                         ForEach(summary.wins, id: \.self) { win in
                             Text("• \(win)")
-                                .font(.system(size: 13, weight: .regular, design: .rounded))
+                                .font(AppTheme.Typography.cardSubtitle)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -280,7 +296,7 @@ struct WorkoutSummarySheet: View {
                 }
 
                 Text("Next focus: \(summary.nextSessionFocus)")
-                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                     .padding(.horizontal, AppTheme.Spacing.xl)
 
@@ -301,7 +317,7 @@ struct LabeledPicker: View {
     var body: some View {
         HStack {
             Text(title)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(AppTheme.Typography.label)
                 .foregroundColor(AppTheme.Colors.secondaryText)
             Spacer()
             Picker(title, selection: $selection) {

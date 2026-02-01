@@ -24,8 +24,7 @@ struct AppView: View {
       for await state in supabase.auth.authStateChanges {
         if [.initialSession, .signedIn, .signedOut].contains(state.event) {
           isAuthenticated = state.session != nil
-          
-          // Load user data when authenticated
+
           if isAuthenticated {
             await userDataStore.loadAllUserData()
             print("✅ User data loaded successfully on open from AppView")
@@ -36,226 +35,117 @@ struct AppView: View {
   }
 }
 
-// Main app view with ChatGPT-style side drawer navigation
+// Main app view with minimal FAB navigation
 struct MainAppView: View {
     @EnvironmentObject var userDataStore: UserDataStore
     @StateObject private var appCoordinator = AppStateCoordinator()
-    
+
     // Global AI Assistant overlay manager
     @State private var assistantManager = AssistantOverlayManager()
-    
+
     // Navigation state
     @State private var currentPage: DrawerDestination = .home
-    @State private var isDrawerOpen = false
-    
-    // Interactive drag state
-    @State private var dragOffset: CGFloat = 0
-    @State private var isDragging = false
-    
+    @State private var isFabExpanded = false
+
     // Sheet states
     @State private var showingProfile = false
-    
+
     // User info
     @State private var userEmail: String = ""
-    
-    // Drawer configuration
-    private let drawerWidth: CGFloat = 280
-    private let edgeSwipeWidth: CGFloat = 30
-    private let velocityThreshold: CGFloat = 300
-    
+
     var body: some View {
         ZStack {
-            // Main app content with drawer (ignores keyboard to prevent content shifting)
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    // Container that holds drawer + content side by side
-                    HStack(spacing: 0) {
-                        // Side drawer
-                        SideDrawerView(
-                            currentPage: $currentPage,
-                            onNavigate: { destination in
-                                navigateToPage(destination)
-                            },
-                            onProfileTap: {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                    isDrawerOpen = false
-                                    dragOffset = 0
-                                }
-                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                                    showingProfile = true
-                                }
-                            },
-                            userEmail: userEmail
-                        )
-                        .frame(width: drawerWidth)
-                        
-                        // Main content area
-                        ZStack {
-                            // Current page content - instant switch, no transition
-                            currentPageView
-                                .frame(width: geometry.size.width)
-                            
-                            // Dim overlay that follows drawer position
-                            Color.black
-                                .opacity(drawerOverlayOpacity)
-                                .ignoresSafeArea()
-                                .allowsHitTesting(isDrawerOpen || isDragging)
-                                .onTapGesture {
-                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                        isDrawerOpen = false
-                                        dragOffset = 0
-                                    }
-                                }
-                        }
-                        .frame(width: geometry.size.width)
-                    }
-                    .offset(x: currentDrawerOffset)
-                    .animation(isDragging ? nil : .spring(response: 0.35, dampingFraction: 0.8), value: isDrawerOpen)
-                }
-                .gesture(
-                    DragGesture()
-                        .onChanged { value in
-                            handleDragChange(value: value)
-                        }
-                        .onEnded { value in
-                            handleDragEnd(value: value)
-                        }
-                )
-            }
-            .ignoresSafeArea(.keyboard) // Main content ignores keyboard
-            
-            // Global AI Assistant Overlay (respects keyboard to push input up)
+            currentPageView
+                .ignoresSafeArea(.keyboard)
+
             AssistantOverlayView()
                 .environment(\.assistantManager, assistantManager)
+
+            if currentPage == .home {
+                ExpandingFabMenu(isExpanded: $isFabExpanded, items: menuItems)
+            } else {
+                MinimalBackBar(title: pageTitle) {
+                    withAnimation(AppTheme.Animation.gentle) {
+                        currentPage = .home
+                    }
+                }
+            }
+
+            if isFabExpanded {
+                Color.black.opacity(0.001)
+                    .ignoresSafeArea()
+                    .onTapGesture {
+                        withAnimation(AppTheme.Animation.gentle) {
+                            isFabExpanded = false
+                        }
+                    }
+            }
         }
         .sheet(isPresented: $showingProfile) {
             ProfileView()
         }
         .onAppear {
-            // Start the coordinated initialization sequence
-            Task {
-                await appCoordinator.startAppInitialization()
-            }
-            // Get user email
-            Task {
-                await loadUserEmail()
-            }
+            Task { await appCoordinator.startAppInitialization() }
+            Task { await loadUserEmail() }
         }
     }
-    
+
     // MARK: - Current Page View
-    
+
     @ViewBuilder
     private var currentPageView: some View {
         switch currentPage {
         case .home:
-            HomeView(isDrawerOpen: $isDrawerOpen)
+            HomeView()
                 .environmentObject(appCoordinator)
-                .id("home") // Ensure view identity for transitions
+                .id("home")
         case .stats:
-            StatsPageView(isDrawerOpen: $isDrawerOpen)
+            StatsPageView()
                 .id("stats")
         case .info:
-            InfoPageView(isDrawerOpen: $isDrawerOpen)
+            InfoPageView()
                 .environmentObject(userDataStore)
                 .id("info")
+        case .coach:
+            TrainerJourneyView()
+                .id("coach")
         case .profile:
-            // Profile is handled via sheet, not full page
             EmptyView()
         }
     }
-    
-    // MARK: - Drawer Offset Calculations
-    
-    /// The current drawer offset combining base position + drag
-    private var currentDrawerOffset: CGFloat {
-        let baseOffset = isDrawerOpen ? 0 : -drawerWidth
-        return baseOffset + dragOffset
-    }
-    
-    /// Overlay opacity based on drawer position (0 when closed, 0.3 when open)
-    private var drawerOverlayOpacity: Double {
-        // Calculate how "open" the drawer is (0 to 1)
-        let openProgress = (currentDrawerOffset + drawerWidth) / drawerWidth
-        let clampedProgress = max(0, min(1, openProgress))
-        return Double(clampedProgress) * 0.3
-    }
-    
-    // MARK: - Drag Gesture Handling
-    
-    private func handleDragChange(value: DragGesture.Value) {
-        // Determine if this is a valid drag
-        let isFromLeftEdge = value.startLocation.x < edgeSwipeWidth
-        let canDrag = isDrawerOpen || isFromLeftEdge
-        
-        guard canDrag else { return }
-        
-        isDragging = true
-        
-        // Calculate the drag offset
-        let translation = value.translation.width
-        
-        if isDrawerOpen {
-            // When open, allow dragging left (negative) to close
-            // Constrain so drawer can't go past closed position
-            dragOffset = min(0, translation)
-        } else {
-            // When closed, allow dragging right (positive) to open
-            // Constrain so drawer can't go past open position
-            dragOffset = max(0, min(drawerWidth, translation))
-        }
-    }
-    
-    private func handleDragEnd(value: DragGesture.Value) {
-        isDragging = false
-        
-        let velocity = value.predictedEndTranslation.width - value.translation.width
-        let currentPosition = currentDrawerOffset
-        
-        // Determine final state based on velocity and position
-        let shouldOpen: Bool
-        
-        // Fast swipe overrides position
-        if abs(velocity) > velocityThreshold {
-            shouldOpen = velocity > 0
-        } else {
-            // Position-based: bias toward closing (drawer closes when dragged past 30% closed)
-            // This makes it easier to close - only need to drag ~30% to trigger close
-            let closeThreshold = -drawerWidth * 0.3
-            shouldOpen = currentPosition > closeThreshold
-        }
-        
-        // Animate to final state
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            isDrawerOpen = shouldOpen
-            dragOffset = 0
-        }
-    }
-    
-    // MARK: - Navigation
-    
-    private func navigateToPage(_ destination: DrawerDestination) {
-        // Don't navigate if already on this page
-        guard destination != currentPage else {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                isDrawerOpen = false
-                dragOffset = 0
+
+    private var menuItems: [FabMenuItem] {
+        [
+            FabMenuItem(icon: "clock") {
+                currentPage = .stats
+            },
+            FabMenuItem(icon: "slider.horizontal.3") {
+                currentPage = .info
+            },
+            FabMenuItem(icon: "person.text.rectangle") {
+                currentPage = .coach
+            },
+            FabMenuItem(icon: "person") {
+                showingProfile = true
             }
-            return
-        }
-        
-        // Switch page instantly (no animation)
-        currentPage = destination
-        
-        // Close drawer with spring animation
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-            isDrawerOpen = false
-            dragOffset = 0
+        ]
+    }
+
+    private var pageTitle: String {
+        switch currentPage {
+        case .stats:
+            return "History"
+        case .info:
+            return "Preferences"
+        case .coach:
+            return "Trainer"
+        case .profile:
+            return "Profile"
+        case .home:
+            return ""
         }
     }
-    
-    // MARK: - User Data
-    
+
     private func loadUserEmail() async {
         do {
             let session = try await supabase.auth.session
@@ -267,16 +157,16 @@ struct MainAppView: View {
     }
 }
 
-// MARK: - Two-Line Hamburger Icon (ChatGPT style)
+// MARK: - Two-Line Menu Icon
 
 struct TwoLineMenuIcon: View {
     var body: some View {
         VStack(spacing: 5) {
             RoundedRectangle(cornerRadius: 1)
-                .fill(AppTheme.Colors.primaryText.opacity(0.7))
+                .fill(AppTheme.Colors.primaryText)
                 .frame(width: 18, height: 2)
             RoundedRectangle(cornerRadius: 1)
-                .fill(AppTheme.Colors.primaryText.opacity(0.7))
+                .fill(AppTheme.Colors.primaryText)
                 .frame(width: 18, height: 2)
         }
     }
@@ -285,48 +175,11 @@ struct TwoLineMenuIcon: View {
 // MARK: - Stats Page View (Full Page Wrapper)
 
 struct StatsPageView: View {
-    @Binding var isDrawerOpen: Bool
-    
     var body: some View {
         ZStack {
-            // Animated gradient background (matches HomeView)
             AnimatedGradientBackground()
-            
-            VStack(spacing: 0) {
-                // Custom navigation bar (matches HomeView positioning)
-                pageNavigationBar(title: "Stats")
-                
-                // Stats content
-                StatsContentView()
-            }
+            StatsContentView()
         }
-    }
-    
-    private func pageNavigationBar(title: String) -> some View {
-        HStack {
-            Button(action: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    isDrawerOpen = true
-                }
-            }) {
-                TwoLineMenuIcon()
-                    .frame(width: 44, height: 44)
-            }
-            
-            Spacer()
-            
-            Text(title)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .foregroundColor(AppTheme.Colors.primaryText)
-            
-            Spacer()
-            
-            // Placeholder for balance (matches HomeView's right side element)
-            Color.clear
-                .frame(width: 44, height: 44)
-        }
-        .padding(.horizontal, AppTheme.Spacing.md)
-        .padding(.top, AppTheme.Spacing.xs) // Match HomeView's topBar padding
     }
 }
 
@@ -334,49 +187,43 @@ struct StatsPageView: View {
 
 struct InfoPageView: View {
     @EnvironmentObject var userDataStore: UserDataStore
-    @Binding var isDrawerOpen: Bool
-    
+
     var body: some View {
         ZStack {
-            // Animated gradient background (matches HomeView)
             AnimatedGradientBackground()
-            
-            VStack(spacing: 0) {
-                // Custom navigation bar (matches HomeView positioning)
-                pageNavigationBar(title: "Preferences")
-                
-                // Info/Preferences content
-                InfoContentView()
-                    .environmentObject(userDataStore)
-            }
+            InfoContentView()
+                .environmentObject(userDataStore)
         }
     }
-    
-    private func pageNavigationBar(title: String) -> some View {
-        HStack {
-            Button(action: {
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    isDrawerOpen = true
+}
+
+// MARK: - Minimal Back Bar
+
+struct MinimalBackBar: View {
+    let title: String
+    let onBack: () -> Void
+
+    var body: some View {
+        VStack {
+            HStack {
+                Button(action: onBack) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .frame(width: 44, height: 44)
                 }
-            }) {
-                TwoLineMenuIcon()
-                    .frame(width: 44, height: 44)
+                Spacer()
+                Text(title)
+                    .font(AppTheme.Typography.screenTitle)
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                Spacer()
+                Color.clear.frame(width: 44, height: 44)
             }
-            
+            .padding(.horizontal, AppTheme.Spacing.xl)
+            .padding(.top, AppTheme.Spacing.md)
             Spacer()
-            
-            Text(title)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-                .foregroundColor(AppTheme.Colors.primaryText)
-            
-            Spacer()
-            
-            // Placeholder for balance (matches HomeView's right side element)
-            Color.clear
-                .frame(width: 44, height: 44)
         }
-        .padding(.horizontal, AppTheme.Spacing.md)
-        .padding(.top, AppTheme.Spacing.xs) // Match HomeView's topBar padding
+        .ignoresSafeArea(edges: .top)
     }
 }
 

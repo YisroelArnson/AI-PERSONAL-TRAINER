@@ -88,9 +88,8 @@ extension View {
                     // Content cards - emerging animation
                     ForEach(0..<3, id: \.self) { index in
                         RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.white)
+                            .fill(AppTheme.Colors.surface)
                             .frame(height: 60)
-                            .shadow(color: .black.opacity(0.1), radius: 8, y: 4)
                             .padding(.horizontal, 20)
                             .emergingAnimation(
                                 isVisible: showContent,
@@ -104,4 +103,3 @@ extension View {
     
     return PreviewWrapper()
 }
-

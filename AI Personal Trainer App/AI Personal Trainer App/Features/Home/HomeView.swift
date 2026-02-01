@@ -12,7 +12,6 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject var appCoordinator: AppStateCoordinator
-    @Binding var isDrawerOpen: Bool
     
     @StateObject private var apiService = APIService()
     @StateObject private var exerciseStore = ExerciseStore.shared
@@ -29,6 +28,9 @@ struct HomeView: View {
     @State private var showTimeScaleDialog = false
     @State private var showPainDialog = false
     @State private var selectedCoachMode: String = "quiet"
+    @State private var upcomingEvents: [CalendarEvent] = []
+    @State private var latestReport: WeeklyReport?
+    @State private var showCalendarSheet = false
     
     // Swipe and animation states
     @State private var dragOffset: CGFloat = 0
@@ -74,9 +76,6 @@ struct HomeView: View {
                 
                 // Main content layer
                 VStack(spacing: 0) {
-                    // Minimal top bar
-                    topBar
-                    
                     // Main content area
                     if workoutSessionStore.isGenerating {
                         Spacer()
@@ -161,6 +160,11 @@ struct HomeView: View {
                 WorkoutSummarySheet(summary: summary)
             }
         }
+        .sheet(isPresented: $showCalendarSheet) {
+            NavigationView {
+                TrainerCalendarView()
+            }
+        }
         .sheet(isPresented: $showExerciseInfo) {
             if !exercises.isEmpty {
                 ExerciseDetailSheet(exercise: exercises[currentExerciseIndex])
@@ -183,6 +187,7 @@ struct HomeView: View {
         }
         .task {
             await loadRecommendationsIfNeeded()
+            await loadTrainerOverview()
         }
         .onChange(of: allExercisesCompleted) { _, isAllCompleted in
             if isAllCompleted && !exercises.isEmpty {
@@ -203,80 +208,14 @@ struct HomeView: View {
     
     // MARK: - View Components
     
-    private var topBar: some View {
-        HStack {
-            // Drawer toggle (ChatGPT-style icon)
-            Button {
-                withAnimation(AppTheme.Animation.gentle) {
-                    isDrawerOpen = true
-                }
-            } label: {
-                // Two horizontal lines icon (like ChatGPT)
-                VStack(spacing: 5) {
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(AppTheme.Colors.primaryText.opacity(0.7))
-                        .frame(width: 18, height: 2)
-                    RoundedRectangle(cornerRadius: 1)
-                        .fill(AppTheme.Colors.primaryText.opacity(0.7))
-                        .frame(width: 18, height: 2)
-                }
-                .frame(width: 44, height: 44)
-            }
-            
-            // Exercise dot tracker in center
-            if !exercises.isEmpty {
-                Spacer()
-                ExerciseDotTracker(
-                    totalExercises: exercises.count,
-                    currentIndex: currentExerciseIndex,
-                    exerciseIds: exercises.map { $0.id },
-                    completedExerciseIds: completedExerciseIds
-                )
-                Spacer()
-            } else {
-                Spacer()
-            }
-            
-            // Three dots menu (minimal, no background)
-            Menu {
-                if !exercises.isEmpty {
-                    Button(action: {
-                        showExerciseInfo = true
-                    }) {
-                        Label("Exercise Info", systemImage: "info.circle")
-                    }
-                }
-                
-                Button(action: {
-                    showReadinessSheet = true
-                }) {
-                    Label("Start Workout", systemImage: "play.circle")
-                }
-
-                Button(action: {
-                    showQuickWorkoutSheet = true
-                }) {
-                    Label("Quick Workout", systemImage: "bolt")
-                }
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-                    .frame(width: 44, height: 44)
-            }
-        }
-        .padding(.horizontal, AppTheme.Spacing.md)
-        .padding(.top, AppTheme.Spacing.xs)
-    }
-    
     private var loadingState: some View {
         VStack(spacing: AppTheme.Spacing.xxl) {
             ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.warmAccent))
+                .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.primaryText))
                 .scaleEffect(1.2)
             
             Text("Preparing your workout...")
-                .font(.system(size: 16, weight: .medium, design: .rounded))
+                .font(AppTheme.Typography.aiMessageMedium)
                 .foregroundColor(AppTheme.Colors.secondaryText)
         }
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
@@ -286,18 +225,25 @@ struct HomeView: View {
         VStack(spacing: AppTheme.Spacing.xxl) {
             Image(systemName: "figure.walk")
                 .font(.system(size: 48, weight: .light))
-                .foregroundColor(AppTheme.Colors.warmAccent)
+                .foregroundColor(AppTheme.Colors.primaryText)
 
             VStack(spacing: AppTheme.Spacing.sm) {
                 Text("Today’s session")
-                    .font(.system(size: 24, weight: .semibold, design: .rounded))
+                    .font(AppTheme.Typography.aiMessageLarge)
                     .foregroundColor(AppTheme.Colors.primaryText)
 
                 Text("Start a guided workout or request something quick.")
-                    .font(.system(size: 15, weight: .regular, design: .rounded))
+                    .font(AppTheme.Typography.aiMessageMedium)
                     .foregroundColor(AppTheme.Colors.secondaryText)
                     .multilineTextAlignment(.center)
                     .padding(.horizontal, AppTheme.Spacing.xxxxl)
+
+                if let todayIntent = todayIntentLine {
+                    Text(todayIntent)
+                        .font(AppTheme.Typography.caption)
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .padding(.top, AppTheme.Spacing.sm)
+                }
             }
 
             HStack(spacing: AppTheme.Spacing.md) {
@@ -305,13 +251,13 @@ struct HomeView: View {
                     showReadinessSheet = true
                 }) {
                     Text("Start")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
+                        .font(AppTheme.Typography.button)
+                        .foregroundColor(AppTheme.Colors.background)
                         .padding(.horizontal, AppTheme.Spacing.xl)
                         .padding(.vertical, AppTheme.Spacing.md)
                         .background(
                             Capsule()
-                                .fill(AppTheme.Colors.warmAccent)
+                                .fill(AppTheme.Colors.accent)
                         )
                 }
 
@@ -319,14 +265,13 @@ struct HomeView: View {
                     showQuickWorkoutSheet = true
                 }) {
                     Text("Quick workout")
-                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .font(AppTheme.Typography.button)
                         .foregroundColor(AppTheme.Colors.primaryText)
                         .padding(.horizontal, AppTheme.Spacing.xl)
                         .padding(.vertical, AppTheme.Spacing.md)
                         .background(
                             Capsule()
-                                .fill(Color.white)
-                                .shadow(color: AppTheme.Shadow.card, radius: 8, x: 0, y: 2)
+                                .fill(AppTheme.Colors.surface)
                         )
                 }
             }
@@ -345,12 +290,58 @@ struct HomeView: View {
                 get: { selectedCoachMode == "ringer" },
                 set: { selectedCoachMode = $0 ? "ringer" : "quiet" }
             )) {
-                Text("Coach mode: \(selectedCoachMode == \"ringer\" ? "Ringer" : "Quiet")")
-                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                Text("Coach mode: \(selectedCoachMode == "ringer" ? "Ringer" : "Quiet")")
+                    .font(AppTheme.Typography.caption)
                     .foregroundColor(AppTheme.Colors.secondaryText)
             }
-            .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.warmAccent))
+            .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.accent))
             .padding(.horizontal, AppTheme.Spacing.xl)
+
+            if let report = latestReport {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    Text("Weekly update")
+                        .font(AppTheme.Typography.cardTitle)
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                    Text("This week: \(report.sessionsCompleted) sessions")
+                        .font(AppTheme.Typography.caption)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                    Text(report.focus)
+                        .font(AppTheme.Typography.caption)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                }
+                .padding(AppTheme.Spacing.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
+                        .fill(AppTheme.Colors.surface)
+                )
+                .padding(.horizontal, AppTheme.Spacing.xl)
+            }
+
+            if !upcomingEvents.isEmpty {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    Text("Upcoming sessions")
+                        .font(AppTheme.Typography.cardTitle)
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                    ForEach(upcomingEvents.prefix(3)) { event in
+                        Text(upcomingLabel(for: event))
+                            .font(AppTheme.Typography.caption)
+                            .foregroundColor(AppTheme.Colors.secondaryText)
+                    }
+                    Button("View calendar") {
+                        showCalendarSheet = true
+                    }
+                    .buttonStyle(SecondaryCapsuleButton())
+                    .padding(.top, AppTheme.Spacing.sm)
+                }
+                .padding(AppTheme.Spacing.lg)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
+                        .fill(AppTheme.Colors.surface)
+                )
+                .padding(.horizontal, AppTheme.Spacing.xl)
+            }
         }
         .transition(.opacity.combined(with: .scale(scale: 0.95)))
     }
@@ -507,6 +498,35 @@ struct HomeView: View {
             print("📦 Resuming \(exercises.count) persisted exercises at index \(currentExerciseIndex)")
         }
     }
+
+    private func loadTrainerOverview() async {
+        do {
+            let start = Calendar.current.startOfDay(for: Date())
+            let end = Calendar.current.date(byAdding: .day, value: 7, to: start) ?? start
+            upcomingEvents = try await apiService.listCalendarEvents(start: start, end: end)
+            latestReport = try await apiService.listWeeklyReports().first
+        } catch {
+            // ignore
+        }
+    }
+
+    private var todayIntentLine: String? {
+        let today = Calendar.current.startOfDay(for: Date())
+        let todayEvent = upcomingEvents.first { Calendar.current.isDate($0.startAt, inSameDayAs: today) }
+        if let focus = todayEvent?.plannedSession?.intentJson["focus"]?.stringValue {
+            return "Today's focus: \(focus)"
+        }
+        if let title = todayEvent?.title {
+            return "Today's focus: \(title)"
+        }
+        return nil
+    }
+
+    private func upcomingLabel(for event: CalendarEvent) -> String {
+        let day = DateFormatter.localizedString(from: event.startAt, dateStyle: .short, timeStyle: .none)
+        let title = event.plannedSession?.intentJson["focus"]?.stringValue ?? event.title ?? "Workout"
+        return "\(day) • \(title)"
+    }
     
     private func convertToUIExercise(_ exercise: Exercise) -> UIExercise {
         // Create UIExercise from Exercise model (this is used for logging)
@@ -575,7 +595,7 @@ struct HomeView: View {
                 let workoutHistoryId = try await apiService.logCompletedExercise(exercise: exerciseModel)
                 
                 // Update state on MainActor
-                await updateStateAfterCompletion(
+                updateStateAfterCompletion(
                     exercise: exercise,
                     workoutHistoryId: workoutHistoryId,
                     exerciseModel: exerciseModel
@@ -643,7 +663,7 @@ struct HomeView: View {
                 try await apiService.deleteCompletedExercise(workoutHistoryId: workoutHistoryId)
                 
                 // Update state on MainActor
-                await updateStateAfterUncompletion(
+                updateStateAfterUncompletion(
                     exercise: exercise,
                     workoutHistoryId: workoutHistoryId
                 )
@@ -827,14 +847,13 @@ struct LocationInfo {
 struct QuickActionButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
+            .font(AppTheme.Typography.suggestedPrompt)
             .foregroundColor(AppTheme.Colors.primaryText)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
             .background(
                 Capsule()
-                    .fill(Color.white.opacity(configuration.isPressed ? 0.7 : 0.95))
-                    .shadow(color: AppTheme.Shadow.card.opacity(0.6), radius: 6, x: 0, y: 2)
+                    .fill(configuration.isPressed ? AppTheme.Colors.surfaceHover : AppTheme.Colors.surface)
             )
     }
 }
@@ -865,5 +884,5 @@ extension UIExercise: ExerciseDisplayable {
 }
 
 #Preview {
-    HomeView(isDrawerOpen: .constant(false))
+    HomeView()
 }

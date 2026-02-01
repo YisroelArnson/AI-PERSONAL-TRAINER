@@ -21,23 +21,19 @@ struct CurrentLocationPill: View {
                     .foregroundColor(AppTheme.Colors.primaryText.opacity(0.7))
                 
                 Text(currentLocationText)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 if userDataStore.currentLocation != nil {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 12))
-                        .foregroundColor(.green)
+                        .foregroundColor(AppTheme.Colors.primaryText)
                 }
             }
             .padding(.horizontal, AppTheme.Spacing.md)
             .padding(.vertical, AppTheme.Spacing.sm)
-            .background(AppTheme.Colors.cardBackground)
+            .background(AppTheme.Colors.surface)
             .cornerRadius(AppTheme.CornerRadius.large)
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
-                    .stroke(AppTheme.Colors.border, lineWidth: 1)
-            )
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -57,4 +53,3 @@ struct CurrentLocationPill: View {
         .padding()
         .background(AppTheme.Colors.background)
 }
-

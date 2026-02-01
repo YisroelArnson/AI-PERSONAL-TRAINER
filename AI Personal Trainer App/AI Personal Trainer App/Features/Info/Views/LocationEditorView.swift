@@ -85,14 +85,9 @@ struct LocationEditorView: View {
                             TextEditor(text: $description)
                                 .frame(minHeight: 100)
                                 .padding(AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                )
                                 .scrollContentBackground(.hidden)
-                                .colorScheme(.light)
                         }
                         
                         // GPS Location Section
@@ -120,12 +115,8 @@ struct LocationEditorView: View {
                                         .foregroundColor(AppTheme.Colors.primaryText)
                                         .padding(.horizontal, AppTheme.Spacing.md)
                                         .padding(.vertical, AppTheme.Spacing.sm)
-                                        .background(AppTheme.Colors.cardBackground)
+                                        .background(AppTheme.Colors.surface)
                                         .cornerRadius(AppTheme.CornerRadius.small)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                                .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                        )
                                     }
                                     .disabled(isRequestingLocation)
                                     
@@ -140,19 +131,15 @@ struct LocationEditorView: View {
                                         .foregroundColor(AppTheme.Colors.primaryText)
                                         .padding(.horizontal, AppTheme.Spacing.md)
                                         .padding(.vertical, AppTheme.Spacing.sm)
-                                        .background(AppTheme.Colors.cardBackground)
+                                        .background(AppTheme.Colors.surface)
                                         .cornerRadius(AppTheme.CornerRadius.small)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                                .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                        )
                                     }
                                 }
                                 
                                 if let geoData = geoData {
                                     HStack {
                                         Image(systemName: "checkmark.circle.fill")
-                                            .foregroundColor(.green)
+                                            .foregroundColor(AppTheme.Colors.primaryText)
                                         Text("Lat: \(geoData.latitude, specifier: "%.6f"), Lon: \(geoData.longitude, specifier: "%.6f")")
                                             .font(.caption)
                                             .foregroundColor(AppTheme.Colors.secondaryText)
@@ -161,11 +148,11 @@ struct LocationEditorView: View {
                                             self.geoData = nil
                                         }
                                         .font(.caption)
-                                        .foregroundColor(.red)
+                                        .foregroundColor(AppTheme.Colors.danger)
                                     }
                                     .padding(.horizontal, AppTheme.Spacing.md)
                                     .padding(.vertical, AppTheme.Spacing.sm)
-                                    .background(AppTheme.Colors.cardBackground.opacity(0.5))
+                                    .background(AppTheme.Colors.surface)
                                     .cornerRadius(AppTheme.CornerRadius.small)
                                 }
                             }
@@ -394,12 +381,8 @@ private struct CustomTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding(AppTheme.Spacing.md)
-            .background(AppTheme.Colors.cardBackground)
+            .background(AppTheme.Colors.surface)
             .cornerRadius(AppTheme.CornerRadius.medium)
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                    .stroke(AppTheme.Colors.border, lineWidth: 1)
-            )
     }
 }
 
@@ -407,4 +390,3 @@ private struct CustomTextFieldStyle: TextFieldStyle {
     LocationEditorView(location: nil)
         .environmentObject(UserDataStore.shared)
 }
-

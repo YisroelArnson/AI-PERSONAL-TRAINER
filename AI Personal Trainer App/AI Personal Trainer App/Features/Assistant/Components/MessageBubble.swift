@@ -55,29 +55,19 @@ struct MessageBubble: View {
     private var assistantAvatar: some View {
         ZStack {
             Circle()
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            AppTheme.Colors.warmAccentLight,
-                            AppTheme.Colors.warmAccent
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+                .fill(AppTheme.Colors.surface)
                 .frame(width: 28, height: 28)
             
             Image(systemName: "waveform")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundColor(.white)
+                .foregroundColor(AppTheme.Colors.primaryText)
         }
-        .shadow(color: AppTheme.Shadow.orb.opacity(0.5), radius: 4, x: 0, y: 2)
     }
     
     private var messageContent: some View {
         Text(message.content)
-            .font(.system(size: 15, weight: .regular, design: .rounded))
-            .foregroundColor(isUser ? .white : AppTheme.Colors.primaryText)
+            .font(AppTheme.Typography.aiMessageMedium)
+            .foregroundColor(isUser ? AppTheme.Colors.background : AppTheme.Colors.primaryText)
             .padding(.horizontal, AppTheme.Spacing.lg)
             .padding(.vertical, AppTheme.Spacing.md)
             .background(messageBackground)
@@ -87,32 +77,11 @@ struct MessageBubble: View {
     @ViewBuilder
     private var messageBackground: some View {
         if isUser {
-            // User message - warm accent gradient
             RoundedRectangle(cornerRadius: 20)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            AppTheme.Colors.warmAccent,
-                            AppTheme.Colors.warmAccent.opacity(0.9)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .shadow(color: AppTheme.Colors.warmAccent.opacity(0.3), radius: 8, x: 0, y: 4)
+                .fill(AppTheme.Colors.accent)
         } else {
-            // Assistant message - glassmorphism
             RoundedRectangle(cornerRadius: 20)
-                .fill(Color.white.opacity(0.9))
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(.ultraThinMaterial)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(AppTheme.Colors.border, lineWidth: 0.5)
-                )
-                .shadow(color: AppTheme.Shadow.card, radius: 10, x: 0, y: 4)
+                .fill(AppTheme.Colors.surface)
         }
     }
 }

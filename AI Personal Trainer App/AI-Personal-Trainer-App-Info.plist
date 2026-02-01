@@ -15,6 +15,10 @@
         </array>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>This app needs access to your location to automatically detect your workout location and set it for you.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>This app uses the microphone to capture voice input during workouts and check-ins.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>This app uses on-device speech recognition to transcribe your voice commands.</string>
     <key>NSAppTransportSecurity</key>
     <dict>
         <key>NSAllowsLocalNetworking</key>

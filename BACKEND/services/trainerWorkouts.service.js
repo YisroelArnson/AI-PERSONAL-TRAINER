@@ -29,6 +29,37 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function startOfDay(date) {
+  const d = new Date(date);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date, days) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+async function findTodayWorkoutEvent(userId) {
+  const start = startOfDay(new Date());
+  const end = addDays(start, 1);
+  const { data, error } = await supabase
+    .from('trainer_calendar_events')
+    .select('id, linked_planned_session_id')
+    .eq('user_id', userId)
+    .eq('event_type', 'workout')
+    .eq('status', 'scheduled')
+    .gte('start_at', start.toISOString())
+    .lt('start_at', end.toISOString())
+    .order('start_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data || null;
+}
+
 async function getActiveSession(userId) {
   const { data, error } = await supabase
     .from('trainer_workout_sessions')
@@ -44,13 +75,20 @@ async function getActiveSession(userId) {
 }
 
 async function createSession(userId, metadata = {}) {
+  const todayEvent = await findTodayWorkoutEvent(userId);
   const { data, error } = await supabase
     .from('trainer_workout_sessions')
     .insert({
       user_id: userId,
       status: 'in_progress',
       coach_mode: metadata.coach_mode || 'quiet',
-      metadata
+      planned_session_id: todayEvent?.linked_planned_session_id || null,
+      calendar_event_id: todayEvent?.id || null,
+      metadata: {
+        ...metadata,
+        planned_session_id: todayEvent?.linked_planned_session_id || null,
+        calendar_event_id: todayEvent?.id || null
+      }
     })
     .select()
     .single();
@@ -267,6 +305,7 @@ function buildWorkoutPrompt(userData, constraints) {
   const timeAvailable = constraints?.time_available_min || null;
   const equipment = constraints?.equipment || [];
   const requestText = constraints?.request_text || null;
+  const plannedSession = constraints?.planned_session || null;
 
   return `You are an AI personal trainer. Create a safe, effective workout for today using the 4-type exercise system.
 
@@ -281,6 +320,7 @@ Session constraints:
 - pain: ${readiness.pain || 'none'}
 - equipment_override: ${equipment.length ? equipment.join(', ') : 'none'}
 - quick_request: ${requestText || 'none'}
+- planned_session_intent: ${plannedSession ? JSON.stringify(plannedSession) : 'none'}
 
 Return ONLY valid JSON with this shape:
 {
@@ -363,6 +403,7 @@ function normalizeWorkoutInstance(rawInstance, constraints = {}) {
     metadata: {
       intent: constraints.intent || 'planned',
       request_text: constraints.request_text || null,
+      planned_session: constraints.planned_session || null,
       generated_at: nowIso()
     }
   };

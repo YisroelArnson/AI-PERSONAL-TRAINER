@@ -60,8 +60,7 @@ struct ActivePreferencesSection: View {
             // Section Header
             HStack(alignment: .center) {
                 Text("Active Preferences")
-                    .font(.title2)
-                    .fontWeight(.bold)
+                    .font(AppTheme.Typography.screenTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 Spacer()
@@ -83,8 +82,7 @@ struct ActivePreferencesSection: View {
                         VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
                             // Type header
                             Text(type.capitalized.replacingOccurrences(of: "_", with: " "))
-                                .font(.headline)
-                                .fontWeight(.semibold)
+                                .font(AppTheme.Typography.label)
                                 .foregroundColor(AppTheme.Colors.secondaryText)
                                 .padding(.horizontal, AppTheme.Spacing.sm)
                             
@@ -114,14 +112,8 @@ struct ActivePreferencesSection: View {
             }
         }
         .padding(AppTheme.Spacing.xl)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.large)
-        .shadow(
-            color: AppTheme.Shadow.card,
-            radius: AppTheme.Shadow.cardRadius,
-            x: AppTheme.Shadow.cardOffset.width,
-            y: AppTheme.Shadow.cardOffset.height
-        )
         .alert("Error", isPresented: $showDeleteError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -172,19 +164,15 @@ private struct ActionButton: View {
                 
                 if let label = label {
                     Text(label)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(AppTheme.Typography.button)
                 }
             }
             .foregroundColor(AppTheme.Colors.primaryText)
             .padding(.horizontal, label != nil ? 12 : 0)
             .frame(height: 36)
             .frame(minWidth: label != nil ? nil : 36)
-            .background(AppTheme.Colors.cardBackground)
+            .background(AppTheme.Colors.surface)
             .cornerRadius(AppTheme.CornerRadius.small)
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                    .stroke(AppTheme.Colors.border, lineWidth: 1)
-            )
         }
     }
 }
@@ -209,17 +197,7 @@ private struct PreferenceCard: View {
     }
     
     var typeColor: Color {
-        switch preference.type.lowercased() {
-        case "injury": return .red
-        case "goal": return .blue
-        case "equipment": return .purple
-        case "intensity": return .orange
-        case "workout": return .green
-        case "time": return .cyan
-        case "muscle_group": return .indigo
-        case "recovery": return .mint
-        default: return .blue
-        }
+        AppTheme.Colors.primaryText
     }
     
     var body: some View {
@@ -229,24 +207,23 @@ private struct PreferenceCard: View {
                 .font(.system(size: 18))
                 .foregroundColor(typeColor)
                 .frame(width: 32, height: 32)
-                .background(typeColor.opacity(0.1))
+                .background(AppTheme.Colors.highlight)
                 .cornerRadius(AppTheme.CornerRadius.small)
             
             // Content
             VStack(alignment: .leading, spacing: 4) {
                 // Type Badge
                 Text(preference.type.capitalized.replacingOccurrences(of: "_", with: " "))
-                    .font(.caption)
-                    .fontWeight(.semibold)
+                    .font(AppTheme.Typography.label)
                     .foregroundColor(typeColor)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 2)
-                    .background(typeColor.opacity(0.1))
+                    .background(AppTheme.Colors.highlight)
                     .cornerRadius(AppTheme.CornerRadius.small)
                 
                 // Description
                 Text(preference.description)
-                    .font(.body)
+                    .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                 
                 // Expiration info
@@ -255,7 +232,7 @@ private struct PreferenceCard: View {
                         Image(systemName: "clock")
                             .font(.caption2)
                         Text("Expires: \(expireTime.formatted(date: .abbreviated, time: .shortened))")
-                            .font(.caption)
+                            .font(AppTheme.Typography.label)
                     }
                     .foregroundColor(AppTheme.Colors.secondaryText)
                 } else if preference.deleteAfterCall {
@@ -263,7 +240,7 @@ private struct PreferenceCard: View {
                         Image(systemName: "hourglass")
                             .font(.caption2)
                         Text("One-time use")
-                            .font(.caption)
+                            .font(AppTheme.Typography.label)
                     }
                     .foregroundColor(AppTheme.Colors.secondaryText)
                 }
@@ -272,7 +249,7 @@ private struct PreferenceCard: View {
             Spacer()
         }
         .padding(AppTheme.Spacing.md)
-        .background(AppTheme.Colors.background)
+        .background(AppTheme.Colors.surface)
         .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
         .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
     }
@@ -287,4 +264,3 @@ private struct PreferenceCard: View {
     .padding()
     .background(AppTheme.Colors.background)
 }
-

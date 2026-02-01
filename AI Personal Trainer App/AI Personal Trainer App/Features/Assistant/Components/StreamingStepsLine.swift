@@ -22,7 +22,7 @@ struct StreamingStepsLine: View {
 
             // Current step text with animation
             Text(displayText)
-                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .font(AppTheme.Typography.cardSubtitle)
                 .foregroundColor(AppTheme.Colors.secondaryText)
                 .lineLimit(1)
                 .animation(.easeInOut(duration: 0.2), value: displayText)
@@ -31,7 +31,7 @@ struct StreamingStepsLine: View {
         .padding(.horizontal, 10)
         .background(
             Capsule()
-                .fill(AppTheme.Colors.warmAccent.opacity(0.08))
+                .fill(AppTheme.Colors.highlight)
         )
         .onAppear {
             startAnimation()
@@ -47,7 +47,7 @@ struct StreamingStepsLine: View {
         HStack(spacing: 3) {
             ForEach(0..<3, id: \.self) { index in
                 Circle()
-                    .fill(AppTheme.Colors.warmAccent)
+                    .fill(AppTheme.Colors.primaryText)
                     .frame(width: 4, height: 4)
                     .scaleEffect(dotIndex == index ? 1.2 : 0.8)
                     .opacity(dotIndex == index ? 1.0 : 0.4)

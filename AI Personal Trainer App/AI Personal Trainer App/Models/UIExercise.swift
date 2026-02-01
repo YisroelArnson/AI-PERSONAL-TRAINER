@@ -1,7 +1,7 @@
 import Foundation
 
 /// UI exercise model using the 4-type system: reps, hold, duration, intervals
-struct UIExercise: Identifiable, Codable {
+struct UIExercise: Identifiable, Codable, Equatable {
     let id: UUID
     let exercise_name: String
     let type: String // exercise type: "reps", "hold", "duration", "intervals"

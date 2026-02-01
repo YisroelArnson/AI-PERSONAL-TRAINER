@@ -46,16 +46,12 @@ struct EquipmentInputView: View {
                     Image(systemName: "plus.circle.fill")
                     Text("Add Equipment")
                 }
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(AppTheme.Colors.primaryText)
+                .font(AppTheme.Typography.button)
+                .foregroundColor(AppTheme.Colors.background)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, AppTheme.Spacing.sm)
-                .background(AppTheme.Colors.cardBackground)
+                .background(AppTheme.Colors.accent)
                 .cornerRadius(AppTheme.CornerRadius.small)
-                .overlay(
-                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                )
             }
         }
         .sheet(isPresented: $showingAddEquipment) {
@@ -119,12 +115,8 @@ private struct EquipmentChip: View {
             }
         }
         .padding(AppTheme.Spacing.sm)
-        .background(AppTheme.Colors.cardBackground)
+        .background(AppTheme.Colors.surface)
         .cornerRadius(AppTheme.CornerRadius.small)
-        .overlay(
-            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                .stroke(AppTheme.Colors.border, lineWidth: 1)
-        )
         .contentShape(Rectangle())
         .onTapGesture {
             onTap()
@@ -132,13 +124,7 @@ private struct EquipmentChip: View {
     }
     
     private var typeColor: Color {
-        switch item.type {
-        case "free_weights": return .orange
-        case "machine": return .blue
-        case "cardio": return .red
-        case "bodyweight": return .green
-        default: return .gray
-        }
+        AppTheme.Colors.primaryText
     }
 }
 
@@ -251,7 +237,7 @@ struct EquipmentDetailView: View {
                                                 weights.remove(at: index)
                                             }) {
                                                 Image(systemName: "minus.circle.fill")
-                                                    .foregroundColor(.red)
+                                                    .foregroundColor(AppTheme.Colors.danger)
                                             }
                                         }
                                     }
@@ -296,12 +282,8 @@ struct EquipmentDetailView: View {
                             TextEditor(text: $notes)
                                 .frame(minHeight: 80)
                                 .padding(AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.cardBackground)
+                                .background(AppTheme.Colors.surface)
                                 .cornerRadius(AppTheme.CornerRadius.medium)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                                        .stroke(AppTheme.Colors.border, lineWidth: 1)
-                                )
                                 .scrollContentBackground(.hidden)
                         }
                     }
@@ -347,14 +329,13 @@ struct EquipmentDetailView: View {
     }
 }
 
-// MARK: - Voice Input View (Placeholder - implement with Speech framework)
+// MARK: - Voice Input View
 
 struct VoiceInputView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var transcription: String
     
-    @State private var isRecording = false
-    @State private var recognizedText = ""
+    @StateObject private var speechManager = SpeechManager()
     
     var body: some View {
         NavigationView {
@@ -362,22 +343,22 @@ struct VoiceInputView: View {
                 Text("Voice Input")
                     .font(.headline)
                 
-                Text(recognizedText.isEmpty ? "Tap to start recording" : recognizedText)
+                Text(speechManager.partialTranscript.isEmpty ? "Tap to start recording" : speechManager.partialTranscript)
                     .padding()
                     .frame(maxWidth: .infinity, minHeight: 100)
                     .background(AppTheme.Colors.cardBackground)
                     .cornerRadius(AppTheme.CornerRadius.medium)
                 
                 Button(action: {
-                    if isRecording {
+                    if speechManager.isListening {
                         stopRecording()
                     } else {
                         startRecording()
                     }
                 }) {
-                    Image(systemName: isRecording ? "stop.circle.fill" : "mic.circle.fill")
+                    Image(systemName: speechManager.isListening ? "stop.circle.fill" : "mic.circle.fill")
                         .font(.system(size: 60))
-                        .foregroundColor(isRecording ? .red : AppTheme.Colors.primaryText)
+                        .foregroundColor(speechManager.isListening ? AppTheme.Colors.primaryText : AppTheme.Colors.secondaryText)
                 }
             }
             .padding()
@@ -386,22 +367,31 @@ struct VoiceInputView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
-                        transcription = recognizedText
+                        let text = speechManager.finalTranscript.isEmpty ? speechManager.partialTranscript : speechManager.finalTranscript
+                        transcription = text
                         dismiss()
                     }
                 }
+            }
+            .alert("Speech Error", isPresented: Binding(get: { speechManager.errorMessage != nil }, set: { _ in speechManager.errorMessage = nil })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(speechManager.errorMessage ?? "Speech recognition failed.")
+            }
+            .onDisappear {
+                speechManager.stopListening()
             }
         }
     }
     
     private func startRecording() {
-        isRecording = true
-        // TODO: Implement speech recognition
-        recognizedText = "Voice input not yet implemented"
+        Task {
+            await speechManager.startListening()
+        }
     }
     
     private func stopRecording() {
-        isRecording = false
+        speechManager.stopListening()
     }
 }
 
@@ -411,16 +401,11 @@ private struct CustomTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .padding(AppTheme.Spacing.md)
-            .background(AppTheme.Colors.cardBackground)
+            .background(AppTheme.Colors.surface)
             .cornerRadius(AppTheme.CornerRadius.medium)
-            .overlay(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                    .stroke(AppTheme.Colors.border, lineWidth: 1)
-            )
     }
 }
 
 #Preview {
     EquipmentInputView(equipment: .constant([]))
 }
-

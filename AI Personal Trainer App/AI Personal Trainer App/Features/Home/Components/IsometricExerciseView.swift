@@ -48,20 +48,20 @@ struct IsometricSetCard: View {
     
     var body: some View {
         Button(action: onTap) {
-            HStack {
-                HStack(alignment: .firstTextBaseline, spacing: 3) {
-                    Text("Hold")
-                        .font(.system(size: 14, weight: .regular, design: .rounded))
-                        .foregroundColor(AppTheme.Colors.secondaryText)
-                    
-                    Text("\(holdSeconds)")
-                        .font(.system(size: 18, weight: .semibold, design: .rounded))
-                        .foregroundColor(isCompleted ? AppTheme.Colors.secondaryText : AppTheme.Colors.primaryText)
-                    
-                    Text("sec")
-                        .font(.system(size: 12, weight: .regular, design: .rounded))
-                        .foregroundColor(AppTheme.Colors.tertiaryText)
-                }
+                HStack {
+                    HStack(alignment: .firstTextBaseline, spacing: 3) {
+                        Text("Hold")
+                            .font(AppTheme.Typography.cardSubtitle)
+                            .foregroundColor(AppTheme.Colors.secondaryText)
+                        
+                        Text("\(holdSeconds)")
+                            .font(AppTheme.Typography.cardTitle)
+                            .foregroundColor(isCompleted ? AppTheme.Colors.secondaryText : AppTheme.Colors.primaryText)
+                        
+                        Text("sec")
+                            .font(AppTheme.Typography.label)
+                            .foregroundColor(AppTheme.Colors.tertiaryText)
+                    }
                 
                 Spacer()
             }
@@ -69,13 +69,7 @@ struct IsometricSetCard: View {
             .padding(.vertical, AppTheme.Spacing.lg)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                    .fill(isCompleted ? AppTheme.Colors.backgroundGradientEnd : Color.white)
-            )
-            .shadow(
-                color: isCompleted ? Color.clear : Color.black.opacity(0.06),
-                radius: isCompleted ? 0 : 8,
-                x: 0,
-                y: isCompleted ? 0 : 4
+                    .fill(isCompleted ? AppTheme.Colors.highlight : AppTheme.Colors.surface)
             )
         }
         .buttonStyle(.plain)

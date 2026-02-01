@@ -19,10 +19,10 @@ struct IntervalsExerciseView: View {
                 if let rounds = exercise.rounds {
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                         Text("rounds")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.tertiaryText)
                         Text("\(rounds)")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .font(AppTheme.Typography.statNumber)
                             .foregroundColor(AppTheme.Colors.primaryText)
                     }
                 }
@@ -30,10 +30,10 @@ struct IntervalsExerciseView: View {
                 if let duration = exercise.total_duration_min ?? exercise.duration_min {
                     VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
                         Text("total time")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .font(AppTheme.Typography.label)
                             .foregroundColor(AppTheme.Colors.tertiaryText)
                         Text("\(duration) min")
-                            .font(.system(size: 32, weight: .bold, design: .rounded))
+                            .font(AppTheme.Typography.statNumber)
                             .foregroundColor(AppTheme.Colors.primaryText)
                     }
                 }
@@ -45,7 +45,7 @@ struct IntervalsExerciseView: View {
             if let workSec = exercise.work_sec {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
                     Text("interval")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .font(AppTheme.Typography.label)
                         .foregroundColor(AppTheme.Colors.tertiaryText)
 
                     HStack(spacing: AppTheme.Spacing.sm) {
@@ -53,41 +53,41 @@ struct IntervalsExerciseView: View {
                         HStack(spacing: AppTheme.Spacing.sm) {
                             Image(systemName: "flame.fill")
                                 .font(.system(size: 12))
-                                .foregroundColor(AppTheme.Colors.warmAccent)
+                                .foregroundColor(AppTheme.Colors.primaryText)
                             Text("Work")
-                                .font(.system(size: 13, weight: .medium, design: .rounded))
+                                .font(AppTheme.Typography.cardSubtitle)
                                 .foregroundColor(AppTheme.Colors.primaryText)
                             Spacer()
                             Text("\(workSec)s")
-                                .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                .font(AppTheme.Typography.caption)
                                 .foregroundColor(AppTheme.Colors.primaryText)
                         }
                         .padding(.horizontal, AppTheme.Spacing.md)
                         .padding(.vertical, AppTheme.Spacing.sm)
-                        .background(
-                            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                .fill(AppTheme.Colors.warmAccent.opacity(0.1))
-                        )
+                            .background(
+                                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
+                                    .fill(AppTheme.Colors.highlight)
+                            )
 
                         // Rest
                         if let restSec = exercise.rest_seconds {
                             HStack(spacing: AppTheme.Spacing.sm) {
                                 Image(systemName: "pause.circle.fill")
                                     .font(.system(size: 12))
-                                    .foregroundColor(AppTheme.Colors.accentSecondary)
+                                    .foregroundColor(AppTheme.Colors.secondaryText)
                                 Text("Rest")
-                                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                                    .font(AppTheme.Typography.cardSubtitle)
                                     .foregroundColor(AppTheme.Colors.primaryText)
                                 Spacer()
                                 Text("\(restSec)s")
-                                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                                    .font(AppTheme.Typography.caption)
                                     .foregroundColor(AppTheme.Colors.primaryText)
                             }
                             .padding(.horizontal, AppTheme.Spacing.md)
                             .padding(.vertical, AppTheme.Spacing.sm)
                             .background(
                                 RoundedRectangle(cornerRadius: AppTheme.CornerRadius.small)
-                                    .fill(AppTheme.Colors.accentSecondary.opacity(0.1))
+                                    .fill(AppTheme.Colors.highlight)
                             )
                         }
                     }
