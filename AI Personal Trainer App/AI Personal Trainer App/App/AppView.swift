@@ -8,31 +8,47 @@
 import SwiftUI
 
 struct AppView: View {
-  @State var isAuthenticated = false
-  @StateObject private var userDataStore = UserDataStore.shared
+    @State var isAuthenticated = false
+    @StateObject private var userDataStore = UserDataStore.shared
+    @StateObject private var onboardingStore = OnboardingStore.shared
 
-  var body: some View {
-    Group {
-      if isAuthenticated {
-        MainAppView()
-          .environmentObject(userDataStore)
-      } else {
-        AuthView()
-      }
-    }
-    .task {
-      for await state in supabase.auth.authStateChanges {
-        if [.initialSession, .signedIn, .signedOut].contains(state.event) {
-          isAuthenticated = state.session != nil
-
-          if isAuthenticated {
-            await userDataStore.loadAllUserData()
-            print("✅ User data loaded successfully on open from AppView")
-          }
+    var body: some View {
+        Group {
+            if !onboardingStore.state.hasStartedOnboarding {
+                // New user: show welcome screen
+                WelcomeView()
+            } else if !isAuthenticated {
+                // Started onboarding but not authenticated: show auth flow
+                OnboardingCoordinatorView()
+            } else if !onboardingStore.isOnboardingComplete {
+                // Authenticated but onboarding not complete: continue onboarding
+                OnboardingCoordinatorView()
+            } else {
+                // Fully onboarded: show main app with feature tour
+                MainAppView()
+                    .environmentObject(userDataStore)
+                    .withFeatureTour()
+            }
         }
-      }
+        .animation(.easeInOut(duration: 0.3), value: onboardingStore.state.hasStartedOnboarding)
+        .animation(.easeInOut(duration: 0.3), value: onboardingStore.isOnboardingComplete)
+        .animation(.easeInOut(duration: 0.3), value: isAuthenticated)
+        .task {
+            for await state in supabase.auth.authStateChanges {
+                if [.initialSession, .signedIn, .signedOut].contains(state.event) {
+                    isAuthenticated = state.session != nil
+
+                    if isAuthenticated {
+                        await userDataStore.loadAllUserData()
+                        print("✅ User data loaded successfully on open from AppView")
+
+                        // Sync onboarding state with backend if authenticated
+                        await onboardingStore.syncWithBackend()
+                    }
+                }
+            }
+        }
     }
-  }
 }
 
 // Main app view with minimal FAB navigation
