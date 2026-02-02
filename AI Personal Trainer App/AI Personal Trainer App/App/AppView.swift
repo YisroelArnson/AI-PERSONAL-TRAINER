@@ -45,11 +45,11 @@ struct MainAppView: View {
 
     // Navigation state
     @State private var currentPage: DrawerDestination = .home
-    @State private var isFabExpanded = false
+    @State private var showingMenuDropdown = false
+    @State private var showingPlusDropdown = false
 
     // Sheet states
     @State private var showingProfile = false
-    @State private var showingCustomWorkoutMenu = false
 
     // User info
     @State private var userEmail: String = ""
@@ -62,32 +62,63 @@ struct MainAppView: View {
             AssistantOverlayView()
                 .environment(\.assistantManager, assistantManager)
 
-            // Tap-to-close overlay must come BEFORE the FAB menu so menu buttons are on top
-            if isFabExpanded {
+            // Tap-to-close overlay for dropdowns
+            if showingMenuDropdown || showingPlusDropdown {
                 Color.black.opacity(0.001)
                     .ignoresSafeArea()
                     .onTapGesture {
                         withAnimation(AppTheme.Animation.gentle) {
-                            isFabExpanded = false
+                            showingMenuDropdown = false
+                            showingPlusDropdown = false
                         }
                     }
             }
 
-            if currentPage == .home {
-                // Home header: FAB menu only (plus button moved to bottom bar)
-                VStack {
-                    HStack(alignment: .top) {
-                        ExpandingFabMenu(isExpanded: $isFabExpanded, items: menuItems)
-                        Spacer()
+            // ThinTopBar with dropdown menus
+            VStack(spacing: 0) {
+                ThinTopBar(
+                    leftIcon: currentPage == .home ? "line.2.horizontal" : "chevron.left",
+                    leftAction: {
+                        if currentPage == .home {
+                            withAnimation(AppTheme.Animation.gentle) {
+                                showingPlusDropdown = false
+                                showingMenuDropdown.toggle()
+                            }
+                        } else {
+                            withAnimation(AppTheme.Animation.gentle) {
+                                currentPage = .home
+                            }
+                        }
+                    },
+                    centerText: currentPage == .home ? nil : pageTitle,
+                    rightIcon: currentPage == .home ? "plus" : nil,
+                    rightAction: currentPage == .home ? {
+                        withAnimation(AppTheme.Animation.gentle) {
+                            showingMenuDropdown = false
+                            showingPlusDropdown.toggle()
+                        }
+                    } : nil
+                )
+
+                // Dropdown menus (only on home)
+                if currentPage == .home {
+                    ZStack(alignment: .top) {
+                        // Menu dropdown (left side)
+                        if showingMenuDropdown {
+                            menuDropdown
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
+
+                        // Plus dropdown (right side)
+                        if showingPlusDropdown {
+                            plusDropdown
+                                .transition(.opacity.combined(with: .move(edge: .top)))
+                        }
                     }
-                    Spacer()
+                    .frame(maxWidth: .infinity, alignment: .top)
                 }
-            } else {
-                MinimalBackBar(title: pageTitle) {
-                    withAnimation(AppTheme.Animation.gentle) {
-                        currentPage = .home
-                    }
-                }
+
+                Spacer()
             }
         }
         .sheet(isPresented: $showingProfile) {
@@ -97,6 +128,91 @@ struct MainAppView: View {
             Task { await appCoordinator.startAppInitialization() }
             Task { await loadUserEmail() }
         }
+    }
+
+    // MARK: - Menu Dropdown
+
+    private var menuDropdown: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            dropdownButton(icon: "clock", label: "History") {
+                currentPage = .stats
+                showingMenuDropdown = false
+            }
+            dropdownButton(icon: "slider.horizontal.3", label: "Preferences") {
+                currentPage = .info
+                showingMenuDropdown = false
+            }
+            dropdownButton(icon: "person.text.rectangle", label: "Trainer") {
+                currentPage = .coach
+                showingMenuDropdown = false
+            }
+            dropdownButton(icon: "person", label: "Profile") {
+                showingProfile = true
+                showingMenuDropdown = false
+            }
+        }
+        .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
+                .fill(AppTheme.Colors.surface)
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, AppTheme.Spacing.xl)
+    }
+
+    // MARK: - Plus Dropdown
+
+    private var plusDropdown: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            dropdownButton(icon: "sparkles", label: "Generate custom workout") {
+                showingPlusDropdown = false
+                NotificationCenter.default.post(name: .showQuickWorkoutSheet, object: nil)
+            }
+            dropdownButton(icon: "calendar", label: "Schedule a workout") {
+                showingPlusDropdown = false
+                NotificationCenter.default.post(name: .showScheduleWorkoutSheet, object: nil)
+            }
+            dropdownButton(icon: "figure.run", label: "Start a run") {
+                showingPlusDropdown = false
+                NotificationCenter.default.post(name: .showStartRunSheet, object: nil)
+            }
+        }
+        .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
+                .fill(AppTheme.Colors.surface)
+        )
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .padding(.horizontal, AppTheme.Spacing.xl)
+    }
+
+    // MARK: - Dropdown Button
+
+    private func dropdownButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: {
+            withAnimation(AppTheme.Animation.gentle) {
+                action()
+            }
+        }) {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+                    .frame(width: 24)
+                Text(label)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                Spacer()
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                    .fill(Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Current Page View
@@ -121,23 +237,6 @@ struct MainAppView: View {
         case .profile:
             EmptyView()
         }
-    }
-
-    private var menuItems: [FabMenuItem] {
-        [
-            FabMenuItem(icon: "clock") {
-                currentPage = .stats
-            },
-            FabMenuItem(icon: "slider.horizontal.3") {
-                currentPage = .info
-            },
-            FabMenuItem(icon: "person.text.rectangle") {
-                currentPage = .coach
-            },
-            FabMenuItem(icon: "person") {
-                showingProfile = true
-            }
-        ]
     }
 
     private var pageTitle: String {
