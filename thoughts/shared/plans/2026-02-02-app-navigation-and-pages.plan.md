@@ -308,24 +308,24 @@ Menu (≡) opens:
 - Sorted by date (newest first)
 - Tap to view full summary
 
-#### 4.7 Coach Memory (includes user preferences)
+#### 4.7 Coach Memory (FUTURE - placeholder in UI)
 **File:** `CoachMemoryView.swift` (new)
-- List of all memory items the coach knows about the user
-- Category grouping:
-  - **Preferences** - Equipment, exercise likes/dislikes, coaching style
-  - **Constraints** - Injuries, limitations, schedule constraints
-  - **Capabilities** - Self-reported abilities, fitness level
-  - **Locations** - Saved training locations with equipment
-  - **Notes** - Other relevant info
-- "Forget this" action per item
-- "Add note" for user-initiated memories
-- "Edit" for location management
+**Status:** Placeholder for future implementation. Requires separate system design.
+
+**Intended purpose:**
+- View all memory items the coach knows about the user
+- Category grouping: Preferences, Constraints, Capabilities, Locations, Notes
+- Edit/delete capabilities
+- Location management
+
+**For now:** Show a simple placeholder screen that says "Coming soon" or displays basic info from intake.
+
+**Future work:** Requires dedicated plan for user memory system architecture.
 
 **Navigates to:**
 - Session Detail
 - Edit sheets for each artifact
 - Redo Intake/Assessment flows
-- Location Editor (for location items)
 
 ---
 
@@ -861,9 +861,7 @@ struct MainAppView: View {
 - [ ] Goals viewable and editable
 - [ ] Program viewable and editable
 - [ ] Session summaries list loads
-- [ ] Coach memory viewable (shows preferences, constraints, locations)
-- [ ] Can delete/forget memory items
-- [ ] Can edit locations from Coach Memory
+- [ ] Coach memory placeholder screen displays (full implementation future)
 
 ### Settings
 - [ ] Account info displays
@@ -915,3 +913,7 @@ This plan depends on:
   - Updated Coach Memory section to show category groupings
   - Renamed Settings > "Preferences" to "App Settings" (unit/voice/coach mode)
   - Updated file structure and verification checklist
+- 2026-02-02: Coach Memory marked as placeholder:
+  - Requires separate system design for user memory architecture
+  - UI will show placeholder screen for now
+  - Full implementation deferred to future work
