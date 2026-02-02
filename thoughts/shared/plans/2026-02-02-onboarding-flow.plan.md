@@ -124,8 +124,21 @@ Feature Tour (tooltips on first launch)
 ### 4. Intake
 - **Visual:** Orb + conversational interface
 - **Transition:** Trainer says "Great! Let's get to know you..."
-- **Progress:** Topic-based indicator (Goals, Schedule, Equipment, Injuries, Preferences)
-- **No skip/dismiss:** Must complete
+- **Progress:** Topic-based indicator:
+  1. **Goals** - What they want to achieve
+  2. **Schedule** - Available days/times for training
+  3. **Equipment** - Home gym, commercial gym, bodyweight only, etc.
+  4. **Body Metrics** - Weight, height, body fat % (optional), body type
+  5. **Injuries** - Current limitations or past injuries to work around
+  6. **Preferences** - Exercise preferences, intensity comfort level
+- **Body Metrics Details:**
+  - Trainer asks conversationally: "Now let's talk about where you're starting from..."
+  - Weight: "What's your current weight?" (with unit preference)
+  - Height: "And your height?"
+  - Body fat %: "Do you know your body fat percentage? No worries if not - we can skip this or estimate later."
+  - Body type: Optional self-assessment or skip
+  - Sensitive handling: Conversational tone softens potentially sensitive questions
+- **No skip/dismiss:** Must complete all topics
 - **Exit:** Auto-advances to Assessment Prompt on completion
 - **Navigation:** Back button (with confirmation if mid-conversation)
 
@@ -361,6 +374,12 @@ struct OnboardingState: Codable {
     // User info
     var userName: String?               // Collected during goal loading
 
+    // Body metrics (collected during intake)
+    var weightKg: Double?               // Weight in kg (converted from user's preferred unit)
+    var heightCm: Double?               // Height in cm (converted from user's preferred unit)
+    var bodyFatPercentage: Double?      // Optional - user may not know
+    var bodyType: String?               // Optional self-assessment
+
     // Permissions
     var microphoneEnabled: Bool?        // nil = not asked, true/false = response
     var notificationsEnabled: Bool?     // nil = not asked, true/false = response
@@ -385,6 +404,10 @@ struct OnboardingState: Codable {
             pendingEmail: nil,
             agreedToTermsAt: nil,
             userName: nil,
+            weightKg: nil,
+            heightCm: nil,
+            bodyFatPercentage: nil,
+            bodyType: nil,
             microphoneEnabled: nil,
             notificationsEnabled: nil,
             notificationsSkippedAt: nil,
@@ -698,3 +721,8 @@ From existing codebase:
   - Added feature tour tooltips for HomeView
   - Added back navigation to all applicable screens
   - Updated phases, file structure, and verification checklist
+- 2026-02-02: Added Body Metrics to intake flow:
+  - New intake topic: Body Metrics (weight, height, body fat %, body type)
+  - Conversational collection with sensitive handling
+  - Body fat % and body type are optional
+  - Added body metrics fields to OnboardingState model
