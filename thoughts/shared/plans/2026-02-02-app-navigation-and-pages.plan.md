@@ -98,28 +98,106 @@ Menu (≡) opens:
 
 ### 1. Home (Daily Command Center)
 
-**Purpose:** The user's daily starting point. Shows today's workout and quick access to common actions.
+**Purpose:** The user's daily starting point. Clean, focused design with minimal distractions.
 
 **File:** `HomeView.swift` (existing, to be updated)
 
+**Layout:**
+```
+┌─────────────────────────────────────┐
+│ [≡]                            [+]  │  ← Top bar
+├─────────────────────────────────────┤
+│                                     │
+│   [Stats text blurb]                │  ← Top section
+│   "3 workouts this week"            │
+│   "5 day streak"                    │
+│                                     │
+│                                     │
+│                                     │
+│         [Main content area]         │  ← Middle (mostly empty/clean)
+│                                     │
+│                                     │
+│                                     │
+├─────────────────────────────────────┤
+│                                     │
+│  [AI Orb]  [Today's Workout Button] │  ← Bottom section
+│     🔵     ┌─────────────────────┐  │
+│            │ Upper Body Strength │  │
+│            │ ~45 min • Start →   │  │
+│            └─────────────────────┘  │
+└─────────────────────────────────────┘
+```
+
 **Content:**
-- Today's workout card (from `PlannedSession`)
-  - Workout type/focus
-  - Estimated duration
-  - "Start Workout" CTA
-- Quick stats (this week: sessions completed, streak)
-- Calendar snippet (next 3-5 days)
-- Coach chat entry point (small pill/button)
-- Quick actions:
-  - "Quick Workout" (off-plan)
-  - "I have pain" (safety)
-  - "Log Measurement"
+- **Top bar:**
+  - Left: Hamburger menu (≡) → Opens side menu
+  - Right: Plus button (+) → Quick actions (Quick Workout, Log Measurement, etc.)
+- **Stats blurb (top):**
+  - Simple text showing key stats
+  - Workouts this week, streak, or motivational message
+- **Bottom section:**
+  - AI Orb (tap to chat with coach)
+  - Today's Workout button (tap to start workout)
+    - Shows workout type/focus
+    - Estimated duration
+    - "Start" action
 
 **Navigates to:**
-- Workout Runner (Start Workout)
-- Calendar (tap calendar snippet)
-- Coach Chat (tap chat entry)
-- Quick Workout Sheet
+- Side Menu (hamburger tap)
+- Quick Actions Sheet (+ tap)
+- Coach Chat (orb tap)
+- Workout Runner (workout button tap)
+
+---
+
+### 1a. Side Menu (Navigation Drawer)
+
+**Purpose:** Access all main app sections.
+
+**File:** `MenuView.swift` (new)
+
+**Layout:**
+```
+┌─────────────────────────────────────┐
+│  [User Name]                        │
+│  [Email]                            │
+│  ─────────────────────────────────  │
+│                                     │
+│  🏠  Home                           │
+│  📅  Calendar                       │
+│  📊  Progress                       │
+│  📁  My Data                        │
+│  ⚙️  Settings                       │
+│                                     │
+│  ─────────────────────────────────  │
+│  ❓  Help & Support                 │
+│                                     │
+└─────────────────────────────────────┘
+```
+
+**Behavior:**
+- Slides in from left
+- Tap outside or swipe to dismiss
+- Current page highlighted
+
+---
+
+### 1b. Quick Actions Sheet (+ Button)
+
+**Purpose:** Quick access to common actions without leaving Home.
+
+**File:** `QuickActionsSheet.swift` (new)
+
+**Content:**
+- Quick Workout (off-plan workout request)
+- Log Measurement (weight, etc.)
+- Schedule Rest Day
+- Report Pain/Injury
+
+**Behavior:**
+- Bottom sheet that slides up
+- Tap action to open relevant flow
+- Tap outside to dismiss
 
 ---
 
@@ -562,8 +640,8 @@ struct MainAppView: View {
 | `SessionDetailView.swift` | `/Features/Workout/` | View completed workout |
 | `WorkoutRunnerView.swift` | `/Features/Workout/` | Full workout execution |
 | `CoachChatView.swift` | `/Features/Coach/` | Full chat interface |
-| `CoachChatButton.swift` | `/Features/Coach/` | Floating chat button |
 | `MenuView.swift` | `/Features/Navigation/` | Side menu |
+| `QuickActionsSheet.swift` | `/Features/Home/` | Quick actions from + button |
 
 ### Components
 
@@ -829,3 +907,9 @@ This plan depends on:
 ## Change Log
 
 - 2026-02-02: Initial plan created
+- 2026-02-02: Updated Home page design:
+  - Simplified layout: stats blurb at top, clean middle, bottom CTA
+  - AI Orb + Today's Workout button at bottom
+  - Top bar: hamburger menu (left), + button (right)
+  - Added Side Menu (1a) and Quick Actions Sheet (1b) sections
+  - Added QuickActionsSheet.swift to file list
