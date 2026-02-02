@@ -44,7 +44,7 @@ struct HomeView: View {
                 VStack(spacing: 0) {
                     // Spacer to push content below ThinTopBar
                     Spacer()
-                        .frame(height: 56)
+                        .frame(height: 60)
 
                     // AI Message Area (Flex: 1)
                     aiMessageArea

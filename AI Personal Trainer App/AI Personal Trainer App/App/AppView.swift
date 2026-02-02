@@ -45,8 +45,6 @@ struct MainAppView: View {
 
     // Navigation state
     @State private var currentPage: DrawerDestination = .home
-    @State private var showingMenuDropdown = false
-    @State private var showingPlusDropdown = false
 
     // Sheet states
     @State private var showingProfile = false
@@ -55,69 +53,16 @@ struct MainAppView: View {
     @State private var userEmail: String = ""
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             currentPageView
                 .ignoresSafeArea(.keyboard)
 
             AssistantOverlayView()
                 .environment(\.assistantManager, assistantManager)
 
-            // Tap-to-close overlay for dropdowns
-            if showingMenuDropdown || showingPlusDropdown {
-                Color.black.opacity(0.001)
-                    .ignoresSafeArea()
-                    .onTapGesture {
-                        withAnimation(AppTheme.Animation.gentle) {
-                            showingMenuDropdown = false
-                            showingPlusDropdown = false
-                        }
-                    }
-            }
-
-            // ThinTopBar with dropdown menus
+            // Top bar
             VStack(spacing: 0) {
-                ThinTopBar(
-                    leftIcon: currentPage == .home ? "line.2.horizontal" : "chevron.left",
-                    leftAction: {
-                        if currentPage == .home {
-                            withAnimation(AppTheme.Animation.gentle) {
-                                showingPlusDropdown = false
-                                showingMenuDropdown.toggle()
-                            }
-                        } else {
-                            withAnimation(AppTheme.Animation.gentle) {
-                                currentPage = .home
-                            }
-                        }
-                    },
-                    centerText: currentPage == .home ? nil : pageTitle,
-                    rightIcon: currentPage == .home ? "plus" : nil,
-                    rightAction: currentPage == .home ? {
-                        withAnimation(AppTheme.Animation.gentle) {
-                            showingMenuDropdown = false
-                            showingPlusDropdown.toggle()
-                        }
-                    } : nil
-                )
-
-                // Dropdown menus (only on home)
-                if currentPage == .home {
-                    ZStack(alignment: .top) {
-                        // Menu dropdown (left side)
-                        if showingMenuDropdown {
-                            menuDropdown
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                        }
-
-                        // Plus dropdown (right side)
-                        if showingPlusDropdown {
-                            plusDropdown
-                                .transition(.opacity.combined(with: .move(edge: .top)))
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .top)
-                }
-
+                homeTopBar
                 Spacer()
             }
         }
@@ -130,89 +75,91 @@ struct MainAppView: View {
         }
     }
 
-    // MARK: - Menu Dropdown
+    // MARK: - Home Top Bar
 
-    private var menuDropdown: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            dropdownButton(icon: "clock", label: "History") {
-                currentPage = .stats
-                showingMenuDropdown = false
+    private var homeTopBar: some View {
+        HStack {
+            // Left button - Menu or Back
+            if currentPage == .home {
+                Menu {
+                    Button(action: { currentPage = .stats }) {
+                        Label("History", systemImage: "clock")
+                    }
+                    Button(action: { currentPage = .info }) {
+                        Label("Preferences", systemImage: "slider.horizontal.3")
+                    }
+                    Button(action: { currentPage = .coach }) {
+                        Label("Trainer", systemImage: "person.text.rectangle")
+                    }
+                    Button(action: { showingProfile = true }) {
+                        Label("Profile", systemImage: "person")
+                    }
+                } label: {
+                    TwoLineMenuIcon()
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+            } else {
+                Button(action: {
+                    withAnimation(AppTheme.Animation.gentle) {
+                        currentPage = .home
+                    }
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
-            dropdownButton(icon: "slider.horizontal.3", label: "Preferences") {
-                currentPage = .info
-                showingMenuDropdown = false
-            }
-            dropdownButton(icon: "person.text.rectangle", label: "Trainer") {
-                currentPage = .coach
-                showingMenuDropdown = false
-            }
-            dropdownButton(icon: "person", label: "Profile") {
-                showingProfile = true
-                showingMenuDropdown = false
-            }
-        }
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
-                .fill(AppTheme.Colors.surface)
-        )
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, AppTheme.Spacing.xl)
-    }
 
-    // MARK: - Plus Dropdown
+            Spacer()
 
-    private var plusDropdown: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            dropdownButton(icon: "sparkles", label: "Generate custom workout") {
-                showingPlusDropdown = false
-                NotificationCenter.default.post(name: .showQuickWorkoutSheet, object: nil)
-            }
-            dropdownButton(icon: "calendar", label: "Schedule a workout") {
-                showingPlusDropdown = false
-                NotificationCenter.default.post(name: .showScheduleWorkoutSheet, object: nil)
-            }
-            dropdownButton(icon: "figure.run", label: "Start a run") {
-                showingPlusDropdown = false
-                NotificationCenter.default.post(name: .showStartRunSheet, object: nil)
-            }
-        }
-        .padding(6)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
-                .fill(AppTheme.Colors.surface)
-        )
-        .frame(maxWidth: .infinity, alignment: .trailing)
-        .padding(.horizontal, AppTheme.Spacing.xl)
-    }
-
-    // MARK: - Dropdown Button
-
-    private func dropdownButton(icon: String, label: String, action: @escaping () -> Void) -> some View {
-        Button(action: {
-            withAnimation(AppTheme.Animation.gentle) {
-                action()
-            }
-        }) {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: .regular))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-                    .frame(width: 24)
-                Text(label)
-                    .font(.system(size: 15, weight: .medium))
+            // Center text (non-home pages)
+            if currentPage != .home {
+                Text(pageTitle)
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundColor(AppTheme.Colors.primaryText)
-                Spacer()
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                    .fill(Color.clear)
-            )
-            .contentShape(Rectangle())
+
+            Spacer()
+
+            // Right button - Plus menu or spacer
+            if currentPage == .home {
+                Menu {
+                    Button(action: {
+                        NotificationCenter.default.post(name: .showQuickWorkoutSheet, object: nil)
+                    }) {
+                        Label("Generate custom workout", systemImage: "sparkles")
+                    }
+                    Button(action: {
+                        NotificationCenter.default.post(name: .showScheduleWorkoutSheet, object: nil)
+                    }) {
+                        Label("Schedule a workout", systemImage: "calendar")
+                    }
+                    Button(action: {
+                        NotificationCenter.default.post(name: .showStartRunSheet, object: nil)
+                    }) {
+                        Label("Start a run", systemImage: "figure.run")
+                    }
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+            } else {
+                Color.clear
+                    .frame(width: 44, height: 44)
+            }
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, AppTheme.Spacing.xl)
+        .padding(.top, 4)
+        .padding(.bottom, 12)
+        .frame(height: 60)
     }
 
     // MARK: - Current Page View
@@ -261,21 +208,6 @@ struct MainAppView: View {
         } catch {
             print("❌ Failed to load user email: \(error)")
             userEmail = ""
-        }
-    }
-}
-
-// MARK: - Two-Line Menu Icon
-
-struct TwoLineMenuIcon: View {
-    var body: some View {
-        VStack(spacing: 5) {
-            RoundedRectangle(cornerRadius: 1)
-                .fill(AppTheme.Colors.primaryText)
-                .frame(width: 18, height: 2)
-            RoundedRectangle(cornerRadius: 1)
-                .fill(AppTheme.Colors.primaryText)
-                .frame(width: 18, height: 2)
         }
     }
 }

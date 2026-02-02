@@ -42,6 +42,7 @@ struct WorkoutPill: View {
                         .font(AppTheme.Typography.pillText)
                         .foregroundColor(AppTheme.Colors.primaryText)
                         .fixedSize(horizontal: true, vertical: false)
+                        .frame(maxHeight: .infinity)
                         .offset(x: shouldScroll ? scrollOffset : 0)
                         .background(
                             GeometryReader { textGeometry in

@@ -67,11 +67,17 @@ struct ThinTopBar: View {
         HStack {
             // Left button
             Button(action: leftAction) {
-                Image(systemName: leftIcon)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+                Group {
+                    if leftIcon == "custom.menu.2lines" {
+                        TwoLineMenuIcon()
+                    } else {
+                        Image(systemName: leftIcon)
+                            .font(.system(size: 20, weight: .semibold))
+                    }
+                }
+                .foregroundColor(AppTheme.Colors.primaryText)
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -81,7 +87,7 @@ struct ThinTopBar: View {
             if let centerText = centerText {
                 Text(centerText)
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
+                    .foregroundColor(AppTheme.Colors.primaryText)
             }
 
             Spacer()
@@ -90,8 +96,8 @@ struct ThinTopBar: View {
             if let rightIcon = rightIcon, let rightAction = rightAction {
                 Button(action: rightAction) {
                     Image(systemName: rightIcon)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.secondaryText)
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
@@ -102,8 +108,22 @@ struct ThinTopBar: View {
             }
         }
         .padding(.horizontal, AppTheme.Spacing.xl)
-        .padding(.top, 12)
-        .frame(height: 56)
+        .padding(.top, 4)
+        .padding(.bottom, 12)
+        .frame(height: 60)
+    }
+}
+
+// MARK: - Two-Line Menu Icon
+
+struct TwoLineMenuIcon: View {
+    var body: some View {
+        VStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 1)
+                .frame(width: 22, height: 2)
+            RoundedRectangle(cornerRadius: 1)
+                .frame(width: 22, height: 2)
+        }
     }
 }
 
@@ -120,7 +140,7 @@ struct ThinTopBar: View {
 #Preview("Home Bar") {
     VStack {
         ThinTopBar(
-            leftIcon: "line.2.horizontal",
+            leftIcon: "custom.menu.2lines",
             leftAction: {},
             rightIcon: "plus",
             rightAction: {}
