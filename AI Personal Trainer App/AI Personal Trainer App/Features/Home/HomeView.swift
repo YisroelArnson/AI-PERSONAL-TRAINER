@@ -42,9 +42,9 @@ struct HomeView: View {
 
                 // Main content
                 VStack(spacing: 0) {
-                    // Spacer to push content below header
+                    // Spacer to push content below ThinTopBar
                     Spacer()
-                        .frame(height: 80)
+                        .frame(height: 56)
 
                     // AI Message Area (Flex: 1)
                     aiMessageArea
@@ -191,45 +191,9 @@ struct HomeView: View {
                 }
             )
 
-            // Plus button (menu for workout options)
-            plusMenuButton
-
             // Space for AI Orb (handled by AssistantOverlayView)
             Color.clear
                 .frame(width: 50, height: 50)
-        }
-    }
-
-    // MARK: - Plus Menu Button
-
-    private var plusMenuButton: some View {
-        Menu {
-            Button {
-                showQuickWorkoutSheet = true
-            } label: {
-                Label("Generate custom workout", systemImage: "sparkles")
-            }
-
-            Button {
-                showScheduleSheet = true
-            } label: {
-                Label("Schedule a workout", systemImage: "calendar")
-            }
-
-            Button {
-                showRunComingSoon = true
-            } label: {
-                Label("Start a run", systemImage: "figure.run")
-            }
-        } label: {
-            Circle()
-                .fill(AppTheme.Colors.surface)
-                .frame(width: 50, height: 50)
-                .overlay(
-                    Image(systemName: "plus")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(AppTheme.Colors.primaryText)
-                )
         }
     }
 
