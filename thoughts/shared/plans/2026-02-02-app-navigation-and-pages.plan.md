@@ -308,24 +308,24 @@ Menu (≡) opens:
 - Sorted by date (newest first)
 - Tap to view full summary
 
-#### 4.7 Coach Memory
+#### 4.7 Coach Memory (includes user preferences)
 **File:** `CoachMemoryView.swift` (new)
-- List of memory items (preferences, constraints, notes)
-- Category grouping (preferences, injuries, capabilities)
+- List of all memory items the coach knows about the user
+- Category grouping:
+  - **Preferences** - Equipment, exercise likes/dislikes, coaching style
+  - **Constraints** - Injuries, limitations, schedule constraints
+  - **Capabilities** - Self-reported abilities, fitness level
+  - **Locations** - Saved training locations with equipment
+  - **Notes** - Other relevant info
 - "Forget this" action per item
 - "Add note" for user-initiated memories
-
-#### 4.8 Preferences (moved from Info)
-**File:** `PreferencesView.swift` (consolidate from `InfoView.swift`)
-- Equipment preferences
-- Exercise likes/dislikes
-- Coaching style preference
-- Locations management
+- "Edit" for location management
 
 **Navigates to:**
 - Session Detail
 - Edit sheets for each artifact
 - Redo Intake/Assessment flows
+- Location Editor (for location items)
 
 ---
 
@@ -341,7 +341,7 @@ Menu (≡) opens:
 - Email display
 - Sign out
 
-#### Preferences
+#### App Settings
 - Units (weight: kg/lb, distance: km/mi, height: cm/ft)
 - Coach mode (Quiet/Ringer) - default for workouts
 - Voice settings (enable/disable, language)
@@ -498,14 +498,12 @@ App Launch
             │   │   └── → Edit Program (sheet/voice)
             │   ├── Session Summaries
             │   │   └── → Session Detail
-            │   ├── Coach Memory
-            │   │   └── → Edit/Delete items
-            │   └── Preferences
-            │       └── → Location Editor, Equipment, etc.
+            │   └── Coach Memory
+            │       └── → Edit/Delete items, Location Editor
             │
             └── Settings
                 ├── Account
-                ├── Preferences (units, voice, coach mode)
+                ├── App Settings (units, voice, coach mode)
                 ├── Notifications
                 ├── Privacy & Data
                 ├── Help & Support
@@ -634,8 +632,7 @@ struct MainAppView: View {
 | `GoalsView.swift` | `/Features/MyData/` | View/edit goal contract |
 | `ProgramView.swift` | `/Features/MyData/` | View/edit program |
 | `SessionSummariesListView.swift` | `/Features/MyData/` | List all session summaries |
-| `CoachMemoryView.swift` | `/Features/MyData/` | View/edit coach memory |
-| `PreferencesView.swift` | `/Features/MyData/` | Equipment, locations, etc. |
+| `CoachMemoryView.swift` | `/Features/MyData/` | View/edit coach memory (includes preferences, locations) |
 | `SettingsView.swift` | `/Features/Settings/` | App settings (rename from ProfileView) |
 | `SessionDetailView.swift` | `/Features/Workout/` | View completed workout |
 | `WorkoutRunnerView.swift` | `/Features/Workout/` | Full workout execution |
@@ -675,7 +672,7 @@ struct MainAppView: View {
 | `HomeView.swift` | Simplify to command center (extract workout runner) |
 | `StatsView.swift` | Rename to `ProgressView.swift`, restructure |
 | `ProfileView.swift` | Rename to `SettingsView.swift`, simplify |
-| `InfoView.swift` | Migrate to `PreferencesView.swift` under My Data |
+| `InfoView.swift` | Remove (preferences now in Coach Memory via user memory system) |
 | `TrainerJourneyView.swift` | Migrate to `MyDataView.swift` |
 | `TrainerDataHubView.swift` | Split into My Data sub-views |
 
@@ -785,8 +782,7 @@ struct MainAppView: View {
 │   ├── GoalsView.swift
 │   ├── ProgramView.swift
 │   ├── SessionSummariesListView.swift
-│   ├── CoachMemoryView.swift
-│   └── PreferencesView.swift
+│   └── CoachMemoryView.swift
 │
 ├── Settings/
 │   └── SettingsView.swift
@@ -865,9 +861,9 @@ struct MainAppView: View {
 - [ ] Goals viewable and editable
 - [ ] Program viewable and editable
 - [ ] Session summaries list loads
-- [ ] Coach memory viewable
-- [ ] Can delete memory items
-- [ ] Preferences editable
+- [ ] Coach memory viewable (shows preferences, constraints, locations)
+- [ ] Can delete/forget memory items
+- [ ] Can edit locations from Coach Memory
 
 ### Settings
 - [ ] Account info displays
@@ -913,3 +909,9 @@ This plan depends on:
   - Top bar: hamburger menu (left), + button (right)
   - Added Side Menu (1a) and Quick Actions Sheet (1b) sections
   - Added QuickActionsSheet.swift to file list
+- 2026-02-02: Removed Preferences, replaced with User Memory:
+  - Removed PreferencesView.swift (no longer needed)
+  - Coach Memory now includes all user preferences, constraints, locations
+  - Updated Coach Memory section to show category groupings
+  - Renamed Settings > "Preferences" to "App Settings" (unit/voice/coach mode)
+  - Updated file structure and verification checklist
