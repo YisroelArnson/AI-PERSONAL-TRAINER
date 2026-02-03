@@ -34,7 +34,7 @@ struct IntakeChecklistItem: Codable, Identifiable {
     let note: String?
 }
 
-struct IntakeProgress: Codable {
+struct IntakeProgress: Codable, Equatable {
     let requiredDone: Int
     let requiredTotal: Int
     let topics: [IntakeTopicProgress]
@@ -46,7 +46,7 @@ struct IntakeProgress: Codable {
     }
 }
 
-struct IntakeTopicProgress: Codable {
+struct IntakeTopicProgress: Codable, Equatable {
     let topic: String
     let completed: Int
     let total: Int

@@ -36,14 +36,15 @@ struct OnboardingAssessmentView: View {
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 OnboardingBackButton(
+                    action: {
+                        Task {
+                            await onboardingStore.goToPreviousPhase()
+                        }
+                    },
                     requiresConfirmation: true,
                     confirmationTitle: "Leave Assessment?",
                     confirmationMessage: "Your progress will be lost and you'll need to start over."
-                ) {
-                    Task {
-                        await onboardingStore.goToPreviousPhase()
-                    }
-                }
+                )
             }
         }
         .onAppear {

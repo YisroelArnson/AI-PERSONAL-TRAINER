@@ -26,7 +26,31 @@ struct OnboardingCoordinatorView: View {
             MicrophonePermissionView()
 
         case .intake:
-            OnboardingIntakeView()
+            IntakeView(configuration: IntakeViewConfiguration(
+                context: .onboarding,
+                onComplete: {
+                    await OnboardingStore.shared.completeIntake()
+                },
+                isMicrophoneEnabled: onboardingStore.state.microphoneEnabled ?? false,
+                sessionIdCallback: { sessionId in
+                    OnboardingStore.shared.setIntakeSessionId(sessionId)
+                }
+            ))
+            .navigationBarBackButtonHidden(true)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    OnboardingBackButton(
+                        action: {
+                            Task {
+                                await OnboardingStore.shared.goToPreviousPhase()
+                            }
+                        },
+                        requiresConfirmation: true,
+                        confirmationTitle: "Leave Intake?",
+                        confirmationMessage: "Your conversation progress will be saved."
+                    )
+                }
+            }
 
         case .assessmentPrompt:
             AssessmentPromptView()
