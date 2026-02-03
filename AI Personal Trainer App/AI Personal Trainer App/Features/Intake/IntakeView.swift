@@ -94,7 +94,7 @@ struct IntakeView: View {
                     .padding(.top, configuration.context == .standalone ? 8 : 16)
 
                 // MARK: - Fixed AI Orb
-                AIOrb(size: 80, isLoading: intakeStore.isLoading)
+                AIOrb(size: 80, isLoading: intakeStore.isLoading || intakeStore.isConfirming)
                     .padding(.top, 20)
                     .padding(.bottom, 12)
 

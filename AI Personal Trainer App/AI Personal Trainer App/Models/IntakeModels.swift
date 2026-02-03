@@ -131,6 +131,7 @@ struct IntakeStreamData: Decodable {
     let updates: [IntakeChecklistUpdate]?
     let items: [IntakeChecklistItem]?
     let progress: IntakeProgress?
+    let complete: Bool?
 }
 
 struct IntakeChecklistUpdate: Decodable {

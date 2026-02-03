@@ -52,6 +52,10 @@ async function submitAnswer(req, res) {
     if (result.safety?.triggered) {
       res.write(`data: ${JSON.stringify({ type: 'safety_flag', data: result.safety })}\n\n`);
     }
+    // Signal conversation completion to frontend
+    if (result.conversation_complete) {
+      res.write(`data: ${JSON.stringify({ type: 'conversation_complete', data: { complete: true } })}\n\n`);
+    }
     res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
     res.end();
   } catch (error) {

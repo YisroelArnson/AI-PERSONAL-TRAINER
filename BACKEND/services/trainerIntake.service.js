@@ -11,6 +11,9 @@ const supabase = createClient(
 
 const DEFAULT_MODEL = process.env.PRIMARY_MODEL || 'claude-haiku-4-5';
 
+// Maximum questions to ask before forcing completion (safety net)
+const MAX_QUESTIONS = 20;
+
 const TOPICS = {
   goals: 'Goals',
   history: 'History',
@@ -246,9 +249,35 @@ function extractJson(text) {
   }
 }
 
-async function generateNextQuestion({ checklist, transcript }) {
+async function generateNextQuestion({ checklist, transcript, questionCount = 0 }) {
   const missing = checklist.filter(item => item.status === 'unchecked');
   const requiredMissing = missing.filter(item => item.required);
+  const allRequiredComplete = requiredMissing.length === 0;
+
+  // If all required items are complete, don't generate another question
+  if (allRequiredComplete) {
+    return {
+      next_question: "Great, I have everything I need to create your personalized training plan!",
+      current_topic: TOPICS.preferences,
+      checklist_updates: [],
+      safety_flag: { triggered: false, message: '' },
+      presentation: { style: 'focus_prompt', animate: 'word_by_word', replace_canvas: true },
+      conversation_complete: true
+    };
+  }
+
+  // Safety net: if we've asked too many questions, force completion
+  if (questionCount >= MAX_QUESTIONS) {
+    return {
+      next_question: "Thanks for sharing all that information! I have what I need to get started.",
+      current_topic: TOPICS.preferences,
+      checklist_updates: requiredMissing.map(item => ({ item_id: item.id, status: 'skipped', note: 'Max questions reached' })),
+      safety_flag: { triggered: false, message: '' },
+      presentation: { style: 'focus_prompt', animate: 'word_by_word', replace_canvas: true },
+      conversation_complete: true
+    };
+  }
+
   const transcriptText = transcript
     .map(event => {
       const role = event.event_type === 'assistant_message' ? 'Coach' : 'User';
@@ -256,18 +285,42 @@ async function generateNextQuestion({ checklist, transcript }) {
     })
     .join('\n');
 
-  const prompt = `You are a personal trainer conducting an intake interview.\n\nChecklist items (unchecked first):\n${missing.map(item => `- ${item.id}: ${item.label} [topic: ${item.topic}]`).join('\n')}\n\nRequired still missing: ${requiredMissing.map(item => item.id).join(', ') || 'none'}\n\nConversation so far:\n${transcriptText}\n\nReturn ONLY JSON with this shape:\n{\n  "next_question": "string",
+  const prompt = `You are a personal trainer conducting an intake interview.
+
+Checklist items still needed:
+${missing.map(item => `- ${item.id}: ${item.label} [topic: ${item.topic}]${item.required ? ' (REQUIRED)' : ' (optional)'}`).join('\n')}
+
+Required items still missing: ${requiredMissing.map(item => item.id).join(', ') || 'NONE - all required items complete'}
+
+Conversation so far:
+${transcriptText}
+
+Return ONLY JSON with this shape:
+{
+  "next_question": "string",
   "current_topic": "${Object.values(TOPICS).join(' | ')}",
   "checklist_updates": [{"item_id": "string", "status": "checked|skipped", "note": "string"}],
   "safety_flag": {"triggered": boolean, "message": "string"},
-  "presentation": {"style": "focus_prompt", "animate": "word_by_word", "replace_canvas": true}
-}\n\nRules:\n- Ask ONE clear question at a time.\n- If the user already answered an item, mark it checked.\n- If user refused, mark skipped with note.\n- If red-flag symptoms are mentioned (chest pain, dizziness, fainting, acute injury), set safety_flag.triggered=true.\n- Prefer to complete required items first.\n- Keep wording supportive and concise.`;
+  "presentation": {"style": "focus_prompt", "animate": "word_by_word", "replace_canvas": true},
+  "conversation_complete": boolean
+}
+
+CRITICAL RULES:
+1. FIRST: Analyze the user's last response and mark any checklist items that were answered as "checked".
+2. If the user's response covers multiple topics, mark ALL relevant items as checked.
+3. NEVER ask about something the user already answered - check the conversation history carefully.
+4. Ask ONE clear question at a time about UNCHECKED items only.
+5. Prefer to complete required items first.
+6. If user refuses to answer something, mark it "skipped" with a note.
+7. If red-flag symptoms (chest pain, dizziness, fainting, acute injury), set safety_flag.triggered=true.
+8. Keep wording supportive and concise.
+9. If all required items are now checked after your updates, set conversation_complete=true and make next_question a brief closing statement (not a question).`;
 
   const client = getAnthropicClient();
   const response = await client.messages.create({
     model: DEFAULT_MODEL,
     max_tokens: 512,
-    system: [{ type: 'text', text: 'Return JSON only.' }],
+    system: [{ type: 'text', text: 'Return JSON only. Be thorough about marking checklist items as checked based on the conversation.' }],
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
   });
 
@@ -280,7 +333,8 @@ async function generateNextQuestion({ checklist, transcript }) {
       current_topic: TOPICS.preferences,
       checklist_updates: [],
       safety_flag: { triggered: false, message: '' },
-      presentation: { style: 'focus_prompt', animate: 'word_by_word', replace_canvas: true }
+      presentation: { style: 'focus_prompt', animate: 'word_by_word', replace_canvas: true },
+      conversation_complete: false
     };
   }
 
@@ -307,7 +361,10 @@ async function handleAnswer({ sessionId, userId, answerText }) {
   const checklist = await getChecklist(sessionId);
   const transcript = await getTranscript(sessionId);
 
-  const modelOutput = await generateNextQuestion({ checklist, transcript });
+  // Count how many questions have been asked so far
+  const questionCount = transcript.filter(e => e.event_type === 'assistant_message').length;
+
+  const modelOutput = await generateNextQuestion({ checklist, transcript, questionCount });
   const nextChecklist = applyChecklistUpdates(checklist, modelOutput.checklist_updates || []);
   const savedChecklist = await updateChecklist(sessionId, nextChecklist);
 
@@ -330,11 +387,16 @@ async function handleAnswer({ sessionId, userId, answerText }) {
     await logEvent(sessionId, 'safety_flag', modelOutput.safety_flag);
   }
 
+  // Determine if conversation is complete (don't log to DB, just signal to frontend)
+  const isComplete = modelOutput.conversation_complete === true ||
+                     progress.required_done >= progress.required_total;
+
   return {
     assistant: assistantEvent,
     checklist: savedChecklist,
     progress,
-    safety: modelOutput.safety_flag || { triggered: false }
+    safety: modelOutput.safety_flag || { triggered: false },
+    conversation_complete: isComplete
   };
 }
 
