@@ -66,17 +66,41 @@ struct IntakeView: View {
     }
 
     private var progressPercent: CGFloat {
-        CGFloat(qaPairs.count) / CGFloat(totalQuestions)
+        // Use actual backend progress, not conversation pair count
+        let progress = intakeStore.progress
+        let done = CGFloat(progress?.requiredDone ?? 0)
+        let total = CGFloat(progress?.requiredTotal ?? 8)
+        return total > 0 ? done / total : 0
     }
 
     private var hasText: Bool {
         !answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private var debugStatus: String {
+        let progress = intakeStore.progress
+        let done = progress?.requiredDone ?? 0
+        let total = progress?.requiredTotal ?? 8
+        var status = "Progress: \(done)/\(total)"
+        if intakeStore.isComplete { status += " | Complete" }
+        if intakeStore.isLoading { status += " | Loading" }
+        if intakeStore.isConfirming { status += " | Confirming" }
+        if intakeStore.summary != nil { status += " | HasSummary" }
+        if let error = intakeStore.errorMessage { status += " | Error: \(error.prefix(30))" }
+        return status
+    }
+
+    private var inputDisabled: Bool {
+        intakeStore.isLoading || intakeStore.isConfirming || intakeStore.isComplete
+    }
+
     var body: some View {
         ZStack {
             AppTheme.Colors.background
                 .ignoresSafeArea()
+                .onTapGesture {
+                    isTextFieldFocused = false
+                }
 
             VStack(spacing: 0) {
                 // MARK: - Fixed Header (only for standalone)
@@ -96,7 +120,13 @@ struct IntakeView: View {
                 // MARK: - Fixed AI Orb
                 AIOrb(size: 80, isLoading: intakeStore.isLoading || intakeStore.isConfirming)
                     .padding(.top, 20)
-                    .padding(.bottom, 12)
+                    .padding(.bottom, 4)
+
+                // Debug status (temporary)
+                Text(debugStatus)
+                    .font(.system(size: 10))
+                    .foregroundColor(.gray)
+                    .padding(.bottom, 8)
 
                 // MARK: - Scrollable Conversation Area
                 ScrollViewReader { proxy in
@@ -127,8 +157,16 @@ struct IntakeView: View {
                                         .foregroundColor(AppTheme.Colors.primaryText)
                                         .lineSpacing(24 * 0.4)
 
+                                    // Show "Finishing up" when confirming
+                                    if intakeStore.isConfirming {
+                                        Text("Finishing up...")
+                                            .font(.system(size: 17, weight: .regular))
+                                            .foregroundColor(AppTheme.Colors.secondaryText)
+                                            .padding(.top, 4)
+                                    }
+
                                     // Show user's answer immediately after sending
-                                    if let answer = pendingAnswer {
+                                    if let answer = pendingAnswer, !intakeStore.isConfirming {
                                         Text(answer)
                                             .font(.system(size: 17, weight: .regular))
                                             .foregroundColor(AppTheme.Colors.secondaryText)
@@ -146,6 +184,10 @@ struct IntakeView: View {
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 8)
+                    }
+                    .scrollDismissesKeyboard(.interactively)
+                    .onTapGesture {
+                        isTextFieldFocused = false
                     }
                     .mask(
                         VStack(spacing: 0) {
@@ -192,7 +234,7 @@ struct IntakeView: View {
                     isRecording: $isRecording,
                     isTextFieldFocused: $isTextFieldFocused,
                     hasText: hasText,
-                    isLoading: intakeStore.isLoading,
+                    isLoading: inputDisabled,
                     showMicrophone: configuration.isMicrophoneEnabled,
                     onMicTap: toggleRecording,
                     onSend: submitAnswer
@@ -221,29 +263,25 @@ struct IntakeView: View {
         }
         .onChange(of: intakeStore.summary) { _, newSummary in
             if newSummary != nil {
+                print("[IntakeView] Summary received, triggering completion for context: \(configuration.context)")
                 switch configuration.context {
                 case .standalone:
                     showSummary = true
                 case .onboarding:
                     if let onComplete = configuration.onComplete {
-                        Task {
+                        print("[IntakeView] Calling onComplete callback...")
+                        Task { @MainActor in
                             await onComplete()
+                            print("[IntakeView] onComplete callback finished")
                         }
+                    } else {
+                        print("[IntakeView] WARNING: No onComplete callback configured for onboarding context")
                     }
                 }
             }
         }
-        .onChange(of: intakeStore.progress) { _, newProgress in
-            // Check for completion when progress updates
-            if let progress = newProgress,
-               progress.requiredDone >= progress.requiredTotal,
-               intakeStore.summary == nil,
-               !intakeStore.isConfirming {
-                Task {
-                    await intakeStore.confirmIntake()
-                }
-            }
-        }
+        // Completion is handled solely by IntakeSessionStore when it receives
+        // the conversation_complete event - no duplicate trigger here
         .onDisappear {
             if speechManager.isListening {
                 speechManager.stopListening()

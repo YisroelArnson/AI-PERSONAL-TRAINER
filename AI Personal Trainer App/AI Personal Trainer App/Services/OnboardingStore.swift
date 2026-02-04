@@ -212,8 +212,12 @@ final class OnboardingStore: ObservableObject {
     // MARK: - Intake Completion
 
     func completeIntake() async {
+        print("[OnboardingStore] completeIntake() called, current phase: \(state.currentPhase)")
         state.currentPhase = .assessmentPrompt
+        objectWillChange.send()  // Explicitly notify observers
+        print("[OnboardingStore] Phase changed to: \(state.currentPhase)")
         await saveAndSync()
+        print("[OnboardingStore] completeIntake() finished, saved state")
     }
 
     // MARK: - Goals
