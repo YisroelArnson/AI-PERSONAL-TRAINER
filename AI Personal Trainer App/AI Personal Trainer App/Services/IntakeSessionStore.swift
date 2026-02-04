@@ -85,15 +85,14 @@ final class IntakeSessionStore: ObservableObject {
                 }
             }
 
-            // Trigger confirmation if backend signaled completion
-            // Use a detached task to avoid cancellation when view transitions
-            print("[Intake] Stream complete. shouldConfirm=\(shouldConfirm), summary=\(summary != nil), isConfirming=\(isConfirming)")
-            if shouldConfirm && self.summary == nil && !self.isConfirming {
-                print("[Intake] Calling confirmIntake()...")
-                // Small delay to ensure UI is stable
-                try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
-                await self.confirmIntakeWithRetry()
-                print("[Intake] confirmIntake() finished. summary=\(summary != nil)")
+            // Fire and forget: trigger confirmation in background without waiting
+            // The summary will be saved to the database; we don't need to wait for it
+            print("[Intake] Stream complete. shouldConfirm=\(shouldConfirm)")
+            if shouldConfirm && !self.isConfirming {
+                print("[Intake] Firing confirmIntake in background (fire and forget)...")
+                Task.detached { [weak self] in
+                    await self?.confirmIntakeWithRetry()
+                }
             }
         } catch is CancellationError {
             print("[Intake] Task cancelled in submitAnswer")

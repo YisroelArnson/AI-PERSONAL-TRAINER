@@ -2,6 +2,19 @@ import SwiftUI
 import Speech
 import AVFoundation
 
+// MARK: - Markdown Helper
+
+extension String {
+    /// Converts markdown bold (**text**) to AttributedString
+    var markdownAttributed: AttributedString {
+        do {
+            return try AttributedString(markdown: self)
+        } catch {
+            return AttributedString(self)
+        }
+    }
+}
+
 // MARK: - Configuration
 
 enum IntakeContext {
@@ -135,7 +148,7 @@ struct IntakeView: View {
                             // Previous Q&A pairs (faded)
                             ForEach(qaPairs) { pair in
                                 VStack(alignment: .leading, spacing: 20) {
-                                    Text(pair.question)
+                                    Text(pair.question.markdownAttributed)
                                         .font(.system(size: 22, weight: .regular))
                                         .foregroundColor(AppTheme.Colors.primaryText)
                                         .lineSpacing(22 * 0.4)
@@ -152,7 +165,7 @@ struct IntakeView: View {
                             // Current question with pending answer (if any)
                             if !intakeStore.currentQuestion.isEmpty {
                                 VStack(alignment: .leading, spacing: 20) {
-                                    Text(intakeStore.currentQuestion)
+                                    Text(intakeStore.currentQuestion.markdownAttributed)
                                         .font(.system(size: 24, weight: .regular))
                                         .foregroundColor(AppTheme.Colors.primaryText)
                                         .lineSpacing(24 * 0.4)
@@ -228,17 +241,30 @@ struct IntakeView: View {
                     }
                 }
 
-                // MARK: - Input Area
-                IntakeInputArea(
-                    answerText: $answerText,
-                    isRecording: $isRecording,
-                    isTextFieldFocused: $isTextFieldFocused,
-                    hasText: hasText,
-                    isLoading: inputDisabled,
-                    showMicrophone: configuration.isMicrophoneEnabled,
-                    onMicTap: toggleRecording,
-                    onSend: submitAnswer
-                )
+                // MARK: - Input Area or Continue Button
+                if intakeStore.isComplete {
+                    // Show Continue button when conversation is complete
+                    IntakeContinueButton {
+                        if let onComplete = configuration.onComplete {
+                            Task { @MainActor in
+                                await onComplete()
+                            }
+                        } else if configuration.context == .standalone {
+                            showSummary = true
+                        }
+                    }
+                } else {
+                    IntakeInputArea(
+                        answerText: $answerText,
+                        isRecording: $isRecording,
+                        isTextFieldFocused: $isTextFieldFocused,
+                        hasText: hasText,
+                        isLoading: inputDisabled,
+                        showMicrophone: configuration.isMicrophoneEnabled,
+                        onMicTap: toggleRecording,
+                        onSend: submitAnswer
+                    )
+                }
             }
         }
         .task {
@@ -261,27 +287,19 @@ struct IntakeView: View {
                 IntakeSummaryView(summary: summary)
             }
         }
+        // For standalone: show summary sheet when it arrives
         .onChange(of: intakeStore.summary) { _, newSummary in
-            if newSummary != nil {
-                print("[IntakeView] Summary received, triggering completion for context: \(configuration.context)")
-                switch configuration.context {
-                case .standalone:
-                    showSummary = true
-                case .onboarding:
-                    if let onComplete = configuration.onComplete {
-                        print("[IntakeView] Calling onComplete callback...")
-                        Task { @MainActor in
-                            await onComplete()
-                            print("[IntakeView] onComplete callback finished")
-                        }
-                    } else {
-                        print("[IntakeView] WARNING: No onComplete callback configured for onboarding context")
-                    }
-                }
+            if newSummary != nil && configuration.context == .standalone {
+                print("[IntakeView] Summary received, showing summary sheet")
+                showSummary = true
             }
         }
-        // Completion is handled solely by IntakeSessionStore when it receives
-        // the conversation_complete event - no duplicate trigger here
+        // Log when conversation is complete (navigation is handled by Continue button)
+        .onChange(of: intakeStore.isComplete) { _, isComplete in
+            if isComplete {
+                print("[IntakeView] Conversation complete - showing Continue button")
+            }
+        }
         .onDisappear {
             if speechManager.isListening {
                 speechManager.stopListening()
@@ -562,6 +580,31 @@ struct IntakeInputArea: View {
             }
             .disabled(!hasText || isLoading)
             .animation(.easeInOut(duration: 0.2), value: hasText)
+        }
+        .padding(.horizontal, 20)
+        .padding(.top, 16)
+        .padding(.bottom, 24)
+    }
+}
+
+// MARK: - Intake Continue Button
+
+struct IntakeContinueButton: View {
+    let onContinue: () -> Void
+
+    var body: some View {
+        Button(action: onContinue) {
+            HStack {
+                Text("Continue")
+                    .font(.system(size: 17, weight: .semibold))
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 15, weight: .semibold))
+            }
+            .foregroundColor(AppTheme.Colors.background)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(AppTheme.Colors.accent)
+            .cornerRadius(12)
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)
