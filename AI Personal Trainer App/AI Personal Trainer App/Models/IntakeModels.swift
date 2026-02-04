@@ -34,7 +34,7 @@ struct IntakeChecklistItem: Codable, Identifiable {
     let note: String?
 }
 
-struct IntakeProgress: Codable {
+struct IntakeProgress: Codable, Equatable {
     let requiredDone: Int
     let requiredTotal: Int
     let topics: [IntakeTopicProgress]
@@ -46,7 +46,7 @@ struct IntakeProgress: Codable {
     }
 }
 
-struct IntakeTopicProgress: Codable {
+struct IntakeTopicProgress: Codable, Equatable {
     let topic: String
     let completed: Int
     let total: Int
@@ -131,6 +131,7 @@ struct IntakeStreamData: Decodable {
     let updates: [IntakeChecklistUpdate]?
     let items: [IntakeChecklistItem]?
     let progress: IntakeProgress?
+    let complete: Bool?
 }
 
 struct IntakeChecklistUpdate: Decodable {

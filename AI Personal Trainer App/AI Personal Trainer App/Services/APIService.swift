@@ -177,15 +177,15 @@ class APIService: ObservableObject {
     }
     
     // Helper to perform data request with automatic fallback
-    private func dataWithFallback(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+    private func dataWithFallback(for request: URLRequest, timeout: TimeInterval = 3) async throws -> (Data, HTTPURLResponse) {
         // If we don't have a working URL yet, try to discover it quickly
         if workingBaseURL == nil && UserDefaults.standard.string(forKey: "APIBaseURL") == nil {
             await ensureWorkingURL()
         }
-        
+
         var lastError: Error?
         let urlsToTry = getURLsToTry()
-        
+
         for baseURLToTry in urlsToTry {
             do {
                 // Reconstruct the request with the new base URL
@@ -193,14 +193,14 @@ class APIService: ObservableObject {
                       let endpoint = extractEndpoint(from: originalURL) else {
                     throw APIError.invalidURL
                 }
-                
+
                 guard let newURL = URL(string: "\(baseURLToTry)\(endpoint)") else {
                     throw APIError.invalidURL
                 }
-                
+
                 var newRequest = request
                 newRequest.url = newURL
-                newRequest.timeoutInterval = 3 // Quick timeout for faster fallback
+                newRequest.timeoutInterval = timeout
                 
                 print("🔄 Trying API request to: \(baseURLToTry)")
                 
@@ -671,7 +671,8 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        // Use longer timeout (60s) since this calls Claude API to synthesize the summary
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 60)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }

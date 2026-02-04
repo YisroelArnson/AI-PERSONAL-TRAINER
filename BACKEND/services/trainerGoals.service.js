@@ -18,7 +18,7 @@ function nowIso() {
 async function fetchLatestIntakeSummary(userId) {
   const { data, error } = await supabase
     .from('trainer_intake_summaries')
-    .select('summary_json, trainer_intake_sessions!inner(user_id, confirmed_at, updated_at)')
+    .select('summary_json, trainer_intake_sessions!inner(user_id)')
     .eq('trainer_intake_sessions.user_id', userId)
     .order('created_at', { ascending: false })
     .limit(1)

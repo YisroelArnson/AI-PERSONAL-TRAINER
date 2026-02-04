@@ -56,7 +56,7 @@ struct AssessmentBaselineResponse: Codable {
     let version: Int
 }
 
-struct AssessmentBaseline: Codable {
+struct AssessmentBaseline: Codable, Equatable {
     let readiness: String
     let strength: String
     let mobility: String

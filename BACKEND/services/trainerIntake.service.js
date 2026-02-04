@@ -9,7 +9,11 @@ const supabase = createClient(
   process.env.SUPABASE_SECRET_KEY
 );
 
-const DEFAULT_MODEL = process.env.PRIMARY_MODEL || 'claude-haiku-4-5';
+// Use Haiku for intake conversations (fast, cost-effective for Q&A)
+const DEFAULT_MODEL = 'claude-haiku-4-5';
+
+// Maximum questions to ask before forcing completion (safety net)
+const MAX_QUESTIONS = 20;
 
 const TOPICS = {
   goals: 'Goals',
@@ -246,9 +250,26 @@ function extractJson(text) {
   }
 }
 
-async function generateNextQuestion({ checklist, transcript }) {
+async function generateNextQuestion({ checklist, transcript, questionCount = 0 }) {
   const missing = checklist.filter(item => item.status === 'unchecked');
   const requiredMissing = missing.filter(item => item.required);
+
+  // Safety net: if we've asked too many questions, force completion
+  if (questionCount >= MAX_QUESTIONS) {
+    return {
+      next_question: "Thanks for sharing all that information! I have what I need to get started.",
+      current_topic: TOPICS.preferences,
+      checklist_updates: requiredMissing.map(item => ({ item_id: item.id, status: 'skipped', note: 'Max questions reached' })),
+      safety_flag: { triggered: false, message: '' },
+      presentation: { style: 'focus_prompt', animate: 'word_by_word', replace_canvas: true },
+      conversation_complete: true
+    };
+  }
+
+  // NOTE: We don't check allRequiredComplete here because the checklist is stale.
+  // The AI will analyze the user's answer, return checklist_updates, and we check
+  // completion in handleAnswer AFTER applying updates.
+
   const transcriptText = transcript
     .map(event => {
       const role = event.event_type === 'assistant_message' ? 'Coach' : 'User';
@@ -256,18 +277,50 @@ async function generateNextQuestion({ checklist, transcript }) {
     })
     .join('\n');
 
-  const prompt = `You are a personal trainer conducting an intake interview.\n\nChecklist items (unchecked first):\n${missing.map(item => `- ${item.id}: ${item.label} [topic: ${item.topic}]`).join('\n')}\n\nRequired still missing: ${requiredMissing.map(item => item.id).join(', ') || 'none'}\n\nConversation so far:\n${transcriptText}\n\nReturn ONLY JSON with this shape:\n{\n  "next_question": "string",
+  // Show full checklist for context
+  const checklistStatus = checklist.map(item => {
+    const status = item.status === 'checked' ? '✓' : item.status === 'skipped' ? '⊘' : '○';
+    return `${status} ${item.id}: ${item.label}${item.required ? ' (REQUIRED)' : ''}`;
+  }).join('\n');
+
+  const prompt = `You are a personal trainer conducting an intake interview.
+
+FULL CHECKLIST STATUS (○=unchecked, ✓=checked, ⊘=skipped):
+${checklistStatus}
+
+ITEMS STILL NEEDED (unchecked):
+${missing.length > 0 ? missing.map(item => `- ${item.id}: ${item.label}${item.required ? ' (REQUIRED)' : ''}`).join('\n') : 'NONE - all items complete'}
+
+Required items still missing: ${requiredMissing.length > 0 ? requiredMissing.map(item => item.id).join(', ') : 'NONE'}
+
+CONVERSATION:
+${transcriptText}
+
+IMPORTANT: Based on the user's LAST response, you MUST update the checklist. Look at what the user said and mark matching items as "checked".
+
+Return ONLY JSON:
+{
+  "checklist_updates": [{"item_id": "goals_primary", "status": "checked", "note": "User said..."}],
+  "next_question": "Your next question or closing statement",
   "current_topic": "${Object.values(TOPICS).join(' | ')}",
-  "checklist_updates": [{"item_id": "string", "status": "checked|skipped", "note": "string"}],
-  "safety_flag": {"triggered": boolean, "message": "string"},
+  "safety_flag": {"triggered": false, "message": ""},
+  "conversation_complete": false,
   "presentation": {"style": "focus_prompt", "animate": "word_by_word", "replace_canvas": true}
-}\n\nRules:\n- Ask ONE clear question at a time.\n- If the user already answered an item, mark it checked.\n- If user refused, mark skipped with note.\n- If red-flag symptoms are mentioned (chest pain, dizziness, fainting, acute injury), set safety_flag.triggered=true.\n- Prefer to complete required items first.\n- Keep wording supportive and concise.`;
+}
+
+RULES:
+1. ALWAYS include checklist_updates - analyze the user's last message and mark items they answered.
+2. Use the exact item_id from the checklist (e.g., "goals_primary", "motivation", "history_training").
+3. If user's response covers multiple items, mark ALL of them.
+4. Only ask about UNCHECKED items.
+5. When all REQUIRED items are checked, set conversation_complete=true and make next_question a closing statement (NOT a question).
+6. If red-flag symptoms mentioned, set safety_flag.triggered=true.`;
 
   const client = getAnthropicClient();
   const response = await client.messages.create({
     model: DEFAULT_MODEL,
     max_tokens: 512,
-    system: [{ type: 'text', text: 'Return JSON only.' }],
+    system: [{ type: 'text', text: 'Return JSON only. Be thorough about marking checklist items as checked based on the conversation.' }],
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
   });
 
@@ -280,7 +333,8 @@ async function generateNextQuestion({ checklist, transcript }) {
       current_topic: TOPICS.preferences,
       checklist_updates: [],
       safety_flag: { triggered: false, message: '' },
-      presentation: { style: 'focus_prompt', animate: 'word_by_word', replace_canvas: true }
+      presentation: { style: 'focus_prompt', animate: 'word_by_word', replace_canvas: true },
+      conversation_complete: false
     };
   }
 
@@ -307,7 +361,13 @@ async function handleAnswer({ sessionId, userId, answerText }) {
   const checklist = await getChecklist(sessionId);
   const transcript = await getTranscript(sessionId);
 
-  const modelOutput = await generateNextQuestion({ checklist, transcript });
+  // Count how many questions have been asked so far
+  const questionCount = transcript.filter(e => e.event_type === 'assistant_message').length;
+  console.log(`[Intake] handleAnswer: questionCount=${questionCount}, answer="${answerText.substring(0, 50)}..."`);
+
+  const modelOutput = await generateNextQuestion({ checklist, transcript, questionCount });
+  console.log(`[Intake] AI returned: updates=${JSON.stringify(modelOutput.checklist_updates)}, complete=${modelOutput.conversation_complete}`);
+
   const nextChecklist = applyChecklistUpdates(checklist, modelOutput.checklist_updates || []);
   const savedChecklist = await updateChecklist(sessionId, nextChecklist);
 
@@ -330,11 +390,19 @@ async function handleAnswer({ sessionId, userId, answerText }) {
     await logEvent(sessionId, 'safety_flag', modelOutput.safety_flag);
   }
 
+  // Determine if conversation is complete
+  // ONLY trust the AI's conversation_complete flag - it knows if there are follow-up questions
+  // Don't auto-complete based on progress alone, as AI may want to ask optional questions
+  const isComplete = modelOutput.conversation_complete === true;
+
+  console.log(`[Intake] handleAnswer complete: progress=${progress.required_done}/${progress.required_total}, ai_complete=${modelOutput.conversation_complete}, isComplete=${isComplete}`);
+
   return {
     assistant: assistantEvent,
     checklist: savedChecklist,
     progress,
-    safety: modelOutput.safety_flag || { triggered: false }
+    safety: modelOutput.safety_flag || { triggered: false },
+    conversation_complete: isComplete
   };
 }
 
