@@ -38,7 +38,7 @@ Welcome → Auth → OTP → Intake (LLM chat) → Assessment → NameCollection
 
 ### New Flow
 ```
-Intro1 → Intro2 → Intro3 → Intro4("Begin") →
+IntroHero → IntroNarration → IntroCTA("Get Started") →
 Name → Age → Gender → Goals → Timeline → ExperienceLevel → Frequency →
 CurrentRoutine → PastAttempts → HobbySports → Height → Weight → BodyComp →
 PhysicalBaseline → Mobility → Injuries → HealthNuances → Supplements →
@@ -51,7 +51,9 @@ NotificationPermission → Success → Complete
 ### Screen Types (matching artifact)
 | Type | Screens | UI Pattern |
 |------|---------|------------|
-| `intro` | 4 unique layouts | Tap-to-advance, orb animations, staggered text |
+| `introHero` | 1 | Large centered orb, tagline below, tap to advance |
+| `introNarration` | 1 | Small orb left-aligned, emits text lines word-by-word, auto-advances |
+| `introCTA` | 1 | Centered orb, headline, "Get Started" button |
 | `textInput` | name | Keyboard input, auto-focus |
 | `stepper` | age, height, weight | +/- buttons, large centered value |
 | `simpleSelect` | gender | Rectangular option buttons |
@@ -63,9 +65,10 @@ NotificationPermission → Success → Complete
 ABOUT YOU, YOUR GOALS, TRAINING HISTORY, BODY METRICS, FITNESS BASELINE, HEALTH, LIFESTYLE, EQUIPMENT, PREFERENCES, ALMOST DONE
 
 ### Verification
-- The onboarding opens to intro screen 1 with large orb and "I'm your trainer."
-- Tapping advances through all 4 intro screens with unique layouts
-- After "Begin", user proceeds through ~22 structured question screens
+- The onboarding opens to the hero screen with large centered orb and "Meet your pocket-sized personal trainer."
+- Tapping advances to the narration screen where the orb shrinks, moves left, and emits 4 lines of text word-by-word
+- After narration completes, the orb returns to center with "Get Started" button
+- Tapping "Get Started" proceeds through ~22 structured question screens
 - Progress bar is segmented by section, fills proportionally
 - Top bar shows animated section label transitions and back button
 - Voice screens show mic button that expands into waveform pill when recording
@@ -417,64 +420,186 @@ struct PillsRow: View {
 ## Phase 3: Intro Screens
 
 ### Overview
-Build the 4 unique intro screen layouts that replace the current single `WelcomeView`. Each has distinct orb placement, text layout, and animation timing.
+Build a 3-screen intro sequence that introduces the app's value proposition through an animated orb "narrator" pattern. The orb is the central character — it appears large, shrinks to narrate, then returns to center with a CTA.
+
+### Screen Flow & Animation Choreography
+
+#### Screen 1: Hero Reveal (`introHero`)
+**Layout:** Centered, minimal, dramatic.
+- Large orb (140pt) centered vertically, breathing animation (scale 1.0 ↔ 1.06, 4s cycle) with blue glow
+- After 0.5s delay, tagline fades up below the orb:
+  > **"Meet your pocket-sized personal trainer."**
+- Style: 28pt, bold, primaryText, centered, max-width ~280px
+- Subtle background glow: radial gradient centered, dodger blue at ~6% opacity
+- "Tap to continue" hint at bottom (13pt, tertiaryText), fades in after 1.2s
+- **Tap anywhere to advance**
+
+#### Screen 2: Orb Narration (`introNarration`)
+**Layout:** The orb becomes a narrator — it shrinks, moves to the left margin, and "emits" lines of text.
+
+**Animation sequence (all choreographed, no user interaction needed):**
+1. **Orb transition** (0.6s spring): Orb shrinks from 140pt → 32pt, moves from center to left-aligned position (x: 28px, y: first line baseline). Glow reduces proportionally.
+2. **Line 1 appears** (after 0.8s): Words fade in one-by-one (0.08s per word, 0.25s fade each):
+   > "I make getting in shape simple."
+3. **Orb moves down** (0.4s ease) to next line position
+4. **Line 2 appears** (word-by-word):
+   > "I'll build a workout plan around your life, your goals, and your body."
+5. **Orb moves down** to next line position
+6. **Line 3 appears** (word-by-word):
+   > "As you progress, I adapt — so your plan always fits."
+7. **Orb moves down** to next line position
+8. **Line 4 appears** (word-by-word):
+   > "And when you're training, I'm right there to guide every rep."
+9. **Pause** 0.8s after last word
+10. **Auto-advance** to Screen 3
+
+**Text styling:**
+- Each line: 17pt, regular weight, secondaryText color, left-aligned, 1.6 line height
+- Lines are spaced ~32px apart vertically
+- The orb sits to the left of each line as it types, acting as a cursor/narrator
+- Lines remain visible after appearing (they don't fade out)
+- Subtle background glow: offset left, lighter blue at ~5% opacity
+
+**Implementation detail:**
+- Use the existing `TypewriterTextView` word-by-word animation pattern
+- Orb position animated with `.matchedGeometryEffect` or explicit offset animation
+- Each line triggers after the previous completes (callback chaining)
+- The orb's vertical position tracks `lineIndex * lineSpacing`
+- User CAN tap to skip ahead to Screen 3 at any time
+
+#### Screen 3: Call to Action (`introCTA`)
+**Layout:** Orb returns to center, clean CTA.
+
+**Animation:**
+1. **Orb transition** (0.6s spring): Orb grows from 32pt → 56pt, moves from left position back to center. Settle animation (scale 1.04 → 1.0, then gentle float).
+2. **Headline fades up** (0.5s, 0.3s delay):
+   > **"Let's build your program."**
+   - Style: 28pt, bold, primaryText, centered
+3. **Subtext fades up** (0.5s, 0.5s delay):
+   > "I'll ask some questions — talk or type. The more I know, the better your plan."
+   - Style: 16pt, regular, secondaryText, centered, max-width 280px
+4. **"Get Started" button fades up** (0.3s, 0.8s delay):
+   - Full-width pill button, accent background, 16pt semibold, dark text
+   - Centered at bottom with 40px bottom padding
+
+- Subtle background glow: centered, subtle blue at ~5% opacity
+- **Tap button to advance to intake questions**
 
 ### Changes Required:
 
-#### 1. New File: `IntroScreenView.swift`
-**Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/Screens/IntroScreenView.swift`
-
-Four unique layouts matching the artifact's `IntroScreen`:
+#### 1. New File: `IntroHeroView.swift`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/Screens/IntroHeroView.swift`
 
 ```swift
-struct IntroScreenView: View {
-    let screen: OnboardingScreen
-    let step: Int
+struct IntroHeroView: View {
     let onNext: () -> Void
 
-    // Tap-to-advance on the entire screen
-    // Each screen has a unique background glow gradient
-    // Staggered animation: elements fade up with increasing delays
+    @State private var showTagline = false
+    @State private var showHint = false
 
-    // Screen 1 (intro1): Large orb (140pt) centered, breathing animation,
-    //   "I'm your trainer." below, "Tap to continue" at bottom
+    // - Large orb (140pt) with orbBreathe animation
+    // - Tagline fades up after 0.5s
+    // - "Tap to continue" fades in after 1.2s
+    // - Entire screen is tappable
+}
+```
+
+#### 2. New File: `IntroNarrationView.swift`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/Screens/IntroNarrationView.swift`
+
+```swift
+struct IntroNarrationView: View {
+    let onNext: () -> Void
+
+    @State private var orbPosition: CGPoint = .center  // Animates to left, then down per line
+    @State private var orbSize: CGFloat = 140           // Shrinks to 32
+    @State private var currentLine: Int = 0             // 0-3, tracks which line is animating
+    @State private var lineCompleted: [Bool] = [false, false, false, false]
+
+    static let lines = [
+        "I make getting in shape simple.",
+        "I'll build a workout plan around your life, your goals, and your body.",
+        "As you progress, I adapt — so your plan always fits.",
+        "And when you're training, I'm right there to guide every rep.",
+    ]
+
+    // Animation choreography:
+    // 1. onAppear: animate orb to (x:28, y:firstLineY), shrink to 32pt
+    // 2. After 0.8s: start TypewriterTextView for line 0
+    // 3. On line 0 complete: animate orb y to line 1 position, start line 1
+    // 4. Repeat for lines 2, 3
+    // 5. After line 3 complete + 0.8s pause: call onNext()
     //
-    // Screen 2 (intro2): Small orb (36pt) top-left, headline left-aligned,
-    //   body text as 4 separate lines staggering in, "Tap to continue"
-    //
-    // Screen 3 (intro3): Medium orb (64pt) centered, pulsing animation,
-    //   centered headline + two body paragraphs, "Tap to continue"
-    //
-    // Screen 4 (intro4): Medium orb (56pt) centered, settle animation,
-    //   centered headline + body, "Begin" button at bottom
+    // Tap anywhere: skip to onNext() immediately
+}
+```
+
+#### 3. New File: `IntroCTAView.swift`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/Screens/IntroCTAView.swift`
+
+```swift
+struct IntroCTAView: View {
+    let onNext: () -> Void
+
+    @State private var showHeadline = false
+    @State private var showSubtext = false
+    @State private var showButton = false
+
+    // - Orb (56pt) centered, settle → float animation
+    // - Headline: "Let's build your program." fades up
+    // - Subtext: "I'll ask some questions..." fades up
+    // - "Get Started" pill button fades up
+    // - Button tap calls onNext
+}
+```
+
+#### 4. Update `OnboardingScreenData.swift` (Phase 1)
+The intro section of the SCREENS array changes from 4 entries to 3:
+
+```swift
+// Intro screens (no label, no progress bar)
+OnboardingScreen(id: "introHero", type: .introHero),
+OnboardingScreen(id: "introNarration", type: .introNarration),
+OnboardingScreen(id: "introCTA", type: .introCTA),
+```
+
+Add new screen types to the enum:
+```swift
+enum OnboardingScreenType: String, Codable {
+    case introHero
+    case introNarration
+    case introCTA
+    case textInput
+    case stepper
+    case simpleSelect
+    case voice
+    case guidedVoice
+    case complete
 }
 ```
 
 **Orb animations to implement:**
-- `orbBreathe` - scale 1.0 ↔ 1.06 with glow expansion (4s cycle)
-- `orbFloat` - scale 1.0 ↔ 1.04 with gentle shadow (4s cycle)
-- `orbPulseActive` - scale 1.0 → 1.08 → 0.97 → 1.0 (2s cycle)
-- `orbSettle` - scale 1.04 → 1.0 then transition to orbFloat
-
-**Background glow colors** (radial gradients at ~6-8% opacity):
-- Screen 1: center, dodger blue
-- Screen 2: offset left, lighter blue
-- Screen 3: offset right, cyan-blue
-- Screen 4: center, subtle blue
+- `orbBreathe` - scale 1.0 ↔ 1.06 with expanding glow shadow (4s cycle, used on hero screen)
+- `orbFloat` - scale 1.0 ↔ 1.04 with gentle shadow (4s cycle, used on CTA screen after settle)
+- `orbSettle` - scale 1.04 → 1.0 (one-shot, used when orb returns to center on CTA screen)
 
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Project builds with IntroScreenView
-- [ ] Preview renders all 4 screen variants
+- [ ] Project builds with all 3 intro screen views
+- [ ] Preview renders for each intro screen
 
 #### Manual Verification:
-- [ ] Screen 1: large orb breathing, headline fades up after delay
-- [ ] Screen 2: small orb top-left, body lines stagger in sequentially
-- [ ] Screen 3: orb pulsing, text centered, two-paragraph layout
-- [ ] Screen 4: orb settles, "Begin" button visible
-- [ ] All screens advance on tap
-- [ ] Background glows are subtle and visible on dark background
+- [ ] Hero: large orb breathing, tagline fades up after delay, "Tap to continue" hint appears
+- [ ] Narration: orb shrinks and moves left smoothly (spring animation)
+- [ ] Narration: lines appear word-by-word in sequence, orb tracks downward with each line
+- [ ] Narration: text is readable and well-spaced
+- [ ] Narration: tapping skips to CTA screen
+- [ ] Narration: auto-advances after all 4 lines complete
+- [ ] CTA: orb grows and returns to center with settle animation
+- [ ] CTA: headline, subtext, and button stagger in
+- [ ] CTA: "Get Started" button advances to first intake question
+- [ ] Transitions between all 3 screens feel smooth and connected (the orb's journey feels continuous)
 
 ---
 
