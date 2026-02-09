@@ -55,7 +55,9 @@ NotificationPermission → Success → Complete
 | `introNarration` | 1 | Small orb left-aligned, emits text lines word-by-word, auto-advances |
 | `introCTA` | 1 | Centered orb, headline, "Get Started" button |
 | `textInput` | name | Keyboard input, auto-focus |
-| `stepper` | age, height, weight | +/- buttons, large centered value |
+| `stepper` | age | +/- buttons, large centered value |
+| `heightPicker` | height | Unit toggle (ft/in vs cm), scrollable wheel picker with haptics |
+| `weightPicker` | weight | Unit toggle (lbs vs kg), horizontal ruler slider with haptics |
 | `simpleSelect` | gender | Rectangular option buttons |
 | `voice` | 16 screens | Mic + textarea + optional pills |
 | `guidedVoice` | goals, physicalBaseline | Mic + textarea + sub-prompt bullets |
@@ -121,7 +123,9 @@ import Foundation
 enum OnboardingScreenType: String, Codable {
     case intro
     case textInput
-    case stepper
+    case stepper          // Simple +/- stepper (age)
+    case heightPicker     // Scrollable wheel picker with unit toggle (ft/in, cm)
+    case weightPicker     // Horizontal ruler slider with unit toggle (lbs, kg)
     case simpleSelect
     case voice
     case guidedVoice
@@ -162,12 +166,22 @@ struct OnboardingScreen: Identifiable {
     var placeholder: String?
     var field: String?
 
-    // Stepper
+    // Stepper (age)
     var min: Int?
     var max: Int?
     var initial: Int?
     var unit: String?
-    var displayFn: ((Int) -> String)?
+
+    // Height picker
+    var heightDefaultInches: Int?       // Default value in inches (e.g., 67 = 5'7")
+    var heightMinInches: Int?           // Min (e.g., 48 = 4'0")
+    var heightMaxInches: Int?           // Max (e.g., 96 = 8'0")
+
+    // Weight picker
+    var weightDefaultLbs: Double?       // Default value in lbs (e.g., 160.0)
+    var weightMinLbs: Double?           // Min (e.g., 60.0)
+    var weightMaxLbs: Double?           // Max (e.g., 500.0)
+    var weightStepLbs: Double?          // Ruler tick step (e.g., 0.1)
 
     // Select
     var options: [String]?
@@ -197,8 +211,8 @@ struct LocalIntakeData: Codable {
     var currentRoutine: String?
     var pastAttempts: String?
     var hobbySports: String?
-    var height: Int?
-    var weight: Int?
+    var heightInches: Int?          // Stored as inches (e.g., 67 = 5'7")
+    var weightLbs: Double?          // Stored as lbs (e.g., 189.7)
     var bodyComp: String?
     var physicalBaseline: String?
     var mobility: String?
@@ -576,7 +590,9 @@ enum OnboardingScreenType: String, Codable {
     case introNarration
     case introCTA
     case textInput
-    case stepper
+    case stepper          // Simple +/- stepper (age)
+    case heightPicker     // Scrollable wheel picker with unit toggle
+    case weightPicker     // Horizontal ruler slider with unit toggle
     case simpleSelect
     case voice
     case guidedVoice
@@ -638,6 +654,8 @@ struct TextInputScreenView: View {
 #### 2. New File: `StepperScreenView.swift`
 **Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/Screens/StepperScreenView.swift`
 
+Used **only for age** (simple numeric stepper):
+
 ```swift
 struct StepperScreenView: View {
     let screen: OnboardingScreen
@@ -647,13 +665,130 @@ struct StepperScreenView: View {
 
     // Question at top: 28pt, bold
     // Centered: - button (52pt circle, surface) | value (56pt, bold) | + button
-    // Value display uses displayFn if provided (e.g., height: 5'8")
-    // Unit label below value: 13pt, tertiaryText, uppercase
+    // Unit label below value: 13pt, tertiaryText, uppercase ("YEARS")
     // SimpleBottomBar at bottom (always enabled since stepper has default value)
 }
 ```
 
-#### 3. New File: `SimpleSelectScreenView.swift`
+#### 3. New File: `HeightPickerScreenView.swift`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/Screens/HeightPickerScreenView.swift`
+
+Scrollable wheel picker for height, matching the first screenshot:
+
+```swift
+struct HeightPickerScreenView: View {
+    let screen: OnboardingScreen
+    let valueInches: Int?
+    let onChange: (String, Int) -> Void
+    let onNext: () -> Void
+
+    @State private var useFeetInches = true  // Toggle: "Feet and Inches" vs "Centimeters"
+    @State private var selectedInches: Int = 67  // Default 5'7"
+
+    // Question at top: 28pt, bold ("What is your height?")
+    //
+    // Unit toggle (below question):
+    //   - Segmented control / toggle pill: "Feet and Inches" | "Centimeters"
+    //   - Selected: dark background, white text (pill style)
+    //   - Unselected: light background, dark text
+    //   - Rounded capsule container
+    //
+    // Wheel picker (centered vertically):
+    //   - UIPickerView-style scrollable list, snaps to rows
+    //   - 5 visible rows with opacity fade: selected row is bold + full opacity,
+    //     adjacent rows fade to ~0.4 opacity, outer rows ~0.2 opacity
+    //   - Selected row: 20pt, bold, primaryText
+    //   - Other rows: 17pt, regular, tertiaryText
+    //   - Horizontal selection indicator lines (1pt, subtle divider color)
+    //     above and below the center row
+    //   - In ft/in mode: displays "5 ft 7 in", range 4'0" to 7'11"
+    //   - In cm mode: displays "170 cm", range 122 to 241
+    //   - Haptic feedback: UIImpactFeedbackGenerator(.light) on each row change
+    //   - Smooth momentum scrolling with deceleration snap
+    //
+    // "Next" button at bottom:
+    //   - Full-width, dark background, white text, large corner radius
+    //   - 17pt, semibold, "Next"
+    //   - Always enabled (has default value)
+    //   - Tapping saves value in inches and advances
+    //
+    // Implementation approach: Wrap UIPickerView in UIViewRepresentable for
+    // native wheel physics and haptics, or use SwiftUI ScrollViewReader
+    // with snap behavior + manual haptic triggers.
+}
+```
+
+#### 4. New File: `WeightPickerScreenView.swift`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/Screens/WeightPickerScreenView.swift`
+
+Horizontal ruler slider for weight, matching the second screenshot:
+
+```swift
+struct WeightPickerScreenView: View {
+    let screen: OnboardingScreen
+    let valueLbs: Double?
+    let onChange: (String, Double) -> Void
+    let onNext: () -> Void
+
+    @State private var usePounds = true      // Toggle: "Pounds" vs "Kilograms"
+    @State private var selectedWeight: Double = 160.0
+
+    // Question at top: 28pt, bold ("What is your weight?")
+    //
+    // Unit toggle (below question):
+    //   - Same segmented control as height: "Pounds" | "Kilograms"
+    //   - Same pill styling
+    //
+    // Weight display (centered, large):
+    //   - Current value: 36pt, bold, primaryText (e.g., "189.7 lbs" or "86.0 kg")
+    //   - Positioned above the ruler
+    //
+    // Horizontal ruler (centered vertically):
+    //   - Scrollable horizontal ruler with tick marks
+    //   - Major ticks (every 1 lb): taller, with number label below
+    //   - Minor ticks (every 0.1 lb): shorter, no label
+    //   - Center indicator: vertical green/accent line (2-3pt wide) fixed at center
+    //   - The ruler scrolls behind the fixed center indicator
+    //   - Numbers below major ticks: 13pt, tertiaryText
+    //   - Visible range: ~4 lbs visible at a time
+    //   - In lbs mode: range 60-500, step 0.1
+    //   - In kg mode: range 27-227, step 0.1
+    //   - Haptic feedback: UIImpactFeedbackGenerator(.light) on each 1-lb tick,
+    //     UIImpactFeedbackGenerator(.rigid) on each 0.1-lb tick (subtle)
+    //   - Momentum scrolling with deceleration and snap to nearest 0.1
+    //
+    // "Next" button at bottom:
+    //   - Same styling as height screen
+    //   - Always enabled (has default value)
+    //   - Tapping saves value in lbs and advances
+    //
+    // Implementation approach: Custom horizontal ScrollView with
+    // GeometryReader to track scroll position and derive value.
+    // Use UIScrollViewDelegate via Coordinator for snap behavior
+    // and haptic trigger on tick crossings.
+}
+```
+
+#### 5. New Shared Component: `UnitToggle.swift`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Shared/Components/UnitToggle.swift`
+
+Reusable segmented toggle used by both height and weight screens:
+
+```swift
+struct UnitToggle: View {
+    let options: [String]       // e.g., ["Feet and Inches", "Centimeters"]
+    @Binding var selectedIndex: Int
+
+    // Capsule container: surface background, rounded
+    // Selected segment: dark background (primaryText), white text, pill shape
+    // Unselected segment: transparent, secondaryText
+    // 14pt, weight 500
+    // Animated slide transition when toggling
+    // Haptic: UIImpactFeedbackGenerator(.light) on toggle
+}
+```
+
+#### 6. New File: `SimpleSelectScreenView.swift`
 **Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/Screens/SimpleSelectScreenView.swift`
 
 ```swift
@@ -742,13 +877,23 @@ struct IntakeCompleteScreenView: View {
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Project builds with all 6 screen type views
+- [ ] Project builds with all 8 screen type views + UnitToggle component
 - [ ] Preview providers render for each screen type
 
 #### Manual Verification:
 - [ ] TextInput auto-focuses, Enter key advances
-- [ ] Stepper +/- buttons increment/decrement within min/max bounds
-- [ ] Stepper displays height in feet/inches format for height field
+- [ ] Stepper +/- buttons increment/decrement within min/max bounds (age)
+- [ ] **Height picker**: unit toggle switches between ft/in and cm
+- [ ] **Height picker**: wheel scrolls smoothly with momentum and snaps to rows
+- [ ] **Height picker**: selected row is bold, adjacent rows fade out
+- [ ] **Height picker**: haptic feedback fires on each row change
+- [ ] **Height picker**: value converts correctly between ft/in and cm
+- [ ] **Weight picker**: unit toggle switches between lbs and kg
+- [ ] **Weight picker**: ruler scrolls horizontally with momentum and snaps to 0.1 increments
+- [ ] **Weight picker**: center indicator line stays fixed, ruler moves behind it
+- [ ] **Weight picker**: large value display updates in real-time as ruler scrolls
+- [ ] **Weight picker**: haptic feedback fires on tick crossings (subtle for minor, stronger for major)
+- [ ] **Weight picker**: value converts correctly between lbs and kg
 - [ ] SimpleSelect highlights selected option, enables chevron
 - [ ] Voice screen records speech, transcription appears in textarea
 - [ ] Voice pills populate textarea on tap
@@ -796,6 +941,8 @@ struct IntakeCoordinatorView: View {
         case .intro: IntroScreenView(...)
         case .textInput: TextInputScreenView(...)
         case .stepper: StepperScreenView(...)
+        case .heightPicker: HeightPickerScreenView(...)
+        case .weightPicker: WeightPickerScreenView(...)
         case .simpleSelect: SimpleSelectScreenView(...)
         case .voice: VoiceScreenView(...)
         case .guidedVoice: GuidedVoiceScreenView(...)
@@ -965,8 +1112,8 @@ CREATE TABLE trainer_structured_intake (
     hobby_sports TEXT,
 
     -- Body Metrics
-    height_inches INTEGER,
-    weight_lbs INTEGER,
+    height_inches INTEGER,        -- Stored as total inches (e.g., 67 = 5'7")
+    weight_lbs DECIMAL(5,1),      -- Stored as lbs with 0.1 precision (e.g., 189.7)
     body_comp TEXT,
 
     -- Fitness Baseline
