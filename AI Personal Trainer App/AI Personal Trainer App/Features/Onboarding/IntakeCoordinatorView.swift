@@ -1,76 +1,194 @@
 import SwiftUI
 
-/// Manages navigation through intro screens, intake questions, and the intake complete screen.
-/// This is a stub that will be fully implemented in Phase 5.
+/// Routes intro screens, intake questions, and intake complete screen.
+/// Each screen is rendered based on `OnboardingStore.currentScreen.type`.
 struct IntakeCoordinatorView: View {
-    @StateObject private var onboardingStore = OnboardingStore.shared
+    @StateObject private var store = OnboardingStore.shared
+
+    @State private var previousLabel: String? = nil
+
+    private var currentScreen: OnboardingScreen {
+        store.currentScreen
+    }
+
+    private var showTopBar: Bool {
+        // Show top bar for intake screens (not intro, not complete)
+        currentScreen.label != nil
+    }
+
+    private var showProgress: Bool {
+        currentScreen.label != nil
+    }
+
+    // MARK: - Transitions
+
+    private var slideTransition: AnyTransition {
+        switch store.navigationDirection {
+        case .forward:
+            return .asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            )
+        case .backward:
+            return .asymmetric(
+                insertion: .move(edge: .leading).combined(with: .opacity),
+                removal: .move(edge: .trailing).combined(with: .opacity)
+            )
+        }
+    }
+
+    // MARK: - Body
 
     var body: some View {
         ZStack {
             AppTheme.Colors.background
                 .ignoresSafeArea()
 
-            VStack(spacing: 24) {
-                Spacer()
-
-                // Show current screen info (placeholder)
-                Text(onboardingStore.currentScreen.question ?? onboardingStore.currentScreen.headline ?? onboardingStore.currentScreen.id)
-                    .font(.system(size: 24, weight: .bold))
-                    .foregroundColor(AppTheme.Colors.primaryText)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
-
-                if let sub = onboardingStore.currentScreen.sub {
-                    Text(sub)
-                        .font(.system(size: 15))
-                        .foregroundColor(AppTheme.Colors.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 32)
+            VStack(spacing: 0) {
+                // Top bar with section label and back button
+                if showTopBar {
+                    OnboardingTopBar(
+                        label: currentScreen.label?.rawValue,
+                        previousLabel: previousLabel,
+                        showBack: store.state.currentStep > OnboardingScreens.introCount,
+                        onBack: {
+                            Task { await store.goToPreviousStep() }
+                        }
+                    )
                 }
 
-                Text("Screen \(onboardingStore.state.currentStep + 1) of \(onboardingStore.totalSteps)")
-                    .font(.system(size: 13))
-                    .foregroundColor(AppTheme.Colors.tertiaryText)
-
-                Spacer()
-
-                // Navigation buttons
-                HStack(spacing: 16) {
-                    if onboardingStore.state.currentStep > 0 {
-                        Button("Back") {
-                            Task { await onboardingStore.goToPreviousStep() }
-                        }
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(AppTheme.Colors.secondaryText)
-                    }
-
-                    Spacer()
-
-                    if onboardingStore.currentScreen.type == .complete {
-                        Button("Create my program") {
-                            Task { await onboardingStore.completeIntake() }
-                        }
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.background)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 14)
-                        .background(AppTheme.Colors.primaryText)
-                        .cornerRadius(AppTheme.CornerRadius.pill)
-                    } else {
-                        Button("Next") {
-                            Task { await onboardingStore.goToNextStep() }
-                        }
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.background)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 14)
-                        .background(AppTheme.Colors.primaryText)
-                        .cornerRadius(AppTheme.CornerRadius.pill)
-                    }
+                // Segmented progress bar
+                if showProgress {
+                    SegmentedProgressBar(currentStep: store.state.currentStep)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 4)
                 }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 40)
+
+                // Screen content
+                currentScreenView
+                    .id(store.state.currentStep)
+                    .transition(slideTransition)
             }
+        }
+        .animation(.easeInOut(duration: 0.35), value: store.state.currentStep)
+        .onChange(of: currentScreen.label?.rawValue) { oldLabel, _ in
+            previousLabel = oldLabel
+        }
+    }
+
+    // MARK: - Screen Router
+
+    @ViewBuilder
+    private var currentScreenView: some View {
+        let screen = currentScreen
+
+        switch screen.type {
+        case .introHero:
+            IntroHeroView {
+                Task { await store.goToNextStep() }
+            }
+
+        case .introNarration:
+            IntroNarrationView {
+                Task { await store.goToNextStep() }
+            }
+
+        case .introCTA:
+            IntroCTAView {
+                Task { await store.goToNextStep() }
+            }
+
+        case .textInput:
+            TextInputScreenView(
+                screen: screen,
+                value: store.state.intakeData.stringValue(for: screen.field ?? "") ?? "",
+                onChange: { field, value in
+                    store.setIntakeStringField(field, value: value)
+                },
+                onNext: {
+                    Task { await store.goToNextStep() }
+                }
+            )
+
+        case .birthdayPicker:
+            BirthdayPickerScreenView(
+                screen: screen,
+                value: store.state.intakeData.birthday,
+                onChange: { date in
+                    store.setIntakeBirthday(date)
+                },
+                onNext: {
+                    Task { await store.goToNextStep() }
+                }
+            )
+
+        case .heightPicker:
+            HeightPickerScreenView(
+                screen: screen,
+                valueInches: store.state.intakeData.heightInches,
+                onChange: { inches in
+                    store.setIntakeHeight(inches)
+                },
+                onNext: {
+                    Task { await store.goToNextStep() }
+                }
+            )
+
+        case .weightPicker:
+            WeightPickerScreenView(
+                screen: screen,
+                valueLbs: store.state.intakeData.weightLbs,
+                onChange: { lbs in
+                    store.setIntakeWeight(lbs)
+                },
+                onNext: {
+                    Task { await store.goToNextStep() }
+                }
+            )
+
+        case .simpleSelect:
+            SimpleSelectScreenView(
+                screen: screen,
+                value: store.state.intakeData.stringValue(for: screen.field ?? ""),
+                onChange: { field, value in
+                    store.setIntakeStringField(field, value: value)
+                },
+                onNext: {
+                    Task { await store.goToNextStep() }
+                }
+            )
+
+        case .voice:
+            VoiceScreenView(
+                screen: screen,
+                value: store.state.intakeData.stringValue(for: screen.field ?? "") ?? "",
+                onChange: { field, value in
+                    store.setIntakeStringField(field, value: value)
+                },
+                onNext: {
+                    Task { await store.goToNextStep() }
+                }
+            )
+
+        case .guidedVoice:
+            GuidedVoiceScreenView(
+                screen: screen,
+                value: store.state.intakeData.stringValue(for: screen.field ?? "") ?? "",
+                onChange: { field, value in
+                    store.setIntakeStringField(field, value: value)
+                },
+                onNext: {
+                    Task { await store.goToNextStep() }
+                }
+            )
+
+        case .complete:
+            IntakeCompleteScreenView(
+                userName: store.state.intakeData.name,
+                onCreateProgram: {
+                    Task { await store.completeIntake() }
+                }
+            )
         }
     }
 }
