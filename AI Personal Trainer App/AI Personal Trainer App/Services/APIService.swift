@@ -383,143 +383,6 @@ class APIService: ObservableObject {
         return apiResponse.message
     }
     
-    func fetchRecommendations(exerciseCount: Int? = 8) async throws -> ExerciseRecommendations {
-        let session = try await supabase.auth.session
-        let userId = session.user.id.uuidString
-        
-        guard let url = URL(string: "\(baseURL)/recommend/exercises/\(userId)") else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "POST"
-        
-        var requestBody: [String: Any] = [:]
-        if let exerciseCount = exerciseCount {
-            requestBody["exerciseCount"] = exerciseCount
-        }
-        let jsonData = try JSONSerialization.data(withJSONObject: requestBody)
-        request.httpBody = jsonData
-        
-        let (data, httpResponse) = try await dataWithFallback(for: request)
-        
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        let apiResponse = try JSONDecoder().decode(RecommendAPIResponse.self, from: data)
-        let exercises = apiResponse.data.recommendations.map { rec in
-            Exercise(from: rec)
-        }
-        
-        return ExerciseRecommendations(exercises: exercises)
-    }
-    
-    func streamRecommendations(
-        exerciseCount: Int? = 8,
-        onExercise: @escaping (StreamingExercise) -> Void,
-        onComplete: @escaping (Int) -> Void,
-        onError: @escaping (String) -> Void
-    ) async throws {
-        let session = try await supabase.auth.session
-        let userId = session.user.id.uuidString
-        
-        guard let url = URL(string: "\(baseURL)/recommend/stream/\(userId)") else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "POST"
-        
-        var requestBody: [String: Any] = [:]
-        if let exerciseCount = exerciseCount {
-            requestBody["exerciseCount"] = exerciseCount
-        }
-        let jsonData = try JSONSerialization.data(withJSONObject: requestBody)
-        request.httpBody = jsonData
-        
-        let (asyncBytes, httpResponse) = try await bytesWithFallback(for: request)
-        
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        var exerciseCount = 0
-        var hasCompleted = false
-        
-        for try await line in asyncBytes.lines {
-            guard !line.isEmpty else { continue }
-            
-            print("📥 Received streaming line: \(line)")
-            
-            do {
-                let messageData = line.data(using: .utf8) ?? Data()
-                let message = try JSONDecoder().decode(StreamingMessage.self, from: messageData)
-                
-                print("📨 Decoded message type: \(message.type)")
-                
-                switch message.type {
-                case "metadata":
-                    print("Streaming started for user: \(message.userId ?? "unknown")")
-                    
-                case "exercise":
-                    if let exerciseData = message.data {
-                        exerciseCount += 1
-                        let currentCount = exerciseCount
-                        await MainActor.run {
-                            onExercise(exerciseData)
-                        }
-                        print("✅ Processed exercise \(currentCount)")
-                    }
-                    
-                case "complete":
-                    let totalExercises = message.totalExercises ?? exerciseCount
-                    print("🏁 Streaming complete! Total exercises: \(totalExercises)")
-                    hasCompleted = true
-                    await MainActor.run {
-                        onComplete(totalExercises)
-                    }
-                    return
-                    
-                case "error":
-                    let errorMessage = message.error ?? "Unknown streaming error"
-                    print("❌ Streaming error: \(errorMessage)")
-                    await MainActor.run {
-                        onError(errorMessage)
-                    }
-                    return
-                    
-                default:
-                    print("⚠️ Unknown message type: \(message.type)")
-                }
-            } catch {
-                print("❌ Failed to decode streaming message: \(error)")
-                print("   Raw line: \(line)")
-                // Don't call onError for every decode failure, just log it
-                // The stream might have ended naturally
-            }
-        }
-        
-        // If we reach here and haven't completed, call onComplete with what we have
-        if !hasCompleted {
-            let finalCount = exerciseCount
-            print("⚠️ Stream ended without complete message. Completing with \(finalCount) exercises")
-            await MainActor.run {
-                onComplete(finalCount)
-            }
-        }
-    }
-
     // MARK: - Trainer Workout Sessions (Phase E)
 
     func createOrResumeWorkoutSession(forceNew: Bool, coachMode: String? = nil) async throws -> WorkoutSessionResponse {
@@ -624,7 +487,7 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 15)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -722,7 +585,7 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 15)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -736,7 +599,7 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "GET"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 15)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -752,7 +615,7 @@ class APIService: ObservableObject {
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(AssessmentStepSubmitRequest(result: result))
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 20)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -768,7 +631,7 @@ class APIService: ObservableObject {
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(AssessmentStepSkipRequest(reason: reason))
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 20)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -783,7 +646,7 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 20)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -799,7 +662,7 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 30)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -814,7 +677,7 @@ class APIService: ObservableObject {
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(GoalEditRequest(instruction: instruction))
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 30)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -828,7 +691,7 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 30)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -844,7 +707,7 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 45)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -859,7 +722,7 @@ class APIService: ObservableObject {
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(ProgramEditRequest(instruction: instruction))
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 45)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -873,7 +736,7 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 45)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -887,7 +750,7 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 45)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -1155,288 +1018,6 @@ class APIService: ObservableObject {
         guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
         let response = try makeISO8601Decoder().decode(CheckinListResponse.self, from: data)
         return response.checkins
-    }
-    
-    func parsePreference(preferenceText: String, currentPreference: CurrentPreferenceContext? = nil) async throws -> ParsedPreference {
-        guard let url = URL(string: "\(baseURL)/preferences/parse") else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "POST"
-        
-        let requestBody = ParsePreferenceRequest(
-            preferenceText: preferenceText,
-            currentPreference: currentPreference
-        )
-        let encoder = JSONEncoder()
-        request.httpBody = try encoder.encode(requestBody)
-        
-        let (data, httpResponse) = try await dataWithFallback(for: request)
-        
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        let apiResponse = try JSONDecoder().decode(ParsePreferenceResponse.self, from: data)
-        
-        guard apiResponse.success, let parsedPreference = apiResponse.data else {
-            throw APIError.invalidResponse
-        }
-        
-        return parsedPreference
-    }
-    
-    func parseCategoryGoals(goalsText: String, currentGoals: [CategoryGoalItem]? = nil) async throws -> ParsedCategoryGoals {
-        guard let url = URL(string: "\(baseURL)/category-goals/parse") else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "POST"
-        
-        let currentGoalsContext = currentGoals?.map { goal in
-            CategoryGoalContext(
-                category: goal.category,
-                description: goal.description,
-                weight: goal.weight,
-                enabled: goal.enabled
-            )
-        }
-        
-        let requestBody = ParseCategoryGoalsRequest(
-            goalsText: goalsText,
-            currentGoals: currentGoalsContext
-        )
-        let encoder = JSONEncoder()
-        request.httpBody = try encoder.encode(requestBody)
-        
-        let (data, httpResponse) = try await dataWithFallback(for: request)
-        
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        let apiResponse = try JSONDecoder().decode(ParseCategoryGoalsResponse.self, from: data)
-        
-        guard apiResponse.success, let parsedGoals = apiResponse.data else {
-            throw APIError.invalidResponse
-        }
-        
-        return parsedGoals
-    }
-    
-    func parseMuscleGoals(goalsText: String, currentGoals: [String: Double]? = nil) async throws -> ParsedMuscleGoals {
-        guard let url = URL(string: "\(baseURL)/muscle-goals/parse") else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "POST"
-        
-        let requestBody = ParseMuscleGoalsRequest(
-            goalsText: goalsText,
-            currentGoals: currentGoals
-        )
-        let encoder = JSONEncoder()
-        request.httpBody = try encoder.encode(requestBody)
-        
-        let (data, httpResponse) = try await dataWithFallback(for: request)
-        
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        let apiResponse = try JSONDecoder().decode(ParseMuscleGoalsResponse.self, from: data)
-        
-        guard apiResponse.success, let parsedGoals = apiResponse.data else {
-            throw APIError.invalidResponse
-        }
-        
-        return parsedGoals
-    }
-    
-    // MARK: - Exercise Logging
-    
-    /// Log a completed exercise and return the database record ID
-    /// - Parameter exercise: The exercise to log
-    /// - Returns: The UUID string of the created workout history record
-    func logCompletedExercise(exercise: Exercise) async throws -> String {
-        let session = try await supabase.auth.session
-        let userId = session.user.id.uuidString
-        
-        guard let url = URL(string: "\(baseURL)/exercises/log/\(userId)") else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "POST"
-        
-        let exerciseData = exercise.toLoggingFormat()
-        let jsonData = try JSONSerialization.data(withJSONObject: exerciseData)
-        request.httpBody = jsonData
-        
-        let (data, httpResponse) = try await dataWithFallback(for: request)
-        
-        guard httpResponse.statusCode == 201 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        // Parse the response to get the database record ID
-        let response = try JSONDecoder().decode(LogExerciseResponse.self, from: data)
-        
-        print("✅ Successfully logged exercise: \(exercise.name) with ID: \(response.data.id)")
-        return response.data.id
-    }
-    
-    /// Delete a completed exercise (undo completion)
-    /// - Parameter workoutHistoryId: The UUID string of the workout history record to delete
-    func deleteCompletedExercise(workoutHistoryId: String) async throws {
-        let session = try await supabase.auth.session
-        let userId = session.user.id.uuidString
-        
-        guard let url = URL(string: "\(baseURL)/exercises/log/\(userId)/\(workoutHistoryId)") else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "DELETE"
-        
-        let (_, httpResponse) = try await dataWithFallback(for: request)
-        
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        print("✅ Successfully deleted exercise with ID: \(workoutHistoryId)")
-    }
-    
-    // MARK: - Workout History
-    
-    func fetchWorkoutHistory(startDate: Date? = nil, endDate: Date? = nil, limit: Int? = nil) async throws -> [WorkoutHistoryItem] {
-        let session = try await supabase.auth.session
-        let userId = session.user.id.uuidString
-        
-        var urlComponents = URLComponents(string: "\(baseURL)/exercises/history/\(userId)")
-        var queryItems: [URLQueryItem] = []
-        
-        if let startDate = startDate {
-            let formatter = ISO8601DateFormatter()
-            queryItems.append(URLQueryItem(name: "startDate", value: formatter.string(from: startDate)))
-        }
-        
-        if let endDate = endDate {
-            let formatter = ISO8601DateFormatter()
-            queryItems.append(URLQueryItem(name: "endDate", value: formatter.string(from: endDate)))
-        }
-        
-        if let limit = limit {
-            queryItems.append(URLQueryItem(name: "limit", value: String(limit)))
-        }
-        
-        if !queryItems.isEmpty {
-            urlComponents?.queryItems = queryItems
-        }
-        
-        guard let url = urlComponents?.url else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "GET"
-        
-        let (data, httpResponse) = try await dataWithFallback(for: request)
-        
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        let apiResponse = try JSONDecoder().decode(WorkoutHistoryAPIResponse.self, from: data)
-        return apiResponse.data
-    }
-    
-
-    // MARK: - Exercise Distribution Tracking
-    
-    func resetDistributionTracking() async throws {
-        let session = try await supabase.auth.session
-        let userId = session.user.id.uuidString
-        
-        guard let url = URL(string: "\(baseURL)/exercises/distribution/reset/\(userId)") else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "POST"
-        
-        let (_, httpResponse) = try await dataWithFallback(for: request)
-        
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        print("✅ Successfully reset distribution tracking")
-    }
-    
-    func fetchDistributionMetrics() async throws -> DistributionMetrics {
-        let session = try await supabase.auth.session
-        let userId = session.user.id.uuidString
-        
-        guard let url = URL(string: "\(baseURL)/exercises/distribution/\(userId)") else {
-            throw APIError.invalidURL
-        }
-        
-        var request = try await createAuthenticatedRequest(url: url)
-        request.httpMethod = "GET"
-        
-        let (data, httpResponse) = try await dataWithFallback(for: request)
-        
-        guard httpResponse.statusCode == 200 else {
-            if httpResponse.statusCode == 401 {
-                throw APIError.unauthorized
-            } else if httpResponse.statusCode == 403 {
-                throw APIError.forbidden
-            }
-            throw APIError.httpError(statusCode: httpResponse.statusCode)
-        }
-        
-        let apiResponse = try JSONDecoder().decode(DistributionAPIResponse.self, from: data)
-        return apiResponse.data
     }
     
     // MARK: - User Settings

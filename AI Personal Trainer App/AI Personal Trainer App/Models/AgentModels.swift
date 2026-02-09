@@ -367,7 +367,6 @@ struct AgentChatResponse: Decodable {
 /// Content of the agent chat response
 struct AgentChatResponseContent: Decodable {
     let messages: [String]
-    let exercises: [StreamingExercise]?
     let question: AgentQuestion?
 }
 
@@ -404,7 +403,6 @@ struct AgentStreamData: Decodable {
     let options: [String]?
     let tool: String?
     let status: String?
-    let exercises: [StreamingExercise]?
     let phase: String?         // For status events: 'start', 'done', 'error'
     let statusMessage: String? // Alias for message in status events
     let formatted: String?     // Formatted result string for display in action log
@@ -416,7 +414,7 @@ struct AgentStreamData: Decodable {
     let artifactId: String?
 
     enum CodingKeys: String, CodingKey {
-        case message, question, options, tool, status, exercises, phase
+        case message, question, options, tool, status, phase
         case statusMessage, formatted, source, displayName, artifact
         case artifactId = "artifact_id"
     }

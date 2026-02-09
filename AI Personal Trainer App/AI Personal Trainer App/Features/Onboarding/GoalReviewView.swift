@@ -1,12 +1,20 @@
 import SwiftUI
 
-struct GoalFullReviewView: View {
+struct GoalReviewView: View {
     @StateObject private var onboardingStore = OnboardingStore.shared
     @StateObject private var goalStore = GoalContractStore.shared
+    @StateObject private var speechManager = SpeechManager()
 
+    @State private var showTypewriter = true
+    @State private var typewriterComplete = false
     @State private var editInstruction = ""
     @State private var isEditing = false
     @State private var showVoiceInput = false
+    @State private var showMicSettingsAlert = false
+
+    private var userName: String {
+        onboardingStore.state.userName ?? "there"
+    }
 
     var body: some View {
         ZStack {
@@ -14,55 +22,110 @@ struct GoalFullReviewView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Title
-                Text("Review Your Goals")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(AppTheme.Colors.primaryText)
+                // Top spacing for shared orb (rendered by coordinator)
+                Color.clear
+                    .frame(height: 50)
                     .padding(.top, AppTheme.Spacing.xl)
 
-                // Instructions
-                Text("Review and make any changes before we continue")
-                    .font(.system(size: 15))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-                    .padding(.top, AppTheme.Spacing.sm)
+                // Typewriter intro
+                if showTypewriter && !typewriterComplete {
+                    typewriterSection
+                        .padding(.top, AppTheme.Spacing.xxl)
+                        .padding(.horizontal, AppTheme.Spacing.xxl)
+                }
 
-                // Goal details
-                ScrollView {
-                    VStack(spacing: AppTheme.Spacing.lg) {
-                        if let contract = goalStore.contract?.contract {
-                            goalDetailCard(contract)
+                // Goal card + edit section (after typewriter completes)
+                if typewriterComplete {
+                    ScrollView {
+                        VStack(spacing: AppTheme.Spacing.lg) {
+                            goalsContent
+
+                            // Edit input
+                            editInputSection
                         }
-
-                        // Edit input
-                        editInputSection
+                        .padding(.horizontal, AppTheme.Spacing.xxl)
+                        .padding(.top, AppTheme.Spacing.xl)
+                        .padding(.bottom, 120)
                     }
-                    .padding(.horizontal, AppTheme.Spacing.xxl)
-                    .padding(.top, AppTheme.Spacing.xxl)
-                    .padding(.bottom, 120)
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
 
                 Spacer()
             }
 
-            // Bottom buttons
-            VStack {
-                Spacer()
-                bottomButtons
+            // Bottom approve button
+            if typewriterComplete && goalStore.contract != nil {
+                VStack {
+                    Spacer()
+                    bottomButtons
+                }
             }
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                OnboardingBackButton {
-                    Task {
-                        await onboardingStore.goToPreviousPhase()
-                    }
+        .animation(.easeInOut(duration: 0.3), value: typewriterComplete)
+        .task {
+            if goalStore.contract == nil && !goalStore.isLoading {
+                await goalStore.draft()
+            }
+        }
+        .onChange(of: speechManager.needsSettingsForMic) { _, needsSettings in
+            if needsSettings {
+                showMicSettingsAlert = true
+                speechManager.needsSettingsForMic = false
+            }
+        }
+        .alert("Microphone Access", isPresented: $showMicSettingsAlert) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Enable microphone access in Settings to use voice input.")
+        }
+    }
+
+    // MARK: - Components
+
+    private var typewriterSection: some View {
+        VStack(alignment: .leading) {
+            TypewriterTextView(
+                text: "Based on what you've told me, here's what I'm thinking, \(userName)...",
+                font: .system(size: 20, weight: .medium),
+                wordDelay: 0.06
+            ) {
+                withAnimation {
+                    typewriterComplete = true
                 }
             }
         }
     }
 
-    // MARK: - Components
+    private var goalsContent: some View {
+        Group {
+            if let contract = goalStore.contract?.contract {
+                goalDetailCard(contract)
+            } else if let errorMessage = goalStore.errorMessage {
+                OnboardingErrorCard(
+                    title: "Couldn't load your goals",
+                    message: errorMessage,
+                    primaryActionTitle: "Retry"
+                ) {
+                    Task { await goalStore.draft() }
+                }
+            } else {
+                VStack(spacing: AppTheme.Spacing.xl) {
+                    Spacer()
+                    ProgressView()
+                        .scaleEffect(1.2)
+                    Text("Loading goals...")
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                    Spacer()
+                }
+                .frame(minHeight: 200)
+            }
+        }
+    }
 
     private func goalDetailCard(_ contract: GoalContractDetail) -> some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
@@ -176,16 +239,14 @@ struct GoalFullReviewView: View {
                 .foregroundColor(AppTheme.Colors.secondaryText)
 
             HStack(spacing: AppTheme.Spacing.sm) {
-                // Voice button (if enabled)
-                if onboardingStore.state.microphoneEnabled == true {
-                    Button(action: { showVoiceInput.toggle() }) {
-                        Image(systemName: showVoiceInput ? "mic.fill" : "mic")
-                            .font(.system(size: 18))
-                            .foregroundColor(showVoiceInput ? AppTheme.Colors.orbSkyMid : AppTheme.Colors.secondaryText)
-                            .frame(width: 44, height: 44)
-                            .background(AppTheme.Colors.surface)
-                            .clipShape(Circle())
-                    }
+                // Voice button (always visible, lazy permission)
+                Button(action: { toggleVoiceInput() }) {
+                    Image(systemName: speechManager.microphoneDenied ? "mic.slash.fill" : (showVoiceInput ? "mic.fill" : "mic"))
+                        .font(.system(size: 18))
+                        .foregroundColor(speechManager.microphoneDenied ? AppTheme.Colors.tertiaryText : (showVoiceInput ? AppTheme.Colors.orbSkyMid : AppTheme.Colors.secondaryText))
+                        .frame(width: 44, height: 44)
+                        .background(AppTheme.Colors.surface)
+                        .clipShape(Circle())
                 }
 
                 // Text input
@@ -215,6 +276,14 @@ struct GoalFullReviewView: View {
                     .cornerRadius(AppTheme.CornerRadius.medium)
                     .disabled(isEditing)
                 }
+            }
+
+            if goalStore.contract != nil,
+               let errorMessage = goalStore.errorMessage,
+               !goalStore.isLoading {
+                Text(errorMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(AppTheme.Colors.danger)
             }
         }
         .padding(AppTheme.Spacing.lg)
@@ -249,6 +318,20 @@ struct GoalFullReviewView: View {
 
     // MARK: - Actions
 
+    private func toggleVoiceInput() {
+        if showVoiceInput {
+            speechManager.stopListening()
+            showVoiceInput = false
+        } else {
+            Task {
+                await speechManager.startListening()
+                if !speechManager.microphoneDenied {
+                    showVoiceInput = true
+                }
+            }
+        }
+    }
+
     private func applyEdit() {
         guard !editInstruction.isEmpty else { return }
 
@@ -271,6 +354,6 @@ struct GoalFullReviewView: View {
 
 #Preview {
     NavigationStack {
-        GoalFullReviewView()
+        GoalReviewView()
     }
 }

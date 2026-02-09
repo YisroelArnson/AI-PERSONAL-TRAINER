@@ -8,7 +8,9 @@ struct NameCollectionView: View {
     @State private var hasStartedGoalGeneration = false
 
     private var canContinue: Bool {
-        !name.trimmingCharacters(in: .whitespaces).isEmpty && !onboardingStore.isGoalLoading
+        !name.trimmingCharacters(in: .whitespaces).isEmpty
+        && goalStore.contract != nil
+        && !onboardingStore.isGoalLoading
     }
 
     var body: some View {
@@ -19,8 +21,9 @@ struct NameCollectionView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // Thinking orb
-                thinkingOrb
+                // Space for the shared orb (rendered by coordinator)
+                Color.clear
+                    .frame(width: 100, height: 100)
 
                 Spacer()
                     .frame(height: AppTheme.Spacing.xxxl)
@@ -58,6 +61,16 @@ struct NameCollectionView: View {
                                 .foregroundColor(AppTheme.Colors.secondaryText)
                         }
                         .padding(.top, AppTheme.Spacing.md)
+                    } else if let errorMessage = goalStore.errorMessage {
+                        OnboardingErrorCard(
+                            title: "Couldn't create your goals",
+                            message: errorMessage,
+                            primaryActionTitle: "Retry"
+                        ) {
+                            hasStartedGoalGeneration = false
+                            startGoalGeneration()
+                        }
+                        .padding(.top, AppTheme.Spacing.lg)
                     } else if !name.isEmpty {
                         Text("Almost ready...")
                             .font(.system(size: 14))
@@ -75,89 +88,12 @@ struct NameCollectionView: View {
                     .padding(.bottom, AppTheme.Spacing.xxxl)
             }
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                OnboardingBackButton {
-                    Task {
-                        await onboardingStore.goToPreviousPhase()
-                    }
-                }
-            }
-        }
         .onAppear {
             startGoalGeneration()
         }
     }
 
     // MARK: - Components
-
-    private var thinkingOrb: some View {
-        let size: CGFloat = 100
-
-        return ZStack {
-            // Pulsing outer glow
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            AppTheme.Colors.orbSkyMid.opacity(0.3),
-                            AppTheme.Colors.orbSkyDeep.opacity(0.1),
-                            Color.clear
-                        ]),
-                        center: .center,
-                        startRadius: size * 0.4,
-                        endRadius: size * 1.2
-                    )
-                )
-                .frame(width: size * 1.8, height: size * 1.8)
-                .pulsingAnimation()
-
-            // Main orb
-            ZStack {
-                Circle()
-                    .fill(AppTheme.Gradients.orb)
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            gradient: Gradient(colors: [
-                                AppTheme.Colors.orbCloudWhite.opacity(0.9),
-                                AppTheme.Colors.orbCloudWhite.opacity(0.4),
-                                Color.clear
-                            ]),
-                            center: UnitPoint(x: 0.25, y: 0.2),
-                            startRadius: 0,
-                            endRadius: size * 0.4
-                        )
-                    )
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            gradient: Gradient(colors: [
-                                AppTheme.Colors.orbCloudWhite.opacity(0.7),
-                                AppTheme.Colors.orbCloudWhite.opacity(0.2),
-                                Color.clear
-                            ]),
-                            center: UnitPoint(x: 0.7, y: 0.25),
-                            startRadius: 0,
-                            endRadius: size * 0.35
-                        )
-                    )
-
-                // Thinking indicator
-                if onboardingStore.isGoalLoading {
-                    ProgressView()
-                        .scaleEffect(1.2)
-                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.orbSkyDeep.opacity(0.6)))
-                }
-            }
-            .frame(width: size, height: size)
-            .clipShape(Circle())
-            .shadow(color: AppTheme.Colors.orbSkyDeep.opacity(0.4), radius: 20, x: 0, y: 8)
-        }
-    }
 
     private var continueButton: some View {
         Button(action: continueToGoals) {
@@ -180,6 +116,7 @@ struct NameCollectionView: View {
 
         Task {
             await onboardingStore.startGoalGeneration()
+            defer { onboardingStore.finishGoalGeneration() }
 
             // Draft goals
             await goalStore.draft()
@@ -188,8 +125,6 @@ struct NameCollectionView: View {
             if let goalId = goalStore.contract?.id {
                 onboardingStore.setGoalContractId(goalId)
             }
-
-            onboardingStore.finishGoalGeneration()
         }
     }
 

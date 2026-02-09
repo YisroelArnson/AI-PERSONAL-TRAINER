@@ -5,8 +5,6 @@ struct OnboardingSuccessView: View {
     @StateObject private var programStore = TrainingProgramStore.shared
 
     @State private var showConfetti = false
-    @State private var orbScale: CGFloat = 0.5
-    @State private var orbOpacity: Double = 0
     @State private var contentOpacity: Double = 0
     @State private var buttonOpacity: Double = 0
 
@@ -28,10 +26,9 @@ struct OnboardingSuccessView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // Success orb
-                successOrb
-                    .scaleEffect(orbScale)
-                    .opacity(orbOpacity)
+                // Space for the shared orb (rendered by coordinator)
+                Color.clear
+                    .frame(width: 120, height: 120)
 
                 Spacer()
                     .frame(height: AppTheme.Spacing.xxxl)
@@ -72,71 +69,6 @@ struct OnboardingSuccessView: View {
     }
 
     // MARK: - Components
-
-    private var successOrb: some View {
-        let size: CGFloat = 120
-
-        return ZStack {
-            // Outer glow (larger for celebration)
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            AppTheme.Colors.orbSkyMid.opacity(0.4),
-                            AppTheme.Colors.orbSkyDeep.opacity(0.15),
-                            Color.clear
-                        ]),
-                        center: .center,
-                        startRadius: size * 0.4,
-                        endRadius: size * 1.5
-                    )
-                )
-                .frame(width: size * 2.5, height: size * 2.5)
-
-            // Main orb
-            ZStack {
-                Circle()
-                    .fill(AppTheme.Gradients.orb)
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            gradient: Gradient(colors: [
-                                AppTheme.Colors.orbCloudWhite.opacity(0.9),
-                                AppTheme.Colors.orbCloudWhite.opacity(0.4),
-                                Color.clear
-                            ]),
-                            center: UnitPoint(x: 0.25, y: 0.2),
-                            startRadius: 0,
-                            endRadius: size * 0.4
-                        )
-                    )
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            gradient: Gradient(colors: [
-                                AppTheme.Colors.orbCloudWhite.opacity(0.7),
-                                AppTheme.Colors.orbCloudWhite.opacity(0.2),
-                                Color.clear
-                            ]),
-                            center: UnitPoint(x: 0.7, y: 0.25),
-                            startRadius: 0,
-                            endRadius: size * 0.35
-                        )
-                    )
-
-                // Checkmark
-                Image(systemName: "checkmark")
-                    .font(.system(size: 48, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            .frame(width: size, height: size)
-            .clipShape(Circle())
-            .shadow(color: AppTheme.Colors.orbSkyDeep.opacity(0.4), radius: 24, x: 0, y: 10)
-        }
-        .pulsingAnimation()
-    }
 
     private var firstWorkoutCard: some View {
         VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
@@ -210,12 +142,6 @@ struct OnboardingSuccessView: View {
     // MARK: - Animations
 
     private func startAnimations() {
-        // Orb entrance
-        withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
-            orbScale = 1.0
-            orbOpacity = 1.0
-        }
-
         // Confetti
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             showConfetti = true

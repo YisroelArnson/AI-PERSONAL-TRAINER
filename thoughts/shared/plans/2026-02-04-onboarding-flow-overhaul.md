@@ -27,6 +27,7 @@ After this overhaul:
 - **Intake auto-advances** with an inline assessment decision (no separate Continue button or AssessmentPromptView)
 - **Mic permission** is requested lazily on first mic tap, not via a dedicated screen
 - Mic buttons in GoalFullReviewView and ProgramFullReviewView are always shown with lazy permission
+- **Navigation bar uses ThinTopBar** — matching the main app's nav style (60pt height, 20pt semibold icons, 14pt center text) instead of the current `OnboardingBackButton` toolbar approach
 
 ### Verification:
 - Build succeeds
@@ -49,7 +50,7 @@ After this overhaul:
 
 ## Implementation Approach
 
-Work in 7 phases, each leaving the app in a buildable/testable state. Phase 1 handles the structural changes (phase enum, merged views). Phases 2-3 handle shared components (orb, progress bar). Phase 4 handles transitions. Phases 5-6 handle intake auto-advance and lazy mic. Phase 7 is cleanup.
+Work in 8 phases, each leaving the app in a buildable/testable state. Phase 1 handles structural changes (phase enum, merged views). Phases 2-3 handle shared visual components (orb, progress bar). Phase 4 replaces the nav bar with ThinTopBar. Phase 5 handles directional transitions. Phases 6-7 handle intake auto-advance and lazy mic. Phase 8 is cleanup.
 
 ---
 
@@ -145,9 +146,9 @@ Remove deleted files from the Xcode project build phases if needed (SwiftUI file
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Build succeeds
-- [ ] No references to removed phases in switch statements
-- [ ] No dangling references to deleted view files
+- [x] Build succeeds
+- [x] No references to removed phases in switch statements
+- [x] No dangling references to deleted view files
 
 #### Manual Verification:
 - [ ] Full onboarding flow works with 11 phases
@@ -306,8 +307,8 @@ Each view should leave space for where the orb will be (via padding/spacer) but 
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Build succeeds
-- [ ] No orb rendering code remaining in individual phase views (except the shared component)
+- [x] Build succeeds
+- [x] No orb rendering code remaining in individual phase views (except the shared component)
 
 #### Manual Verification:
 - [ ] Orb smoothly animates size when transitioning between phases (e.g., 120px welcome → hidden on auth → 80px on intake)
@@ -400,7 +401,7 @@ The IntakeView already has `IntakeProgressBarView` for conversation progress. Ke
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] Build succeeds
+- [x] Build succeeds
 
 #### Manual Verification:
 - [ ] Progress bar visible on all screens except welcome and complete
@@ -410,7 +411,114 @@ The IntakeView already has `IntakeProgressBarView` for conversation progress. Ke
 
 ---
 
-## Phase 4: Directional Slide Transitions
+## Phase 4: Replace Navigation Toolbar with ThinTopBar
+
+### Overview
+Replace the `NavigationStack` toolbar + `OnboardingBackButton` pattern with the app's standard `ThinTopBar` component. This makes onboarding navigation feel consistent with the rest of the app.
+
+### Current Problem
+Onboarding uses `NavigationStack` with `.navigationBarBackButtonHidden(true)` and custom `OnboardingBackButton` toolbar items. This creates a different look from the main app which uses `ThinTopBar` (60pt height, 20pt semibold icon, no "Back" text). The `OnboardingBackButton` has 16pt icon + "Back" text label — visually distinct from the rest of the app.
+
+### Changes Required:
+
+#### 1. OnboardingCoordinatorView.swift — Remove NavigationStack, add ThinTopBar
+**File**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/OnboardingCoordinatorView.swift`
+
+Replace the `NavigationStack` wrapper with a plain `VStack`. Add `ThinTopBar` at the top of the coordinator layout, driven by the current phase:
+
+```swift
+var body: some View {
+    VStack(spacing: 0) {
+        // ThinTopBar (hidden on welcome, success, complete)
+        if shouldShowTopBar {
+            ThinTopBar(
+                leftIcon: "chevron.left",
+                leftAction: { Task { await onboardingStore.goToPreviousPhase() } },
+                centerText: onboardingStore.state.currentPhase.displayTitle
+            )
+        }
+
+        // Global progress bar
+        if shouldShowProgressBar {
+            OnboardingProgressBar(...)
+        }
+
+        // Phase content
+        currentPhaseView
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private var shouldShowTopBar: Bool {
+    let phase = onboardingStore.state.currentPhase
+    return !phase.hideBackButton // hides on welcome, intake, notificationPermission, success, complete
+}
+```
+
+This means:
+- **No NavigationStack** — the coordinator manages its own layout directly
+- **ThinTopBar** appears when the phase allows back navigation
+- Center text shows the phase's `displayTitle`
+- Left chevron calls `goToPreviousPhase()`
+- Phases that hide the back button get no top bar at all (more screen real estate)
+
+#### 2. Remove .navigationBarBackButtonHidden and .toolbar from all phase views
+Strip out the navigation toolbar code from every onboarding view. Since the coordinator now owns the top bar, individual views don't need to manage it:
+
+- NameCollectionView (lines 78-87): remove `.navigationBarBackButtonHidden(true)` and `.toolbar { ... }`
+- GoalReviewView (new merged view): don't add toolbar code
+- ProgramReviewView (new merged view): don't add toolbar code
+- OnboardingAssessmentView: remove toolbar code
+- NotificationPermissionView: already has no back button
+- WelcomeView / OnboardingSuccessView: already have no back button
+
+#### 3. Handle confirmation dialogs
+The current `OnboardingBackButton` supports `requiresConfirmation` for phases like intake and assessment. Since we're removing the per-view toolbar, add confirmation logic to the coordinator's back action:
+
+```swift
+@State private var showBackConfirmation = false
+
+private func handleBack() {
+    if onboardingStore.state.currentPhase.requiresBackConfirmation {
+        showBackConfirmation = true
+    } else {
+        Task { await onboardingStore.goToPreviousPhase() }
+    }
+}
+
+// Add alert modifier to the coordinator
+.alert("Go Back?", isPresented: $showBackConfirmation) {
+    Button("Stay", role: .cancel) {}
+    Button("Go Back", role: .destructive) {
+        Task { await onboardingStore.goToPreviousPhase() }
+    }
+} message: {
+    Text("Your progress on this screen may not be saved.")
+}
+```
+
+#### 4. OnboardingBackButton.swift — Can be deleted or left for other uses
+Since onboarding no longer uses it, consider deleting `OnboardingBackButton.swift` and `OnboardingBackButtonModifier` if they're not used elsewhere.
+
+### Success Criteria:
+
+#### Automated Verification:
+- [ ] Build succeeds
+- [ ] No `NavigationStack` in `OnboardingCoordinatorView`
+- [ ] No `.toolbar` or `.navigationBarBackButtonHidden` in onboarding views
+
+#### Manual Verification:
+- [ ] Back button matches main app style (20pt chevron, no "Back" text, 60pt bar height)
+- [ ] Center text shows phase title
+- [ ] Back button hidden on welcome, intake, notification, success, complete screens
+- [ ] Confirmation dialog still appears when backing out of assessment
+- [ ] No double navigation bars or visual artifacts
+
+---
+
+## Phase 5: Directional Slide Transitions
+
+> Note: Phase numbering shifted — directional transitions was previously Phase 4.
 
 ### Overview
 Replace the uniform crossfade with directional slide transitions. Forward navigation slides content left (new content enters from right). Backward navigation slides content right (previous content enters from left).
@@ -436,21 +544,14 @@ func goToPreviousPhase() async {
 ```
 
 #### 2. OnboardingCoordinatorView.swift — Replace animation with asymmetric transition
-Replace the current `.animation(.easeInOut(duration: 0.3), value: ...)` with a custom transition:
+Replace the current `.animation(.easeInOut(duration: 0.3), value: ...)` with a custom transition. Since Phase 4 removed the `NavigationStack`, this applies to the coordinator's VStack layout:
 
 ```swift
-var body: some View {
-    NavigationStack {
-        ZStack {
-            currentPhaseView
-                .id(onboardingStore.state.currentPhase)
-                .transition(phaseTransition)
-
-            // ... orb and progress bar layers
-        }
-        .animation(.easeInOut(duration: 0.35), value: onboardingStore.state.currentPhase)
-    }
-}
+// In the coordinator's phase content area:
+currentPhaseView
+    .id(onboardingStore.state.currentPhase)
+    .transition(phaseTransition)
+    .animation(.easeInOut(duration: 0.35), value: onboardingStore.state.currentPhase)
 
 private var phaseTransition: AnyTransition {
     switch onboardingStore.navigationDirection {
@@ -481,7 +582,7 @@ private var phaseTransition: AnyTransition {
 
 ---
 
-## Phase 5: Intake Auto-Advance + Inline Assessment Decision
+## Phase 6: Intake Auto-Advance + Inline Assessment Decision
 
 ### Overview
 When the intake conversation completes, instead of showing a "Continue" button, show an inline assessment decision card. The user either taps "Quick Assessment" or "Skip & Continue" — no separate AssessmentPromptView screen.
@@ -625,7 +726,7 @@ Remove the `IntakeContinueButton` struct from IntakeView.swift since it's replac
 
 ---
 
-## Phase 6: Lazy Microphone Permission
+## Phase 7: Lazy Microphone Permission
 
 ### Overview
 Remove the dedicated mic permission screen. Request mic permission lazily when user taps the mic button anywhere in the app. Show slashed mic when denied.
@@ -743,7 +844,7 @@ IntakeView(configuration: IntakeViewConfiguration(
 
 ---
 
-## Phase 7: Cleanup + Polish
+## Phase 8: Cleanup + Polish
 
 ### Overview
 Remove dead code, verify all transitions are smooth, ensure no regressions.

@@ -19,6 +19,9 @@ final class AssessmentSessionStore: ObservableObject {
     func startOrResume() async {
         isLoading = true
         errorMessage = nil
+        baseline = nil
+        currentStep = nil
+        steps = []
         do {
             let response = try await apiService.createAssessmentSession()
             session = response.session
@@ -37,9 +40,13 @@ final class AssessmentSessionStore: ObservableObject {
     func submit(result: [String: CodableValue]) async {
         guard let sessionId = session?.id, let step = currentStep else { return }
         isLoading = true
+        errorMessage = nil
         do {
             let next = try await apiService.submitAssessmentStep(sessionId: sessionId, stepId: step.id, result: result)
             currentStep = next
+            if next == nil {
+                await complete()
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -49,9 +56,13 @@ final class AssessmentSessionStore: ObservableObject {
     func skip(reason: String) async {
         guard let sessionId = session?.id, let step = currentStep else { return }
         isLoading = true
+        errorMessage = nil
         do {
             let next = try await apiService.skipAssessmentStep(sessionId: sessionId, stepId: step.id, reason: reason)
             currentStep = next
+            if next == nil {
+                await complete()
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -61,6 +72,7 @@ final class AssessmentSessionStore: ObservableObject {
     func complete() async {
         guard let sessionId = session?.id else { return }
         isLoading = true
+        errorMessage = nil
         do {
             let response = try await apiService.completeAssessment(sessionId: sessionId)
             baseline = response.baseline

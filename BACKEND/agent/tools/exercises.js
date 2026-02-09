@@ -1,7 +1,6 @@
 // BACKEND/agent/tools/exercises.js
 // Exercise and workout management tools for the 4-type exercise system
 const { v4: uuidv4 } = require('uuid');
-const exerciseDistributionService = require('../../services/exerciseDistribution.service');
 const sessionObs = require('../../services/sessionObservability.service');
 
 // Valid muscles (16 preset)
@@ -500,22 +499,6 @@ const exerciseTools = {
       );
 
       const completedExercises = workout.exercises.filter(e => completedIds.has(e.id));
-
-      // Update exercise distribution for each completed exercise
-      for (const exercise of completedExercises) {
-        try {
-          // Use the exercise's goals_addressed and muscles_utilized directly
-          // These are already in the correct format from generate_workout
-          const exerciseData = {
-            goals_addressed: exercise.goals_addressed || [],
-            muscles_utilized: exercise.muscles_utilized || []
-          };
-
-          await exerciseDistributionService.updateTrackingIncrementally(userId, exerciseData);
-        } catch (err) {
-          console.error('Failed to update distribution:', err);
-        }
-      }
 
       // Clear the session workout
       workoutSessions.delete(sessionId);

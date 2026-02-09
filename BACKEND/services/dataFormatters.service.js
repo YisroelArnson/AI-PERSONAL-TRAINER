@@ -23,92 +23,6 @@ function formatWorkoutHistory(workouts) {
 }
 
 /**
- * Format category goals for context
- * @param {Array} goals - Array of category goal records
- * @returns {string} Formatted string
- */
-function formatCategoryGoals(goals) {
-  if (!goals || goals.length === 0) {
-    return 'No category goals set.';
-  }
-
-  return goals.map(g => {
-    // Handle both 'category' and 'category_name' field names
-    const categoryName = g.category_name || g.category;
-    const rounded = Number(g.weight).toFixed(2);
-    const weight = g.weight > 0 ? `+${rounded}` : rounded;
-    return `${categoryName}: ${weight}`;
-  }).join(', ');
-}
-
-/**
- * Format muscle goals for context
- * @param {Array} goals - Array of muscle goal records
- * @returns {string} Formatted string
- */
-function formatMuscleGoals(goals) {
-  if (!goals || goals.length === 0) {
-    return 'No muscle goals set.';
-  }
-
-  return goals.map(g => {
-    // Handle both 'muscle' and 'muscle_name' field names
-    const muscleName = g.muscle_name || g.muscle;
-    const rounded = Number(g.weight).toFixed(2);
-    const weight = g.weight > 0 ? `+${rounded}` : rounded;
-    return `${muscleName}: ${weight}`;
-  }).join(', ');
-}
-
-/**
- * Format active preferences for context
- * @param {Array} preferences - Array of preference records
- * @returns {string} Formatted string
- */
-function formatPreferences(preferences) {
-  if (!preferences || preferences.length === 0) {
-    return 'No active preferences.';
-  }
-
-  return preferences.map(p => {
-    let str = `[${p.id}] ${p.preference_type}: ${p.value}`;
-    if (p.duration_type !== 'permanent') {
-      str += ` (${p.duration_type})`;
-    }
-    return str;
-  }).join('\n');
-}
-
-/**
- * Format exercise distribution for context
- * @param {Object} distribution - Distribution tracking record
- * @returns {string} Formatted string
- */
-function formatDistribution(distribution) {
-  if (!distribution) {
-    return 'No distribution data available.';
-  }
-
-  const { category_totals, muscle_totals, total_exercises_count } = distribution;
-  
-  let result = `Total exercises tracked: ${total_exercises_count || 0}`;
-  
-  if (category_totals && Object.keys(category_totals).length > 0) {
-    result += '\nCategories: ' + Object.entries(category_totals)
-      .map(([cat, count]) => `${cat}:${Number(count).toFixed(1)}`)
-      .join(', ');
-  }
-  
-  if (muscle_totals && Object.keys(muscle_totals).length > 0) {
-    result += '\nMuscles: ' + Object.entries(muscle_totals)
-      .map(([muscle, count]) => `${muscle}:${Number(count).toFixed(1)}`)
-      .join(', ');
-  }
-
-  return result || 'No distribution data.';
-}
-
-/**
  * Format user settings for context
  * @param {Object} settings - User settings record
  * @returns {string} Formatted string
@@ -277,10 +191,6 @@ function formatCurrentWorkout(workout) {
 
 module.exports = {
   formatWorkoutHistory,
-  formatCategoryGoals,
-  formatMuscleGoals,
-  formatPreferences,
-  formatDistribution,
   formatUserSettings,
   formatBodyStats,
   formatCurrentWorkout,

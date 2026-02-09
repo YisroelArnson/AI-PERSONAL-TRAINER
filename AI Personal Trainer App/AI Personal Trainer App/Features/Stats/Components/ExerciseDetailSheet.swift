@@ -478,18 +478,8 @@ struct PreviewWrapper: View {
     }
     
     private func loadPreviewData() async {
-        let apiService = APIService()
-        do {
-            let history = try await apiService.fetchWorkoutHistory(limit: 1)
-            await MainActor.run {
-                workoutItems = history
-                isLoading = false
-            }
-        } catch {
-            print("Preview error: \(error)")
-            await MainActor.run {
-                isLoading = false
-            }
+        await MainActor.run {
+            isLoading = false
         }
     }
 }

@@ -5,7 +5,6 @@ struct OnboardingAssessmentView: View {
     @StateObject private var assessmentStore = AssessmentSessionStore.shared
 
     @State private var hasStarted = false
-    @State private var showBackConfirmation = false
 
     var body: some View {
         ZStack {
@@ -21,30 +20,21 @@ struct OnboardingAssessmentView: View {
                 }
 
                 // Content
-                if assessmentStore.isLoading && assessmentStore.currentStep == nil {
-                    loadingView
-                } else if let currentStep = assessmentStore.currentStep {
-                    stepView(currentStep)
+                if let errorMessage = assessmentStore.errorMessage {
+                    errorView(message: errorMessage)
+                        .padding(.horizontal, AppTheme.Spacing.xxl)
+                        .padding(.top, AppTheme.Spacing.xxxl)
                 } else if assessmentStore.baseline != nil {
                     completionView
+                } else if let currentStep = assessmentStore.currentStep {
+                    stepView(currentStep)
+                } else if assessmentStore.isLoading {
+                    finishingOrLoadingView
                 } else {
-                    loadingView
+                    errorView(message: "Something went wrong. Please try again.")
+                        .padding(.horizontal, AppTheme.Spacing.xxl)
+                        .padding(.top, AppTheme.Spacing.xxxl)
                 }
-            }
-        }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                OnboardingBackButton(
-                    action: {
-                        Task {
-                            await onboardingStore.goToPreviousPhase()
-                        }
-                    },
-                    requiresConfirmation: true,
-                    confirmationTitle: "Leave Assessment?",
-                    confirmationMessage: "Your progress will be lost and you'll need to start over."
-                )
             }
         }
         .onAppear {
@@ -65,8 +55,21 @@ struct OnboardingAssessmentView: View {
 
     private var stepProgress: some View {
         let steps = assessmentStore.steps
-        let currentIndex = steps.firstIndex(where: { $0.id == assessmentStore.currentStep?.id }) ?? 0
-        let progress = steps.isEmpty ? 0 : Double(currentIndex) / Double(steps.count)
+        let currentIndex: Int = {
+            if let currentId = assessmentStore.currentStep?.id,
+               let idx = steps.firstIndex(where: { $0.id == currentId }) {
+                return idx
+            }
+            if assessmentStore.baseline != nil {
+                return max(steps.count - 1, 0)
+            }
+            if assessmentStore.currentStep == nil && !steps.isEmpty {
+                // Finishing assessment (next_step is nil, baseline not yet returned)
+                return max(steps.count - 1, 0)
+            }
+            return 0
+        }()
+        let progress = steps.isEmpty ? 0 : Double(currentIndex + 1) / Double(steps.count)
 
         return VStack(spacing: AppTheme.Spacing.sm) {
             // Progress bar
@@ -101,14 +104,14 @@ struct OnboardingAssessmentView: View {
         }
     }
 
-    private var loadingView: some View {
+    private var finishingOrLoadingView: some View {
         VStack(spacing: AppTheme.Spacing.xl) {
             Spacer()
 
             ProgressView()
                 .scaleEffect(1.2)
 
-            Text("Preparing your assessment...")
+            Text(assessmentStore.steps.isEmpty ? "Preparing your assessment..." : "Finishing your assessment...")
                 .font(.system(size: 16))
                 .foregroundColor(AppTheme.Colors.secondaryText)
 
@@ -176,18 +179,6 @@ struct OnboardingAssessmentView: View {
         VStack(spacing: AppTheme.Spacing.xxxl) {
             Spacer()
 
-            // Success orb
-            ZStack {
-                Circle()
-                    .fill(AppTheme.Gradients.orb)
-                    .frame(width: 100, height: 100)
-
-                Image(systemName: "checkmark")
-                    .font(.system(size: 40, weight: .bold))
-                    .foregroundColor(.white)
-            }
-            .shadow(color: AppTheme.Colors.orbSkyDeep.opacity(0.3), radius: 16, x: 0, y: 6)
-
             VStack(spacing: AppTheme.Spacing.md) {
                 Text("Assessment Complete!")
                     .font(.system(size: 24, weight: .semibold))
@@ -199,6 +190,26 @@ struct OnboardingAssessmentView: View {
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, AppTheme.Spacing.xxxl)
+
+            Spacer()
+        }
+    }
+
+    private func errorView(message: String) -> some View {
+        VStack(spacing: AppTheme.Spacing.xl) {
+            Spacer()
+
+            OnboardingErrorCard(
+                title: "Assessment Error",
+                message: message,
+                primaryActionTitle: "Retry"
+            ) {
+                Task {
+                    hasStarted = false
+                    await assessmentStore.startOrResume()
+                    hasStarted = true
+                }
+            }
 
             Spacer()
         }

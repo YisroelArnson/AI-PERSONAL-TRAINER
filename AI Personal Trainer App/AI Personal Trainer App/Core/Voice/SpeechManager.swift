@@ -8,6 +8,8 @@ final class SpeechManager: NSObject, ObservableObject {
     @Published var partialTranscript = ""
     @Published var finalTranscript = ""
     @Published var errorMessage: String?
+    @Published var microphoneDenied = false
+    @Published var needsSettingsForMic = false
 
     private let audioEngine = AVAudioEngine()
     private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
@@ -22,12 +24,42 @@ final class SpeechManager: NSObject, ObservableObject {
         }
     }
 
+    private func requestMicrophonePermission() async -> Bool {
+        let session = AVAudioSession.sharedInstance()
+
+        switch session.recordPermission {
+        case .granted:
+            return true
+        case .denied:
+            needsSettingsForMic = true
+            return false
+        case .undetermined:
+            return await withCheckedContinuation { continuation in
+                AVAudioApplication.requestRecordPermission { granted in
+                    continuation.resume(returning: granted)
+                }
+            }
+        @unknown default:
+            return false
+        }
+    }
+
     func startListening() async {
         guard !isListening else { return }
         guard let speechRecognizer else {
             errorMessage = "Speech recognition is unavailable."
             return
         }
+
+        // Check/request mic permission first
+        let micGranted = await requestMicrophonePermission()
+        guard micGranted else {
+            microphoneDenied = true
+            return
+        }
+        microphoneDenied = false
+        needsSettingsForMic = false
+
         errorMessage = nil
         partialTranscript = ""
         finalTranscript = ""

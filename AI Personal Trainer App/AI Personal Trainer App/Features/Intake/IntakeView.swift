@@ -25,14 +25,14 @@ enum IntakeContext {
 struct IntakeViewConfiguration {
     let context: IntakeContext
     let onComplete: (() async -> Void)?
-    let isMicrophoneEnabled: Bool
+    let onAssessment: (() async -> Void)?
     let sessionIdCallback: ((String) -> Void)?
 
     static var standalone: IntakeViewConfiguration {
         IntakeViewConfiguration(
             context: .standalone,
             onComplete: nil,
-            isMicrophoneEnabled: true,
+            onAssessment: nil,
             sessionIdCallback: nil
         )
     }
@@ -61,6 +61,7 @@ struct IntakeView: View {
     @State private var isRecording = false
     @State private var pendingAnswer: String? = nil
     @State private var previousQuestion: String = ""
+    @State private var showMicSettingsAlert = false
     @FocusState private var isTextFieldFocused: Bool
 
     private let totalQuestions = 8
@@ -90,19 +91,6 @@ struct IntakeView: View {
         !answerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var debugStatus: String {
-        let progress = intakeStore.progress
-        let done = progress?.requiredDone ?? 0
-        let total = progress?.requiredTotal ?? 8
-        var status = "Progress: \(done)/\(total)"
-        if intakeStore.isComplete { status += " | Complete" }
-        if intakeStore.isLoading { status += " | Loading" }
-        if intakeStore.isConfirming { status += " | Confirming" }
-        if intakeStore.summary != nil { status += " | HasSummary" }
-        if let error = intakeStore.errorMessage { status += " | Error: \(error.prefix(30))" }
-        return status
-    }
-
     private var inputDisabled: Bool {
         intakeStore.isLoading || intakeStore.isConfirming || intakeStore.isComplete
     }
@@ -130,16 +118,11 @@ struct IntakeView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, configuration.context == .standalone ? 8 : 16)
 
-                // MARK: - Fixed AI Orb
-                AIOrb(size: 80, isLoading: intakeStore.isLoading || intakeStore.isConfirming)
+                // Space for the shared orb (rendered by coordinator)
+                Color.clear
+                    .frame(height: 80)
                     .padding(.top, 20)
                     .padding(.bottom, 4)
-
-                // Debug status (temporary)
-                Text(debugStatus)
-                    .font(.system(size: 10))
-                    .foregroundColor(.gray)
-                    .padding(.bottom, 8)
 
                 // MARK: - Scrollable Conversation Area
                 ScrollViewReader { proxy in
@@ -241,18 +224,23 @@ struct IntakeView: View {
                     }
                 }
 
-                // MARK: - Input Area or Continue Button
+                // MARK: - Input Area or Completion View
                 if intakeStore.isComplete {
-                    // Show Continue button when conversation is complete
-                    IntakeContinueButton {
-                        if let onComplete = configuration.onComplete {
-                            Task { @MainActor in
-                                await onComplete()
+                    IntakeCompletionView(
+                        onAssessment: {
+                            if let onAssessment = configuration.onAssessment {
+                                Task { @MainActor in await onAssessment() }
                             }
-                        } else if configuration.context == .standalone {
-                            showSummary = true
-                        }
-                    }
+                        },
+                        onSkip: {
+                            if let onComplete = configuration.onComplete {
+                                Task { @MainActor in await onComplete() }
+                            } else if configuration.context == .standalone {
+                                showSummary = true
+                            }
+                        },
+                        isOnboarding: configuration.context == .onboarding
+                    )
                 } else {
                     IntakeInputArea(
                         answerText: $answerText,
@@ -260,7 +248,7 @@ struct IntakeView: View {
                         isTextFieldFocused: $isTextFieldFocused,
                         hasText: hasText,
                         isLoading: inputDisabled,
-                        showMicrophone: configuration.isMicrophoneEnabled,
+                        micDenied: speechManager.microphoneDenied,
                         onMicTap: toggleRecording,
                         onSend: submitAnswer
                     )
@@ -290,20 +278,29 @@ struct IntakeView: View {
         // For standalone: show summary sheet when it arrives
         .onChange(of: intakeStore.summary) { _, newSummary in
             if newSummary != nil && configuration.context == .standalone {
-                print("[IntakeView] Summary received, showing summary sheet")
                 showSummary = true
-            }
-        }
-        // Log when conversation is complete (navigation is handled by Continue button)
-        .onChange(of: intakeStore.isComplete) { _, isComplete in
-            if isComplete {
-                print("[IntakeView] Conversation complete - showing Continue button")
             }
         }
         .onDisappear {
             if speechManager.isListening {
                 speechManager.stopListening()
             }
+        }
+        .onChange(of: speechManager.needsSettingsForMic) { _, needsSettings in
+            if needsSettings {
+                showMicSettingsAlert = true
+                speechManager.needsSettingsForMic = false
+            }
+        }
+        .alert("Microphone Access", isPresented: $showMicSettingsAlert) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Enable microphone access in Settings to use voice input.")
         }
     }
 
@@ -408,119 +405,6 @@ struct IntakeProgressBarView: View {
     }
 }
 
-// MARK: - AI Orb Component
-
-struct AIOrb: View {
-    let size: CGFloat
-    var isLoading: Bool = false
-
-    @State private var isPulsing = false
-
-    // Cloud-like sky colors
-    private let skyBlueLight = Color(red: 0.7, green: 0.85, blue: 0.95)
-    private let skyBlueMid = Color(red: 0.4, green: 0.7, blue: 0.9)
-    private let skyBlueDeep = Color(red: 0.2, green: 0.5, blue: 0.85)
-    private let cloudWhite = Color(red: 0.95, green: 0.97, blue: 1.0)
-
-    var body: some View {
-        ZStack {
-            // Base gradient - sky blue bottom to light top
-            Circle()
-                .fill(
-                    LinearGradient(
-                        gradient: Gradient(stops: [
-                            .init(color: cloudWhite.opacity(0.95), location: 0),
-                            .init(color: skyBlueLight, location: 0.3),
-                            .init(color: skyBlueMid, location: 0.6),
-                            .init(color: skyBlueDeep, location: 1.0)
-                        ]),
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .frame(width: size, height: size)
-
-            // Cloud layer 1 - top left wisp
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            cloudWhite.opacity(0.9),
-                            cloudWhite.opacity(0.4),
-                            Color.clear
-                        ]),
-                        center: UnitPoint(x: 0.25, y: 0.2),
-                        startRadius: 0,
-                        endRadius: size * 0.4
-                    )
-                )
-                .frame(width: size, height: size)
-
-            // Cloud layer 2 - top right highlight
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            cloudWhite.opacity(0.7),
-                            cloudWhite.opacity(0.2),
-                            Color.clear
-                        ]),
-                        center: UnitPoint(x: 0.7, y: 0.25),
-                        startRadius: 0,
-                        endRadius: size * 0.35
-                    )
-                )
-                .frame(width: size, height: size)
-
-            // Cloud layer 3 - middle soft cloud
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            cloudWhite.opacity(0.5),
-                            skyBlueLight.opacity(0.3),
-                            Color.clear
-                        ]),
-                        center: UnitPoint(x: 0.5, y: 0.4),
-                        startRadius: 0,
-                        endRadius: size * 0.45
-                    )
-                )
-                .frame(width: size, height: size)
-
-            // Subtle inner shadow for depth
-            Circle()
-                .stroke(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.3),
-                            Color.clear,
-                            skyBlueDeep.opacity(0.2)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 1
-                )
-                .frame(width: size - 1, height: size - 1)
-        }
-        .clipShape(Circle())
-        .scaleEffect(isPulsing ? 1.08 : 1.0)
-        .opacity(isPulsing ? 0.85 : 1.0)
-        .onChange(of: isLoading) { _, loading in
-            if loading {
-                withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
-                    isPulsing = true
-                }
-            } else {
-                withAnimation(.easeOut(duration: 0.3)) {
-                    isPulsing = false
-                }
-            }
-        }
-    }
-}
-
 // MARK: - Intake Input Area
 
 struct IntakeInputArea: View {
@@ -529,27 +413,25 @@ struct IntakeInputArea: View {
     @FocusState.Binding var isTextFieldFocused: Bool
     let hasText: Bool
     let isLoading: Bool
-    let showMicrophone: Bool
+    let micDenied: Bool
     let onMicTap: () -> Void
     let onSend: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            // Microphone button (conditional)
-            if showMicrophone {
-                Button(action: onMicTap) {
-                    ZStack {
-                        Circle()
-                            .fill(isRecording ? Color.red.opacity(0.2) : AppTheme.Colors.surface)
-                            .frame(width: 50, height: 50)
+            // Microphone button (always visible, shows slash when denied)
+            Button(action: onMicTap) {
+                ZStack {
+                    Circle()
+                        .fill(isRecording ? Color.red.opacity(0.2) : AppTheme.Colors.surface)
+                        .frame(width: 50, height: 50)
 
-                        Image(systemName: "mic.fill")
-                            .font(.system(size: 20, weight: .medium))
-                            .foregroundColor(isRecording ? Color(hex: "FF3B30") : AppTheme.Colors.primaryText)
-                    }
+                    Image(systemName: micDenied ? "mic.slash.fill" : "mic.fill")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(isRecording ? Color(hex: "FF3B30") : (micDenied ? AppTheme.Colors.tertiaryText : AppTheme.Colors.primaryText))
                 }
-                .disabled(isLoading)
             }
+            .disabled(isLoading)
 
             // Text input
             TextField("Type your answer...", text: $answerText)
@@ -587,28 +469,72 @@ struct IntakeInputArea: View {
     }
 }
 
-// MARK: - Intake Continue Button
+// MARK: - Intake Completion View
 
-struct IntakeContinueButton: View {
-    let onContinue: () -> Void
+struct IntakeCompletionView: View {
+    let onAssessment: () -> Void
+    let onSkip: () -> Void
+    let isOnboarding: Bool
 
     var body: some View {
-        Button(action: onContinue) {
-            HStack {
-                Text("Continue")
-                    .font(.system(size: 17, weight: .semibold))
-                Image(systemName: "arrow.right")
-                    .font(.system(size: 15, weight: .semibold))
+        VStack(spacing: AppTheme.Spacing.lg) {
+            if isOnboarding {
+                // Assessment decision card
+                VStack(spacing: AppTheme.Spacing.md) {
+                    Text("Quick Assessment?")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+
+                    Text("A 5-10 minute assessment helps me build a more personalized program.")
+                        .font(.system(size: 14))
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                        .multilineTextAlignment(.center)
+
+                    HStack(spacing: AppTheme.Spacing.md) {
+                        Button(action: onSkip) {
+                            Text("Skip")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(AppTheme.Colors.secondaryText)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(AppTheme.Colors.surface)
+                                .cornerRadius(AppTheme.CornerRadius.medium)
+                        }
+
+                        Button(action: onAssessment) {
+                            Text("Let's Do It")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(AppTheme.Colors.background)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                                .background(AppTheme.Colors.primaryText)
+                                .cornerRadius(AppTheme.CornerRadius.medium)
+                        }
+                    }
+                }
+                .padding(AppTheme.Spacing.xl)
+                .background(AppTheme.Colors.surface.opacity(0.5))
+                .cornerRadius(AppTheme.CornerRadius.large)
+            } else {
+                // Standalone: simple continue
+                Button(action: onSkip) {
+                    HStack {
+                        Text("Continue")
+                            .font(.system(size: 17, weight: .semibold))
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
+                    .foregroundColor(AppTheme.Colors.background)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(AppTheme.Colors.accent)
+                    .cornerRadius(12)
+                }
             }
-            .foregroundColor(AppTheme.Colors.background)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(AppTheme.Colors.accent)
-            .cornerRadius(12)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 16)
-        .padding(.bottom, 24)
+        .padding(.vertical, 16)
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
     }
 }
 

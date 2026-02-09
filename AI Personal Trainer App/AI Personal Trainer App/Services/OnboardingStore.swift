@@ -10,15 +10,20 @@ final class OnboardingStore: ObservableObject {
     @Published var errorMessage: String?
     @Published var isGoalLoading: Bool = false
 
+    enum NavigationDirection { case forward, backward }
+    @Published var navigationDirection: NavigationDirection = .forward
+
     private let userDefaultsKey = "onboarding_state"
     private let apiService = APIService()
 
     private init() {
-        // Load from UserDefaults on init
         if let data = UserDefaults.standard.data(forKey: userDefaultsKey),
-           let savedState = try? JSONDecoder().decode(OnboardingState.self, from: data) {
+           let savedState = try? JSONDecoder().decode(OnboardingState.self, from: data),
+           savedState.currentPhase == .complete {
+            // Onboarding was completed — restore state, user goes to home screen
             self.state = savedState
         } else {
+            // Not completed (or no saved state) — always start fresh
             self.state = OnboardingState.initial
         }
     }
@@ -70,12 +75,14 @@ final class OnboardingStore: ObservableObject {
     // MARK: - Navigation
 
     func startOnboarding() async {
+        navigationDirection = .forward
         state.hasStartedOnboarding = true
         state.currentPhase = .auth
         await saveAndSync()
     }
 
     func advanceToNextPhase() async {
+        navigationDirection = .forward
         let phases = OnboardingPhase.allCases
         guard let currentIndex = phases.firstIndex(of: state.currentPhase),
               currentIndex < phases.count - 1 else { return }
@@ -93,6 +100,7 @@ final class OnboardingStore: ObservableObject {
     }
 
     func goToPreviousPhase() async {
+        navigationDirection = .backward
         guard let previousPhase = state.currentPhase.previousPhase else { return }
         state.currentPhase = previousPhase
         await saveAndSync()
@@ -121,7 +129,8 @@ final class OnboardingStore: ObservableObject {
     }
 
     func completeAuth() async {
-        state.currentPhase = .microphonePermission
+        navigationDirection = .forward
+        state.currentPhase = .intake
         await saveAndSync()
     }
 
@@ -142,11 +151,6 @@ final class OnboardingStore: ObservableObject {
 
     // MARK: - Permissions
 
-    func setMicrophonePermission(_ granted: Bool) async {
-        state.microphoneEnabled = granted
-        await saveAndSync()
-    }
-
     func setNotificationPermission(_ granted: Bool) async {
         state.notificationsEnabled = granted
         if !granted {
@@ -163,14 +167,8 @@ final class OnboardingStore: ObservableObject {
 
     // MARK: - Assessment
 
-    func skipAssessment() async {
-        state.assessmentSkipped = true
-        state.assessmentSkippedAt = Date()
-        state.currentPhase = .nameCollection
-        await saveAndSync()
-    }
-
     func completeAssessment() async {
+        navigationDirection = .forward
         state.currentPhase = .nameCollection
         await saveAndSync()
     }
@@ -211,35 +209,31 @@ final class OnboardingStore: ObservableObject {
 
     // MARK: - Intake Completion
 
-    func completeIntake() async {
-        print("[OnboardingStore] completeIntake() called, current phase: \(state.currentPhase)")
-        state.currentPhase = .assessmentPrompt
-        objectWillChange.send()  // Explicitly notify observers
-        print("[OnboardingStore] Phase changed to: \(state.currentPhase)")
+    func completeIntake(withAssessment: Bool = false) async {
+        navigationDirection = .forward
+        if withAssessment {
+            state.currentPhase = .assessment
+        } else {
+            state.assessmentSkipped = true
+            state.assessmentSkippedAt = Date()
+            state.currentPhase = .nameCollection
+        }
+        objectWillChange.send()
         await saveAndSync()
-        print("[OnboardingStore] completeIntake() finished, saved state")
     }
 
     // MARK: - Goals
 
-    func completeGoalDraft() async {
-        state.currentPhase = .goalReview
-        await saveAndSync()
-    }
-
     func approveGoals() async {
-        state.currentPhase = .programDraft
+        navigationDirection = .forward
+        state.currentPhase = .programReview
         await saveAndSync()
     }
 
     // MARK: - Program
 
-    func completeProgramDraft() async {
-        state.currentPhase = .programReview
-        await saveAndSync()
-    }
-
     func activateProgram() async {
+        navigationDirection = .forward
         state.currentPhase = .notificationPermission
         await saveAndSync()
     }
@@ -247,6 +241,7 @@ final class OnboardingStore: ObservableObject {
     // MARK: - Success
 
     func completeOnboarding() async {
+        navigationDirection = .forward
         state.currentPhase = .complete
         await saveAndSync()
     }

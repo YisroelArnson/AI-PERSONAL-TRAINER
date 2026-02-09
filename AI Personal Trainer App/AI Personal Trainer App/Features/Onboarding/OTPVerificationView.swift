@@ -18,8 +18,9 @@ struct OTPVerificationView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top orb
-                smallOrb
+                // Space for the shared orb (rendered by coordinator)
+                Color.clear
+                    .frame(height: 60)
                     .padding(.top, AppTheme.Spacing.xxxl)
 
                 Spacer()
@@ -71,16 +72,6 @@ struct OTPVerificationView: View {
                 Spacer()
             }
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                OnboardingBackButton {
-                    Task {
-                        await onboardingStore.setPhase(.auth)
-                    }
-                }
-            }
-        }
         .onReceive(timer) { _ in
             if resendCountdown > 0 {
                 resendCountdown -= 1
@@ -91,46 +82,6 @@ struct OTPVerificationView: View {
     }
 
     // MARK: - Components
-
-    private var smallOrb: some View {
-        let size: CGFloat = 60
-
-        return ZStack {
-            Circle()
-                .fill(AppTheme.Gradients.orb)
-
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            AppTheme.Colors.orbCloudWhite.opacity(0.9),
-                            AppTheme.Colors.orbCloudWhite.opacity(0.4),
-                            Color.clear
-                        ]),
-                        center: UnitPoint(x: 0.25, y: 0.2),
-                        startRadius: 0,
-                        endRadius: size * 0.4
-                    )
-                )
-
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            AppTheme.Colors.orbCloudWhite.opacity(0.7),
-                            AppTheme.Colors.orbCloudWhite.opacity(0.2),
-                            Color.clear
-                        ]),
-                        center: UnitPoint(x: 0.7, y: 0.25),
-                        startRadius: 0,
-                        endRadius: size * 0.35
-                    )
-                )
-        }
-        .frame(width: size, height: size)
-        .clipShape(Circle())
-        .shadow(color: AppTheme.Colors.orbSkyDeep.opacity(0.3), radius: 12, x: 0, y: 4)
-    }
 
     private var instructionText: some View {
         VStack(spacing: AppTheme.Spacing.sm) {

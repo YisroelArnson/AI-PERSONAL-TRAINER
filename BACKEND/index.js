@@ -33,26 +33,8 @@ app.get('/', (req, res) => {
 const agentRouter = require('./routes/agent.routes');
 app.use('/agent', agentRouter);
 
-const recommendRouter = require('./routes/recommend.routes');
-app.use('/recommend', recommendRouter);
-
-const preferenceRouter = require('./routes/preference.routes');
-app.use('/preferences', preferenceRouter);
-
-const categoryGoalsRouter = require('./routes/categoryGoals.routes');
-app.use('/category-goals', categoryGoalsRouter);
-
-const muscleGoalsRouter = require('./routes/muscleGoals.routes');
-app.use('/muscle-goals', muscleGoalsRouter);
-
-const exerciseLogRouter = require('./routes/exerciseLog.routes');
-app.use('/exercises', exerciseLogRouter);
-
 const userSettingsRouter = require('./routes/userSettings.routes');
 app.use('/user-settings', userSettingsRouter);
-
-const intervalRouter = require('./routes/interval.routes');
-app.use('/intervals', intervalRouter);
 
 const trainerWorkoutsRouter = require('./routes/trainerWorkouts.routes');
 app.use('/trainer/workouts', trainerWorkoutsRouter);

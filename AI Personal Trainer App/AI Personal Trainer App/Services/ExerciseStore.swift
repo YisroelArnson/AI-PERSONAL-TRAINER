@@ -20,7 +20,6 @@ class ExerciseStore: ObservableObject {
     
     @Published var exercises: [UIExercise] = []
     @Published var completedExerciseIds: Set<UUID> = []
-    @Published var workoutHistoryIds: [UUID: String] = [:] // Maps exercise UUID → database record ID
     @Published var currentExerciseIndex: Int = 0
     
     // Per-exercise set tracking (keyed by exercise UUID)
@@ -90,7 +89,6 @@ class ExerciseStore: ObservableObject {
         let state = PersistedWorkoutState(
             exercises: exercises,
             completedExerciseIds: Array(completedExerciseIds),
-            workoutHistoryIds: workoutHistoryIds,
             completedSetsPerExercise: completedSetsPerExercise.mapValues { Array($0) },
             adjustedRepsPerExercise: adjustedRepsPerExercise,
             adjustedWeightsPerExercise: adjustedWeightsPerExercise,
@@ -119,7 +117,6 @@ class ExerciseStore: ObservableObject {
             
             exercises = state.exercises
             completedExerciseIds = Set(state.completedExerciseIds)
-            workoutHistoryIds = state.workoutHistoryIds
             completedSetsPerExercise = state.completedSetsPerExercise.mapValues { Set($0) }
             adjustedRepsPerExercise = state.adjustedRepsPerExercise
             adjustedWeightsPerExercise = state.adjustedWeightsPerExercise
@@ -138,7 +135,6 @@ class ExerciseStore: ObservableObject {
     func clearExercises() {
         exercises = []
         completedExerciseIds = []
-        workoutHistoryIds = [:]
         currentExerciseIndex = 0
         completedSetsPerExercise = [:]
         adjustedRepsPerExercise = [:]
@@ -170,20 +166,6 @@ class ExerciseStore: ObservableObject {
         clearExercises()
         needsRefresh = true
         print("🔄 ExerciseStore: Refresh triggered")
-    }
-    
-    /// Complete an exercise and track its database ID
-    func markExerciseCompleted(exerciseId: UUID, workoutHistoryId: String) {
-        completedExerciseIds.insert(exerciseId)
-        workoutHistoryIds[exerciseId] = workoutHistoryId
-        saveState()
-    }
-    
-    /// Uncomplete an exercise
-    func markExerciseUncompleted(exerciseId: UUID) {
-        completedExerciseIds.remove(exerciseId)
-        workoutHistoryIds.removeValue(forKey: exerciseId)
-        saveState()
     }
     
     /// Update the current exercise index
@@ -325,7 +307,6 @@ class ExerciseStore: ObservableObject {
 struct PersistedWorkoutState: Codable {
     let exercises: [UIExercise]
     let completedExerciseIds: [UUID]
-    let workoutHistoryIds: [UUID: String]
     let completedSetsPerExercise: [UUID: [Int]]
     let adjustedRepsPerExercise: [UUID: [Int]]
     let adjustedWeightsPerExercise: [UUID: [Int]]

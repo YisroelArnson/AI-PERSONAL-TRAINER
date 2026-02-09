@@ -14,20 +14,14 @@ struct AppView: View {
 
     var body: some View {
         Group {
-            if !onboardingStore.state.hasStartedOnboarding {
-                // New user: show welcome screen
-                WelcomeView()
-            } else if !isAuthenticated {
-                // Started onboarding but not authenticated: show auth flow
-                OnboardingCoordinatorView()
-            } else if !onboardingStore.isOnboardingComplete {
-                // Authenticated but onboarding not complete: continue onboarding
-                OnboardingCoordinatorView()
-            } else {
+            if onboardingStore.isOnboardingComplete {
                 // Fully onboarded: show main app with feature tour
                 MainAppView()
                     .environmentObject(userDataStore)
                     .withFeatureTour()
+            } else {
+                // All onboarding phases (including welcome) live inside the coordinator
+                OnboardingCoordinatorView()
             }
         }
         .animation(.easeInOut(duration: 0.3), value: onboardingStore.state.hasStartedOnboarding)
@@ -101,8 +95,8 @@ struct MainAppView: View {
                     Button(action: { currentPage = .stats }) {
                         Label("History", systemImage: "clock")
                     }
-                    Button(action: { currentPage = .info }) {
-                        Label("Preferences", systemImage: "slider.horizontal.3")
+                    Button(action: { currentPage = .locations }) {
+                        Label("Locations", systemImage: "mappin.and.ellipse")
                     }
                     Button(action: { currentPage = .coach }) {
                         Label("Trainer", systemImage: "person.text.rectangle")
@@ -190,10 +184,10 @@ struct MainAppView: View {
         case .stats:
             StatsPageView()
                 .id("stats")
-        case .info:
-            InfoPageView()
+        case .locations:
+            LocationsPageView()
                 .environmentObject(userDataStore)
-                .id("info")
+                .id("locations")
         case .coach:
             TrainerJourneyView()
                 .id("coach")
@@ -206,8 +200,8 @@ struct MainAppView: View {
         switch currentPage {
         case .stats:
             return "History"
-        case .info:
-            return "Preferences"
+        case .locations:
+            return "Locations"
         case .coach:
             return "Trainer"
         case .profile:
@@ -240,17 +234,22 @@ struct StatsPageView: View {
     }
 }
 
-// MARK: - Info Page View (Full Page Wrapper)
+// MARK: - Locations Page View (Full Page Wrapper)
 
-struct InfoPageView: View {
+struct LocationsPageView: View {
     @EnvironmentObject var userDataStore: UserDataStore
+    @State private var selectedLocation: Location?
+    @State private var shouldShowEditor: Bool = false
 
     var body: some View {
         ZStack {
             AppTheme.Colors.background
                 .ignoresSafeArea()
-            InfoContentView()
-                .environmentObject(userDataStore)
+            LocationsListSheet(
+                selectedLocation: $selectedLocation,
+                shouldShowEditor: $shouldShowEditor
+            )
+            .environmentObject(userDataStore)
         }
     }
 }

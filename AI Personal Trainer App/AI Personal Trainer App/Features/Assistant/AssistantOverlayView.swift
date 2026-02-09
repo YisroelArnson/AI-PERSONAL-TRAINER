@@ -261,10 +261,6 @@ struct AssistantOverlayView: View {
                 }
             }
 
-        case .exercises(let exercises):
-            // TODO: Handle exercises if needed in chat context
-            print("Received \(exercises.count) exercises from agent")
-
         case .done(let sessionId):
             manager.currentSessionId = sessionId
             manager.finalizeStreamingMessage()

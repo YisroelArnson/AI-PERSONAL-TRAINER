@@ -16,7 +16,6 @@ enum AppLoadingState: Equatable {
     case loadingUserData
     case checkingLocation
     case locationDetected(String) // location name
-    case fetchingRecommendations
     case ready
     case error(String)
     
@@ -30,8 +29,6 @@ enum AppLoadingState: Equatable {
             return "Checking location..."
         case .locationDetected(let locationName):
             return "Switched to \(locationName)"
-        case .fetchingRecommendations:
-            return "Fetching recommendations..."
         case .ready:
             return "Ready"
         case .error(let message):
@@ -49,8 +46,6 @@ enum AppLoadingState: Equatable {
             return "location.circle"
         case .locationDetected:
             return "location.fill"
-        case .fetchingRecommendations:
-            return "sparkles"
         case .ready:
             return "checkmark.circle.fill"
         case .error:
@@ -65,7 +60,6 @@ enum AppLoadingState: Equatable {
 class AppStateCoordinator: ObservableObject {
     @Published var loadingState: AppLoadingState = .initializing
     @Published var isReady: Bool = false
-    @Published var shouldFetchRecommendations: Bool = false
     
     private var userDataStore: UserDataStore
     private var userSettings: UserSettings
@@ -110,7 +104,6 @@ class AppStateCoordinator: ObservableObject {
         
         // Step 3: Signal ready for workout home
         loadingState = .ready
-        shouldFetchRecommendations = false
         isReady = true
         print("✅ App initialization complete - ready for workout")
     }
@@ -201,6 +194,5 @@ class AppStateCoordinator: ObservableObject {
     func reset() {
         loadingState = .initializing
         isReady = false
-        shouldFetchRecommendations = false
     }
 }

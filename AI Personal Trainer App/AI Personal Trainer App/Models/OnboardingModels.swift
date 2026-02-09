@@ -6,14 +6,10 @@ enum OnboardingPhase: String, Codable, CaseIterable {
     case welcome = "welcome"
     case auth = "auth"
     case authVerification = "auth_verification"
-    case microphonePermission = "microphone_permission"
     case intake = "intake"
-    case assessmentPrompt = "assessment_prompt"
     case assessment = "assessment"
     case nameCollection = "name_collection"
-    case goalDraft = "goal_draft"
     case goalReview = "goal_review"
-    case programDraft = "program_draft"
     case programReview = "program_review"
     case notificationPermission = "notification_permission"
     case success = "success"
@@ -25,14 +21,10 @@ enum OnboardingPhase: String, Codable, CaseIterable {
         case .welcome: return "Welcome"
         case .auth: return "Sign In"
         case .authVerification: return "Verify Email"
-        case .microphonePermission: return "Voice Setup"
         case .intake: return "Get to Know You"
-        case .assessmentPrompt: return "Assessment"
         case .assessment: return "Assessment"
         case .nameCollection: return "Your Goals"
-        case .goalDraft: return "Goal Review"
         case .goalReview: return "Goal Review"
-        case .programDraft: return "Your Program"
         case .programReview: return "Program Review"
         case .notificationPermission: return "Notifications"
         case .success: return "All Set"
@@ -42,30 +34,36 @@ enum OnboardingPhase: String, Codable, CaseIterable {
 
     /// Returns the previous phase for back navigation
     var previousPhase: OnboardingPhase? {
-        let allPhases = OnboardingPhase.allCases
-        guard let currentIndex = allPhases.firstIndex(of: self), currentIndex > 0 else {
+        switch self {
+        case .welcome, .auth:
+            return nil
+        case .authVerification:
+            return .auth
+        case .intake:
+            // No back from intake — user is authenticated, going back makes no sense
+            return nil
+        case .assessment:
+            return .intake
+        case .nameCollection:
+            // Assessment may be skipped, so go back to intake
+            return .intake
+        case .goalReview:
+            return .nameCollection
+        case .programReview:
+            return .goalReview
+        case .notificationPermission:
+            return .programReview
+        case .success:
+            return nil
+        case .complete:
             return nil
         }
-
-        var targetIndex = currentIndex - 1
-        let targetPhase = allPhases[targetIndex]
-
-        // Skip authVerification when going back (go directly to auth)
-        if targetPhase == .authVerification {
-            targetIndex -= 1
-            if targetIndex >= 0 {
-                return allPhases[targetIndex]
-            }
-            return nil
-        }
-
-        return targetPhase
     }
 
     /// Phases that require confirmation before navigating away
     var requiresBackConfirmation: Bool {
         switch self {
-        case .intake, .assessment, .goalReview, .programReview:
+        case .intake, .assessment:
             return true
         default:
             return false
@@ -75,10 +73,72 @@ enum OnboardingPhase: String, Codable, CaseIterable {
     /// Phases that should not have a back button
     var hideBackButton: Bool {
         switch self {
-        case .welcome, .notificationPermission, .success, .complete:
+        case .welcome, .intake, .notificationPermission, .success, .complete:
             return true
         default:
             return false
+        }
+    }
+
+    /// Progress percentage for the global progress bar
+    var progressPercent: CGFloat {
+        switch self {
+        case .welcome: return 0.0
+        case .auth: return 0.05
+        case .authVerification: return 0.10
+        case .intake: return 0.20
+        case .assessment: return 0.40
+        case .nameCollection: return 0.50
+        case .goalReview: return 0.60
+        case .programReview: return 0.75
+        case .notificationPermission: return 0.90
+        case .success: return 1.0
+        case .complete: return 1.0
+        }
+    }
+
+    /// Orb configuration for each phase
+    var orbConfig: OrbConfig {
+        switch self {
+        case .welcome:
+            return OrbConfig(size: 120, icon: nil, alignment: .center)
+        case .auth, .authVerification:
+            return OrbConfig(size: 60, icon: nil, alignment: .topCenter)
+        case .intake:
+            return OrbConfig(size: 80, icon: nil, alignment: .topCenter)
+        case .assessment:
+            return OrbConfig(size: 100, icon: "clipboard.fill", alignment: .center)
+        case .nameCollection:
+            return OrbConfig(size: 100, icon: nil, alignment: .center)
+        case .goalReview, .programReview:
+            return OrbConfig(size: 50, icon: nil, alignment: .topLeading)
+        case .notificationPermission:
+            return OrbConfig(size: 100, icon: "bell.fill", alignment: .center)
+        case .success:
+            return OrbConfig(size: 120, icon: "checkmark", alignment: .center)
+        case .complete:
+            return OrbConfig(size: 0, icon: nil, alignment: .hidden)
+        }
+    }
+
+    /// Custom decoding to handle migration from old phase values
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let rawValue = try container.decode(String.self)
+
+        switch rawValue {
+        case "microphone_permission": self = .intake
+        case "assessment_prompt": self = .nameCollection
+        case "goal_draft": self = .goalReview
+        case "program_draft": self = .programReview
+        default:
+            guard let phase = OnboardingPhase(rawValue: rawValue) else {
+                throw DecodingError.dataCorrupted(.init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Unknown phase: \(rawValue)"
+                ))
+            }
+            self = phase
         }
     }
 }

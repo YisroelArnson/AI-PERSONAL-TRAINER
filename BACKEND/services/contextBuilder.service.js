@@ -1,7 +1,7 @@
 // BACKEND/services/contextBuilder.service.js
 // Builds context for Anthropic LLM calls with proper multi-cache-block approach
 const { getSession, getContextEvents } = require('./sessionObservability.service');
-const { fetchAllUserData } = require('./fetchUserData.service');
+const { fetchMultipleDataSources } = require('./dataSources.service');
 
 /**
  * Core system prompt - STABLE, never changes
@@ -85,35 +85,14 @@ GROUPING: For circuits, supersets, etc., use the optional "group" field instead 
 </exercise_types>
 
 <exercise_recommendation_rules>
-- Always consider the user's category goals and muscle goals when recommending exercises
-- Prioritize distribution balance: recommend exercises for under-represented categories/muscles
-- Respect user preferences (both temporary and permanent)
+- Consider the user's body stats, location, equipment, and workout history when recommending exercises
 - Consider recovery: 48h for large muscles, 24h for small muscles
 - Follow the priority hierarchy:
-  1. Temporary preferences (override everything)
-  2. Explicit user requests in current message
-  3. Permanent preferences
-  4. Distribution debt (under-represented goals)
-  5. Goal weights
-  6. Recent workout history
+  1. Explicit user requests in current message
+  2. Recent workout history (avoid repeating recent exercises)
+  3. Available equipment at current location
+  4. User's fitness level and body stats
 </exercise_recommendation_rules>
-
-<goal_management_rules>
-When helping users set or adjust goals:
-- Only use fetch_data for category_goals or muscle_goals if not already in context
-- Ask clarifying questions with the message_ask_user tool to understand the user's true objectives
-- Guide users towards an effective, balanced distribution based on their priorities
-- Use set_goals to save weights
-</goal_management_rules>
-
-<preference_rules>
-When users express preferences or constraints:
-- Immediate requests ("give me hamstring exercises", "I want cardio") → delete_after_use: true
-- Time-limited ("avoid shoulders for 2 weeks") → set expires_at to ISO timestamp
-- Permanent ("I hate burpees", "I don't have a barbell") → no expiration
-- Write clear guidance explaining how the preference affects workout recommendations
-- Use set_preference to save; use fetch_data for active_preferences to see existing ones
-</preference_rules>
 
 <artifact_rules>
 CRITICAL: Workouts are created as artifacts that must be explicitly delivered to the user.
@@ -302,22 +281,6 @@ Remove an exercise from the workout. exercise_id can be either the UUID or the o
 Log completed exercises to history.
 {"completed_exercises": [{"exercise_id": "uuid-here", "completed": true, "actual_sets": 3, "actual_reps": 10}], "workout_notes": "Felt strong today"}
 
-## Goals & Preferences Tools
-
-### set_goals
-Set or update category and/or muscle goals. Weights range from -10 to 10.
-{"category_goals": [{"category": "Strength", "weight": 5}, {"category": "Zone 2 Cardio", "weight": 3}], "muscle_goals": [{"muscle": "Chest", "weight": 4}]}
-
-### set_preference
-Create a user preference.
-{"preference_type": "injury", "value": "Avoid overhead pressing - shoulder recovery", "duration_type": "temporary"}
-Types: equipment, location, time_available, injury, exclusion, focus, intensity, custom
-Duration: permanent, session, temporary
-
-### delete_preference
-Remove a user preference.
-{"preference_id": "uuid-here"}
-
 ## Location Tools
 
 ### set_current_location
@@ -330,8 +293,8 @@ Note: location_id is preferred; location_name is case-insensitive fallback.
 
 ### fetch_data
 Retrieve additional data sources not in current context.
-{"sources": ["workout_history", "exercise_distribution"], "params": {"workout_history": {"limit": 10}}}
-Available sources: user_profile, category_goals, muscle_goals, active_preferences, workout_history, exercise_distribution, user_settings, all_locations
+{"sources": ["workout_history"], "params": {"workout_history": {"limit": 10}}}
+Available sources: user_profile, workout_history, user_settings, all_locations
 </available_tools>
 
 <response_format>
@@ -359,16 +322,21 @@ IMPORTANT: Always respond with valid JSON. The tool field must be one of the ava
 /**
  * Format user data into XML user_data section
  * This is part of the stable prefix that gets cached
- * @param {Object} userData - User data from fetchAllUserData
+ * @param {Array} dataSourceResults - Results from fetchMultipleDataSources
  * @returns {string} XML formatted user data
  */
-function formatUserDataXml(userData) {
-  const { data } = userData;
+function formatUserDataXml(dataSourceResults) {
+  // Convert array of results to a keyed map for easy access
+  const dataMap = {};
+  for (const result of dataSourceResults) {
+    dataMap[result.source] = result.raw;
+  }
+
   let xml = '<user_data>\n';
 
   // Unit preferences / settings
-  if (data.userSettings) {
-    const s = data.userSettings;
+  if (dataMap.user_settings) {
+    const s = dataMap.user_settings;
     xml += '<unit_preferences>\n';
     xml += `Weight: ${s.weight_unit || 'kg'}\n`;
     xml += `Distance: ${s.distance_unit || 'km'}\n`;
@@ -376,8 +344,8 @@ function formatUserDataXml(userData) {
   }
 
   // Body stats
-  if (data.bodyStats) {
-    const b = data.bodyStats;
+  if (dataMap.user_profile) {
+    const b = dataMap.user_profile;
     xml += '<body_stats>\n';
     if (b.sex) xml += `Sex: ${b.sex}\n`;
     if (b.dob) {
@@ -390,80 +358,33 @@ function formatUserDataXml(userData) {
     xml += '</body_stats>\n\n';
   }
 
-  // Category goals
-  if (data.userCategoryAndWeights && data.userCategoryAndWeights.length > 0) {
-    xml += '<category_goals>\n';
-    for (const g of data.userCategoryAndWeights) {
-      const pct = (g.weight * 100).toFixed(0);
-      xml += `${g.category}: ${g.description || ''} - Weight: ${pct}%\n`;
-    }
-    xml += '</category_goals>\n\n';
-  }
-
-  // Muscle goals
-  if (data.userMuscleAndWeight && data.userMuscleAndWeight.length > 0) {
-    xml += '<muscle_goals>\n';
-    for (const g of data.userMuscleAndWeight) {
-      const pct = (g.weight * 100).toFixed(0);
-      xml += `${g.muscle}: Weight: ${pct}%\n`;
-    }
-    xml += '</muscle_goals>\n\n';
-  }
-
   // Current location
-  if (data.locations) {
-    const loc = data.locations;
-    xml += '<current_location>\n';
-    xml += `Location: ${loc.name}\n`;
-    if (loc.description) xml += `Description: ${loc.description}\n`;
-    if (loc.equipment && loc.equipment.length > 0) {
-      xml += 'Equipment:\n';
-      for (const eq of loc.equipment) {
-        // Handle both object format and legacy string format
-        if (typeof eq === 'string') {
-          xml += `  - ${eq}\n`;
-          continue;
+  if (dataMap.all_locations?.length) {
+    const loc = dataMap.all_locations.find(l => l.current_location) || dataMap.all_locations[0];
+    if (loc) {
+      xml += '<current_location>\n';
+      xml += `Location: ${loc.name}\n`;
+      if (loc.description) xml += `Description: ${loc.description}\n`;
+      if (loc.equipment && loc.equipment.length > 0) {
+        xml += 'Equipment:\n';
+        for (const eq of loc.equipment) {
+          if (typeof eq === 'string') {
+            xml += `  - ${eq}\n`;
+            continue;
+          }
+          let eqLine = `  - ${eq.name}`;
+          if (eq.type) eqLine += ` (${eq.type})`;
+          if (eq.type === 'free_weights' && eq.weights && eq.weights.length > 0) {
+            const unit = eq.unit || 'kg';
+            eqLine += `: ${eq.weights.join(', ')}${unit}`;
+          }
+          xml += eqLine + '\n';
         }
-        let eqLine = `  - ${eq.name}`;
-        if (eq.type) eqLine += ` (${eq.type})`;
-        if (eq.type === 'free_weights' && eq.weights && eq.weights.length > 0) {
-          const unit = eq.unit || 'kg';
-          eqLine += `: ${eq.weights.join(', ')}${unit}`;
-        }
-        xml += eqLine + '\n';
+      } else {
+        xml += 'Equipment: none\n';
       }
-    } else {
-      xml += 'Equipment: none\n';
+      xml += '</current_location>\n\n';
     }
-    xml += '</current_location>\n\n';
-  }
-
-  // Active preferences
-  if (data.preferences) {
-    xml += '<active_preferences>\n';
-    if (data.preferences.temporary && data.preferences.temporary.length > 0) {
-      xml += 'Temporary preferences:\n';
-      for (const p of data.preferences.temporary) {
-        xml += `- ${p.description}`;
-        if (p.expire_time) xml += ` (expires: ${new Date(p.expire_time).toLocaleDateString()})`;
-        if (p.delete_after_call) xml += ' (one-time)';
-        xml += '\n';
-        if (p.recommendations_guidance) xml += `  Guidance: ${p.recommendations_guidance}\n`;
-      }
-      xml += '\n';
-    }
-    if (data.preferences.permanent && data.preferences.permanent.length > 0) {
-      xml += 'Permanent preferences:\n';
-      for (const p of data.preferences.permanent) {
-        xml += `- ${p.description}\n`;
-        if (p.recommendations_guidance) xml += `  Guidance: ${p.recommendations_guidance}\n`;
-      }
-    }
-    if ((!data.preferences.temporary || data.preferences.temporary.length === 0) &&
-        (!data.preferences.permanent || data.preferences.permanent.length === 0)) {
-      xml += 'No active preferences.\n';
-    }
-    xml += '</active_preferences>\n';
   }
 
   xml += '</user_data>';
@@ -646,10 +567,13 @@ function addCacheControlToLastMessage(messages) {
 async function buildAgentContext(sessionId, userId) {
   const session = await getSession(sessionId);
   const events = await getContextEvents(sessionId, session.context_start_sequence);
-  const userData = await fetchAllUserData(userId);
+  const dataSourceResults = await fetchMultipleDataSources(
+    ['user_profile', 'user_settings', 'all_locations'],
+    userId
+  );
 
   // Format user data as XML
-  const userDataXml = formatUserDataXml(userData);
+  const userDataXml = formatUserDataXml(dataSourceResults);
 
   // Convert events to Anthropic message format
   const messages = buildEventsToMessages(events);

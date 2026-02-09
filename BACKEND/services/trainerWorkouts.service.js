@@ -1,6 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
-const { fetchAllUserData } = require('./fetchUserData.service');
+const { fetchMultipleDataSources } = require('./dataSources.service');
 const { getAnthropicClient } = require('./modelProviders.service');
 
 dotenv.config();
@@ -258,49 +258,37 @@ async function fetchEventsAfter(sessionId, sequenceNumber) {
   return data || [];
 }
 
-function buildUserContextSummary(userData) {
+function buildUserContextSummary(dataSourceResults) {
+  // Convert array of results to a keyed map for easy access
+  const dataMap = {};
+  for (const result of dataSourceResults) {
+    dataMap[result.source] = result.raw;
+  }
+
   const lines = [];
-  if (userData?.data?.bodyStats) {
-    const stats = userData.data.bodyStats;
+  if (dataMap.user_profile) {
+    const stats = dataMap.user_profile;
     lines.push(`Body stats: sex=${stats.sex || 'unknown'}, height_cm=${stats.height_cm || 'unknown'}, weight_kg=${stats.weight_kg || 'unknown'}.`);
   }
-  if (userData?.data?.userCategoryAndWeights?.length) {
-    const goals = userData.data.userCategoryAndWeights
-      .map(item => `${item.category} (${item.weight || 0})`)
-      .join(', ');
-    lines.push(`Category goals: ${goals}.`);
-  }
-  if (userData?.data?.userMuscleAndWeight?.length) {
-    const muscles = userData.data.userMuscleAndWeight
-      .slice(0, 8)
-      .map(item => `${item.muscle} (${item.weight || 0})`)
-      .join(', ');
-    lines.push(`Muscle priorities: ${muscles}.`);
-  }
-  if (userData?.data?.preferences?.length) {
-    const prefs = userData.data.preferences
-      .map(pref => `${pref.preference_type}: ${pref.value}`)
-      .join('; ');
-    lines.push(`Preferences: ${prefs}.`);
-  }
-  if (userData?.data?.locations?.length) {
-    const current = userData.data.locations.find(loc => loc.current_location) || userData.data.locations[0];
+  if (dataMap.all_locations?.length) {
+    const current = dataMap.all_locations.find(loc => loc.current_location) || dataMap.all_locations[0];
     if (current) {
-      lines.push(`Current location: ${current.name}. Equipment: ${(current.equipment || []).join(', ') || 'none listed'}.`);
+      const equipment = (current.equipment || []).map(eq => typeof eq === 'string' ? eq : eq.name).join(', ');
+      lines.push(`Current location: ${current.name}. Equipment: ${equipment || 'none listed'}.`);
     }
   }
-  if (userData?.data?.workoutHistory?.length) {
-    const history = userData.data.workoutHistory.slice(0, 3).map(item => item.exercise_name).join(', ');
+  if (dataMap.workout_history?.length) {
+    const history = dataMap.workout_history.slice(0, 3).map(item => item.exercises?.map(e => e.name).join(', ') || 'workout').join('; ');
     lines.push(`Recent workouts: ${history}.`);
   }
-  if (userData?.data?.userSettings) {
-    lines.push(`Units: weight=${userData.data.userSettings.weight_unit || 'lbs'}, distance=${userData.data.userSettings.distance_unit || 'miles'}.`);
+  if (dataMap.user_settings) {
+    lines.push(`Units: weight=${dataMap.user_settings.weight_unit || 'lbs'}, distance=${dataMap.user_settings.distance_unit || 'miles'}.`);
   }
   return lines.join('\n');
 }
 
-function buildWorkoutPrompt(userData, constraints) {
-  const context = buildUserContextSummary(userData);
+function buildWorkoutPrompt(dataSourceResults, constraints) {
+  const context = buildUserContextSummary(dataSourceResults);
   const readiness = constraints?.readiness || {};
   const timeAvailable = constraints?.time_available_min || null;
   const equipment = constraints?.equipment || [];
@@ -410,8 +398,11 @@ function normalizeWorkoutInstance(rawInstance, constraints = {}) {
 }
 
 async function generateWorkoutInstance(userId, constraints = {}) {
-  const userData = await fetchAllUserData(userId);
-  const prompt = buildWorkoutPrompt(userData, constraints);
+  const dataSourceResults = await fetchMultipleDataSources(
+    ['user_profile', 'user_settings', 'all_locations', 'workout_history'],
+    userId
+  );
+  const prompt = buildWorkoutPrompt(dataSourceResults, constraints);
   const client = getAnthropicClient();
 
   const response = await client.messages.create({
@@ -503,8 +494,11 @@ function estimateWorkoutDuration(instance) {
 }
 
 async function generateSwapExercise(userId, currentExercise, constraints = {}) {
-  const userData = await fetchAllUserData(userId);
-  const context = buildUserContextSummary(userData);
+  const dataSourceResults = await fetchMultipleDataSources(
+    ['user_profile', 'user_settings', 'all_locations', 'workout_history'],
+    userId
+  );
+  const context = buildUserContextSummary(dataSourceResults);
   const client = getAnthropicClient();
   const prompt = `Suggest a safe alternative exercise to replace: ${currentExercise.exercise_name}.
 Current exercise details: ${JSON.stringify(currentExercise)}

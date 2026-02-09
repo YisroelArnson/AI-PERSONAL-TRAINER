@@ -14,8 +14,9 @@ struct NotificationPermissionView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                // Orb
-                notificationOrb
+                // Space for shared orb (rendered by coordinator)
+                Color.clear
+                    .frame(width: 100, height: 100)
 
                 Spacer()
                     .frame(height: AppTheme.Spacing.xxxl)
@@ -54,70 +55,6 @@ struct NotificationPermissionView: View {
     }
 
     // MARK: - Components
-
-    private var notificationOrb: some View {
-        let size: CGFloat = 100
-
-        return ZStack {
-            // Outer glow
-            Circle()
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            AppTheme.Colors.orbSkyMid.opacity(0.2),
-                            AppTheme.Colors.orbSkyDeep.opacity(0.05),
-                            Color.clear
-                        ]),
-                        center: .center,
-                        startRadius: size * 0.4,
-                        endRadius: size * 1.0
-                    )
-                )
-                .frame(width: size * 1.6, height: size * 1.6)
-
-            // Main orb
-            ZStack {
-                Circle()
-                    .fill(AppTheme.Gradients.orb)
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            gradient: Gradient(colors: [
-                                AppTheme.Colors.orbCloudWhite.opacity(0.9),
-                                AppTheme.Colors.orbCloudWhite.opacity(0.4),
-                                Color.clear
-                            ]),
-                            center: UnitPoint(x: 0.25, y: 0.2),
-                            startRadius: 0,
-                            endRadius: size * 0.4
-                        )
-                    )
-
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            gradient: Gradient(colors: [
-                                AppTheme.Colors.orbCloudWhite.opacity(0.7),
-                                AppTheme.Colors.orbCloudWhite.opacity(0.2),
-                                Color.clear
-                            ]),
-                            center: UnitPoint(x: 0.7, y: 0.25),
-                            startRadius: 0,
-                            endRadius: size * 0.35
-                        )
-                    )
-
-                // Bell icon
-                Image(systemName: "bell.fill")
-                    .font(.system(size: 32, weight: .medium))
-                    .foregroundColor(AppTheme.Colors.orbSkyDeep.opacity(0.6))
-            }
-            .frame(width: size, height: size)
-            .clipShape(Circle())
-            .shadow(color: AppTheme.Colors.orbSkyDeep.opacity(0.3), radius: 16, x: 0, y: 6)
-        }
-    }
 
     private var notificationPreview: some View {
         HStack(spacing: AppTheme.Spacing.md) {

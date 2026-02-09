@@ -49,7 +49,6 @@ enum AgentStreamEventType {
     case message(String)
     case messageWithArtifact(message: String, artifact: Artifact)  // Message with attached artifact
     case question(text: String, options: [String]?)
-    case exercises([StreamingExercise])
     case done(sessionId: String)
     case error(String)
 }
@@ -513,12 +512,6 @@ class AgentService: ObservableObject {
             }
             return .question(text: "", options: nil)
             
-        case "generate_workout":
-            if let exercises = event.data?.exercises {
-                return .exercises(exercises)
-            }
-            return .exercises([])
-
         case "knowledge":
             // Knowledge/context events from initializer agent
             // Treat as a completed action step

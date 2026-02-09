@@ -2,8 +2,6 @@
 // Tool Registry - combines all tools and provides execution interface
 const { communicationTools } = require('./communication');
 const { exerciseTools, getWorkoutSession } = require('./exercises');
-const { goalTools } = require('./goals');
-const { preferenceTools } = require('./preferences');
 const { dataTools } = require('./data');
 const { locationTools } = require('./locations');
 
@@ -11,8 +9,6 @@ const { locationTools } = require('./locations');
 const TOOL_REGISTRY = {
   ...communicationTools,
   ...exerciseTools,
-  ...goalTools,
-  ...preferenceTools,
   ...dataTools,
   ...locationTools
 };

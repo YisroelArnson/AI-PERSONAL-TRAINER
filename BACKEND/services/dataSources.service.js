@@ -29,43 +29,6 @@ const DATA_SOURCES = {
     format: formatters.formatBodyStats
   },
 
-  category_goals: {
-    description: 'User category training goals and weights',
-    fetch: async (userId) => {
-      const { data } = await supabase
-        .from('user_category_and_weight')
-        .select('*')
-        .eq('user_id', userId);
-      return data;
-    },
-    format: formatters.formatCategoryGoals
-  },
-
-  muscle_goals: {
-    description: 'User muscle-specific training goals',
-    fetch: async (userId) => {
-      const { data } = await supabase
-        .from('user_muscle_and_weight')
-        .select('*')
-        .eq('user_id', userId);
-      return data;
-    },
-    format: formatters.formatMuscleGoals
-  },
-
-  active_preferences: {
-    description: 'Current active user preferences',
-    fetch: async (userId) => {
-      const { data } = await supabase
-        .from('preferences')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_active', true);
-      return data;
-    },
-    format: formatters.formatPreferences
-  },
-
   workout_history: {
     description: 'Recent workout history',
     fetch: async (userId, params = {}) => {
@@ -79,19 +42,6 @@ const DATA_SOURCES = {
       return data;
     },
     format: formatters.formatWorkoutHistory
-  },
-
-  exercise_distribution: {
-    description: 'Exercise distribution tracking data',
-    fetch: async (userId) => {
-      const { data } = await supabase
-        .from('exercise_distribution_tracking')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-      return data;
-    },
-    format: formatters.formatDistribution
   },
 
   user_settings: {

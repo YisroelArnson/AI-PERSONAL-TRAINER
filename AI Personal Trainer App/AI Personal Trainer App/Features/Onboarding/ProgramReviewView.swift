@@ -1,12 +1,21 @@
 import SwiftUI
 
-struct ProgramFullReviewView: View {
+struct ProgramReviewView: View {
     @StateObject private var onboardingStore = OnboardingStore.shared
     @StateObject private var programStore = TrainingProgramStore.shared
+    @StateObject private var speechManager = SpeechManager()
 
+    @State private var showTypewriter = true
+    @State private var typewriterComplete = false
     @State private var editInstruction = ""
     @State private var isEditing = false
     @State private var isActivating = false
+    @State private var showVoiceInput = false
+    @State private var showMicSettingsAlert = false
+
+    private var userName: String {
+        onboardingStore.state.userName ?? "there"
+    }
 
     var body: some View {
         ZStack {
@@ -14,74 +23,129 @@ struct ProgramFullReviewView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Title
-                Text("Review Your Program")
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundColor(AppTheme.Colors.primaryText)
+                // Top spacing for shared orb (rendered by coordinator)
+                Color.clear
+                    .frame(height: 50)
                     .padding(.top, AppTheme.Spacing.xl)
 
-                // Instructions
-                Text("Review and make any changes before activating")
-                    .font(.system(size: 15))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-                    .padding(.top, AppTheme.Spacing.sm)
+                // Typewriter intro
+                if showTypewriter && !typewriterComplete {
+                    typewriterSection
+                        .padding(.top, AppTheme.Spacing.xxl)
+                        .padding(.horizontal, AppTheme.Spacing.xxl)
+                }
 
-                // Program details
-                ScrollView {
-                    VStack(spacing: AppTheme.Spacing.lg) {
-                        if let program = programStore.program?.program {
-                            programDetailSections(program)
-                        }
-
-                        // Edit input
-                        editInputSection
-                    }
-                    .padding(.horizontal, AppTheme.Spacing.xxl)
-                    .padding(.top, AppTheme.Spacing.xxl)
-                    .padding(.bottom, 120)
+                // Program content (after typewriter completes)
+                if typewriterComplete {
+                    programContent
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
                 }
 
                 Spacer()
             }
 
-            // Bottom buttons
-            VStack {
-                Spacer()
-                bottomButtons
+            // Bottom activate button
+            if typewriterComplete && programStore.program != nil {
+                VStack {
+                    Spacer()
+                    bottomButtons
+                }
             }
         }
-        .navigationBarBackButtonHidden(true)
-        .toolbar {
-            ToolbarItem(placement: .navigationBarLeading) {
-                OnboardingBackButton {
-                    Task {
-                        await onboardingStore.goToPreviousPhase()
-                    }
+        .animation(.easeInOut(duration: 0.3), value: typewriterComplete)
+        .onAppear {
+            draftProgram()
+        }
+        .onChange(of: speechManager.needsSettingsForMic) { _, needsSettings in
+            if needsSettings {
+                showMicSettingsAlert = true
+                speechManager.needsSettingsForMic = false
+            }
+        }
+        .alert("Microphone Access", isPresented: $showMicSettingsAlert) {
+            Button("Open Settings") {
+                if let url = URL(string: UIApplication.openSettingsURLString) {
+                    UIApplication.shared.open(url)
                 }
             }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Enable microphone access in Settings to use voice input.")
         }
     }
 
     // MARK: - Components
 
+    private var typewriterSection: some View {
+        VStack(alignment: .leading) {
+            TypewriterTextView(
+                text: "Now let me build your personalized training program, \(userName)...",
+                font: .system(size: 20, weight: .medium),
+                wordDelay: 0.06
+            ) {
+                withAnimation {
+                    typewriterComplete = true
+                }
+            }
+        }
+    }
+
+    private var loadingSection: some View {
+        VStack(spacing: AppTheme.Spacing.xl) {
+            Spacer()
+
+            ProgressView()
+                .scaleEffect(1.2)
+
+            Text("Crafting your program...")
+                .font(.system(size: 16))
+                .foregroundColor(AppTheme.Colors.secondaryText)
+
+            Spacer()
+        }
+    }
+
+    private var programContent: some View {
+        Group {
+            if let program = programStore.program?.program {
+                ScrollView {
+                    VStack(spacing: AppTheme.Spacing.lg) {
+                        programDetailSections(program)
+                        editInputSection
+                    }
+                    .padding(.horizontal, AppTheme.Spacing.xxl)
+                    .padding(.top, AppTheme.Spacing.xl)
+                    .padding(.bottom, 120)
+                }
+            } else if let errorMessage = programStore.errorMessage {
+                VStack(spacing: AppTheme.Spacing.xl) {
+                    Spacer()
+                    OnboardingErrorCard(
+                        title: "Couldn't load your program",
+                        message: errorMessage,
+                        primaryActionTitle: "Retry"
+                    ) {
+                        draftProgram()
+                    }
+                    .padding(.horizontal, AppTheme.Spacing.xxl)
+                    Spacer()
+                }
+            } else {
+                loadingSection
+            }
+        }
+    }
+
+    // MARK: - Program Detail Sections
+
     private func programDetailSections(_ program: TrainingProgramDetail) -> some View {
         VStack(spacing: AppTheme.Spacing.lg) {
-            // Weekly template section
             weeklyTemplateCard(program.weeklyTemplate)
-
-            // Sessions section
             sessionsCard(program.sessions)
-
-            // Progression section
             progressionCard(program.progression)
-
-            // Exercise rules
             exerciseRulesCard(program.exerciseRules)
-
-            // Guardrails
             guardrailsCard(program.guardrails)
 
-            // Coach cues
             if !program.coachCues.isEmpty {
                 coachCuesCard(program.coachCues)
             }
@@ -310,6 +374,8 @@ struct ProgramFullReviewView: View {
         .cornerRadius(AppTheme.CornerRadius.large)
     }
 
+    // MARK: - Helper Views
+
     private func sectionTitle(_ title: String) -> some View {
         Text(title)
             .font(.system(size: 14, weight: .semibold))
@@ -344,16 +410,14 @@ struct ProgramFullReviewView: View {
                 .foregroundColor(AppTheme.Colors.secondaryText)
 
             HStack(spacing: AppTheme.Spacing.sm) {
-                // Voice button (if enabled)
-                if onboardingStore.state.microphoneEnabled == true {
-                    Button(action: { /* Voice input */ }) {
-                        Image(systemName: "mic")
-                            .font(.system(size: 18))
-                            .foregroundColor(AppTheme.Colors.secondaryText)
-                            .frame(width: 44, height: 44)
-                            .background(AppTheme.Colors.surface)
-                            .clipShape(Circle())
-                    }
+                // Voice button (always visible, lazy permission)
+                Button(action: { toggleVoiceInput() }) {
+                    Image(systemName: speechManager.microphoneDenied ? "mic.slash.fill" : (showVoiceInput ? "mic.fill" : "mic"))
+                        .font(.system(size: 18))
+                        .foregroundColor(speechManager.microphoneDenied ? AppTheme.Colors.tertiaryText : (showVoiceInput ? AppTheme.Colors.orbSkyMid : AppTheme.Colors.secondaryText))
+                        .frame(width: 44, height: 44)
+                        .background(AppTheme.Colors.surface)
+                        .clipShape(Circle())
                 }
 
                 // Text input
@@ -383,6 +447,14 @@ struct ProgramFullReviewView: View {
                     .cornerRadius(AppTheme.CornerRadius.medium)
                     .disabled(isEditing)
                 }
+            }
+
+            if programStore.program != nil,
+               let errorMessage = programStore.errorMessage,
+               !programStore.isLoading {
+                Text(errorMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(AppTheme.Colors.danger)
             }
         }
         .padding(AppTheme.Spacing.lg)
@@ -426,6 +498,33 @@ struct ProgramFullReviewView: View {
 
     // MARK: - Actions
 
+    private func draftProgram() {
+        guard programStore.program == nil else { return }
+
+        Task {
+            await programStore.draft()
+
+            // Save program ID
+            if let programId = programStore.program?.id {
+                onboardingStore.setProgramId(programId)
+            }
+        }
+    }
+
+    private func toggleVoiceInput() {
+        if showVoiceInput {
+            speechManager.stopListening()
+            showVoiceInput = false
+        } else {
+            Task {
+                await speechManager.startListening()
+                if !speechManager.microphoneDenied {
+                    showVoiceInput = true
+                }
+            }
+        }
+    }
+
     private func applyEdit() {
         guard !editInstruction.isEmpty else { return }
 
@@ -452,6 +551,6 @@ struct ProgramFullReviewView: View {
 
 #Preview {
     NavigationStack {
-        ProgramFullReviewView()
+        ProgramReviewView()
     }
 }

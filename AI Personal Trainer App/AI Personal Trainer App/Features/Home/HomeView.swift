@@ -135,16 +135,6 @@ struct HomeView: View {
         .task {
             await loadHomeData()
         }
-        .onChange(of: appCoordinator.shouldFetchRecommendations) { _, shouldFetch in
-            if shouldFetch {
-                Task {
-                    workoutSessionStore.restoreSessionIfNeeded()
-                    if !exerciseStore.exercises.isEmpty {
-                        appCoordinator.markAsReady()
-                    }
-                }
-            }
-        }
         .onChange(of: exerciseStore.allExercisesCompleted) { _, isAllCompleted in
             if isAllCompleted && !exerciseStore.exercises.isEmpty {
                 showReflectionSheet = true
