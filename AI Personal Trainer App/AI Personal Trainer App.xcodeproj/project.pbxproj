@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		FF66EE55DD44CC33BB22AA11 /* IntroHeroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF66 /* IntroHeroView.swift */; };
+		EE55DD44CC33BB22AA11FF66 /* IntroNarrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF66AA11 /* IntroNarrationView.swift */; };
+		DD44CC33BB22AA11FF66EE55 /* IntroCTAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC33DD44EE55FF66AA11BB22 /* IntroCTAView.swift */; };
 		F2E1D0C9B8A7F6E5D4C3B2A1 /* SegmentedProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* SegmentedProgressBar.swift */; };
 		E1D0C9B8A7F6E5D4C3B2A1F2 /* OnboardingTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A1 /* OnboardingTopBar.swift */; };
 		D0C9B8A7F6E5D4C3B2A1F2E1 /* ChevronButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B8C9D0E1F2A1B2 /* ChevronButton.swift */; };
@@ -140,6 +143,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		AA11BB22CC33DD44EE55FF66 /* IntroHeroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroHeroView.swift; sourceTree = "<group>"; };
+		BB22CC33DD44EE55FF66AA11 /* IntroNarrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroNarrationView.swift; sourceTree = "<group>"; };
+		CC33DD44EE55FF66AA11BB22 /* IntroCTAView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroCTAView.swift; sourceTree = "<group>"; };
 		A1B2C3D4E5F6A7B8C9D0E1F2 /* SegmentedProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedProgressBar.swift; sourceTree = "<group>"; };
 		B2C3D4E5F6A7B8C9D0E1F2A1 /* OnboardingTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTopBar.swift; sourceTree = "<group>"; };
 		C3D4E5F6A7B8C9D0E1F2A1B2 /* ChevronButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChevronButton.swift; sourceTree = "<group>"; };
@@ -530,6 +536,16 @@
 			path = Trainer;
 			sourceTree = "<group>";
 		};
+		11223344556677889900AABB /* Screens */ = {
+			isa = PBXGroup;
+			children = (
+				AA11BB22CC33DD44EE55FF66 /* IntroHeroView.swift */,
+				BB22CC33DD44EE55FF66AA11 /* IntroNarrationView.swift */,
+				CC33DD44EE55FF66AA11BB22 /* IntroCTAView.swift */,
+			);
+			path = Screens;
+			sourceTree = "<group>";
+		};
 		12901A562F350A93002C011D /* Onboarding */ = {
 			isa = PBXGroup;
 			children = (
@@ -544,6 +560,7 @@
 				12901A5E2F350A93002C011D /* ProgramReviewView.swift */,
 				12901A5F2F350A93002C011D /* WelcomeView.swift */,
 				12901A602F350A93002C011D /* GoalReviewView.swift */,
+				11223344556677889900AABB /* Screens */,
 			);
 			path = Onboarding;
 			sourceTree = "<group>";
@@ -826,6 +843,9 @@
 				12901AD82F350A95002C011D /* WorkoutSessionModels.swift in Sources */,
 				12901ADA2F350A95002C011D /* OnboardingModels.swift in Sources */,
 				D8F9DFF417B84FDF8F88CE1A /* OnboardingScreenData.swift in Sources */,
+				FF66EE55DD44CC33BB22AA11 /* IntroHeroView.swift in Sources */,
+				EE55DD44CC33BB22AA11FF66 /* IntroNarrationView.swift in Sources */,
+				DD44CC33BB22AA11FF66EE55 /* IntroCTAView.swift in Sources */,
 				F2E1D0C9B8A7F6E5D4C3B2A1 /* SegmentedProgressBar.swift in Sources */,
 				E1D0C9B8A7F6E5D4C3B2A1F2 /* OnboardingTopBar.swift in Sources */,
 				D0C9B8A7F6E5D4C3B2A1F2E1 /* ChevronButton.swift in Sources */,
