@@ -74,21 +74,21 @@ ABOUT YOU, YOUR GOALS, TRAINING HISTORY, BODY METRICS, FITNESS BASELINE, HEALTH,
 - Complete screen shows "Create my program" CTA
 - Auth screen appears AFTER intake complete
 - After auth + OTP, intake data syncs to backend
-- Program generation triggers after sync
-- GoalReview → ProgramReview → NotificationPermission → Success flow unchanged
+- GoalReview shows LLM-generated goal *options* as tappable cards; user can select, suggest changes via voice/text, iterate, and confirm
+- ProgramReview shows the full program as scrollable markdown with mic + text input for suggesting edits
+- Flow: GoalReview (options) → ProgramReview (markdown) → NotificationPermission → Success
 
 ## What We're NOT Doing
 
 1. **Changing the backend intake API** - We store data locally and sync it after auth. The backend intake endpoints remain available for future use but the onboarding no longer streams through them.
-2. **Modifying GoalReview or ProgramReview views** - These post-auth screens stay as-is.
-3. **Changing the main app experience** - `AppView.swift`'s `isOnboardingComplete` check remains unchanged.
-4. **Removing IntakeView entirely** - It can stay for standalone use (settings re-intake). We just stop using it in onboarding.
-5. **Changing SpeechManager** - The existing speech recognition service works as-is.
-6. **Backend schema migrations** - We sync intake data as a JSON blob to the existing `trainer_intake_summaries` table. Schema changes are out of scope.
+2. **Changing the main app experience** - `AppView.swift`'s `isOnboardingComplete` check remains unchanged.
+3. **Removing IntakeView entirely** - It can stay for standalone use (settings re-intake). We just stop using it in onboarding.
+4. **Changing SpeechManager** - The existing speech recognition service works as-is.
+5. **Backend schema migrations** - We sync intake data as a JSON blob to the existing `trainer_intake_summaries` table. Schema changes are out of scope.
 
 ## Implementation Approach
 
-The refactor is organized into 8 phases, each producing a testable milestone. We build bottom-up: data models first, then shared components, then screen types, then the coordinator, then auth relocation, then post-auth sync, then cleanup.
+The refactor is organized into 10 phases, each producing a testable milestone. We build bottom-up: data models first, then shared components, then screen types, then coordinators, then auth relocation, then goal review redesign, then program review redesign, then post-auth wiring, then cleanup.
 
 ---
 
@@ -793,38 +793,433 @@ func syncIntakeToBackend() async {
 
 ---
 
-## Phase 7: Post-Auth Flow Connection
+## Phase 7: Goal Review Redesign
 
 ### Overview
-Connect the post-auth flow: goal generation uses local intake data, program generation works as before, and the full flow completes successfully.
+Replace the current card-based `GoalReviewView` with a new interactive goal selection screen. The LLM generates a list of concrete, specific goal *options* based on the user's vague intake data. The user can tap an option, or use voice/text to request changes. The LLM regenerates options based on feedback. The user iterates until they find the right goal and confirm.
+
+### Design
+
+The Goal Review screen has three zones:
+
+**Top zone: Goal Options**
+- The backend returns a list of 3-4 concrete goal options (e.g., "Lose 15lbs in 12 weeks", "Build lean muscle with 4x/week strength training", "Run a sub-25:00 5K by summer")
+- Each option is a tappable card/button (full width, surface background, rounded)
+- Selected option gets accent background highlight
+- When the LLM regenerates options after user feedback, the list updates with a smooth transition
+- Loading state: skeleton/shimmer cards while LLM generates options
+
+**Middle zone: Scrollable content**
+- If an option is selected, show a brief expansion/detail of what that goal entails (optional)
+- The selected goal is visually distinct
+
+**Bottom zone: Input bar (persistent)**
+- Mic button (left) — same pattern as intake voice screens (circle → expanding waveform pill when recording)
+- Text input field (center) — "Suggest changes..." placeholder
+- When user submits text/voice feedback, it sends an edit instruction to `GoalContractStore.edit()` which regenerates the options
+- "Confirm" button appears (right side or below) only when an option is selected
 
 ### Changes Required:
 
-#### 1. Update goal generation trigger
-The `GoalContractStore.draft()` call currently happens in `NameCollectionView`. Move it to after auth completion:
+#### 1. Backend API Changes
+The current `POST /trainer/goals/draft` returns a single `GoalContract` with one primary + one secondary goal. This needs to change to return **multiple goal options**. Two approaches:
+
+**Option A (preferred)**: Update the draft endpoint to return a list of goal options:
+```json
+{
+  "success": true,
+  "options": [
+    { "id": "opt_1", "summary": "Lose 15lbs in 12 weeks", "detail": "..." },
+    { "id": "opt_2", "summary": "Build lean muscle 4x/week", "detail": "..." },
+    { "id": "opt_3", "summary": "Improve endurance for hiking", "detail": "..." }
+  ]
+}
+```
+
+**Option B**: Keep the current single-goal draft, but add a new endpoint `POST /trainer/goals/options` that generates multiple options.
+
+The `edit` endpoint becomes: user sends feedback text, backend regenerates the list of options.
+
+#### 2. New Model: `GoalOption`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Models/GoalModels.swift`
 
 ```swift
-// In OnboardingStore.completeAuth():
-// After sync, trigger goal draft
-Task {
-    await GoalContractStore.shared.draft()
-    if let goalId = GoalContractStore.shared.contract?.id {
-        setGoalContractId(goalId)
+struct GoalOption: Codable, Identifiable {
+    let id: String
+    let summary: String      // Short display text (1 line)
+    let detail: String?      // Optional expanded detail
+}
+
+struct GoalOptionsResponse: Codable {
+    let success: Bool
+    let options: [GoalOption]
+}
+```
+
+#### 3. Update `GoalContractStore.swift`
+Add support for multiple options:
+
+```swift
+@Published var goalOptions: [GoalOption] = []
+@Published var selectedOptionId: String?
+
+func draftOptions() async {
+    // Calls backend to generate goal options from intake data
+}
+
+func editOptions(instruction: String) async {
+    // Sends user feedback, backend regenerates options
+}
+
+func confirmGoal(optionId: String) async {
+    // Confirms the selected option, backend creates the final GoalContract
+}
+```
+
+#### 4. Rewrite `GoalReviewView.swift`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/GoalReviewView.swift`
+
+```swift
+struct GoalReviewView: View {
+    @StateObject private var goalStore = GoalContractStore.shared
+    @StateObject private var onboardingStore = OnboardingStore.shared
+    @StateObject private var speechManager = SpeechManager()
+
+    @State private var feedbackText = ""
+    @State private var isRecording = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // Scrollable goal options
+            ScrollView {
+                VStack(spacing: 12) {
+                    // Header
+                    Text("Which goal feels right?")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 24)
+
+                    Text("Based on what you told me, here are some directions we could take.")
+                        .font(.system(size: 15))
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                        .padding(.horizontal, 20)
+
+                    // Loading state
+                    if goalStore.isLoading && goalStore.goalOptions.isEmpty {
+                        ForEach(0..<3, id: \.self) { _ in
+                            ShimmerCard()  // Placeholder skeleton
+                        }
+                    }
+
+                    // Goal option cards
+                    ForEach(goalStore.goalOptions) { option in
+                        GoalOptionCard(
+                            option: option,
+                            isSelected: goalStore.selectedOptionId == option.id,
+                            onTap: { goalStore.selectedOptionId = option.id }
+                        )
+                    }
+                }
+                .padding(.bottom, 120) // Space for bottom bar
+            }
+
+            // Bottom input bar
+            GoalInputBar(
+                feedbackText: $feedbackText,
+                isRecording: $isRecording,
+                hasSelection: goalStore.selectedOptionId != nil,
+                isLoading: goalStore.isLoading,
+                onMic: toggleRecording,
+                onSend: submitFeedback,
+                onConfirm: confirmGoal
+            )
+        }
     }
 }
 ```
 
-#### 2. Update GoalReviewView
-- Remove the `NameCollectionView` dependency (name is already in `LocalIntakeData`)
+#### 5. New Component: `GoalOptionCard`
+```swift
+struct GoalOptionCard: View {
+    let option: GoalOption
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    // Full width card with:
+    // - summary text (16pt, bold)
+    // - optional detail text (14pt, secondaryText, 2 line limit)
+    // - Selected: accent border or accent background
+    // - Unselected: surface background
+    // - Tap animation (scale spring)
+    // - Large corner radius, 16px padding
+}
+```
+
+#### 6. New Component: `GoalInputBar`
+```swift
+struct GoalInputBar: View {
+    // Mic button (left) — same pattern as VoiceBottomBar
+    // TextField "Suggest changes..." (center)
+    // Send button (appears when text is present) — sends feedback
+    // Confirm button (appears when option is selected and no text) — confirms selection
+    // Layout: same bottom padding pattern as VoiceBottomBar (12px top, 20px sides, 32px bottom)
+}
+```
+
+#### 7. Update goal generation trigger
+Move `GoalContractStore.draftOptions()` call to `OnboardingStore.completeAuth()`:
+
+```swift
+func completeAuth() async {
+    navigationDirection = .forward
+    await syncIntakeToBackend()
+
+    // Start goal option generation in background
+    Task { await GoalContractStore.shared.draftOptions() }
+
+    state.currentPhase = .goalReview
+    await saveAndSync()
+}
+```
+
+### Success Criteria:
+
+#### Automated Verification:
+- [ ] Project builds with new GoalReviewView and models
+- [ ] GoalOption model encodes/decodes correctly
+- [ ] GoalContractStore has draftOptions/editOptions/confirmGoal methods
+
+#### Manual Verification:
+- [ ] Goal options appear after auth (loading state visible briefly)
+- [ ] 3-4 goal option cards render correctly
+- [ ] Tapping an option selects it (visual highlight)
+- [ ] Typing feedback and sending regenerates the options
+- [ ] Voice feedback works (mic → waveform → stop → text sent)
+- [ ] Confirm button only appears when an option is selected
+- [ ] Confirming advances to program review
+
+**Implementation Note**: This phase requires backend API changes. If the backend isn't ready, mock the response with hardcoded options for frontend development.
+
+---
+
+## Phase 8: Program Review Redesign
+
+### Overview
+Replace the current multi-card `ProgramReviewView` with a clean markdown-rendered full-page view. The backend returns the program as markdown text. The user scrolls through it and can suggest edits via voice or text.
+
+### Design
+
+**Full-page scrollable markdown view:**
+- The program is returned from the backend as a markdown string
+- Rendered natively in SwiftUI using `AttributedString` markdown parsing or a lightweight markdown renderer
+- Clean typography matching the app theme (dark background, white text)
+- Headings, bullet lists, bold/italic, horizontal rules all render correctly
+- Full bleed — content goes edge to edge with standard horizontal padding (20px)
+
+**Bottom input bar (persistent, overlays bottom of scroll):**
+- Same pattern as GoalInputBar: mic button (left) + text field (center) + send button
+- "Suggest changes..." placeholder
+- When user submits feedback, the backend regenerates the program markdown
+- Loading state: show spinner/shimmer while regenerating
+- "Activate Program" button appears below the input bar (or replaces it when user hasn't typed)
+
+### Changes Required:
+
+#### 1. Backend API Changes
+The current `POST /trainer/programs/draft` returns a structured `TrainingProgramDetail` JSON object. Change it to return markdown:
+
+**Option A (preferred)**: Add a `markdown` field to the response alongside the existing structured data:
+```json
+{
+  "success": true,
+  "program": {
+    "id": "...",
+    "status": "draft",
+    "version": 1,
+    "program_json": { ... },
+    "program_markdown": "# Your Training Program\n\n## Overview\n..."
+  }
+}
+```
+
+**Option B**: Return only markdown (simpler but loses structured data for future use).
+
+The `edit` endpoint: user sends feedback text, backend regenerates the markdown.
+
+#### 2. Update `ProgramModels.swift`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Models/ProgramModels.swift`
+
+```swift
+struct TrainingProgram: Codable, Identifiable {
+    let id: String
+    let status: String
+    let version: Int
+    let program: TrainingProgramDetail
+    let programMarkdown: String?  // NEW: markdown representation
+
+    enum CodingKeys: String, CodingKey {
+        case id, status, version
+        case program = "program_json"
+        case programMarkdown = "program_markdown"
+    }
+}
+```
+
+#### 3. Rewrite `ProgramReviewView.swift`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/ProgramReviewView.swift`
+
+```swift
+struct ProgramReviewView: View {
+    @StateObject private var programStore = TrainingProgramStore.shared
+    @StateObject private var onboardingStore = OnboardingStore.shared
+    @StateObject private var speechManager = SpeechManager()
+
+    @State private var feedbackText = ""
+    @State private var isRecording = false
+    @State private var isActivating = false
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            // Full-page scrollable markdown
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if programStore.isLoading && programStore.program == nil {
+                        // Loading state
+                        ProgramLoadingView()
+                    } else if let markdown = programStore.program?.programMarkdown {
+                        // Render markdown
+                        MarkdownContentView(markdown: markdown)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 16)
+                            .padding(.bottom, 160) // Space for bottom bar
+                    } else if let error = programStore.errorMessage {
+                        OnboardingErrorCard(
+                            title: "Couldn't load your program",
+                            message: error,
+                            primaryActionTitle: "Retry"
+                        ) { draftProgram() }
+                    }
+                }
+            }
+
+            // Bottom bar: input + activate
+            VStack(spacing: 12) {
+                // Edit input bar
+                ProgramInputBar(
+                    feedbackText: $feedbackText,
+                    isRecording: $isRecording,
+                    isLoading: programStore.isLoading,
+                    onMic: toggleRecording,
+                    onSend: submitFeedback
+                )
+
+                // Activate button
+                if programStore.program != nil {
+                    Button(action: activateProgram) {
+                        HStack {
+                            if isActivating {
+                                ProgressView()
+                                    .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
+                                    .scaleEffect(0.8)
+                            } else {
+                                Text("Activate Program")
+                            }
+                        }
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.background)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, AppTheme.Spacing.lg)
+                        .background(AppTheme.Colors.primaryText)
+                        .cornerRadius(AppTheme.CornerRadius.large)
+                    }
+                    .disabled(isActivating)
+                    .padding(.horizontal, 20)
+                }
+            }
+            .padding(.bottom, AppTheme.Spacing.xxxl)
+            .background(
+                LinearGradient(
+                    colors: [AppTheme.Colors.background.opacity(0), AppTheme.Colors.background],
+                    startPoint: .top, endPoint: .bottom
+                )
+                .frame(height: 120)
+                .offset(y: -60)
+            )
+        }
+        .onAppear { draftProgram() }
+    }
+}
+```
+
+#### 4. New Component: `MarkdownContentView`
+```swift
+struct MarkdownContentView: View {
+    let markdown: String
+
+    var body: some View {
+        // Parse markdown using AttributedString(markdown:) or a custom parser
+        // Render with proper theme styling:
+        //   - H1: 28pt, bold, primaryText, 24px bottom margin
+        //   - H2: 22pt, semibold, primaryText, 20px bottom margin
+        //   - H3: 18pt, semibold, primaryText, 16px bottom margin
+        //   - Body: 15pt, regular, secondaryText, 1.6 line height
+        //   - Bold: primaryText color
+        //   - Bullets: 5px dot, 14pt, secondaryText
+        //   - Horizontal rules: 1px divider
+        //   - Proper spacing between sections
+    }
+}
+```
+
+#### 5. New Component: `ProgramInputBar`
+```swift
+struct ProgramInputBar: View {
+    // Same pattern as GoalInputBar but without confirm button
+    // Mic button (left) + TextField (center) + Send button (right, when text present)
+    // Padding: 12px top, 20px sides
+}
+```
+
+### Success Criteria:
+
+#### Automated Verification:
+- [ ] Project builds with new ProgramReviewView
+- [ ] TrainingProgram model decodes markdown field correctly
+- [ ] MarkdownContentView renders test markdown strings
+
+#### Manual Verification:
+- [ ] Program loads as scrollable markdown after goal confirmation
+- [ ] Markdown renders correctly: headings, bullets, bold, horizontal rules
+- [ ] Typography matches app theme (dark bg, white/gray text)
+- [ ] Voice feedback works (mic → waveform → stop → text sent)
+- [ ] Text feedback regenerates the program (loading state shown)
+- [ ] "Activate Program" button works and advances to notification permission
+- [ ] Scrolling is smooth even with long programs
+
+**Implementation Note**: Markdown rendering can use SwiftUI's native `Text(AttributedString(markdown:))` for simple cases, or a library like `MarkdownUI` for richer rendering. Start with native and evaluate.
+
+---
+
+## Phase 9: Post-Auth Flow Connection & Name Updates
+
+### Overview
+Connect the full post-auth pipeline and update all references to userName.
+
+### Changes Required:
+
+#### 1. Update goal generation trigger
+Move `GoalContractStore.draftOptions()` call to `OnboardingStore.completeAuth()` (already described in Phase 7).
+
+#### 2. Update OnboardingSuccessView
 - `userName` now reads from `onboardingStore.state.intakeData.name`
-- Goal generation may still be loading when GoalReview appears (show loading state)
 
-#### 3. Update ProgramReviewView
-- Ensure it still drafts program after goals are approved
-- `userName` reads from `onboardingStore.state.intakeData.name`
-
-#### 4. Update OnboardingSuccessView
-- `userName` reads from `onboardingStore.state.intakeData.name`
+#### 3. Wire up the full post-auth flow
+```
+Auth → OTP → syncIntakeToBackend() → goalReview (options load) →
+user confirms goal → programReview (markdown loads) →
+user activates → notificationPermission → success → complete
+```
 
 ### Success Criteria:
 
@@ -834,15 +1229,15 @@ Task {
 
 #### Manual Verification:
 - [ ] Full end-to-end flow: Intro → Intake → Auth → GoalReview → ProgramReview → Notifications → Success → Main App
-- [ ] Goals generate correctly using synced intake data
-- [ ] Program generates correctly using approved goals
-- [ ] User's name appears correctly on GoalReview, ProgramReview, and Success screens
+- [ ] Goals generate as selectable options using synced intake data
+- [ ] Program generates as markdown after goal confirmation
+- [ ] User's name appears correctly on complete, GoalReview, ProgramReview, and Success screens
 
 **Implementation Note**: This is the critical integration phase. After completion, test the entire flow end-to-end before proceeding to cleanup.
 
 ---
 
-## Phase 8: Cleanup & Polish
+## Phase 10: Cleanup & Polish
 
 ### Overview
 Remove deprecated code, clean up unused files, and ensure the codebase is tidy.
@@ -854,6 +1249,8 @@ Remove deprecated code, clean up unused files, and ensure the codebase is tidy.
 - `NameCollectionView.swift` - Name now collected as first intake question
 - `OnboardingAssessmentView.swift` - Assessment removed from onboarding
 - Old `OnboardingProgressBar.swift` - Replaced by SegmentedProgressBar (keep if used elsewhere)
+- Old `GoalReviewView.swift` card-based layout code - Fully replaced by option-selection design
+- Old `ProgramReviewView.swift` multi-card layout code - Fully replaced by markdown view
 
 #### 2. Clean up `OnboardingModels.swift`:
 - Remove `IntakeTopic` enum (replaced by `OnboardingSection`)
