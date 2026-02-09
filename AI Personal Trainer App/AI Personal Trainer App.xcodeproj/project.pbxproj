@@ -7,6 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		B001B001B001B001B001B001 /* TextInputScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A001A001A001A001A001A001 /* TextInputScreenView.swift */; };
+		B002B002B002B002B002B002 /* BirthdayPickerScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A002A002A002A002A002A002 /* BirthdayPickerScreenView.swift */; };
+		B003B003B003B003B003B003 /* HeightPickerScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A003A003A003A003A003A003 /* HeightPickerScreenView.swift */; };
+		B004B004B004B004B004B004 /* WeightPickerScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A004A004A004A004A004A004 /* WeightPickerScreenView.swift */; };
+		B005B005B005B005B005B005 /* SimpleSelectScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A005A005A005A005A005A005 /* SimpleSelectScreenView.swift */; };
+		B006B006B006B006B006B006 /* VoiceScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A006A006A006A006A006A006 /* VoiceScreenView.swift */; };
+		B007B007B007B007B007B007 /* GuidedVoiceScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A007A007A007A007A007A007 /* GuidedVoiceScreenView.swift */; };
+		B008B008B008B008B008B008 /* IntakeCompleteScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A008A008A008A008A008A008 /* IntakeCompleteScreenView.swift */; };
+		B009B009B009B009B009B009 /* UnitToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A009A009A009A009A009A009 /* UnitToggle.swift */; };
 		FF66EE55DD44CC33BB22AA11 /* IntroHeroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF66 /* IntroHeroView.swift */; };
 		EE55DD44CC33BB22AA11FF66 /* IntroNarrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF66AA11 /* IntroNarrationView.swift */; };
 		DD44CC33BB22AA11FF66EE55 /* IntroCTAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC33DD44EE55FF66AA11BB22 /* IntroCTAView.swift */; };
@@ -143,6 +152,15 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		A001A001A001A001A001A001 /* TextInputScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInputScreenView.swift; sourceTree = "<group>"; };
+		A002A002A002A002A002A002 /* BirthdayPickerScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BirthdayPickerScreenView.swift; sourceTree = "<group>"; };
+		A003A003A003A003A003A003 /* HeightPickerScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeightPickerScreenView.swift; sourceTree = "<group>"; };
+		A004A004A004A004A004A004 /* WeightPickerScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightPickerScreenView.swift; sourceTree = "<group>"; };
+		A005A005A005A005A005A005 /* SimpleSelectScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleSelectScreenView.swift; sourceTree = "<group>"; };
+		A006A006A006A006A006A006 /* VoiceScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceScreenView.swift; sourceTree = "<group>"; };
+		A007A007A007A007A007A007 /* GuidedVoiceScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedVoiceScreenView.swift; sourceTree = "<group>"; };
+		A008A008A008A008A008A008 /* IntakeCompleteScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeCompleteScreenView.swift; sourceTree = "<group>"; };
+		A009A009A009A009A009A009 /* UnitToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitToggle.swift; sourceTree = "<group>"; };
 		AA11BB22CC33DD44EE55FF66 /* IntroHeroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroHeroView.swift; sourceTree = "<group>"; };
 		BB22CC33DD44EE55FF66AA11 /* IntroNarrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroNarrationView.swift; sourceTree = "<group>"; };
 		CC33DD44EE55FF66AA11BB22 /* IntroCTAView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroCTAView.swift; sourceTree = "<group>"; };
@@ -542,6 +560,14 @@
 				AA11BB22CC33DD44EE55FF66 /* IntroHeroView.swift */,
 				BB22CC33DD44EE55FF66AA11 /* IntroNarrationView.swift */,
 				CC33DD44EE55FF66AA11BB22 /* IntroCTAView.swift */,
+				A001A001A001A001A001A001 /* TextInputScreenView.swift */,
+				A002A002A002A002A002A002 /* BirthdayPickerScreenView.swift */,
+				A003A003A003A003A003A003 /* HeightPickerScreenView.swift */,
+				A004A004A004A004A004A004 /* WeightPickerScreenView.swift */,
+				A005A005A005A005A005A005 /* SimpleSelectScreenView.swift */,
+				A006A006A006A006A006A006 /* VoiceScreenView.swift */,
+				A007A007A007A007A007A007 /* GuidedVoiceScreenView.swift */,
+				A008A008A008A008A008A008 /* IntakeCompleteScreenView.swift */,
 			);
 			path = Screens;
 			sourceTree = "<group>";
@@ -843,6 +869,15 @@
 				12901AD82F350A95002C011D /* WorkoutSessionModels.swift in Sources */,
 				12901ADA2F350A95002C011D /* OnboardingModels.swift in Sources */,
 				D8F9DFF417B84FDF8F88CE1A /* OnboardingScreenData.swift in Sources */,
+				B001B001B001B001B001B001 /* TextInputScreenView.swift in Sources */,
+				B002B002B002B002B002B002 /* BirthdayPickerScreenView.swift in Sources */,
+				B003B003B003B003B003B003 /* HeightPickerScreenView.swift in Sources */,
+				B004B004B004B004B004B004 /* WeightPickerScreenView.swift in Sources */,
+				B005B005B005B005B005B005 /* SimpleSelectScreenView.swift in Sources */,
+				B006B006B006B006B006B006 /* VoiceScreenView.swift in Sources */,
+				B007B007B007B007B007B007 /* GuidedVoiceScreenView.swift in Sources */,
+				B008B008B008B008B008B008 /* IntakeCompleteScreenView.swift in Sources */,
+				B009B009B009B009B009B009 /* UnitToggle.swift in Sources */,
 				FF66EE55DD44CC33BB22AA11 /* IntroHeroView.swift in Sources */,
 				EE55DD44CC33BB22AA11FF66 /* IntroNarrationView.swift in Sources */,
 				DD44CC33BB22AA11FF66EE55 /* IntroCTAView.swift in Sources */,
