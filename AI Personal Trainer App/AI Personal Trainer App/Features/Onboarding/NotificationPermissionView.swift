@@ -136,7 +136,7 @@ struct NotificationPermissionView: View {
                 isRequestingPermission = false
                 Task {
                     await onboardingStore.setNotificationPermission(granted)
-                    await onboardingStore.advanceToNextPhase()
+                    await onboardingStore.setPhase(.success)
                 }
             }
         }
@@ -145,7 +145,7 @@ struct NotificationPermissionView: View {
     private func skipNotifications() {
         Task {
             await onboardingStore.skipNotifications()
-            await onboardingStore.advanceToNextPhase()
+            await onboardingStore.setPhase(.success)
         }
     }
 }

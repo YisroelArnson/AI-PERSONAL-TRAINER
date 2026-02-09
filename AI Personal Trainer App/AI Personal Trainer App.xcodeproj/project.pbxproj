@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		D8F9DFF417B84FDF8F88CE1A /* OnboardingScreenData.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBD01A40CAA54E56927675DB /* OnboardingScreenData.swift */; };
+		266FC2852505467D949572BB /* LocalIntakeData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A5930E62534E2C8664F95F /* LocalIntakeData.swift */; };
+		084A90D66E2E4B999D5B4CC3 /* IntakeCoordinatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CC077CB70C943D19879231B /* IntakeCoordinatorView.swift */; };
 		12541A072F2C59B90020EF78 /* AI Personal Trainer AppTests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */; };
 		12541A0B2F2C59D30020EF78 /* AI Personal Trainer AppUITests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */; };
 		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
@@ -131,6 +134,9 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		BBD01A40CAA54E56927675DB /* OnboardingScreenData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScreenData.swift; sourceTree = "<group>"; };
+		94A5930E62534E2C8664F95F /* LocalIntakeData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalIntakeData.swift; sourceTree = "<group>"; };
+		8CC077CB70C943D19879231B /* IntakeCoordinatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeCoordinatorView.swift; sourceTree = "<group>"; };
 		12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Personal Trainer AppTests"; sourceTree = "<group>"; };
 		12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Personal Trainer AppUITests"; sourceTree = "<group>"; };
 		12761C412E57953800C4F8FE /* AI Personal Trainer App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Personal Trainer App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -516,6 +522,7 @@
 			isa = PBXGroup;
 			children = (
 				12901A572F350A93002C011D /* OnboardingCoordinatorView.swift */,
+				8CC077CB70C943D19879231B /* IntakeCoordinatorView.swift */,
 				12901A582F350A93002C011D /* OnboardingAssessmentView.swift */,
 				12901A592F350A93002C011D /* NameCollectionView.swift */,
 				12901A5A2F350A93002C011D /* OnboardingAuthView.swift */,
@@ -561,6 +568,8 @@
 				12901A702F350A93002C011D /* WorkoutSessionModels.swift */,
 				12901A712F350A93002C011D /* Location.swift */,
 				12901A722F350A93002C011D /* OnboardingModels.swift */,
+				BBD01A40CAA54E56927675DB /* OnboardingScreenData.swift */,
+				94A5930E62534E2C8664F95F /* LocalIntakeData.swift */,
 				12901A732F350A93002C011D /* APIModels.swift */,
 				12901A742F350A93002C011D /* IntakeModels.swift */,
 				12901A752F350A93002C011D /* AssessmentModels.swift */,
@@ -804,6 +813,9 @@
 				12901ACF2F350A95002C011D /* ExpandingFabMenu.swift in Sources */,
 				12901AD82F350A95002C011D /* WorkoutSessionModels.swift in Sources */,
 				12901ADA2F350A95002C011D /* OnboardingModels.swift in Sources */,
+				D8F9DFF417B84FDF8F88CE1A /* OnboardingScreenData.swift in Sources */,
+				266FC2852505467D949572BB /* LocalIntakeData.swift in Sources */,
+				084A90D66E2E4B999D5B4CC3 /* IntakeCoordinatorView.swift in Sources */,
 				12901ACA2F350A95002C011D /* WelcomeView.swift in Sources */,
 				12901AF22F350A95002C011D /* WorkoutSessionStore.swift in Sources */,
 				12901AA42F350A94002C011D /* InlineStepsView.swift in Sources */,

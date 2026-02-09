@@ -757,6 +757,23 @@ class APIService: ObservableObject {
         return try JSONDecoder().decode(ProgramResponse.self, from: data)
     }
 
+    // MARK: - Structured Intake Submission
+
+    func submitStructuredIntake(_ data: LocalIntakeData) async throws -> IntakeSubmitResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/intake/submit") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(data)
+
+        let (responseData, httpResponse) = try await dataWithFallback(for: request, timeout: 15)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(IntakeSubmitResponse.self, from: responseData)
+    }
+
     // MARK: - Monitoring + Calendar + Memory + Measurements (Phase F)
 
     func logMeasurement(measurementType: String, value: Double, unit: String, measuredAt: Date) async throws -> MeasurementResponse {

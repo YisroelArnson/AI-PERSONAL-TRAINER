@@ -45,7 +45,7 @@ struct OnboardingAssessmentView: View {
                 // Assessment complete - move to name collection
                 Task {
                     try? await Task.sleep(nanoseconds: 1_500_000_000) // 1.5s delay for completion animation
-                    await onboardingStore.completeAssessment()
+                    await onboardingStore.setPhase(.goalReview)
                 }
             }
         }
@@ -225,7 +225,7 @@ struct OnboardingAssessmentView: View {
 
             // Save session ID
             if let sessionId = assessmentStore.session?.id {
-                onboardingStore.setAssessmentSessionId(sessionId)
+                // Assessment session ID no longer tracked in onboarding state
             }
 
             hasStarted = true

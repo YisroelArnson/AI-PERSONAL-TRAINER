@@ -2,8 +2,6 @@ import SwiftUI
 
 struct OnboardingCoordinatorView: View {
     @StateObject private var onboardingStore = OnboardingStore.shared
-    @StateObject private var intakeStore = IntakeSessionStore.shared
-    @StateObject private var assessmentStore = AssessmentSessionStore.shared
 
     @State private var showBackConfirmation = false
 
@@ -11,26 +9,6 @@ struct OnboardingCoordinatorView: View {
 
     private var currentOrbConfig: OrbConfig {
         onboardingStore.state.currentPhase.orbConfig
-    }
-
-    private var orbIsLoading: Bool {
-        switch onboardingStore.state.currentPhase {
-        case .intake:
-            return intakeStore.isLoading || intakeStore.isConfirming
-        case .assessment:
-            return assessmentStore.isLoading && assessmentStore.baseline == nil
-        case .nameCollection:
-            return onboardingStore.isGoalLoading
-        default:
-            return false
-        }
-    }
-
-    private var effectiveOrbIcon: String? {
-        if onboardingStore.state.currentPhase == .assessment, assessmentStore.baseline != nil {
-            return "checkmark"
-        }
-        return currentOrbConfig.icon
     }
 
     private var orbFrameAlignment: Alignment {
@@ -77,43 +55,30 @@ struct OnboardingCoordinatorView: View {
         return !phase.hideBackButton && phase.previousPhase != nil
     }
 
-    private var showProgressBar: Bool {
-        ![OnboardingPhase.welcome, .complete, .intake, .assessment].contains(onboardingStore.state.currentPhase)
-    }
-
     // MARK: - Body
 
     var body: some View {
         VStack(spacing: 0) {
-            // ThinTopBar (always reserves height to prevent vertical reflow)
-            ThinTopBar(
-                title: onboardingStore.state.currentPhase.displayTitle,
-                onBack: handleBack
-            )
-            .opacity(shouldShowTopBar ? 1 : 0)
-            .allowsHitTesting(shouldShowTopBar)
-
-            // Global progress bar (always reserves height/padding to prevent vertical reflow)
-            OnboardingProgressBar(
-                progress: onboardingStore.state.currentPhase.progressPercent
-            )
-            .padding(.horizontal, 20)
-            .padding(.top, 8)
-            .opacity(showProgressBar ? 1 : 0)
-            .accessibilityHidden(!showProgressBar)
+            // ThinTopBar (only for post-intake phases that need it)
+            if shouldShowTopBar {
+                ThinTopBar(
+                    title: onboardingStore.state.currentPhase.displayTitle,
+                    onBack: handleBack
+                )
+            }
 
             ZStack {
-                // Phase content (below)
+                // Phase content
                 currentPhaseView
                     .id(onboardingStore.state.currentPhase)
                     .transition(phaseTransition)
 
-                // Persistent orb (above, animates between phases)
+                // Persistent orb (only for post-intake phases)
                 if currentOrbConfig.alignment != .hidden {
                     OnboardingOrbView(
                         size: currentOrbConfig.size,
-                        icon: effectiveOrbIcon,
-                        isLoading: orbIsLoading
+                        icon: currentOrbConfig.icon,
+                        isLoading: false
                     )
                     .frame(maxWidth: .infinity, maxHeight: .infinity,
                            alignment: orbFrameAlignment)
@@ -138,11 +103,7 @@ struct OnboardingCoordinatorView: View {
     // MARK: - Actions
 
     private func handleBack() {
-        if onboardingStore.state.currentPhase.requiresBackConfirmation {
-            showBackConfirmation = true
-        } else {
-            Task { await onboardingStore.goToPreviousPhase() }
-        }
+        Task { await onboardingStore.goToPreviousPhase() }
     }
 
     // MARK: - Phase Content
@@ -150,34 +111,15 @@ struct OnboardingCoordinatorView: View {
     @ViewBuilder
     private var currentPhaseView: some View {
         switch onboardingStore.state.currentPhase {
-        case .welcome:
-            WelcomeView()
+        case .intro, .intake, .intakeComplete:
+            // Intro + intake + complete screens handled by IntakeCoordinatorView
+            IntakeCoordinatorView()
 
         case .auth:
             OnboardingAuthView()
 
         case .authVerification:
             OTPVerificationView()
-
-        case .intake:
-            IntakeView(configuration: IntakeViewConfiguration(
-                context: .onboarding,
-                onComplete: {
-                    await OnboardingStore.shared.completeIntake(withAssessment: false)
-                },
-                onAssessment: {
-                    await OnboardingStore.shared.completeIntake(withAssessment: true)
-                },
-                sessionIdCallback: { sessionId in
-                    OnboardingStore.shared.setIntakeSessionId(sessionId)
-                }
-            ))
-
-        case .assessment:
-            OnboardingAssessmentView()
-
-        case .nameCollection:
-            NameCollectionView()
 
         case .goalReview:
             GoalReviewView()

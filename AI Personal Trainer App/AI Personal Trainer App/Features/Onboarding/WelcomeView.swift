@@ -102,7 +102,7 @@ struct WelcomeView: View {
 
     private func beginJourney() {
         Task {
-            await onboardingStore.startOnboarding()
+            await onboardingStore.goToNextStep()
         }
     }
 }

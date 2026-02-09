@@ -132,8 +132,8 @@ struct NameCollectionView: View {
         guard canContinue else { return }
 
         Task {
-            await onboardingStore.setUserName(name.trimmingCharacters(in: .whitespaces))
-            await onboardingStore.advanceToNextPhase()
+            onboardingStore.setIntakeStringField("name", value: name.trimmingCharacters(in: .whitespaces))
+            await onboardingStore.setPhase(.goalReview)
         }
     }
 }
