@@ -55,8 +55,40 @@ async function approveGoal(req, res) {
   }
 }
 
+async function generateOptions(req, res) {
+  try {
+    const userId = req.user.id;
+    const options = await goalsService.generateGoalOptions(userId);
+    await journeyService.setPhaseStatus(userId, 'goals', 'in_progress');
+    res.json({ success: true, options });
+  } catch (error) {
+    console.error('Generate goal options error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+async function selectOption(req, res) {
+  try {
+    const userId = req.user.id;
+    const { option } = req.body || {};
+
+    if (!option) {
+      return res.status(400).json({ success: false, error: 'option is required' });
+    }
+
+    const goal = await goalsService.selectGoalOption(userId, option);
+    await journeyService.setPhaseStatus(userId, 'goals', 'complete');
+    res.json({ success: true, goal });
+  } catch (error) {
+    console.error('Select goal option error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
 module.exports = {
   draftGoal,
   editGoal,
-  approveGoal
+  approveGoal,
+  generateOptions,
+  selectOption
 };

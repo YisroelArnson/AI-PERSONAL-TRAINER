@@ -185,8 +185,8 @@ final class OnboardingStore: ObservableObject {
         // Sync local intake data to backend
         await syncIntakeToBackend()
 
-        // Start goal generation in background
-        Task { await GoalContractStore.shared.draft() }
+        // Start goal options generation in background
+        Task { await GoalContractStore.shared.fetchGoalOptions() }
 
         state.currentPhase = .goalReview
         await saveAndSync()

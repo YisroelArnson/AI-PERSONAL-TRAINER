@@ -5,6 +5,10 @@ const controller = require('../controllers/trainerIntake.controller');
 
 router.use(authenticateToken);
 
+// New structured intake (screen-by-screen)
+router.post('/submit', controller.submitStructuredIntake);
+
+// Legacy conversational intake
 router.post('/sessions', controller.createOrResumeSession);
 router.post('/sessions/:id/answers', controller.submitAnswer);
 router.post('/sessions/:id/confirm', controller.confirmIntake);

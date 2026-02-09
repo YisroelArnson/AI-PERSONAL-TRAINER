@@ -765,13 +765,44 @@ class APIService: ObservableObject {
         }
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
-        request.httpBody = try JSONEncoder().encode(data)
+        request.httpBody = try JSONSerialization.data(withJSONObject: data.toDictionary())
 
         let (responseData, httpResponse) = try await dataWithFallback(for: request, timeout: 15)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
         return try JSONDecoder().decode(IntakeSubmitResponse.self, from: responseData)
+    }
+
+    // MARK: - Goal Options (New Onboarding Flow)
+
+    func generateGoalOptions() async throws -> GoalOptionsResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/goals/options") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 30)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(GoalOptionsResponse.self, from: data)
+    }
+
+    func selectGoalOption(_ option: GoalOption) async throws -> GoalContractResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/goals/options/select") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(GoalOptionSelectRequest(option: option))
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 30)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(GoalContractResponse.self, from: data)
     }
 
     // MARK: - Monitoring + Calendar + Memory + Measurements (Phase F)

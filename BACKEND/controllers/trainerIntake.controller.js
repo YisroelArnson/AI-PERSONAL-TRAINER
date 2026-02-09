@@ -124,10 +124,30 @@ async function getLatestSummary(req, res) {
   }
 }
 
+async function submitStructuredIntake(req, res) {
+  try {
+    const userId = req.user.id;
+    const intakeData = req.body;
+
+    if (!intakeData || Object.keys(intakeData).length === 0) {
+      return res.status(400).json({ success: false, error: 'Intake data is required' });
+    }
+
+    const intake = await intakeService.submitStructuredIntake(userId, intakeData);
+    await journeyService.setPhaseStatus(userId, 'intake', 'complete');
+
+    res.json({ success: true, intake_id: intake.id });
+  } catch (error) {
+    console.error('Submit structured intake error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
 module.exports = {
   createOrResumeSession,
   submitAnswer,
   confirmIntake,
   editIntake,
-  getLatestSummary
+  getLatestSummary,
+  submitStructuredIntake
 };

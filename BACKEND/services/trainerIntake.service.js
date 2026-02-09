@@ -509,6 +509,62 @@ async function getLatestSummary(sessionId) {
   return data;
 }
 
+// MARK: - Structured Intake (new screen-by-screen flow)
+
+async function submitStructuredIntake(userId, intakeData) {
+  const row = {
+    user_id: userId,
+    name: intakeData.name || null,
+    birthday: intakeData.birthday || null,
+    gender: intakeData.gender || null,
+    goals: intakeData.goals || null,
+    timeline: intakeData.timeline || null,
+    experience_level: intakeData.experience_level || null,
+    frequency: intakeData.frequency || null,
+    current_routine: intakeData.current_routine || null,
+    past_attempts: intakeData.past_attempts || null,
+    hobby_sports: intakeData.hobby_sports || null,
+    height_inches: intakeData.height_inches || null,
+    weight_lbs: intakeData.weight_lbs || null,
+    body_comp: intakeData.body_comp || null,
+    physical_baseline: intakeData.physical_baseline || null,
+    mobility: intakeData.mobility || null,
+    injuries: intakeData.injuries || null,
+    health_nuances: intakeData.health_nuances || null,
+    supplements: intakeData.supplements || null,
+    activity_level: intakeData.activity_level || null,
+    sleep: intakeData.sleep || null,
+    nutrition: intakeData.nutrition || null,
+    environment: intakeData.environment || null,
+    movement_prefs: intakeData.movement_prefs || null,
+    coaching_style: intakeData.coaching_style || null,
+    anything_else: intakeData.anything_else || null,
+    status: 'submitted'
+  };
+
+  const { data, error } = await supabase
+    .from('trainer_structured_intake')
+    .insert(row)
+    .select()
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+async function getLatestStructuredIntake(userId) {
+  const { data, error } = await supabase
+    .from('trainer_structured_intake')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
+}
+
 module.exports = {
   getOrCreateSession,
   getSession,
@@ -519,5 +575,7 @@ module.exports = {
   confirmSummary,
   editSummary,
   getLatestSummary,
-  getLatestAssistantMessage
+  getLatestAssistantMessage,
+  submitStructuredIntake,
+  getLatestStructuredIntake
 };

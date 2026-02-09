@@ -54,3 +54,38 @@ struct WeeklyCommitment: Codable {
 struct GoalEditRequest: Encodable {
     let instruction: String
 }
+
+// MARK: - Goal Options (New Onboarding Flow)
+
+struct GoalOption: Codable, Identifiable, Equatable {
+    let id: String
+    let title: String
+    let description: String
+    let primaryGoal: String
+    let secondaryGoal: String
+    let timelineWeeks: Int
+    let sessionsPerWeek: Int
+    let minutesPerSession: Int
+    let focusAreas: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case description
+        case primaryGoal = "primary_goal"
+        case secondaryGoal = "secondary_goal"
+        case timelineWeeks = "timeline_weeks"
+        case sessionsPerWeek = "sessions_per_week"
+        case minutesPerSession = "minutes_per_session"
+        case focusAreas = "focus_areas"
+    }
+}
+
+struct GoalOptionsResponse: Codable {
+    let success: Bool
+    let options: [GoalOption]
+}
+
+struct GoalOptionSelectRequest: Encodable {
+    let option: GoalOption
+}

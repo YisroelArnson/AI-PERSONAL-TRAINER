@@ -16,6 +16,11 @@ function nowIso() {
 }
 
 async function fetchLatestIntakeSummary(userId) {
+  // Try structured intake first (new flow)
+  const structured = await fetchStructuredIntake(userId);
+  if (structured) return structured;
+
+  // Fall back to old conversational intake summaries
   const { data, error } = await supabase
     .from('trainer_intake_summaries')
     .select('summary_json, trainer_intake_sessions!inner(user_id)')
@@ -26,6 +31,19 @@ async function fetchLatestIntakeSummary(userId) {
 
   if (error) throw error;
   return data?.summary_json || null;
+}
+
+async function fetchStructuredIntake(userId) {
+  const { data, error } = await supabase
+    .from('trainer_structured_intake')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data;
 }
 
 async function fetchLatestAssessmentBaseline(userId) {
@@ -182,9 +200,103 @@ async function getGoalContract(goalId) {
   return data;
 }
 
+async function generateGoalOptions(userId) {
+  const intake = await fetchLatestIntakeSummary(userId);
+  const baseline = await fetchLatestAssessmentBaseline(userId);
+
+  const prompt = `You are a certified personal trainer. Based on the client's intake data, generate exactly 3 distinct goal options for them to choose from.
+
+Intake data: ${JSON.stringify(intake)}
+Assessment baseline: ${JSON.stringify(baseline)}
+
+Return ONLY JSON:
+{
+  "options": [
+    {
+      "id": "option_1",
+      "title": "Short descriptive title (3-5 words)",
+      "description": "1-2 sentence description of this goal path",
+      "primary_goal": "The main fitness goal",
+      "secondary_goal": "A complementary secondary goal",
+      "timeline_weeks": 12,
+      "sessions_per_week": 4,
+      "minutes_per_session": 60,
+      "focus_areas": ["area1", "area2"]
+    }
+  ]
+}
+
+RULES:
+1. Each option should represent a meaningfully different training direction.
+2. Options should be realistic given the client's experience, schedule, and constraints.
+3. Use the client's stated goals as the primary guide, but offer creative alternatives.
+4. Timeline should be 8-16 weeks.
+5. Sessions per week should respect the client's stated frequency preference.`;
+
+  const client = getAnthropicClient();
+  const response = await client.messages.create({
+    model: DEFAULT_MODEL,
+    max_tokens: 1024,
+    system: [{ type: 'text', text: 'Return JSON only. Be specific and practical.' }],
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+  });
+
+  const textBlock = response.content.find(block => block.type === 'text');
+  const parsed = extractJson(textBlock?.text || '');
+
+  if (!parsed?.options || !Array.isArray(parsed.options)) {
+    throw new Error('Failed to generate goal options');
+  }
+
+  return parsed.options;
+}
+
+async function selectGoalOption(userId, selectedOption) {
+  // Create a goal contract from the selected option
+  const contractJson = {
+    primary_goal: selectedOption.primary_goal,
+    secondary_goal: selectedOption.secondary_goal,
+    timeline_weeks: selectedOption.timeline_weeks,
+    metrics: selectedOption.focus_areas || [],
+    weekly_commitment: {
+      sessions_per_week: selectedOption.sessions_per_week,
+      minutes_per_session: selectedOption.minutes_per_session
+    },
+    constraints: [],
+    tradeoffs: [],
+    assumptions: []
+  };
+
+  const { data, error } = await supabase
+    .from('trainer_goal_contracts')
+    .insert({
+      user_id: userId,
+      status: 'approved',
+      version: 1,
+      contract_json: contractJson,
+      approved_at: nowIso(),
+      created_at: nowIso(),
+      updated_at: nowIso()
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+
+  await supabase.from('trainer_goal_events').insert({
+    goal_id: data.id,
+    event_type: 'approve',
+    data: { selected_option: selectedOption, approved_at: nowIso() }
+  });
+
+  return data;
+}
+
 module.exports = {
   draftGoalContract,
   editGoalContract,
   approveGoalContract,
-  getGoalContract
+  getGoalContract,
+  generateGoalOptions,
+  selectGoalOption
 };
