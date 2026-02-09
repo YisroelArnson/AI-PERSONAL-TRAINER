@@ -80,15 +80,21 @@ ABOUT YOU, YOUR GOALS, TRAINING HISTORY, BODY METRICS, FITNESS BASELINE, HEALTH,
 
 ## What We're NOT Doing
 
-1. **Changing the backend intake API** - We store data locally and sync it after auth. The backend intake endpoints remain available for future use but the onboarding no longer streams through them.
-2. **Changing the main app experience** - `AppView.swift`'s `isOnboardingComplete` check remains unchanged.
-3. **Removing IntakeView entirely** - It can stay for standalone use (settings re-intake). We just stop using it in onboarding.
-4. **Changing SpeechManager** - The existing speech recognition service works as-is.
-5. **Backend schema migrations** - We sync intake data as a JSON blob to the existing `trainer_intake_summaries` table. Schema changes are out of scope.
+1. **Changing the main app experience** - `AppView.swift`'s `isOnboardingComplete` check remains unchanged.
+2. **Changing SpeechManager** - The existing speech recognition service works as-is.
+3. **Keeping the old conversational intake** - The LLM-driven chat intake (`IntakeView`, `IntakeSessionStore`, streaming SSE endpoints) will be removed entirely. The structured onboarding flow replaces it for all use cases — if a user needs to redo their intake, they retake the onboarding screens.
+
+## What We ARE Changing on the Backend
+
+1. **New intake submission endpoint** - Replace the streaming conversation endpoints with a single `POST /trainer/intake/submit` that accepts the structured `LocalIntakeData` JSON and stores it directly.
+2. **New goal options endpoint** - Replace single-goal `POST /trainer/goals/draft` with `POST /trainer/goals/options` that returns 3-4 concrete goal options. Edit endpoint regenerates the options list. New confirm endpoint locks in the selected option.
+3. **Program markdown** - Update `POST /trainer/programs/draft` (and edit) to return a `program_markdown` field alongside the existing structured JSON.
+4. **Schema updates** - Update `trainer_intake_summaries` table to store structured intake fields directly (not just a summary blob). Remove or archive the streaming-related tables (`trainer_intake_events`, `trainer_intake_checklist`).
+5. **Remove streaming endpoints** - Remove `POST /sessions/:id/answers` (SSE streaming), `POST /sessions/:id/confirm`, and related conversational infrastructure.
 
 ## Implementation Approach
 
-The refactor is organized into 10 phases, each producing a testable milestone. We build bottom-up: data models first, then shared components, then screen types, then coordinators, then auth relocation, then goal review redesign, then program review redesign, then post-auth wiring, then cleanup.
+The refactor is organized into 11 phases, each producing a testable milestone. We build bottom-up: data models first, then shared components, then screen types, then coordinators, then auth relocation, then **backend changes** (schema + new endpoints), then goal review redesign, then program review redesign, then post-auth wiring, then cleanup.
 
 ---
 
@@ -793,7 +799,183 @@ func syncIntakeToBackend() async {
 
 ---
 
-## Phase 7: Goal Review Redesign
+## Phase 7: Backend Changes (Schema + Endpoints)
+
+### Overview
+Update the backend to support the new structured intake flow, goal options, and markdown programs. Remove the old streaming conversational intake infrastructure.
+
+### Changes Required:
+
+#### 1. Schema Migration: `trainer_intake_summaries`
+**Path**: `BACKEND/database/trainer_intake_schema.sql` (or new migration file)
+
+Replace the current `summary_json` blob with structured columns matching `LocalIntakeData`:
+
+```sql
+-- New table: trainer_structured_intake
+CREATE TABLE trainer_structured_intake (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id),
+
+    -- About You
+    name TEXT,
+    age INTEGER,
+    gender TEXT,
+
+    -- Goals
+    goals TEXT,
+    timeline TEXT,
+
+    -- Training History
+    experience_level TEXT,
+    frequency TEXT,
+    current_routine TEXT,
+    past_attempts TEXT,
+    hobby_sports TEXT,
+
+    -- Body Metrics
+    height_inches INTEGER,
+    weight_lbs INTEGER,
+    body_comp TEXT,
+
+    -- Fitness Baseline
+    physical_baseline TEXT,
+    mobility TEXT,
+
+    -- Health
+    injuries TEXT,
+    health_nuances TEXT,
+    supplements TEXT,
+
+    -- Lifestyle
+    activity_level TEXT,
+    sleep TEXT,
+    nutrition TEXT,
+
+    -- Equipment
+    environment TEXT,
+
+    -- Preferences
+    movement_prefs TEXT,
+    coaching_style TEXT,
+    anything_else TEXT,
+
+    -- Metadata
+    status TEXT DEFAULT 'submitted' CHECK (status IN ('submitted', 'processing', 'processed')),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- RLS policies (same pattern as existing tables)
+ALTER TABLE trainer_structured_intake ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can read own intake" ON trainer_structured_intake
+    FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own intake" ON trainer_structured_intake
+    FOR INSERT WITH CHECK (auth.uid() = user_id);
+```
+
+#### 2. New Endpoint: `POST /trainer/intake/submit`
+**Path**: `BACKEND/routes/trainerIntake.routes.js`, `BACKEND/controllers/trainerIntake.controller.js`, `BACKEND/services/trainerIntake.service.js`
+
+Accepts the structured intake data and stores it:
+
+```javascript
+// Controller
+async function submitStructuredIntake(req, res) {
+    const userId = req.user.id;
+    const intakeData = req.body; // LocalIntakeData JSON
+
+    // Validate required fields (name at minimum)
+    // Insert into trainer_structured_intake
+    // Return { success: true, intakeId: "..." }
+}
+```
+
+#### 3. Update Goal Endpoints: Options-Based Flow
+**Path**: `BACKEND/services/trainerGoals.service.js`, `BACKEND/controllers/trainerGoals.controller.js`
+
+**`POST /trainer/goals/options`** (new):
+- Reads the user's `trainer_structured_intake` data
+- Generates 3-4 concrete goal options via Claude
+- Returns `{ success: true, options: [{ id, summary, detail }] }`
+
+**`POST /trainer/goals/options/edit`** (new):
+- Accepts `{ instruction: "user feedback text" }`
+- Regenerates the options list incorporating the feedback
+- Returns updated options array
+
+**`POST /trainer/goals/options/:optionId/confirm`** (new):
+- Locks in the selected option as the user's goal contract
+- Creates a `trainer_goal_contracts` row from the selected option
+- Returns the confirmed goal contract
+
+#### 4. Update Program Endpoints: Markdown Response
+**Path**: `BACKEND/services/trainerProgram.service.js`
+
+Update `draftProgram()` to also generate and return a markdown representation:
+
+```javascript
+async function draftProgram(userId) {
+    // ... existing logic to generate program_json ...
+
+    // Also generate markdown version
+    const programMarkdown = generateProgramMarkdown(programJson);
+    // Or: ask Claude to generate both JSON + markdown in one call
+
+    // Store both in trainer_programs table
+    // Return { ...existing, program_markdown: programMarkdown }
+}
+```
+
+Add `program_markdown TEXT` column to `trainer_programs` table.
+
+#### 5. Remove Old Streaming Infrastructure
+- Remove `POST /sessions/:id/answers` (SSE streaming endpoint)
+- Remove `POST /sessions/:id/confirm` (old confirm)
+- Remove `POST /sessions/:id/edit` (old edit)
+- Remove `generateNextQuestion()` from intake service
+- Remove `synthesizeSummary()` from intake service
+- Keep `POST /sessions` for backward compat or remove entirely
+- Archive/drop `trainer_intake_events` and `trainer_intake_checklist` tables (or leave for historical data)
+
+#### 6. Update iOS `APIService.swift`
+Add new endpoints to match:
+
+```swift
+// New intake submission
+func submitStructuredIntake(_ data: LocalIntakeData) async throws -> IntakeSubmitResponse
+
+// New goal options
+func fetchGoalOptions() async throws -> GoalOptionsResponse
+func editGoalOptions(instruction: String) async throws -> GoalOptionsResponse
+func confirmGoalOption(optionId: String) async throws -> GoalContractResponse
+
+// Updated program (now includes markdown)
+// Existing draftTrainingProgram() already works, just decode the new field
+```
+
+### Success Criteria:
+
+#### Automated Verification:
+- [ ] Schema migration runs cleanly
+- [ ] `POST /trainer/intake/submit` accepts structured data and returns intakeId
+- [ ] `POST /trainer/goals/options` returns 3-4 options array
+- [ ] `POST /trainer/goals/options/edit` regenerates options with feedback
+- [ ] `POST /trainer/goals/options/:id/confirm` creates goal contract
+- [ ] `POST /trainer/programs/draft` returns `program_markdown` field
+- [ ] Old streaming endpoints removed or return 410 Gone
+
+#### Manual Verification:
+- [ ] Structured intake data persists correctly in new table
+- [ ] Goal options are diverse and relevant to the intake data
+- [ ] Program markdown renders correctly when viewed as text
+- [ ] No regressions in program generation quality
+
+**Implementation Note**: Backend changes can be developed in parallel with frontend phases 1-6. The frontend can use mock data until these endpoints are ready.
+
+---
+
+## Phase 8: Goal Review Redesign
 
 ### Overview
 Replace the current card-based `GoalReviewView` with a new interactive goal selection screen. The LLM generates a list of concrete, specific goal *options* based on the user's vague intake data. The user can tap an option, or use voice/text to request changes. The LLM regenerates options based on feedback. The user iterates until they find the right goal and confirm.
@@ -1003,7 +1185,7 @@ func completeAuth() async {
 
 ---
 
-## Phase 8: Program Review Redesign
+## Phase 9: Program Review Redesign
 
 ### Overview
 Replace the current multi-card `ProgramReviewView` with a clean markdown-rendered full-page view. The backend returns the program as markdown text. The user scrolls through it and can suggest edits via voice or text.
@@ -1201,7 +1383,7 @@ struct ProgramInputBar: View {
 
 ---
 
-## Phase 9: Post-Auth Flow Connection & Name Updates
+## Phase 10: Post-Auth Flow Connection & Name Updates
 
 ### Overview
 Connect the full post-auth pipeline and update all references to userName.
@@ -1209,7 +1391,7 @@ Connect the full post-auth pipeline and update all references to userName.
 ### Changes Required:
 
 #### 1. Update goal generation trigger
-Move `GoalContractStore.draftOptions()` call to `OnboardingStore.completeAuth()` (already described in Phase 7).
+Move `GoalContractStore.draftOptions()` call to `OnboardingStore.completeAuth()` (already described in Phase 8).
 
 #### 2. Update OnboardingSuccessView
 - `userName` now reads from `onboardingStore.state.intakeData.name`
@@ -1237,18 +1419,21 @@ user activates → notificationPermission → success → complete
 
 ---
 
-## Phase 10: Cleanup & Polish
+## Phase 11: Cleanup & Polish
 
 ### Overview
 Remove deprecated code, clean up unused files, and ensure the codebase is tidy.
 
 ### Changes Required:
 
-#### 1. Remove or deprecate files no longer used in onboarding:
+#### 1. Remove files no longer used:
 - `WelcomeView.swift` - Replaced by IntroScreenView
 - `NameCollectionView.swift` - Name now collected as first intake question
 - `OnboardingAssessmentView.swift` - Assessment removed from onboarding
-- Old `OnboardingProgressBar.swift` - Replaced by SegmentedProgressBar (keep if used elsewhere)
+- `IntakeView.swift` - Conversational chat intake fully removed (onboarding screens replace it for all use cases; retake = redo onboarding screens)
+- `IntakeSessionStore.swift` - Streaming intake store no longer needed
+- `IntakeModels.swift` - Old intake session/summary models (replaced by `LocalIntakeData`)
+- Old `OnboardingProgressBar.swift` - Replaced by SegmentedProgressBar
 - Old `GoalReviewView.swift` card-based layout code - Fully replaced by option-selection design
 - Old `ProgramReviewView.swift` multi-card layout code - Fully replaced by markdown view
 
