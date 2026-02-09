@@ -78,7 +78,8 @@ struct TrainerJourneyView: View {
             }
         }
         .sheet(isPresented: $showIntake) {
-            IntakeView()
+            Text("Intake is now completed during onboarding.")
+                .padding()
         }
         .sheet(isPresented: $showAssessment) {
             AssessmentView()
