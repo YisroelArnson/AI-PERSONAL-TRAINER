@@ -39,7 +39,7 @@ Welcome → Auth → OTP → Intake (LLM chat) → Assessment → NameCollection
 ### New Flow
 ```
 IntroHero → IntroNarration → IntroCTA("Get Started") →
-Name → Age → Gender → Goals → Timeline → ExperienceLevel → Frequency →
+Name → Birthday → Gender → Goals → Timeline → ExperienceLevel → Frequency →
 CurrentRoutine → PastAttempts → HobbySports → Height → Weight → BodyComp →
 PhysicalBaseline → Mobility → Injuries → HealthNuances → Supplements →
 ActivityLevel → Sleep → Nutrition → Environment → MovementPrefs →
@@ -55,7 +55,7 @@ NotificationPermission → Success → Complete
 | `introNarration` | 1 | Small orb left-aligned, emits text lines word-by-word, auto-advances |
 | `introCTA` | 1 | Centered orb, headline, "Get Started" button |
 | `textInput` | name | Keyboard input, auto-focus |
-| `stepper` | age | +/- buttons, large centered value |
+| `birthdayPicker` | birthday | 3-column wheel picker (month/day/year) with haptics |
 | `heightPicker` | height | Unit toggle (ft/in vs cm), scrollable wheel picker with haptics |
 | `weightPicker` | weight | Unit toggle (lbs vs kg), horizontal ruler slider with haptics |
 | `simpleSelect` | gender | Rectangular option buttons |
@@ -123,7 +123,7 @@ import Foundation
 enum OnboardingScreenType: String, Codable {
     case intro
     case textInput
-    case stepper          // Simple +/- stepper (age)
+    case birthdayPicker   // 3-column wheel picker (month/day/year)
     case heightPicker     // Scrollable wheel picker with unit toggle (ft/in, cm)
     case weightPicker     // Horizontal ruler slider with unit toggle (lbs, kg)
     case simpleSelect
@@ -166,11 +166,8 @@ struct OnboardingScreen: Identifiable {
     var placeholder: String?
     var field: String?
 
-    // Stepper (age)
-    var min: Int?
-    var max: Int?
-    var initial: Int?
-    var unit: String?
+    // Birthday picker
+    var birthdayDefault: DateComponents?  // Default (e.g., June 15, 1996)
 
     // Height picker
     var heightDefaultInches: Int?       // Default value in inches (e.g., 67 = 5'7")
@@ -202,7 +199,7 @@ Local storage for all intake answers before auth:
 ```swift
 struct LocalIntakeData: Codable {
     var name: String?
-    var age: Int?
+    var birthday: Date?             // Stored as Date, derive age as needed
     var gender: String?
     var goals: String?
     var timeline: String?
@@ -651,22 +648,50 @@ struct TextInputScreenView: View {
 }
 ```
 
-#### 2. New File: `StepperScreenView.swift`
-**Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/Screens/StepperScreenView.swift`
+#### 2. New File: `BirthdayPickerScreenView.swift`
+**Path**: `AI Personal Trainer App/AI Personal Trainer App/Features/Onboarding/Screens/BirthdayPickerScreenView.swift`
 
-Used **only for age** (simple numeric stepper):
+3-column wheel picker for birthday, matching the screenshot reference:
 
 ```swift
-struct StepperScreenView: View {
+struct BirthdayPickerScreenView: View {
     let screen: OnboardingScreen
-    let value: Int?
-    let onChange: (String, Int) -> Void
+    let value: Date?
+    let onChange: (String, Date) -> Void
     let onNext: () -> Void
 
-    // Question at top: 28pt, bold
-    // Centered: - button (52pt circle, surface) | value (56pt, bold) | + button
-    // Unit label below value: 13pt, tertiaryText, uppercase ("YEARS")
-    // SimpleBottomBar at bottom (always enabled since stepper has default value)
+    @State private var selectedMonth: Int = 6    // June
+    @State private var selectedDay: Int = 15
+    @State private var selectedYear: Int = 1996
+
+    // Question at top: 28pt, bold ("When were you born?")
+    //
+    // 3-column wheel picker (centered vertically):
+    //   - Column 1: Month (Jan–Dec, displayed as 3-letter abbreviation)
+    //   - Column 2: Day (1–31, adjusts based on selected month/year)
+    //   - Column 3: Year (1920–current year minus 13)
+    //   - Each column scrolls independently with wheel physics
+    //   - 5 visible rows per column with opacity fade:
+    //     selected row = bold + full opacity,
+    //     ±1 rows = ~0.4 opacity,
+    //     ±2 rows = ~0.2 opacity
+    //   - Selected row: 20pt, bold, primaryText
+    //   - Other rows: 17pt, regular, tertiaryText
+    //   - Horizontal selection indicator lines (1pt, subtle divider color)
+    //     above and below the center row, spanning all 3 columns
+    //   - Haptic feedback: UIImpactFeedbackGenerator(.light) on each row change
+    //   - Smooth momentum scrolling with deceleration snap
+    //
+    // "Next" button at bottom:
+    //   - Full-width, dark background, white text, large corner radius
+    //   - 17pt, semibold, "Next"
+    //   - Always enabled (has default value)
+    //   - Tapping saves Date and advances
+    //
+    // Implementation approach: Wrap UIPickerView with 3 components in
+    // UIViewRepresentable for native wheel physics and haptics.
+    // Alternatively, use 3 side-by-side SwiftUI Pickers with
+    // .pickerStyle(.wheel) — simpler but less control over haptics.
 }
 ```
 
@@ -882,7 +907,10 @@ struct IntakeCompleteScreenView: View {
 
 #### Manual Verification:
 - [ ] TextInput auto-focuses, Enter key advances
-- [ ] Stepper +/- buttons increment/decrement within min/max bounds (age)
+- [ ] **Birthday picker**: 3 columns (month/day/year) scroll independently with wheel physics
+- [ ] **Birthday picker**: day column adjusts for month (e.g., Feb shows 28/29 days)
+- [ ] **Birthday picker**: haptic feedback on row changes
+- [ ] **Birthday picker**: selected row bold, adjacent rows fade
 - [ ] **Height picker**: unit toggle switches between ft/in and cm
 - [ ] **Height picker**: wheel scrolls smoothly with momentum and snaps to rows
 - [ ] **Height picker**: selected row is bold, adjacent rows fade out
@@ -940,7 +968,7 @@ struct IntakeCoordinatorView: View {
         switch currentScreen.type {
         case .intro: IntroScreenView(...)
         case .textInput: TextInputScreenView(...)
-        case .stepper: StepperScreenView(...)
+        case .birthdayPicker: BirthdayPickerScreenView(...)
         case .heightPicker: HeightPickerScreenView(...)
         case .weightPicker: WeightPickerScreenView(...)
         case .simpleSelect: SimpleSelectScreenView(...)
@@ -1097,7 +1125,7 @@ CREATE TABLE trainer_structured_intake (
 
     -- About You
     name TEXT,
-    age INTEGER,
+    birthday DATE,            -- Stored as date, derive age as needed
     gender TEXT,
 
     -- Goals
