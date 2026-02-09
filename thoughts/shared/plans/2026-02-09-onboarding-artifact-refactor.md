@@ -439,19 +439,25 @@ Build a 3-screen intro sequence that introduces the app's value proposition thro
 
 **Animation sequence (all choreographed, no user interaction needed):**
 1. **Orb transition** (0.6s spring): Orb shrinks from 140pt → 32pt, moves from center to left-aligned position (x: 28px, y: first line baseline). Glow reduces proportionally.
-2. **Line 1 appears** (after 0.8s): Words fade in one-by-one (0.08s per word, 0.25s fade each):
+2. **Line 1 appears** (after 0.8s): Whole words fade in one-at-a-time (0.08s gap between words, each word fades from opacity 0→1 over 0.25s — NOT character-by-character):
    > "I make getting in shape simple."
 3. **Orb moves down** (0.4s ease) to next line position
-4. **Line 2 appears** (word-by-word):
+4. **Line 2 appears** (same word-by-word fade-in):
    > "I'll build a workout plan around your life, your goals, and your body."
 5. **Orb moves down** to next line position
-6. **Line 3 appears** (word-by-word):
+6. **Line 3 appears** (same word-by-word fade-in):
    > "As you progress, I adapt — so your plan always fits."
 7. **Orb moves down** to next line position
-8. **Line 4 appears** (word-by-word):
+8. **Line 4 appears** (same word-by-word fade-in):
    > "And when you're training, I'm right there to guide every rep."
 9. **Pause** 0.8s after last word
 10. **Auto-advance** to Screen 3
+
+**Text animation detail (important):**
+- This is a **word fade-in** effect, not a typewriter/character effect. Each whole word appears at once by fading from invisible to visible.
+- The existing `TypewriterTextView` component already works this way (despite its misleading name) — it splits text on spaces and fades each word's opacity 0→1 sequentially with `wordDelay` between them.
+- For the narration screen, we reuse/adapt this pattern but chain it line-by-line: each line's `onComplete` callback triggers the orb moving down and the next line starting.
+- The component could be renamed to `WordFadeTextView` during cleanup for clarity.
 
 **Text styling:**
 - Each line: 17pt, regular weight, secondaryText color, left-aligned, 1.6 line height
@@ -461,9 +467,9 @@ Build a 3-screen intro sequence that introduces the app's value proposition thro
 - Subtle background glow: offset left, lighter blue at ~5% opacity
 
 **Implementation detail:**
-- Use the existing `TypewriterTextView` word-by-word animation pattern
+- Reuse the existing `TypewriterTextView` component (which already does word-by-word fade-in, not character-by-character — each word fades from opacity 0→1 as a unit)
 - Orb position animated with `.matchedGeometryEffect` or explicit offset animation
-- Each line triggers after the previous completes (callback chaining)
+- Each line triggers after the previous completes (callback chaining via `onComplete`)
 - The orb's vertical position tracks `lineIndex * lineSpacing`
 - User CAN tap to skip ahead to Screen 3 at any time
 
