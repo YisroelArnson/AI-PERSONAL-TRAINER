@@ -10,12 +10,14 @@ struct TrainingProgram: Codable, Identifiable {
     let status: String
     let version: Int
     let program: TrainingProgramDetail
+    let programMarkdown: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case status
         case version
         case program = "program_json"
+        case programMarkdown = "program_markdown"
     }
 }
 

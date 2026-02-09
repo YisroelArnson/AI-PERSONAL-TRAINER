@@ -16,6 +16,18 @@ function nowIso() {
 }
 
 async function fetchLatestIntakeSummary(userId) {
+  // Try structured intake first (new flow)
+  const { data: structured, error: sErr } = await supabase
+    .from('trainer_structured_intake')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (!sErr && structured) return structured;
+
+  // Fall back to old conversational intake summaries
   const { data, error } = await supabase
     .from('trainer_intake_summaries')
     .select('summary_json, trainer_intake_sessions!inner(user_id)')
@@ -64,6 +76,94 @@ function extractJson(text) {
   }
 }
 
+function programToMarkdown(p) {
+  const lines = [];
+
+  // Goals
+  if (p.goals) {
+    lines.push('## Goals');
+    lines.push(`**Primary:** ${p.goals.primary || ''}`);
+    if (p.goals.secondary) lines.push(`**Secondary:** ${p.goals.secondary}`);
+    lines.push(`**Timeline:** ${p.goals.timeline_weeks || '?'} weeks`);
+    if (p.goals.metrics?.length) {
+      lines.push('', '**Success Metrics:**');
+      p.goals.metrics.forEach(m => lines.push(`- ${m}`));
+    }
+    lines.push('');
+  }
+
+  // Weekly Template
+  if (p.weekly_template) {
+    const wt = p.weekly_template;
+    lines.push('## Weekly Schedule');
+    lines.push(`**Days per week:** ${wt.days_per_week || '?'}`);
+    if (wt.preferred_days?.length) lines.push(`**Preferred days:** ${wt.preferred_days.join(', ')}`);
+    if (wt.session_types?.length) lines.push(`**Session types:** ${wt.session_types.join(', ')}`);
+    lines.push('');
+  }
+
+  // Sessions
+  if (p.sessions?.length) {
+    lines.push('## Sessions');
+    p.sessions.forEach((s, i) => {
+      lines.push(`### Day ${i + 1}: ${s.focus}`);
+      lines.push(`*~${s.duration_min} minutes*`);
+      if (s.equipment?.length) lines.push(`**Equipment:** ${s.equipment.join(', ')}`);
+      if (s.notes) lines.push(`${s.notes}`);
+      lines.push('');
+    });
+  }
+
+  // Progression
+  if (p.progression) {
+    lines.push('## Progression');
+    lines.push(p.progression.strategy || '');
+    if (p.progression.deload_trigger) lines.push(`**Deload trigger:** ${p.progression.deload_trigger}`);
+    if (p.progression.time_scaling?.length) {
+      lines.push('', '**Time scaling options:**');
+      p.progression.time_scaling.forEach(t => lines.push(`- ${t} min`));
+    }
+    lines.push('');
+  }
+
+  // Exercise Rules
+  if (p.exercise_rules) {
+    const rules = p.exercise_rules;
+    if (rules.prefer?.length || rules.avoid?.length) {
+      lines.push('## Exercise Preferences');
+      if (rules.prefer?.length) {
+        lines.push('**Preferred:**');
+        rules.prefer.forEach(e => lines.push(`- ${e}`));
+      }
+      if (rules.avoid?.length) {
+        lines.push('**Avoid:**');
+        rules.avoid.forEach(e => lines.push(`- ${e}`));
+      }
+      lines.push('');
+    }
+  }
+
+  // Guardrails
+  if (p.guardrails) {
+    lines.push('## Safety');
+    if (p.guardrails.pain_scale) lines.push(`**Pain management:** ${p.guardrails.pain_scale}`);
+    if (p.guardrails.red_flags?.length) {
+      lines.push('**Red flags:**');
+      p.guardrails.red_flags.forEach(f => lines.push(`- ${f}`));
+    }
+    lines.push('');
+  }
+
+  // Coach Cues
+  if (p.coach_cues?.length) {
+    lines.push('## Coach Notes');
+    p.coach_cues.forEach(c => lines.push(`> ${c}`));
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
 async function draftProgram(userId) {
   const intake = await fetchLatestIntakeSummary(userId);
   const baseline = await fetchLatestAssessmentBaseline(userId);
@@ -83,6 +183,8 @@ async function draftProgram(userId) {
   const parsed = extractJson(textBlock?.text || '');
   if (!parsed) throw new Error('Failed to parse program');
 
+  const markdown = programToMarkdown(parsed);
+
   const { data, error } = await supabase
     .from('trainer_programs')
     .insert({
@@ -90,6 +192,7 @@ async function draftProgram(userId) {
       status: 'draft',
       version: 1,
       program_json: parsed,
+      program_markdown: markdown,
       created_at: nowIso(),
       updated_at: nowIso()
     })
@@ -130,10 +233,12 @@ async function editProgram(programId, instruction) {
   if (!parsed) throw new Error('Failed to parse edited program');
 
   const nextVersion = (existing.version || 0) + 1;
+  const updatedMarkdown = programToMarkdown(parsed);
   const { data, error: updateError } = await supabase
     .from('trainer_programs')
     .update({
       program_json: parsed,
+      program_markdown: updatedMarkdown,
       version: nextVersion,
       updated_at: nowIso()
     })
