@@ -174,14 +174,18 @@ async function draftProgram(userId) {
   const client = getAnthropicClient();
   const response = await client.messages.create({
     model: DEFAULT_MODEL,
-    max_tokens: 768,
+    max_tokens: 4096,
     system: [{ type: 'text', text: 'Return JSON only.' }],
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
   });
 
   const textBlock = response.content.find(block => block.type === 'text');
-  const parsed = extractJson(textBlock?.text || '');
-  if (!parsed) throw new Error('Failed to parse program');
+  const raw = textBlock?.text || '';
+  const parsed = extractJson(raw);
+  if (!parsed) {
+    console.error('Failed to parse program. Raw response:', raw.slice(0, 500));
+    throw new Error('Failed to parse program');
+  }
 
   const markdown = programToMarkdown(parsed);
 
@@ -223,14 +227,18 @@ async function editProgram(programId, instruction) {
   const client = getAnthropicClient();
   const response = await client.messages.create({
     model: DEFAULT_MODEL,
-    max_tokens: 768,
+    max_tokens: 4096,
     system: [{ type: 'text', text: 'Return JSON only.' }],
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
   });
 
   const textBlock = response.content.find(block => block.type === 'text');
-  const parsed = extractJson(textBlock?.text || '');
-  if (!parsed) throw new Error('Failed to parse edited program');
+  const raw = textBlock?.text || '';
+  const parsed = extractJson(raw);
+  if (!parsed) {
+    console.error('Failed to parse edited program. Raw response:', raw.slice(0, 500));
+    throw new Error('Failed to parse edited program');
+  }
 
   const nextVersion = (existing.version || 0) + 1;
   const updatedMarkdown = programToMarkdown(parsed);
