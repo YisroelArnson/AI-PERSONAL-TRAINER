@@ -211,7 +211,7 @@ final class OnboardingStore: ObservableObject {
         // Start goal options generation in background
         Task { await GoalContractStore.shared.fetchGoalOptions() }
 
-        state.currentPhase = .goalReview
+        state.currentPhase = .processOverview
         await saveAndSync()
     }
 
@@ -231,7 +231,7 @@ final class OnboardingStore: ObservableObject {
             } else if journey.intakeStatus == "complete" {
                 // Intake done but no goals — generate goal options
                 Task { await GoalContractStore.shared.fetchGoalOptions() }
-                state.currentPhase = .goalReview
+                state.currentPhase = .processOverview
             } else {
                 // No server-side progress — start fresh from intake
                 isReturningLogin = false
@@ -295,6 +295,12 @@ final class OnboardingStore: ObservableObject {
 
     func finishGoalGeneration() {
         isGoalLoading = false
+    }
+
+    func completeProcessOverview() async {
+        navigationDirection = .forward
+        state.currentPhase = .goalReview
+        await saveAndSync()
     }
 
     func approveGoals() async {

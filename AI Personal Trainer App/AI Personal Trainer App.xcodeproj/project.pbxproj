@@ -127,6 +127,8 @@
 		12901AF72F350A96002C011D /* AssessmentSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12901A922F350A93002C011D /* AssessmentSessionStore.swift */; };
 		12901AF82F350A96002C011D /* UserDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12901A932F350A93002C011D /* UserDataStore.swift */; };
 		12901AF92F350A96002C011D /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12901A942F350A93002C011D /* LocationService.swift */; };
+		D1A2B3C4E5F6A7B8C9D0E1F1 /* StepProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1A2B3D4E5F6A7B8C9D0E1F1 /* StepProgressBar.swift */; };
+		D2A2B3C4E5F6A7B8C9D0E1F2 /* ProcessOverviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2A2B3D4E5F6A7B8C9D0E1F2 /* ProcessOverviewView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -269,6 +271,8 @@
 		12901A922F350A93002C011D /* AssessmentSessionStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssessmentSessionStore.swift; sourceTree = "<group>"; };
 		12901A932F350A93002C011D /* UserDataStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UserDataStore.swift; sourceTree = "<group>"; };
 		12901A942F350A93002C011D /* LocationService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		C1A2B3D4E5F6A7B8C9D0E1F1 /* StepProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StepProgressBar.swift; sourceTree = "<group>"; };
+		C2A2B3D4E5F6A7B8C9D0E1F2 /* ProcessOverviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessOverviewView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -572,6 +576,7 @@
 				12901A5D2F350A93002C011D /* OnboardingSuccessView.swift */,
 				12901A5E2F350A93002C011D /* ProgramReviewView.swift */,
 				12901A602F350A93002C011D /* GoalReviewView.swift */,
+				C2A2B3D4E5F6A7B8C9D0E1F2 /* ProcessOverviewView.swift */,
 				11223344556677889900AABB /* Screens */,
 			);
 			path = Onboarding;
@@ -599,6 +604,7 @@
 				12901A6C2F350A93002C011D /* OnboardingProgressBar.swift */,
 				12901A6D2F350A93002C011D /* OnboardingOrbView.swift */,
 				12901A6E2F350A93002C011D /* LoadingStateView.swift */,
+				C1A2B3D4E5F6A7B8C9D0E1F1 /* StepProgressBar.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -919,6 +925,8 @@
 				12901AB12F350A94002C011D /* ExerciseCard.swift in Sources */,
 				12901AEE2F350A95002C011D /* AuthView.swift in Sources */,
 				12901AA72F350A94002C011D /* HomeView.swift in Sources */,
+				D1A2B3C4E5F6A7B8C9D0E1F1 /* StepProgressBar.swift in Sources */,
+				D2A2B3C4E5F6A7B8C9D0E1F2 /* ProcessOverviewView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

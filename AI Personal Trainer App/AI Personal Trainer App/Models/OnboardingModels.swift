@@ -8,6 +8,7 @@ enum OnboardingPhase: String, Codable, CaseIterable {
     case intakeComplete = "intake_complete"
     case auth = "auth"
     case authVerification = "auth_verification"
+    case processOverview = "process_overview"
     case goalReview = "goal_review"
     case programReview = "program_review"
     case notificationPermission = "notification_permission"
@@ -22,6 +23,7 @@ enum OnboardingPhase: String, Codable, CaseIterable {
         case .intakeComplete: return "Ready"
         case .auth: return "Sign In"
         case .authVerification: return "Verify Email"
+        case .processOverview: return "Getting Started"
         case .goalReview: return "Goal Review"
         case .programReview: return "Program Review"
         case .notificationPermission: return "Notifications"
@@ -44,8 +46,10 @@ enum OnboardingPhase: String, Codable, CaseIterable {
             return .intakeComplete
         case .authVerification:
             return .auth
-        case .goalReview:
+        case .processOverview:
             return nil // Can't go back past auth
+        case .goalReview:
+            return .processOverview
         case .programReview:
             return .goalReview
         case .notificationPermission:
@@ -60,7 +64,7 @@ enum OnboardingPhase: String, Codable, CaseIterable {
     /// Phases that should not have a back button
     var hideBackButton: Bool {
         switch self {
-        case .intro, .intake, .intakeComplete, .notificationPermission, .success, .complete:
+        case .intro, .intake, .intakeComplete, .processOverview, .notificationPermission, .success, .complete:
             return true
         default:
             return false
@@ -78,6 +82,8 @@ enum OnboardingPhase: String, Codable, CaseIterable {
             return OrbConfig(size: 0, icon: nil, alignment: .hidden)
         case .auth, .authVerification:
             return OrbConfig(size: 60, icon: nil, alignment: .topCenter)
+        case .processOverview:
+            return OrbConfig(size: 80, icon: nil, alignment: .hidden)
         case .goalReview, .programReview:
             return OrbConfig(size: 50, icon: nil, alignment: .topLeading)
         case .notificationPermission:

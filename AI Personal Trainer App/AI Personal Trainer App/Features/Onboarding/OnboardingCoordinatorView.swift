@@ -55,6 +55,15 @@ struct OnboardingCoordinatorView: View {
         return !phase.hideBackButton && phase.previousPhase != nil
     }
 
+    private var shouldShowStepBar: Bool {
+        switch onboardingStore.state.currentPhase {
+        case .goalReview, .programReview, .notificationPermission, .success:
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -65,6 +74,11 @@ struct OnboardingCoordinatorView: View {
                     title: onboardingStore.state.currentPhase.displayTitle,
                     onBack: handleBack
                 )
+            }
+
+            // Step progress bar (Goals → Program → Ready)
+            if shouldShowStepBar {
+                StepProgressBar(currentPhase: onboardingStore.state.currentPhase)
             }
 
             ZStack {
@@ -120,6 +134,9 @@ struct OnboardingCoordinatorView: View {
 
         case .authVerification:
             OTPVerificationView()
+
+        case .processOverview:
+            ProcessOverviewView()
 
         case .goalReview:
             GoalReviewView()
