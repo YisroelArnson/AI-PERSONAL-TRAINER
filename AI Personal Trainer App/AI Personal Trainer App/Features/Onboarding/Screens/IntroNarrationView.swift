@@ -11,15 +11,13 @@ struct IntroNarrationView: View {
     ]
 
     @State private var orbSize: CGFloat = 140
-    @State private var orbX: CGFloat = 0
-    @State private var orbY: CGFloat = 0
-    @State private var currentLine: Int = -1
     @State private var hasTransitioned = false
+    @State private var currentLine: Int = -1
     @State private var skipped = false
 
     private let lineSpacing: CGFloat = 44
-    private let textStartY: CGFloat = 100
     private let orbLeftX: CGFloat = 28
+    private let textLeading: CGFloat = 76 // orbLeftX + orbSize(32) + 16 gap
 
     var body: some View {
         ZStack {
@@ -38,6 +36,7 @@ struct IntroNarrationView: View {
             GeometryReader { geometry in
                 let centerX = geometry.size.width / 2
                 let centerY = geometry.size.height * 0.35
+                let textStartY: CGFloat = geometry.safeAreaInsets.top + 120
 
                 ZStack(alignment: .topLeading) {
                     // Orb
@@ -49,28 +48,30 @@ struct IntroNarrationView: View {
                         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: hasTransitioned)
                         .animation(.easeInOut(duration: 0.4), value: currentLine)
 
-                    // Text lines
-                    VStack(alignment: .leading, spacing: lineSpacing - 22) {
-                        ForEach(0..<Self.lines.count, id: \.self) { index in
-                            if currentLine >= index {
-                                TypewriterTextView(
-                                    text: Self.lines[index],
-                                    font: .system(size: 17, weight: .regular),
-                                    color: AppTheme.Colors.secondaryText,
-                                    wordDelay: 0.08,
-                                    fadeDuration: 0.25,
-                                    onComplete: {
-                                        lineCompleted(index)
-                                    }
-                                )
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .transition(.opacity)
+                    // Text lines — only shown after orb has transitioned
+                    if hasTransitioned && currentLine >= 0 {
+                        VStack(alignment: .leading, spacing: lineSpacing - 22) {
+                            ForEach(0..<Self.lines.count, id: \.self) { index in
+                                if currentLine >= index {
+                                    TypewriterTextView(
+                                        text: Self.lines[index],
+                                        font: .system(size: 17, weight: .regular),
+                                        color: AppTheme.Colors.secondaryText,
+                                        wordDelay: 0.08,
+                                        fadeDuration: 0.25,
+                                        onComplete: {
+                                            lineCompleted(index)
+                                        }
+                                    )
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .transition(.opacity)
+                                }
                             }
                         }
+                        .padding(.leading, textLeading)
+                        .padding(.trailing, 28)
+                        .padding(.top, textStartY - 8)
                     }
-                    .padding(.leading, orbLeftX + 48)
-                    .padding(.trailing, 28)
-                    .padding(.top, textStartY - 8)
                 }
             }
         }
@@ -94,8 +95,8 @@ struct IntroNarrationView: View {
             }
         }
 
-        // Start first line after orb settles
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+        // Start first line after orb settles (give the spring animation time)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             guard !skipped else { return }
             withAnimation(.easeOut(duration: 0.3)) {
                 currentLine = 0

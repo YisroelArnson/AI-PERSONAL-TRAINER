@@ -10,6 +10,7 @@ struct VoiceScreenView: View {
     @State private var text: String = ""
     @State private var isRecording = false
     @State private var selectedPill: String? = nil
+    @State private var textBeforeRecording: String = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -31,18 +32,37 @@ struct VoiceScreenView: View {
                     .padding(.top, 12)
             }
 
-            // Text area
-            TextEditor(text: $text)
-                .font(.system(size: 18))
-                .foregroundColor(AppTheme.Colors.primaryText)
-                .scrollContentBackground(.hidden)
-                .padding(.horizontal, 16)
-                .padding(.top, 28)
-                .onChange(of: text) { _, newValue in
-                    if let field = screen.field {
-                        onChange(field, newValue)
+            // Text area with clear button
+            ZStack(alignment: .topTrailing) {
+                TextEditor(text: $text)
+                    .font(.system(size: 18))
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                    .scrollContentBackground(.hidden)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 28)
+                    .onChange(of: text) { _, newValue in
+                        if let field = screen.field {
+                            onChange(field, newValue)
+                        }
                     }
+
+                // Clear button
+                if !text.isEmpty && !isRecording {
+                    Button {
+                        text = ""
+                        selectedPill = nil
+                        if let field = screen.field {
+                            onChange(field, "")
+                        }
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(AppTheme.Colors.tertiaryText)
+                    }
+                    .padding(.top, 32)
+                    .padding(.trailing, 20)
                 }
+            }
 
             Spacer()
 
@@ -78,12 +98,20 @@ struct VoiceScreenView: View {
         }
         .onChange(of: speechManager.partialTranscript) { _, transcript in
             if isRecording && !transcript.isEmpty {
-                text = transcript
+                if textBeforeRecording.isEmpty {
+                    text = transcript
+                } else {
+                    text = textBeforeRecording + " " + transcript
+                }
             }
         }
         .onChange(of: speechManager.finalTranscript) { _, transcript in
             if !transcript.isEmpty {
-                text = transcript
+                if textBeforeRecording.isEmpty {
+                    text = transcript
+                } else {
+                    text = textBeforeRecording + " " + transcript
+                }
                 isRecording = false
             }
         }
@@ -94,7 +122,8 @@ struct VoiceScreenView: View {
             speechManager.stopListening()
             isRecording = false
         } else {
-            text = ""
+            // Save existing text so new speech appends to it
+            textBeforeRecording = text.trimmingCharacters(in: .whitespacesAndNewlines)
             selectedPill = nil
             isRecording = true
             Task {

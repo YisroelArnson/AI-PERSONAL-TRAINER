@@ -6,6 +6,7 @@ struct IntakeCoordinatorView: View {
     @StateObject private var store = OnboardingStore.shared
 
     @State private var previousLabel: String? = nil
+    @State private var previousStep: Int = 0
 
     private var currentScreen: OnboardingScreen {
         store.currentScreen
@@ -22,14 +23,17 @@ struct IntakeCoordinatorView: View {
 
     // MARK: - Transitions
 
+    private var isForward: Bool {
+        store.state.currentStep >= previousStep
+    }
+
     private var slideTransition: AnyTransition {
-        switch store.navigationDirection {
-        case .forward:
+        if isForward {
             return .asymmetric(
                 insertion: .move(edge: .trailing).combined(with: .opacity),
                 removal: .move(edge: .leading).combined(with: .opacity)
             )
-        case .backward:
+        } else {
             return .asymmetric(
                 insertion: .move(edge: .leading).combined(with: .opacity),
                 removal: .move(edge: .trailing).combined(with: .opacity)
@@ -71,6 +75,9 @@ struct IntakeCoordinatorView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: store.state.currentStep)
+        .onChange(of: store.state.currentStep) { oldStep, _ in
+            previousStep = oldStep
+        }
         .onChange(of: currentScreen.label?.rawValue) { oldLabel, _ in
             previousLabel = oldLabel
         }

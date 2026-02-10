@@ -20,27 +20,15 @@ struct HeightPickerScreenView: View {
     private var minInches: Int { screen.heightMinInches ?? 48 }
     private var maxInches: Int { screen.heightMaxInches ?? 96 }
 
-    private var displayText: String {
-        if unitIndex == 0 {
-            let feet = selectedInches / 12
-            let inches = selectedInches % 12
-            return "\(feet) ft \(inches) in"
-        } else {
-            let cm = Int(round(Double(selectedInches) * 2.54))
-            return "\(cm) cm"
-        }
-    }
-
     var body: some View {
         VStack(spacing: 0) {
-            Spacer()
-
             // Question
             Text(screen.question ?? "How tall are you?")
                 .font(.system(size: 28, weight: .bold))
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
+                .padding(.top, 28)
                 .padding(.bottom, 16)
 
             // Unit toggle
@@ -49,15 +37,11 @@ struct HeightPickerScreenView: View {
                 selectedIndex: $unitIndex
             )
             .frame(width: 260)
-            .padding(.bottom, 20)
+            .padding(.bottom, 8)
 
-            // Height display
-            Text(displayText)
-                .font(.system(size: 36, weight: .bold))
-                .foregroundColor(AppTheme.Colors.primaryText)
-                .padding(.bottom, 12)
+            Spacer()
 
-            // Picker
+            // Picker — fills available space
             Picker("Height", selection: $selectedInches) {
                 ForEach(minInches...maxInches, id: \.self) { inches in
                     if unitIndex == 0 {
@@ -73,7 +57,7 @@ struct HeightPickerScreenView: View {
                 }
             }
             .pickerStyle(.wheel)
-            .frame(height: 150)
+            .frame(height: 220)
             .padding(.horizontal, 40)
             .onChange(of: selectedInches) { _, newValue in
                 let haptic = UIImpactFeedbackGenerator(style: .light)
