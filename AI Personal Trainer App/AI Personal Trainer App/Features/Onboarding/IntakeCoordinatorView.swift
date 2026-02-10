@@ -6,7 +6,7 @@ struct IntakeCoordinatorView: View {
     @StateObject private var store = OnboardingStore.shared
 
     @State private var previousLabel: String? = nil
-    @State private var previousStep: Int = 0
+    @State private var isMovingForward: Bool = true
 
     private var currentScreen: OnboardingScreen {
         store.currentScreen
@@ -23,12 +23,8 @@ struct IntakeCoordinatorView: View {
 
     // MARK: - Transitions
 
-    private var isForward: Bool {
-        store.state.currentStep >= previousStep
-    }
-
     private var slideTransition: AnyTransition {
-        if isForward {
+        if isMovingForward {
             return .asymmetric(
                 insertion: .move(edge: .trailing).combined(with: .opacity),
                 removal: .move(edge: .leading).combined(with: .opacity)
@@ -39,6 +35,20 @@ struct IntakeCoordinatorView: View {
                 removal: .move(edge: .trailing).combined(with: .opacity)
             )
         }
+    }
+
+    // MARK: - Navigation Helpers
+    // Set direction BEFORE the Task so it's guaranteed to be
+    // applied before SwiftUI evaluates the transition.
+
+    private func goForward() {
+        isMovingForward = true
+        Task { await store.goToNextStep() }
+    }
+
+    private func goBack() {
+        isMovingForward = false
+        Task { await store.goToPreviousStep() }
     }
 
     // MARK: - Body
@@ -55,9 +65,7 @@ struct IntakeCoordinatorView: View {
                         label: currentScreen.label?.rawValue,
                         previousLabel: previousLabel,
                         showBack: store.state.currentStep > OnboardingScreens.introCount,
-                        onBack: {
-                            Task { await store.goToPreviousStep() }
-                        }
+                        onBack: { goBack() }
                     )
                 }
 
@@ -75,9 +83,6 @@ struct IntakeCoordinatorView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: store.state.currentStep)
-        .onChange(of: store.state.currentStep) { oldStep, _ in
-            previousStep = oldStep
-        }
         .onChange(of: currentScreen.label?.rawValue) { oldLabel, _ in
             previousLabel = oldLabel
         }
@@ -92,18 +97,18 @@ struct IntakeCoordinatorView: View {
         switch screen.type {
         case .introHero:
             IntroHeroView {
-                Task { await store.goToNextStep() }
+                goForward()
             }
 
         case .introNarration:
             IntroNarrationView {
-                Task { await store.goToNextStep() }
+                goForward()
             }
 
         case .introCTA:
             IntroCTAView(
                 onNext: {
-                    Task { await store.goToNextStep() }
+                    goForward()
                 },
                 onLogin: {
                     Task { await store.startReturningLogin() }
@@ -118,7 +123,7 @@ struct IntakeCoordinatorView: View {
                     store.setIntakeStringField(field, value: value)
                 },
                 onNext: {
-                    Task { await store.goToNextStep() }
+                    goForward()
                 }
             )
 
@@ -130,7 +135,7 @@ struct IntakeCoordinatorView: View {
                     store.setIntakeBirthday(date)
                 },
                 onNext: {
-                    Task { await store.goToNextStep() }
+                    goForward()
                 }
             )
 
@@ -142,7 +147,7 @@ struct IntakeCoordinatorView: View {
                     store.setIntakeHeight(inches)
                 },
                 onNext: {
-                    Task { await store.goToNextStep() }
+                    goForward()
                 }
             )
 
@@ -154,7 +159,7 @@ struct IntakeCoordinatorView: View {
                     store.setIntakeWeight(lbs)
                 },
                 onNext: {
-                    Task { await store.goToNextStep() }
+                    goForward()
                 }
             )
 
@@ -166,7 +171,7 @@ struct IntakeCoordinatorView: View {
                     store.setIntakeStringField(field, value: value)
                 },
                 onNext: {
-                    Task { await store.goToNextStep() }
+                    goForward()
                 }
             )
 
@@ -178,7 +183,7 @@ struct IntakeCoordinatorView: View {
                     store.setIntakeStringField(field, value: value)
                 },
                 onNext: {
-                    Task { await store.goToNextStep() }
+                    goForward()
                 }
             )
 
@@ -190,7 +195,7 @@ struct IntakeCoordinatorView: View {
                     store.setIntakeStringField(field, value: value)
                 },
                 onNext: {
-                    Task { await store.goToNextStep() }
+                    goForward()
                 }
             )
 

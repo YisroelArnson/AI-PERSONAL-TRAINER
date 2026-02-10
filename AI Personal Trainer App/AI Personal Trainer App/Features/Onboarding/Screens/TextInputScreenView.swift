@@ -52,6 +52,18 @@ struct TextInputScreenView: View {
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isFocused = false
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    if value.translation.height > 30 {
+                        isFocused = false
+                    }
+                }
+        )
         .onAppear {
             text = value
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

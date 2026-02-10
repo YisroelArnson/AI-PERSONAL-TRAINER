@@ -11,6 +11,7 @@ struct GuidedVoiceScreenView: View {
     @State private var isRecording = false
     @State private var selectedPill: String? = nil
     @State private var textBeforeRecording: String = ""
+    @FocusState private var isTextEditorFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -51,6 +52,7 @@ struct GuidedVoiceScreenView: View {
                     .scrollContentBackground(.hidden)
                     .padding(.horizontal, 16)
                     .padding(.top, 20)
+                    .focused($isTextEditorFocused)
                     .onChange(of: text) { _, newValue in
                         if let field = screen.field {
                             onChange(field, newValue)
@@ -104,6 +106,18 @@ struct GuidedVoiceScreenView: View {
                 }
             )
         }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            isTextEditorFocused = false
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    if value.translation.height > 30 {
+                        isTextEditorFocused = false
+                    }
+                }
+        )
         .onAppear {
             text = value
         }
