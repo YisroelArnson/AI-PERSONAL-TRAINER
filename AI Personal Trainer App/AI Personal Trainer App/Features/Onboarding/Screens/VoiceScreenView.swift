@@ -126,7 +126,15 @@ struct VoiceScreenView: View {
                 } else {
                     text = textBeforeRecording + " " + transcript
                 }
-                isRecording = false
+                // Save accumulated text so the next segment appends
+                textBeforeRecording = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Auto-restart if user hasn't tapped stop
+                if isRecording {
+                    speechManager.stopListening()
+                    Task {
+                        await speechManager.startListening()
+                    }
+                }
             }
         }
     }
