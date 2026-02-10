@@ -691,6 +691,21 @@ class APIService: ObservableObject {
         return try JSONDecoder().decode(GoalOptionsResponse.self, from: data)
     }
 
+    func refineGoalOptions(instruction: String) async throws -> GoalOptionsResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/goals/options/refine") else {
+            throw APIError.invalidURL
+        }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONEncoder().encode(GoalEditRequest(instruction: instruction))
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 30)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+        return try JSONDecoder().decode(GoalOptionsResponse.self, from: data)
+    }
+
     func selectGoalOption(_ option: GoalOption) async throws -> GoalContractResponse {
         guard let url = URL(string: "\(baseURL)/trainer/goals/options/select") else {
             throw APIError.invalidURL

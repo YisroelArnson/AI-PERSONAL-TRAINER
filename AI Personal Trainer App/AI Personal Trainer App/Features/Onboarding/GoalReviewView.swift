@@ -7,6 +7,14 @@ struct GoalReviewView: View {
     @State private var selectedOption: GoalOption?
     @State private var isSelecting = false
     @State private var contentVisible = false
+    @State private var editText = ""
+    @State private var isRefining = false
+    @FocusState private var isEditFocused: Bool
+
+    /// The user's raw goal text from intake
+    private var userGoalText: String? {
+        onboardingStore.state.intakeData.goals
+    }
 
     var body: some View {
         ZStack {
@@ -14,11 +22,6 @@ struct GoalReviewView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Top spacing for shared orb
-                Color.clear
-                    .frame(height: 50)
-                    .padding(.top, AppTheme.Spacing.xl)
-
                 if goalStore.isLoading && goalStore.goalOptions.isEmpty {
                     loadingState
                 } else if let error = goalStore.errorMessage, goalStore.goalOptions.isEmpty {
@@ -29,7 +32,7 @@ struct GoalReviewView: View {
             }
 
             // Bottom confirm button
-            if selectedOption != nil && !isSelecting {
+            if selectedOption != nil && !isSelecting && !isRefining {
                 VStack {
                     Spacer()
                     confirmButton
@@ -55,7 +58,7 @@ struct GoalReviewView: View {
             Spacer()
             ProgressView()
                 .scaleEffect(1.2)
-            Text("Crafting your goal options...")
+            Text(isRefining ? "Refining your goals..." : "Crafting your goal options...")
                 .font(.system(size: 16))
                 .foregroundColor(AppTheme.Colors.secondaryText)
             Spacer()
@@ -83,37 +86,124 @@ struct GoalReviewView: View {
 
     private var optionsContent: some View {
         ScrollView {
-            VStack(spacing: AppTheme.Spacing.xl) {
+            VStack(spacing: 0) {
                 // Header
-                VStack(spacing: AppTheme.Spacing.sm) {
-                    Text("Choose Your Path")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(AppTheme.Colors.primaryText)
+                Text("Choose Your Path")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
+                    .opacity(contentVisible ? 1 : 0)
 
-                    Text("Pick the goal that resonates most. You can always adjust later.")
-                        .font(.system(size: 15))
-                        .foregroundColor(AppTheme.Colors.secondaryText)
-                        .multilineTextAlignment(.center)
+                // User's goal text from intake
+                if let goalText = userGoalText, !goalText.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("You said:")
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(AppTheme.Colors.tertiaryText)
+                            .textCase(.uppercase)
+                            .tracking(0.5)
+
+                        Text("\"\(goalText)\"")
+                            .font(.system(size: 16))
+                            .foregroundColor(AppTheme.Colors.secondaryText)
+                            .italic()
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(AppTheme.Colors.surface)
+                    .cornerRadius(AppTheme.CornerRadius.medium)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+                    .opacity(contentVisible ? 1 : 0)
+
+                    // Arrow indicating refinement
+                    Image(systemName: "arrow.down")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(AppTheme.Colors.tertiaryText)
+                        .padding(.vertical, 12)
+                        .opacity(contentVisible ? 1 : 0)
                 }
-                .padding(.horizontal, AppTheme.Spacing.xxl)
-                .opacity(contentVisible ? 1 : 0)
-                .offset(y: contentVisible ? 0 : 10)
+
+                // Subtitle
+                Text("Pick the goal that resonates most, or suggest changes below.")
+                    .font(.system(size: 15))
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 16)
+                    .opacity(contentVisible ? 1 : 0)
 
                 // Goal option cards
-                ForEach(Array(goalStore.goalOptions.enumerated()), id: \.element.id) { index, option in
-                    GoalOptionCard(
-                        option: option,
-                        isSelected: selectedOption?.id == option.id,
-                        onTap: { selectedOption = option }
-                    )
-                    .padding(.horizontal, AppTheme.Spacing.xxl)
+                VStack(spacing: 12) {
+                    ForEach(Array(goalStore.goalOptions.enumerated()), id: \.element.id) { index, option in
+                        GoalOptionCard(
+                            option: option,
+                            isSelected: selectedOption?.id == option.id,
+                            onTap: { selectedOption = option }
+                        )
+                        .opacity(contentVisible ? 1 : 0)
+                        .offset(y: contentVisible ? 0 : 20)
+                        .animation(.easeOut(duration: 0.4).delay(0.1 * Double(index + 1)), value: contentVisible)
+                    }
+                }
+                .padding(.horizontal, 24)
+
+                // Edit / refine section
+                editSection
+                    .padding(.horizontal, 24)
+                    .padding(.top, 20)
+                    .padding(.bottom, selectedOption != nil ? 120 : 40)
                     .opacity(contentVisible ? 1 : 0)
-                    .offset(y: contentVisible ? 0 : 20)
-                    .animation(.easeOut(duration: 0.4).delay(0.1 * Double(index + 1)), value: contentVisible)
+            }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                .onEnded { value in
+                    if value.translation.height > 30 {
+                        isEditFocused = false
+                    }
+                }
+        )
+    }
+
+    // MARK: - Edit Section
+
+    private var editSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Want something different?")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(AppTheme.Colors.secondaryText)
+
+            HStack(spacing: 10) {
+                TextField("e.g., I'd rather focus on mobility...", text: $editText)
+                    .font(.system(size: 15))
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 12)
+                    .background(AppTheme.Colors.surface)
+                    .cornerRadius(AppTheme.CornerRadius.medium)
+                    .focused($isEditFocused)
+                    .submitLabel(.send)
+                    .onSubmit { refineGoals() }
+
+                if !editText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Button(action: refineGoals) {
+                        if isRefining {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
+                                .frame(width: 20, height: 20)
+                        } else {
+                            Image(systemName: "arrow.up.circle.fill")
+                                .font(.system(size: 28))
+                                .foregroundColor(AppTheme.Colors.primaryText)
+                        }
+                    }
+                    .disabled(isRefining)
                 }
             }
-            .padding(.top, AppTheme.Spacing.lg)
-            .padding(.bottom, 120)
         }
     }
 
@@ -164,6 +254,19 @@ struct GoalReviewView: View {
                 await onboardingStore.approveGoals()
             }
             isSelecting = false
+        }
+    }
+
+    private func refineGoals() {
+        let instruction = editText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !instruction.isEmpty else { return }
+        isEditFocused = false
+        isRefining = true
+        selectedOption = nil
+        Task {
+            await goalStore.refineOptions(instruction: instruction)
+            editText = ""
+            isRefining = false
         }
     }
 }

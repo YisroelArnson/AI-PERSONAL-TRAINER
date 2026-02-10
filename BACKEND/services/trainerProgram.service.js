@@ -76,88 +76,160 @@ function extractJson(text) {
   }
 }
 
+const PROGRAM_SYSTEM_PROMPT = `You are an expert strength & conditioning coach and exercise physiologist. You design evidence-based training programs grounded in these principles:
+
+EXERCISE SCIENCE FOUNDATIONS:
+- Progressive overload: systematically increase training stimulus over time (load, volume, or intensity)
+- Specificity: training adaptations are specific to the movement patterns, energy systems, and muscle groups trained
+- Recovery & supercompensation: adaptation occurs during rest, not during training. Adequate recovery between sessions is essential
+- Periodization: organize training into phases (accumulation, intensification, deload) to manage fatigue and drive long-term progress
+- Individual variation: program variables must respect the client's training age, injury history, schedule, and recovery capacity
+- Minimum effective dose: prescribe the least volume needed to drive adaptation — more is not always better
+
+SAFETY PRINCIPLES:
+- Never prescribe exercises contraindicated by the client's reported injuries or health conditions
+- Always include warm-up protocols that prepare the specific joints and tissues for the session
+- Include cool-down / mobility work to support recovery
+- Flag any exercises that require coaching supervision for beginners
+- When in doubt, regress to a safer variation
+- Include clear RPE (Rate of Perceived Exertion) or intensity guidelines so the client can self-regulate
+
+Return JSON only.`;
+
 function programToMarkdown(p) {
   const lines = [];
 
+  // Program Overview
+  if (p.overview) {
+    lines.push('# Your Training Program');
+    lines.push('');
+    lines.push(p.overview);
+    lines.push('');
+  }
+
   // Goals
   if (p.goals) {
-    lines.push('## Goals');
-    lines.push(`**Primary:** ${p.goals.primary || ''}`);
-    if (p.goals.secondary) lines.push(`**Secondary:** ${p.goals.secondary}`);
+    lines.push('# Goals');
+    lines.push('');
+    lines.push(`**Primary goal:** ${p.goals.primary || ''}`);
+    if (p.goals.secondary) lines.push(`**Secondary goal:** ${p.goals.secondary}`);
     lines.push(`**Timeline:** ${p.goals.timeline_weeks || '?'} weeks`);
     if (p.goals.metrics?.length) {
-      lines.push('', '**Success Metrics:**');
+      lines.push('');
+      lines.push('**How we measure progress:**');
       p.goals.metrics.forEach(m => lines.push(`- ${m}`));
     }
     lines.push('');
   }
 
-  // Weekly Template
-  if (p.weekly_template) {
-    const wt = p.weekly_template;
-    lines.push('## Weekly Schedule');
-    lines.push(`**Days per week:** ${wt.days_per_week || '?'}`);
-    if (wt.preferred_days?.length) lines.push(`**Preferred days:** ${wt.preferred_days.join(', ')}`);
-    if (wt.session_types?.length) lines.push(`**Session types:** ${wt.session_types.join(', ')}`);
+  // Weekly Structure
+  if (p.weekly_structure) {
+    const ws = p.weekly_structure;
+    lines.push('# Weekly Structure');
+    lines.push('');
+    lines.push(`You will train **${ws.days_per_week || '?'} days per week**.`);
+    if (ws.split_description) lines.push(ws.split_description);
+    if (ws.rest_day_guidance) lines.push('');
+    if (ws.rest_day_guidance) lines.push(`**Rest days:** ${ws.rest_day_guidance}`);
     lines.push('');
   }
 
   // Sessions
   if (p.sessions?.length) {
-    lines.push('## Sessions');
+    lines.push('# Training Sessions');
+    lines.push('');
     p.sessions.forEach((s, i) => {
-      lines.push(`### Day ${i + 1}: ${s.focus}`);
-      lines.push(`*~${s.duration_min} minutes*`);
-      if (s.equipment?.length) lines.push(`**Equipment:** ${s.equipment.join(', ')}`);
-      if (s.notes) lines.push(`${s.notes}`);
+      lines.push(`## Day ${i + 1}: ${s.name}`);
+      lines.push(`*${s.duration_min} minutes — ${s.intensity || 'moderate'} intensity*`);
       lines.push('');
+      if (s.session_goal) {
+        lines.push(s.session_goal);
+        lines.push('');
+      }
+
+      // Warm-up
+      if (s.warm_up?.length) {
+        lines.push('**Warm-up:**');
+        s.warm_up.forEach(w => lines.push(`- ${w}`));
+        lines.push('');
+      }
+
+      // Movement categories
+      if (s.movement_categories?.length) {
+        lines.push('**Movement focus:**');
+        s.movement_categories.forEach(cat => {
+          lines.push(`- **${cat.category}** — ${cat.examples?.join(', ') || ''}`);
+          if (cat.sets_reps) lines.push(`  ${cat.sets_reps}`);
+          if (cat.intensity_guide) lines.push(`  *${cat.intensity_guide}*`);
+        });
+        lines.push('');
+      }
+
+      // Cool-down
+      if (s.cool_down?.length) {
+        lines.push('**Cool-down:**');
+        s.cool_down.forEach(c => lines.push(`- ${c}`));
+        lines.push('');
+      }
     });
   }
 
-  // Progression
+  // Progression Plan
   if (p.progression) {
-    lines.push('## Progression');
-    lines.push(p.progression.strategy || '');
-    if (p.progression.deload_trigger) lines.push(`**Deload trigger:** ${p.progression.deload_trigger}`);
-    if (p.progression.time_scaling?.length) {
-      lines.push('', '**Time scaling options:**');
-      p.progression.time_scaling.forEach(t => lines.push(`- ${t} min`));
-    }
+    lines.push('# Progression Plan');
     lines.push('');
-  }
-
-  // Exercise Rules
-  if (p.exercise_rules) {
-    const rules = p.exercise_rules;
-    if (rules.prefer?.length || rules.avoid?.length) {
-      lines.push('## Exercise Preferences');
-      if (rules.prefer?.length) {
-        lines.push('**Preferred:**');
-        rules.prefer.forEach(e => lines.push(`- ${e}`));
-      }
-      if (rules.avoid?.length) {
-        lines.push('**Avoid:**');
-        rules.avoid.forEach(e => lines.push(`- ${e}`));
-      }
+    if (p.progression.strategy) lines.push(p.progression.strategy);
+    lines.push('');
+    if (p.progression.phases?.length) {
+      p.progression.phases.forEach(phase => {
+        lines.push(`**${phase.name}** (weeks ${phase.weeks})`);
+        lines.push(phase.description);
+        lines.push('');
+      });
+    }
+    if (p.progression.deload) {
+      lines.push(`**Deload protocol:** ${p.progression.deload}`);
       lines.push('');
     }
   }
 
-  // Guardrails
-  if (p.guardrails) {
-    lines.push('## Safety');
-    if (p.guardrails.pain_scale) lines.push(`**Pain management:** ${p.guardrails.pain_scale}`);
-    if (p.guardrails.red_flags?.length) {
-      lines.push('**Red flags:**');
-      p.guardrails.red_flags.forEach(f => lines.push(`- ${f}`));
+  // Recovery
+  if (p.recovery) {
+    lines.push('# Recovery');
+    lines.push('');
+    if (p.recovery.sleep) lines.push(`**Sleep:** ${p.recovery.sleep}`);
+    if (p.recovery.nutrition) lines.push(`**Nutrition:** ${p.recovery.nutrition}`);
+    if (p.recovery.active_recovery) lines.push(`**Active recovery:** ${p.recovery.active_recovery}`);
+    if (p.recovery.tips?.length) {
+      lines.push('');
+      p.recovery.tips.forEach(t => lines.push(`- ${t}`));
     }
     lines.push('');
   }
 
-  // Coach Cues
-  if (p.coach_cues?.length) {
-    lines.push('## Coach Notes');
-    p.coach_cues.forEach(c => lines.push(`> ${c}`));
+  // Safety & Guardrails
+  if (p.safety) {
+    lines.push('# Safety Guidelines');
+    lines.push('');
+    if (p.safety.general) lines.push(p.safety.general);
+    if (p.safety.contraindications?.length) {
+      lines.push('');
+      lines.push('**Movements to avoid or modify:**');
+      p.safety.contraindications.forEach(c => lines.push(`- ${c}`));
+    }
+    if (p.safety.warning_signs?.length) {
+      lines.push('');
+      lines.push('**Stop and reassess if:**');
+      p.safety.warning_signs.forEach(w => lines.push(`- ${w}`));
+    }
+    lines.push('');
+  }
+
+  // Coach Notes
+  if (p.coach_notes?.length) {
+    lines.push('# Coach Notes');
+    lines.push('');
+    p.coach_notes.forEach(n => lines.push(`> ${n}`));
     lines.push('');
   }
 
@@ -169,13 +241,82 @@ async function draftProgram(userId) {
   const baseline = await fetchLatestAssessmentBaseline(userId);
   const goals = await fetchApprovedGoal(userId);
 
-  const prompt = `Create a structured TrainingProgram JSON for a user. Return JSON only.\n\nIntake: ${JSON.stringify(intake)}\nAssessment: ${JSON.stringify(baseline)}\nGoals: ${JSON.stringify(goals)}\n\nReturn JSON:\n{\n  "identity": {"program_id": "", "version": 1, "created_at": "${nowIso()}", "assumptions": ["string"]},\n  "goals": {"primary": "", "secondary": "", "timeline_weeks": 8, "metrics": ["string"]},\n  "weekly_template": {"days_per_week": 3, "session_types": ["string"], "preferred_days": ["Mon", "Wed", "Fri"]},\n  "sessions": [{"focus": "", "duration_min": 45, "equipment": ["string"], "notes": ""}],\n  "progression": {"strategy": "RPE based", "deload_trigger": "string", "time_scaling": ["45", "30", "15"]},\n  "exercise_rules": {"avoid": ["string"], "prefer": ["string"]},\n  "guardrails": {"pain_scale": "Stop if sharp pain", "red_flags": ["string"]},\n  "coach_cues": ["string"]\n}`;
+  const prompt = `Design a personalized training program for this client.
+
+CLIENT DATA:
+${JSON.stringify(intake, null, 2)}
+
+ASSESSMENT BASELINE:
+${JSON.stringify(baseline, null, 2)}
+
+APPROVED GOALS:
+${JSON.stringify(goals, null, 2)}
+
+Return a JSON object with this structure. Be specific and detailed — this is the client's training guide.
+
+IMPORTANT for sessions: Do NOT lock in specific exercises. Instead, for each session, provide movement CATEGORIES and example exercises. The actual workout will be generated on the fly based on constraints like location, time, energy, and equipment available that day.
+
+{
+  "overview": "A 2-3 sentence summary of the program — what it is, who it's for, and the training philosophy behind it.",
+  "goals": {
+    "primary": "Primary goal statement",
+    "secondary": "Secondary goal or empty string",
+    "timeline_weeks": 12,
+    "metrics": ["Measurable progress indicators"]
+  },
+  "weekly_structure": {
+    "days_per_week": 4,
+    "split_description": "Description of the training split (e.g., upper/lower, push/pull/legs, full body)",
+    "rest_day_guidance": "What to do on rest days"
+  },
+  "sessions": [
+    {
+      "name": "Session name (e.g., Upper Push + Core)",
+      "duration_min": 50,
+      "intensity": "moderate / hard / light",
+      "session_goal": "What this session aims to accomplish in one sentence",
+      "warm_up": ["5 min light cardio", "Arm circles, band pull-aparts"],
+      "movement_categories": [
+        {
+          "category": "Horizontal Push",
+          "examples": ["Bench press", "Push-ups", "Dumbbell floor press"],
+          "sets_reps": "3-4 sets of 8-12 reps",
+          "intensity_guide": "RPE 7-8. Last 1-2 reps should be challenging but doable with good form."
+        }
+      ],
+      "cool_down": ["5 min static stretching — chest, shoulders, triceps"]
+    }
+  ],
+  "progression": {
+    "strategy": "How the client should progress week to week (load, volume, density, etc.)",
+    "phases": [
+      {
+        "name": "Phase name",
+        "weeks": "1-4",
+        "description": "What changes in this phase and why"
+      }
+    ],
+    "deload": "When and how to deload"
+  },
+  "recovery": {
+    "sleep": "Sleep recommendation based on training load",
+    "nutrition": "Basic nutrition guidance relevant to their goals",
+    "active_recovery": "What to do on off days",
+    "tips": ["Specific recovery tips based on their training"]
+  },
+  "safety": {
+    "general": "Overall safety approach for this client",
+    "contraindications": ["Movements to avoid based on their injuries/health"],
+    "warning_signs": ["Signs they should stop and reassess"]
+  },
+  "coach_notes": ["Personalized coaching observations — things you noticed from their intake that inform the program"]
+}`;
 
   const client = getAnthropicClient();
   const response = await client.messages.create({
     model: DEFAULT_MODEL,
     max_tokens: 4096,
-    system: [{ type: 'text', text: 'Return JSON only.' }],
+    system: [{ type: 'text', text: PROGRAM_SYSTEM_PROMPT }],
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
   });
 
@@ -222,13 +363,20 @@ async function editProgram(programId, instruction) {
 
   if (error) throw error;
 
-  const prompt = `Apply this edit to TrainingProgram JSON. Return JSON only.\n\nInstruction: ${instruction}\n\nProgram: ${JSON.stringify(existing.program_json)}\n\nReturn updated JSON.`;
+  const prompt = `Apply this edit to the training program. Keep the same JSON structure. Return JSON only.
+
+EDIT INSTRUCTION: ${instruction}
+
+CURRENT PROGRAM:
+${JSON.stringify(existing.program_json, null, 2)}
+
+Return the updated JSON with the edit applied. Maintain all the same fields and structure.`;
 
   const client = getAnthropicClient();
   const response = await client.messages.create({
     model: DEFAULT_MODEL,
     max_tokens: 4096,
-    system: [{ type: 'text', text: 'Return JSON only.' }],
+    system: [{ type: 'text', text: PROGRAM_SYSTEM_PROMPT }],
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
   });
 

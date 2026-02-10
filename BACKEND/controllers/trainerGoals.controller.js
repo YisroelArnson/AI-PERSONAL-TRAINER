@@ -67,6 +67,23 @@ async function generateOptions(req, res) {
   }
 }
 
+async function refineOptions(req, res) {
+  try {
+    const userId = req.user.id;
+    const { instruction } = req.body || {};
+
+    if (!instruction) {
+      return res.status(400).json({ success: false, error: 'instruction is required' });
+    }
+
+    const options = await goalsService.refineGoalOptions(userId, instruction);
+    res.json({ success: true, options });
+  } catch (error) {
+    console.error('Refine goal options error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
 async function selectOption(req, res) {
   try {
     const userId = req.user.id;
@@ -90,5 +107,6 @@ module.exports = {
   editGoal,
   approveGoal,
   generateOptions,
+  refineOptions,
   selectOption
 };

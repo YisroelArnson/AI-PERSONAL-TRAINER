@@ -251,6 +251,60 @@ RULES:
   return parsed.options;
 }
 
+async function refineGoalOptions(userId, instruction) {
+  const intake = await fetchLatestIntakeSummary(userId);
+  const baseline = await fetchLatestAssessmentBaseline(userId);
+
+  const prompt = `You are a certified personal trainer. The client reviewed the initial goal options and wants changes.
+
+CLIENT FEEDBACK: "${instruction}"
+
+Intake data: ${JSON.stringify(intake)}
+Assessment baseline: ${JSON.stringify(baseline)}
+
+Generate 3 NEW goal options that incorporate the client's feedback. The options should reflect what the client asked for while still being realistic and safe.
+
+Return ONLY JSON:
+{
+  "options": [
+    {
+      "id": "option_1",
+      "title": "Short descriptive title (3-5 words)",
+      "description": "1-2 sentence description of this goal path",
+      "primary_goal": "The main fitness goal",
+      "secondary_goal": "A complementary secondary goal",
+      "timeline_weeks": 12,
+      "sessions_per_week": 4,
+      "minutes_per_session": 60,
+      "focus_areas": ["area1", "area2"]
+    }
+  ]
+}
+
+RULES:
+1. Each option should represent a meaningfully different training direction that addresses the client's feedback.
+2. Options should be realistic given the client's experience, schedule, and constraints.
+3. Timeline should be 8-16 weeks.
+4. Sessions per week should respect the client's stated frequency preference.`;
+
+  const client = getAnthropicClient();
+  const response = await client.messages.create({
+    model: DEFAULT_MODEL,
+    max_tokens: 1024,
+    system: [{ type: 'text', text: 'Return JSON only. Be specific and practical.' }],
+    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+  });
+
+  const textBlock = response.content.find(block => block.type === 'text');
+  const parsed = extractJson(textBlock?.text || '');
+
+  if (!parsed?.options || !Array.isArray(parsed.options)) {
+    throw new Error('Failed to generate refined goal options');
+  }
+
+  return parsed.options;
+}
+
 async function selectGoalOption(userId, selectedOption) {
   // Create a goal contract from the selected option
   const contractJson = {
@@ -298,5 +352,6 @@ module.exports = {
   approveGoalContract,
   getGoalContract,
   generateGoalOptions,
+  refineGoalOptions,
   selectGoalOption
 };

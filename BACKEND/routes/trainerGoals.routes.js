@@ -7,6 +7,7 @@ router.use(authenticateToken);
 
 // New goal options flow (screen-by-screen onboarding)
 router.post('/options', controller.generateOptions);
+router.post('/options/refine', controller.refineOptions);
 router.post('/options/select', controller.selectOption);
 
 // Legacy single-draft flow

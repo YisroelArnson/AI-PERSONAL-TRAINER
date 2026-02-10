@@ -29,6 +29,19 @@ final class GoalContractStore: ObservableObject {
         isLoading = false
     }
 
+    func refineOptions(instruction: String) async {
+        isLoading = true
+        errorMessage = nil
+        do {
+            let response = try await apiService.refineGoalOptions(instruction: instruction)
+            goalOptions = response.options
+            selectedOptionId = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+
     func selectOption(_ option: GoalOption) async {
         selectedOptionId = option.id
         isLoading = true
