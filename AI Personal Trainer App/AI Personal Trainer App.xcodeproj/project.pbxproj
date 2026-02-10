@@ -7,29 +7,125 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		B001B001B001B001B001B001 /* TextInputScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A001A001A001A001A001A001 /* TextInputScreenView.swift */; };
-		B002B002B002B002B002B002 /* BirthdayPickerScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A002A002A002A002A002A002 /* BirthdayPickerScreenView.swift */; };
-		B003B003B003B003B003B003 /* HeightPickerScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A003A003A003A003A003A003 /* HeightPickerScreenView.swift */; };
-		B004B004B004B004B004B004 /* WeightPickerScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A004A004A004A004A004A004 /* WeightPickerScreenView.swift */; };
-		B005B005B005B005B005B005 /* SimpleSelectScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A005A005A005A005A005A005 /* SimpleSelectScreenView.swift */; };
-		B006B006B006B006B006B006 /* VoiceScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A006A006A006A006A006A006 /* VoiceScreenView.swift */; };
-		B007B007B007B007B007B007 /* GuidedVoiceScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A007A007A007A007A007A007 /* GuidedVoiceScreenView.swift */; };
-		B008B008B008B008B008B008 /* IntakeCompleteScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A008A008A008A008A008A008 /* IntakeCompleteScreenView.swift */; };
-		B009B009B009B009B009B009 /* UnitToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A009A009A009A009A009A009 /* UnitToggle.swift */; };
-		FF66EE55DD44CC33BB22AA11 /* IntroHeroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF66 /* IntroHeroView.swift */; };
-		EE55DD44CC33BB22AA11FF66 /* IntroNarrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB22CC33DD44EE55FF66AA11 /* IntroNarrationView.swift */; };
-		DD44CC33BB22AA11FF66EE55 /* IntroCTAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC33DD44EE55FF66AA11BB22 /* IntroCTAView.swift */; };
-		F2E1D0C9B8A7F6E5D4C3B2A1 /* SegmentedProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F6A7B8C9D0E1F2 /* SegmentedProgressBar.swift */; };
-		E1D0C9B8A7F6E5D4C3B2A1F2 /* OnboardingTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2C3D4E5F6A7B8C9D0E1F2A1 /* OnboardingTopBar.swift */; };
-		D0C9B8A7F6E5D4C3B2A1F2E1 /* ChevronButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3D4E5F6A7B8C9D0E1F2A1B2 /* ChevronButton.swift */; };
-		C9B8A7F6E5D4C3B2A1F2E1D0 /* PillsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4E5F6A7B8C9D0E1F2A1B2C3 /* PillsRow.swift */; };
-		B8A7F6E5D4C3B2A1F2E1D0C9 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F6A7B8C9D0E1F2A1B2C3D4 /* WaveformView.swift */; };
-		A7F6E5D4C3B2A1F2E1D0C9B8 /* VoiceBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6A7B8C9D0E1F2A1B2C3D4E5 /* VoiceBottomBar.swift */; };
-		D8F9DFF417B84FDF8F88CE1A /* OnboardingScreenData.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBD01A40CAA54E56927675DB /* OnboardingScreenData.swift */; };
-		266FC2852505467D949572BB /* LocalIntakeData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94A5930E62534E2C8664F95F /* LocalIntakeData.swift */; };
-		084A90D66E2E4B999D5B4CC3 /* IntakeCoordinatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CC077CB70C943D19879231B /* IntakeCoordinatorView.swift */; };
 		12541A072F2C59B90020EF78 /* AI Personal Trainer AppTests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */; };
 		12541A0B2F2C59D30020EF78 /* AI Personal Trainer AppUITests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */; };
+		125DD7D32F3AC770006BBFB8 /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7452F3AC770006BBFB8 /* Color+Extensions.swift */; };
+		125DD7D42F3AC770006BBFB8 /* SpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7472F3AC770006BBFB8 /* SpeechManager.swift */; };
+		125DD7D52F3AC770006BBFB8 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7492F3AC770006BBFB8 /* AppTheme.swift */; };
+		125DD7D62F3AC770006BBFB8 /* ShimmerEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD74A2F3AC770006BBFB8 /* ShimmerEffect.swift */; };
+		125DD7D72F3AC770006BBFB8 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD74C2F3AC770006BBFB8 /* AppView.swift */; };
+		125DD7D82F3AC770006BBFB8 /* supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD74D2F3AC770006BBFB8 /* supabase.swift */; };
+		125DD7D92F3AC770006BBFB8 /* AssistantOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7502F3AC770006BBFB8 /* AssistantOverlayView.swift */; };
+		125DD7DA2F3AC770006BBFB8 /* MinimizedResponsePill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7522F3AC770006BBFB8 /* MinimizedResponsePill.swift */; };
+		125DD7DB2F3AC770006BBFB8 /* QuestionOptionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7532F3AC770006BBFB8 /* QuestionOptionsView.swift */; };
+		125DD7DC2F3AC770006BBFB8 /* CollapsedStepsSummary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7542F3AC770006BBFB8 /* CollapsedStepsSummary.swift */; };
+		125DD7DD2F3AC770006BBFB8 /* FloatingMessageStack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7552F3AC770006BBFB8 /* FloatingMessageStack.swift */; };
+		125DD7DE2F3AC770006BBFB8 /* ChatInputBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7562F3AC770006BBFB8 /* ChatInputBar.swift */; };
+		125DD7DF2F3AC770006BBFB8 /* MessageBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7572F3AC770006BBFB8 /* MessageBubble.swift */; };
+		125DD7E02F3AC770006BBFB8 /* ArtifactCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7582F3AC770006BBFB8 /* ArtifactCard.swift */; };
+		125DD7E12F3AC770006BBFB8 /* StreamingStepsLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7592F3AC770006BBFB8 /* StreamingStepsLine.swift */; };
+		125DD7E22F3AC770006BBFB8 /* InlineStepsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD75A2F3AC770006BBFB8 /* InlineStepsView.swift */; };
+		125DD7E32F3AC770006BBFB8 /* AssistantView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD75B2F3AC770006BBFB8 /* AssistantView.swift */; };
+		125DD7E42F3AC770006BBFB8 /* WorkoutCoachSheets.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD75D2F3AC770006BBFB8 /* WorkoutCoachSheets.swift */; };
+		125DD7E52F3AC770006BBFB8 /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD75E2F3AC770006BBFB8 /* HomeView.swift */; };
+		125DD7E62F3AC770006BBFB8 /* WorkoutPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7602F3AC770006BBFB8 /* WorkoutPill.swift */; };
+		125DD7E72F3AC770006BBFB8 /* BodyweightExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7612F3AC770006BBFB8 /* BodyweightExerciseView.swift */; };
+		125DD7E82F3AC770006BBFB8 /* GlowingOrbButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7622F3AC770006BBFB8 /* GlowingOrbButton.swift */; };
+		125DD7E92F3AC770006BBFB8 /* StrengthExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7632F3AC770006BBFB8 /* StrengthExerciseView.swift */; };
+		125DD7EA2F3AC770006BBFB8 /* AIMessageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7642F3AC770006BBFB8 /* AIMessageView.swift */; };
+		125DD7EB2F3AC770006BBFB8 /* IsometricExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7652F3AC770006BBFB8 /* IsometricExerciseView.swift */; };
+		125DD7EC2F3AC770006BBFB8 /* DurationExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7662F3AC770006BBFB8 /* DurationExerciseView.swift */; };
+		125DD7ED2F3AC770006BBFB8 /* ExerciseDotTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7672F3AC770006BBFB8 /* ExerciseDotTracker.swift */; };
+		125DD7EE2F3AC770006BBFB8 /* AIMessageSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7682F3AC770006BBFB8 /* AIMessageSkeleton.swift */; };
+		125DD7EF2F3AC770006BBFB8 /* ExerciseCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7692F3AC770006BBFB8 /* ExerciseCard.swift */; };
+		125DD7F02F3AC770006BBFB8 /* IntervalsExerciseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD76A2F3AC770006BBFB8 /* IntervalsExerciseView.swift */; };
+		125DD7F12F3AC770006BBFB8 /* ExpandableDescriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD76B2F3AC770006BBFB8 /* ExpandableDescriptionView.swift */; };
+		125DD7F22F3AC770006BBFB8 /* WritingModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD76D2F3AC770006BBFB8 /* WritingModeView.swift */; };
+		125DD7F32F3AC770006BBFB8 /* ProfileView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD76F2F3AC770006BBFB8 /* ProfileView.swift */; };
+		125DD7F42F3AC770006BBFB8 /* CurrentLocationPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7722F3AC770006BBFB8 /* CurrentLocationPill.swift */; };
+		125DD7F52F3AC770006BBFB8 /* EquipmentInputView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7732F3AC770006BBFB8 /* EquipmentInputView.swift */; };
+		125DD7F62F3AC770006BBFB8 /* LocationMapPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7752F3AC770006BBFB8 /* LocationMapPickerView.swift */; };
+		125DD7F72F3AC770006BBFB8 /* LocationEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7762F3AC770006BBFB8 /* LocationEditorView.swift */; };
+		125DD7F82F3AC770006BBFB8 /* LocationsListSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7772F3AC770006BBFB8 /* LocationsListSheet.swift */; };
+		125DD7F92F3AC770006BBFB8 /* FeatureTourOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7792F3AC770006BBFB8 /* FeatureTourOverlay.swift */; };
+		125DD7FA2F3AC770006BBFB8 /* ExerciseDetailSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD77C2F3AC770006BBFB8 /* ExerciseDetailSheet.swift */; };
+		125DD7FB2F3AC770006BBFB8 /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD77D2F3AC770006BBFB8 /* StatsView.swift */; };
+		125DD7FC2F3AC770006BBFB8 /* TrainerDataHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD77F2F3AC770006BBFB8 /* TrainerDataHubView.swift */; };
+		125DD7FD2F3AC770006BBFB8 /* TrainerMonitoringViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7802F3AC770006BBFB8 /* TrainerMonitoringViews.swift */; };
+		125DD7FE2F3AC770006BBFB8 /* TrainerJourneyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7812F3AC770006BBFB8 /* TrainerJourneyView.swift */; };
+		125DD7FF2F3AC770006BBFB8 /* OnboardingCoordinatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7832F3AC770006BBFB8 /* OnboardingCoordinatorView.swift */; };
+		125DD8002F3AC770006BBFB8 /* OnboardingAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7842F3AC770006BBFB8 /* OnboardingAuthView.swift */; };
+		125DD8012F3AC770006BBFB8 /* IntakeCoordinatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7852F3AC770006BBFB8 /* IntakeCoordinatorView.swift */; };
+		125DD8022F3AC770006BBFB8 /* OTPVerificationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7862F3AC770006BBFB8 /* OTPVerificationView.swift */; };
+		125DD8032F3AC770006BBFB8 /* NotificationPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7872F3AC770006BBFB8 /* NotificationPermissionView.swift */; };
+		125DD8042F3AC770006BBFB8 /* OnboardingSuccessView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7882F3AC770006BBFB8 /* OnboardingSuccessView.swift */; };
+		125DD8052F3AC770006BBFB8 /* ProgramReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7892F3AC770006BBFB8 /* ProgramReviewView.swift */; };
+		125DD8062F3AC770006BBFB8 /* TextInputScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD78B2F3AC770006BBFB8 /* TextInputScreenView.swift */; };
+		125DD8072F3AC770006BBFB8 /* WeightPickerScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD78C2F3AC770006BBFB8 /* WeightPickerScreenView.swift */; };
+		125DD8082F3AC770006BBFB8 /* BirthdayPickerScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD78D2F3AC770006BBFB8 /* BirthdayPickerScreenView.swift */; };
+		125DD8092F3AC771006BBFB8 /* SimpleSelectScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD78E2F3AC770006BBFB8 /* SimpleSelectScreenView.swift */; };
+		125DD80A2F3AC771006BBFB8 /* GuidedVoiceScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD78F2F3AC770006BBFB8 /* GuidedVoiceScreenView.swift */; };
+		125DD80B2F3AC771006BBFB8 /* IntroNarrationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7902F3AC770006BBFB8 /* IntroNarrationView.swift */; };
+		125DD80C2F3AC771006BBFB8 /* HeightPickerScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7912F3AC770006BBFB8 /* HeightPickerScreenView.swift */; };
+		125DD80D2F3AC771006BBFB8 /* VoiceScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7922F3AC770006BBFB8 /* VoiceScreenView.swift */; };
+		125DD80E2F3AC771006BBFB8 /* IntakeCompleteScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7932F3AC770006BBFB8 /* IntakeCompleteScreenView.swift */; };
+		125DD80F2F3AC771006BBFB8 /* IntroCTAView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7942F3AC770006BBFB8 /* IntroCTAView.swift */; };
+		125DD8102F3AC771006BBFB8 /* IntroHeroView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7952F3AC770006BBFB8 /* IntroHeroView.swift */; };
+		125DD8112F3AC771006BBFB8 /* GoalReviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7962F3AC770006BBFB8 /* GoalReviewView.swift */; };
+		125DD8122F3AC771006BBFB8 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 125DD7972F3AC770006BBFB8 /* Assets.xcassets */; };
+		125DD8132F3AC771006BBFB8 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD79A2F3AC770006BBFB8 /* WaveformView.swift */; };
+		125DD8142F3AC771006BBFB8 /* OnboardingErrorCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD79B2F3AC770006BBFB8 /* OnboardingErrorCard.swift */; };
+		125DD8152F3AC771006BBFB8 /* SegmentedProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD79C2F3AC770006BBFB8 /* SegmentedProgressBar.swift */; };
+		125DD8162F3AC771006BBFB8 /* PillsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD79D2F3AC770006BBFB8 /* PillsRow.swift */; };
+		125DD8172F3AC771006BBFB8 /* OnboardingTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD79E2F3AC770006BBFB8 /* OnboardingTopBar.swift */; };
+		125DD8182F3AC771006BBFB8 /* OTPCodeField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD79F2F3AC770006BBFB8 /* OTPCodeField.swift */; };
+		125DD8192F3AC771006BBFB8 /* ExpandingFabMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7A02F3AC770006BBFB8 /* ExpandingFabMenu.swift */; };
+		125DD81A2F3AC771006BBFB8 /* TypewriterTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7A12F3AC770006BBFB8 /* TypewriterTextView.swift */; };
+		125DD81B2F3AC771006BBFB8 /* FloatingAIButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7A22F3AC770006BBFB8 /* FloatingAIButton.swift */; };
+		125DD81C2F3AC771006BBFB8 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7A32F3AC770006BBFB8 /* ToastView.swift */; };
+		125DD81D2F3AC771006BBFB8 /* ThinTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7A42F3AC770006BBFB8 /* ThinTopBar.swift */; };
+		125DD81E2F3AC771006BBFB8 /* SideDrawerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7A52F3AC770006BBFB8 /* SideDrawerView.swift */; };
+		125DD81F2F3AC771006BBFB8 /* OnboardingProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7A62F3AC770006BBFB8 /* OnboardingProgressBar.swift */; };
+		125DD8202F3AC771006BBFB8 /* VoiceBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7A72F3AC770006BBFB8 /* VoiceBottomBar.swift */; };
+		125DD8212F3AC771006BBFB8 /* UnitToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7A82F3AC770006BBFB8 /* UnitToggle.swift */; };
+		125DD8222F3AC771006BBFB8 /* OnboardingOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7A92F3AC770006BBFB8 /* OnboardingOrbView.swift */; };
+		125DD8232F3AC771006BBFB8 /* ChevronButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7AA2F3AC770006BBFB8 /* ChevronButton.swift */; };
+		125DD8242F3AC771006BBFB8 /* LoadingStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7AB2F3AC770006BBFB8 /* LoadingStateView.swift */; };
+		125DD8252F3AC771006BBFB8 /* WorkoutSessionModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7AD2F3AC770006BBFB8 /* WorkoutSessionModels.swift */; };
+		125DD8262F3AC771006BBFB8 /* Location.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7AE2F3AC770006BBFB8 /* Location.swift */; };
+		125DD8272F3AC771006BBFB8 /* LocalIntakeData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7AF2F3AC770006BBFB8 /* LocalIntakeData.swift */; };
+		125DD8282F3AC771006BBFB8 /* OnboardingModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7B02F3AC770006BBFB8 /* OnboardingModels.swift */; };
+		125DD8292F3AC771006BBFB8 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7B12F3AC770006BBFB8 /* APIModels.swift */; };
+		125DD82A2F3AC771006BBFB8 /* IntakeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7B22F3AC770006BBFB8 /* IntakeModels.swift */; };
+		125DD82B2F3AC771006BBFB8 /* OnboardingScreenData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7B32F3AC770006BBFB8 /* OnboardingScreenData.swift */; };
+		125DD82C2F3AC771006BBFB8 /* AssessmentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7B42F3AC770006BBFB8 /* AssessmentModels.swift */; };
+		125DD82D2F3AC771006BBFB8 /* Exercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7B52F3AC770006BBFB8 /* Exercise.swift */; };
+		125DD82E2F3AC771006BBFB8 /* JourneyModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7B62F3AC770006BBFB8 /* JourneyModels.swift */; };
+		125DD82F2F3AC771006BBFB8 /* ProgramModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7B72F3AC770006BBFB8 /* ProgramModels.swift */; };
+		125DD8302F3AC771006BBFB8 /* UIExercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7B82F3AC770006BBFB8 /* UIExercise.swift */; };
+		125DD8312F3AC771006BBFB8 /* CodableValue+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7B92F3AC770006BBFB8 /* CodableValue+Helpers.swift */; };
+		125DD8322F3AC771006BBFB8 /* GoalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7BA2F3AC770006BBFB8 /* GoalModels.swift */; };
+		125DD8332F3AC771006BBFB8 /* MonitoringModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7BB2F3AC770006BBFB8 /* MonitoringModels.swift */; };
+		125DD8342F3AC771006BBFB8 /* CheckinModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7BC2F3AC770006BBFB8 /* CheckinModels.swift */; };
+		125DD8352F3AC771006BBFB8 /* WorkoutHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7BD2F3AC770006BBFB8 /* WorkoutHistory.swift */; };
+		125DD8362F3AC771006BBFB8 /* AgentModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7BE2F3AC770006BBFB8 /* AgentModels.swift */; };
+		125DD8372F3AC771006BBFB8 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 125DD7C02F3AC770006BBFB8 /* Preview Assets.xcassets */; };
+		125DD8382F3AC771006BBFB8 /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7C12F3AC770006BBFB8 /* AI_Personal_Trainer_AppApp.swift */; };
+		125DD8392F3AC771006BBFB8 /* TrainingProgramStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7C32F3AC770006BBFB8 /* TrainingProgramStore.swift */; };
+		125DD83A2F3AC771006BBFB8 /* OnboardingStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7C42F3AC770006BBFB8 /* OnboardingStore.swift */; };
+		125DD83B2F3AC771006BBFB8 /* FeatureTourManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7C52F3AC770006BBFB8 /* FeatureTourManager.swift */; };
+		125DD83C2F3AC771006BBFB8 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7C72F3AC770006BBFB8 /* AuthView.swift */; };
+		125DD83D2F3AC771006BBFB8 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7C82F3AC770006BBFB8 /* APIService.swift */; };
+		125DD83E2F3AC771006BBFB8 /* GoalContractStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7C92F3AC770006BBFB8 /* GoalContractStore.swift */; };
+		125DD83F2F3AC771006BBFB8 /* ExerciseStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7CA2F3AC770006BBFB8 /* ExerciseStore.swift */; };
+		125DD8402F3AC771006BBFB8 /* WorkoutSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7CB2F3AC770006BBFB8 /* WorkoutSessionStore.swift */; };
+		125DD8412F3AC771006BBFB8 /* AgentService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7CC2F3AC770006BBFB8 /* AgentService.swift */; };
+		125DD8422F3AC771006BBFB8 /* UserSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7CD2F3AC770006BBFB8 /* UserSettings.swift */; };
+		125DD8432F3AC771006BBFB8 /* AppStateCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7CE2F3AC770006BBFB8 /* AppStateCoordinator.swift */; };
+		125DD8442F3AC771006BBFB8 /* AssistantOverlayManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7CF2F3AC770006BBFB8 /* AssistantOverlayManager.swift */; };
+		125DD8452F3AC771006BBFB8 /* AssessmentSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7D02F3AC770006BBFB8 /* AssessmentSessionStore.swift */; };
+		125DD8462F3AC771006BBFB8 /* UserDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7D12F3AC770006BBFB8 /* UserDataStore.swift */; };
+		125DD8472F3AC771006BBFB8 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 125DD7D22F3AC770006BBFB8 /* LocationService.swift */; };
 		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
 		12901A952F350A93002C011D /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12901A172F350A93002C011D /* Color+Extensions.swift */; };
 		12901A962F350A93002C011D /* SpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12901A192F350A93002C011D /* SpeechManager.swift */; };
@@ -149,29 +245,125 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		A001A001A001A001A001A001 /* TextInputScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextInputScreenView.swift; sourceTree = "<group>"; };
-		A002A002A002A002A002A002 /* BirthdayPickerScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BirthdayPickerScreenView.swift; sourceTree = "<group>"; };
-		A003A003A003A003A003A003 /* HeightPickerScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeightPickerScreenView.swift; sourceTree = "<group>"; };
-		A004A004A004A004A004A004 /* WeightPickerScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WeightPickerScreenView.swift; sourceTree = "<group>"; };
-		A005A005A005A005A005A005 /* SimpleSelectScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimpleSelectScreenView.swift; sourceTree = "<group>"; };
-		A006A006A006A006A006A006 /* VoiceScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceScreenView.swift; sourceTree = "<group>"; };
-		A007A007A007A007A007A007 /* GuidedVoiceScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuidedVoiceScreenView.swift; sourceTree = "<group>"; };
-		A008A008A008A008A008A008 /* IntakeCompleteScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeCompleteScreenView.swift; sourceTree = "<group>"; };
-		A009A009A009A009A009A009 /* UnitToggle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnitToggle.swift; sourceTree = "<group>"; };
-		AA11BB22CC33DD44EE55FF66 /* IntroHeroView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroHeroView.swift; sourceTree = "<group>"; };
-		BB22CC33DD44EE55FF66AA11 /* IntroNarrationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroNarrationView.swift; sourceTree = "<group>"; };
-		CC33DD44EE55FF66AA11BB22 /* IntroCTAView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntroCTAView.swift; sourceTree = "<group>"; };
-		A1B2C3D4E5F6A7B8C9D0E1F2 /* SegmentedProgressBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SegmentedProgressBar.swift; sourceTree = "<group>"; };
-		B2C3D4E5F6A7B8C9D0E1F2A1 /* OnboardingTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingTopBar.swift; sourceTree = "<group>"; };
-		C3D4E5F6A7B8C9D0E1F2A1B2 /* ChevronButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChevronButton.swift; sourceTree = "<group>"; };
-		D4E5F6A7B8C9D0E1F2A1B2C3 /* PillsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillsRow.swift; sourceTree = "<group>"; };
-		E5F6A7B8C9D0E1F2A1B2C3D4 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
-		F6A7B8C9D0E1F2A1B2C3D4E5 /* VoiceBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceBottomBar.swift; sourceTree = "<group>"; };
-		BBD01A40CAA54E56927675DB /* OnboardingScreenData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingScreenData.swift; sourceTree = "<group>"; };
-		94A5930E62534E2C8664F95F /* LocalIntakeData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalIntakeData.swift; sourceTree = "<group>"; };
-		8CC077CB70C943D19879231B /* IntakeCoordinatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IntakeCoordinatorView.swift; sourceTree = "<group>"; };
 		12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Personal Trainer AppTests"; sourceTree = "<group>"; };
 		12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Personal Trainer AppUITests"; sourceTree = "<group>"; };
+		125DD7452F3AC770006BBFB8 /* Color+Extensions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Color+Extensions.swift"; sourceTree = "<group>"; };
+		125DD7472F3AC770006BBFB8 /* SpeechManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SpeechManager.swift; sourceTree = "<group>"; };
+		125DD7492F3AC770006BBFB8 /* AppTheme.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		125DD74A2F3AC770006BBFB8 /* ShimmerEffect.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ShimmerEffect.swift; sourceTree = "<group>"; };
+		125DD74C2F3AC770006BBFB8 /* AppView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
+		125DD74D2F3AC770006BBFB8 /* supabase.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = supabase.swift; sourceTree = "<group>"; };
+		125DD7502F3AC770006BBFB8 /* AssistantOverlayView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistantOverlayView.swift; sourceTree = "<group>"; };
+		125DD7522F3AC770006BBFB8 /* MinimizedResponsePill.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MinimizedResponsePill.swift; sourceTree = "<group>"; };
+		125DD7532F3AC770006BBFB8 /* QuestionOptionsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = QuestionOptionsView.swift; sourceTree = "<group>"; };
+		125DD7542F3AC770006BBFB8 /* CollapsedStepsSummary.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CollapsedStepsSummary.swift; sourceTree = "<group>"; };
+		125DD7552F3AC770006BBFB8 /* FloatingMessageStack.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FloatingMessageStack.swift; sourceTree = "<group>"; };
+		125DD7562F3AC770006BBFB8 /* ChatInputBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ChatInputBar.swift; sourceTree = "<group>"; };
+		125DD7572F3AC770006BBFB8 /* MessageBubble.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MessageBubble.swift; sourceTree = "<group>"; };
+		125DD7582F3AC770006BBFB8 /* ArtifactCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ArtifactCard.swift; sourceTree = "<group>"; };
+		125DD7592F3AC770006BBFB8 /* StreamingStepsLine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StreamingStepsLine.swift; sourceTree = "<group>"; };
+		125DD75A2F3AC770006BBFB8 /* InlineStepsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InlineStepsView.swift; sourceTree = "<group>"; };
+		125DD75B2F3AC770006BBFB8 /* AssistantView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistantView.swift; sourceTree = "<group>"; };
+		125DD75D2F3AC770006BBFB8 /* WorkoutCoachSheets.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WorkoutCoachSheets.swift; sourceTree = "<group>"; };
+		125DD75E2F3AC770006BBFB8 /* HomeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		125DD7602F3AC770006BBFB8 /* WorkoutPill.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WorkoutPill.swift; sourceTree = "<group>"; };
+		125DD7612F3AC770006BBFB8 /* BodyweightExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BodyweightExerciseView.swift; sourceTree = "<group>"; };
+		125DD7622F3AC770006BBFB8 /* GlowingOrbButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GlowingOrbButton.swift; sourceTree = "<group>"; };
+		125DD7632F3AC770006BBFB8 /* StrengthExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StrengthExerciseView.swift; sourceTree = "<group>"; };
+		125DD7642F3AC770006BBFB8 /* AIMessageView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AIMessageView.swift; sourceTree = "<group>"; };
+		125DD7652F3AC770006BBFB8 /* IsometricExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IsometricExerciseView.swift; sourceTree = "<group>"; };
+		125DD7662F3AC770006BBFB8 /* DurationExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = DurationExerciseView.swift; sourceTree = "<group>"; };
+		125DD7672F3AC770006BBFB8 /* ExerciseDotTracker.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExerciseDotTracker.swift; sourceTree = "<group>"; };
+		125DD7682F3AC770006BBFB8 /* AIMessageSkeleton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AIMessageSkeleton.swift; sourceTree = "<group>"; };
+		125DD7692F3AC770006BBFB8 /* ExerciseCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExerciseCard.swift; sourceTree = "<group>"; };
+		125DD76A2F3AC770006BBFB8 /* IntervalsExerciseView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IntervalsExerciseView.swift; sourceTree = "<group>"; };
+		125DD76B2F3AC770006BBFB8 /* ExpandableDescriptionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExpandableDescriptionView.swift; sourceTree = "<group>"; };
+		125DD76D2F3AC770006BBFB8 /* WritingModeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WritingModeView.swift; sourceTree = "<group>"; };
+		125DD76F2F3AC770006BBFB8 /* ProfileView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProfileView.swift; sourceTree = "<group>"; };
+		125DD7722F3AC770006BBFB8 /* CurrentLocationPill.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CurrentLocationPill.swift; sourceTree = "<group>"; };
+		125DD7732F3AC770006BBFB8 /* EquipmentInputView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = EquipmentInputView.swift; sourceTree = "<group>"; };
+		125DD7752F3AC770006BBFB8 /* LocationMapPickerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocationMapPickerView.swift; sourceTree = "<group>"; };
+		125DD7762F3AC770006BBFB8 /* LocationEditorView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocationEditorView.swift; sourceTree = "<group>"; };
+		125DD7772F3AC770006BBFB8 /* LocationsListSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocationsListSheet.swift; sourceTree = "<group>"; };
+		125DD7792F3AC770006BBFB8 /* FeatureTourOverlay.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FeatureTourOverlay.swift; sourceTree = "<group>"; };
+		125DD77C2F3AC770006BBFB8 /* ExerciseDetailSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExerciseDetailSheet.swift; sourceTree = "<group>"; };
+		125DD77D2F3AC770006BBFB8 /* StatsView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
+		125DD77F2F3AC770006BBFB8 /* TrainerDataHubView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TrainerDataHubView.swift; sourceTree = "<group>"; };
+		125DD7802F3AC770006BBFB8 /* TrainerMonitoringViews.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TrainerMonitoringViews.swift; sourceTree = "<group>"; };
+		125DD7812F3AC770006BBFB8 /* TrainerJourneyView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TrainerJourneyView.swift; sourceTree = "<group>"; };
+		125DD7832F3AC770006BBFB8 /* OnboardingCoordinatorView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingCoordinatorView.swift; sourceTree = "<group>"; };
+		125DD7842F3AC770006BBFB8 /* OnboardingAuthView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingAuthView.swift; sourceTree = "<group>"; };
+		125DD7852F3AC770006BBFB8 /* IntakeCoordinatorView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IntakeCoordinatorView.swift; sourceTree = "<group>"; };
+		125DD7862F3AC770006BBFB8 /* OTPVerificationView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OTPVerificationView.swift; sourceTree = "<group>"; };
+		125DD7872F3AC770006BBFB8 /* NotificationPermissionView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = NotificationPermissionView.swift; sourceTree = "<group>"; };
+		125DD7882F3AC770006BBFB8 /* OnboardingSuccessView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingSuccessView.swift; sourceTree = "<group>"; };
+		125DD7892F3AC770006BBFB8 /* ProgramReviewView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProgramReviewView.swift; sourceTree = "<group>"; };
+		125DD78B2F3AC770006BBFB8 /* TextInputScreenView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TextInputScreenView.swift; sourceTree = "<group>"; };
+		125DD78C2F3AC770006BBFB8 /* WeightPickerScreenView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WeightPickerScreenView.swift; sourceTree = "<group>"; };
+		125DD78D2F3AC770006BBFB8 /* BirthdayPickerScreenView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = BirthdayPickerScreenView.swift; sourceTree = "<group>"; };
+		125DD78E2F3AC770006BBFB8 /* SimpleSelectScreenView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SimpleSelectScreenView.swift; sourceTree = "<group>"; };
+		125DD78F2F3AC770006BBFB8 /* GuidedVoiceScreenView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GuidedVoiceScreenView.swift; sourceTree = "<group>"; };
+		125DD7902F3AC770006BBFB8 /* IntroNarrationView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IntroNarrationView.swift; sourceTree = "<group>"; };
+		125DD7912F3AC770006BBFB8 /* HeightPickerScreenView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HeightPickerScreenView.swift; sourceTree = "<group>"; };
+		125DD7922F3AC770006BBFB8 /* VoiceScreenView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VoiceScreenView.swift; sourceTree = "<group>"; };
+		125DD7932F3AC770006BBFB8 /* IntakeCompleteScreenView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IntakeCompleteScreenView.swift; sourceTree = "<group>"; };
+		125DD7942F3AC770006BBFB8 /* IntroCTAView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IntroCTAView.swift; sourceTree = "<group>"; };
+		125DD7952F3AC770006BBFB8 /* IntroHeroView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IntroHeroView.swift; sourceTree = "<group>"; };
+		125DD7962F3AC770006BBFB8 /* GoalReviewView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoalReviewView.swift; sourceTree = "<group>"; };
+		125DD7972F3AC770006BBFB8 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		125DD79A2F3AC770006BBFB8 /* WaveformView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
+		125DD79B2F3AC770006BBFB8 /* OnboardingErrorCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingErrorCard.swift; sourceTree = "<group>"; };
+		125DD79C2F3AC770006BBFB8 /* SegmentedProgressBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SegmentedProgressBar.swift; sourceTree = "<group>"; };
+		125DD79D2F3AC770006BBFB8 /* PillsRow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PillsRow.swift; sourceTree = "<group>"; };
+		125DD79E2F3AC770006BBFB8 /* OnboardingTopBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingTopBar.swift; sourceTree = "<group>"; };
+		125DD79F2F3AC770006BBFB8 /* OTPCodeField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OTPCodeField.swift; sourceTree = "<group>"; };
+		125DD7A02F3AC770006BBFB8 /* ExpandingFabMenu.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExpandingFabMenu.swift; sourceTree = "<group>"; };
+		125DD7A12F3AC770006BBFB8 /* TypewriterTextView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TypewriterTextView.swift; sourceTree = "<group>"; };
+		125DD7A22F3AC770006BBFB8 /* FloatingAIButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FloatingAIButton.swift; sourceTree = "<group>"; };
+		125DD7A32F3AC770006BBFB8 /* ToastView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
+		125DD7A42F3AC770006BBFB8 /* ThinTopBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ThinTopBar.swift; sourceTree = "<group>"; };
+		125DD7A52F3AC770006BBFB8 /* SideDrawerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SideDrawerView.swift; sourceTree = "<group>"; };
+		125DD7A62F3AC770006BBFB8 /* OnboardingProgressBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingProgressBar.swift; sourceTree = "<group>"; };
+		125DD7A72F3AC770006BBFB8 /* VoiceBottomBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VoiceBottomBar.swift; sourceTree = "<group>"; };
+		125DD7A82F3AC770006BBFB8 /* UnitToggle.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UnitToggle.swift; sourceTree = "<group>"; };
+		125DD7A92F3AC770006BBFB8 /* OnboardingOrbView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingOrbView.swift; sourceTree = "<group>"; };
+		125DD7AA2F3AC770006BBFB8 /* ChevronButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ChevronButton.swift; sourceTree = "<group>"; };
+		125DD7AB2F3AC770006BBFB8 /* LoadingStateView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoadingStateView.swift; sourceTree = "<group>"; };
+		125DD7AD2F3AC770006BBFB8 /* WorkoutSessionModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WorkoutSessionModels.swift; sourceTree = "<group>"; };
+		125DD7AE2F3AC770006BBFB8 /* Location.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Location.swift; sourceTree = "<group>"; };
+		125DD7AF2F3AC770006BBFB8 /* LocalIntakeData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocalIntakeData.swift; sourceTree = "<group>"; };
+		125DD7B02F3AC770006BBFB8 /* OnboardingModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingModels.swift; sourceTree = "<group>"; };
+		125DD7B12F3AC770006BBFB8 /* APIModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
+		125DD7B22F3AC770006BBFB8 /* IntakeModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IntakeModels.swift; sourceTree = "<group>"; };
+		125DD7B32F3AC770006BBFB8 /* OnboardingScreenData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingScreenData.swift; sourceTree = "<group>"; };
+		125DD7B42F3AC770006BBFB8 /* AssessmentModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssessmentModels.swift; sourceTree = "<group>"; };
+		125DD7B52F3AC770006BBFB8 /* Exercise.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Exercise.swift; sourceTree = "<group>"; };
+		125DD7B62F3AC770006BBFB8 /* JourneyModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = JourneyModels.swift; sourceTree = "<group>"; };
+		125DD7B72F3AC770006BBFB8 /* ProgramModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ProgramModels.swift; sourceTree = "<group>"; };
+		125DD7B82F3AC770006BBFB8 /* UIExercise.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIExercise.swift; sourceTree = "<group>"; };
+		125DD7B92F3AC770006BBFB8 /* CodableValue+Helpers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CodableValue+Helpers.swift"; sourceTree = "<group>"; };
+		125DD7BA2F3AC770006BBFB8 /* GoalModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoalModels.swift; sourceTree = "<group>"; };
+		125DD7BB2F3AC770006BBFB8 /* MonitoringModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MonitoringModels.swift; sourceTree = "<group>"; };
+		125DD7BC2F3AC770006BBFB8 /* CheckinModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CheckinModels.swift; sourceTree = "<group>"; };
+		125DD7BD2F3AC770006BBFB8 /* WorkoutHistory.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WorkoutHistory.swift; sourceTree = "<group>"; };
+		125DD7BE2F3AC770006BBFB8 /* AgentModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentModels.swift; sourceTree = "<group>"; };
+		125DD7C02F3AC770006BBFB8 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		125DD7C12F3AC770006BBFB8 /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
+		125DD7C32F3AC770006BBFB8 /* TrainingProgramStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TrainingProgramStore.swift; sourceTree = "<group>"; };
+		125DD7C42F3AC770006BBFB8 /* OnboardingStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingStore.swift; sourceTree = "<group>"; };
+		125DD7C52F3AC770006BBFB8 /* FeatureTourManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FeatureTourManager.swift; sourceTree = "<group>"; };
+		125DD7C72F3AC770006BBFB8 /* AuthView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		125DD7C82F3AC770006BBFB8 /* APIService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
+		125DD7C92F3AC770006BBFB8 /* GoalContractStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoalContractStore.swift; sourceTree = "<group>"; };
+		125DD7CA2F3AC770006BBFB8 /* ExerciseStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExerciseStore.swift; sourceTree = "<group>"; };
+		125DD7CB2F3AC770006BBFB8 /* WorkoutSessionStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WorkoutSessionStore.swift; sourceTree = "<group>"; };
+		125DD7CC2F3AC770006BBFB8 /* AgentService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentService.swift; sourceTree = "<group>"; };
+		125DD7CD2F3AC770006BBFB8 /* UserSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UserSettings.swift; sourceTree = "<group>"; };
+		125DD7CE2F3AC770006BBFB8 /* AppStateCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppStateCoordinator.swift; sourceTree = "<group>"; };
+		125DD7CF2F3AC770006BBFB8 /* AssistantOverlayManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistantOverlayManager.swift; sourceTree = "<group>"; };
+		125DD7D02F3AC770006BBFB8 /* AssessmentSessionStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssessmentSessionStore.swift; sourceTree = "<group>"; };
+		125DD7D12F3AC770006BBFB8 /* UserDataStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UserDataStore.swift; sourceTree = "<group>"; };
+		125DD7D22F3AC770006BBFB8 /* LocationService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
 		12761C412E57953800C4F8FE /* AI Personal Trainer App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Personal Trainer App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		12761C512E57953B00C4F8FE /* AI Personal Trainer AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		12761C5B2E57953B00C4F8FE /* AI Personal Trainer AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -301,10 +493,350 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		125DD7422F3AC770006BBFB8 /* AI Personal Trainer App */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7432F3AC770006BBFB8 /* Core */,
+				125DD74B2F3AC770006BBFB8 /* App */,
+				125DD74E2F3AC770006BBFB8 /* Features */,
+				125DD7972F3AC770006BBFB8 /* Assets.xcassets */,
+				125DD7982F3AC770006BBFB8 /* Shared */,
+				125DD7AC2F3AC770006BBFB8 /* Models */,
+				125DD7BF2F3AC770006BBFB8 /* Preview Content */,
+				125DD7C12F3AC770006BBFB8 /* AI_Personal_Trainer_AppApp.swift */,
+				125DD7C22F3AC770006BBFB8 /* Services */,
+			);
+			path = "AI Personal Trainer App";
+			sourceTree = "<group>";
+		};
+		125DD7432F3AC770006BBFB8 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7442F3AC770006BBFB8 /* Extensions */,
+				125DD7462F3AC770006BBFB8 /* Voice */,
+				125DD7482F3AC770006BBFB8 /* Theme */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		125DD7442F3AC770006BBFB8 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7452F3AC770006BBFB8 /* Color+Extensions.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		125DD7462F3AC770006BBFB8 /* Voice */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7472F3AC770006BBFB8 /* SpeechManager.swift */,
+			);
+			path = Voice;
+			sourceTree = "<group>";
+		};
+		125DD7482F3AC770006BBFB8 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7492F3AC770006BBFB8 /* AppTheme.swift */,
+				125DD74A2F3AC770006BBFB8 /* ShimmerEffect.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		125DD74B2F3AC770006BBFB8 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				125DD74C2F3AC770006BBFB8 /* AppView.swift */,
+				125DD74D2F3AC770006BBFB8 /* supabase.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		125DD74E2F3AC770006BBFB8 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				125DD74F2F3AC770006BBFB8 /* Assistant */,
+				125DD75C2F3AC770006BBFB8 /* Home */,
+				125DD76C2F3AC770006BBFB8 /* WritingMode */,
+				125DD76E2F3AC770006BBFB8 /* Profile */,
+				125DD7702F3AC770006BBFB8 /* Locations */,
+				125DD7782F3AC770006BBFB8 /* FeatureTour */,
+				125DD77A2F3AC770006BBFB8 /* Stats */,
+				125DD77E2F3AC770006BBFB8 /* Trainer */,
+				125DD7822F3AC770006BBFB8 /* Onboarding */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		125DD74F2F3AC770006BBFB8 /* Assistant */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7502F3AC770006BBFB8 /* AssistantOverlayView.swift */,
+				125DD7512F3AC770006BBFB8 /* Components */,
+				125DD75B2F3AC770006BBFB8 /* AssistantView.swift */,
+			);
+			path = Assistant;
+			sourceTree = "<group>";
+		};
+		125DD7512F3AC770006BBFB8 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7522F3AC770006BBFB8 /* MinimizedResponsePill.swift */,
+				125DD7532F3AC770006BBFB8 /* QuestionOptionsView.swift */,
+				125DD7542F3AC770006BBFB8 /* CollapsedStepsSummary.swift */,
+				125DD7552F3AC770006BBFB8 /* FloatingMessageStack.swift */,
+				125DD7562F3AC770006BBFB8 /* ChatInputBar.swift */,
+				125DD7572F3AC770006BBFB8 /* MessageBubble.swift */,
+				125DD7582F3AC770006BBFB8 /* ArtifactCard.swift */,
+				125DD7592F3AC770006BBFB8 /* StreamingStepsLine.swift */,
+				125DD75A2F3AC770006BBFB8 /* InlineStepsView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		125DD75C2F3AC770006BBFB8 /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				125DD75D2F3AC770006BBFB8 /* WorkoutCoachSheets.swift */,
+				125DD75E2F3AC770006BBFB8 /* HomeView.swift */,
+				125DD75F2F3AC770006BBFB8 /* Components */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		125DD75F2F3AC770006BBFB8 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7602F3AC770006BBFB8 /* WorkoutPill.swift */,
+				125DD7612F3AC770006BBFB8 /* BodyweightExerciseView.swift */,
+				125DD7622F3AC770006BBFB8 /* GlowingOrbButton.swift */,
+				125DD7632F3AC770006BBFB8 /* StrengthExerciseView.swift */,
+				125DD7642F3AC770006BBFB8 /* AIMessageView.swift */,
+				125DD7652F3AC770006BBFB8 /* IsometricExerciseView.swift */,
+				125DD7662F3AC770006BBFB8 /* DurationExerciseView.swift */,
+				125DD7672F3AC770006BBFB8 /* ExerciseDotTracker.swift */,
+				125DD7682F3AC770006BBFB8 /* AIMessageSkeleton.swift */,
+				125DD7692F3AC770006BBFB8 /* ExerciseCard.swift */,
+				125DD76A2F3AC770006BBFB8 /* IntervalsExerciseView.swift */,
+				125DD76B2F3AC770006BBFB8 /* ExpandableDescriptionView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		125DD76C2F3AC770006BBFB8 /* WritingMode */ = {
+			isa = PBXGroup;
+			children = (
+				125DD76D2F3AC770006BBFB8 /* WritingModeView.swift */,
+			);
+			path = WritingMode;
+			sourceTree = "<group>";
+		};
+		125DD76E2F3AC770006BBFB8 /* Profile */ = {
+			isa = PBXGroup;
+			children = (
+				125DD76F2F3AC770006BBFB8 /* ProfileView.swift */,
+			);
+			path = Profile;
+			sourceTree = "<group>";
+		};
+		125DD7702F3AC770006BBFB8 /* Locations */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7712F3AC770006BBFB8 /* Components */,
+				125DD7742F3AC770006BBFB8 /* Views */,
+			);
+			path = Locations;
+			sourceTree = "<group>";
+		};
+		125DD7712F3AC770006BBFB8 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7722F3AC770006BBFB8 /* CurrentLocationPill.swift */,
+				125DD7732F3AC770006BBFB8 /* EquipmentInputView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		125DD7742F3AC770006BBFB8 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7752F3AC770006BBFB8 /* LocationMapPickerView.swift */,
+				125DD7762F3AC770006BBFB8 /* LocationEditorView.swift */,
+				125DD7772F3AC770006BBFB8 /* LocationsListSheet.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		125DD7782F3AC770006BBFB8 /* FeatureTour */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7792F3AC770006BBFB8 /* FeatureTourOverlay.swift */,
+			);
+			path = FeatureTour;
+			sourceTree = "<group>";
+		};
+		125DD77A2F3AC770006BBFB8 /* Stats */ = {
+			isa = PBXGroup;
+			children = (
+				125DD77B2F3AC770006BBFB8 /* Components */,
+				125DD77D2F3AC770006BBFB8 /* StatsView.swift */,
+			);
+			path = Stats;
+			sourceTree = "<group>";
+		};
+		125DD77B2F3AC770006BBFB8 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				125DD77C2F3AC770006BBFB8 /* ExerciseDetailSheet.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		125DD77E2F3AC770006BBFB8 /* Trainer */ = {
+			isa = PBXGroup;
+			children = (
+				125DD77F2F3AC770006BBFB8 /* TrainerDataHubView.swift */,
+				125DD7802F3AC770006BBFB8 /* TrainerMonitoringViews.swift */,
+				125DD7812F3AC770006BBFB8 /* TrainerJourneyView.swift */,
+			);
+			path = Trainer;
+			sourceTree = "<group>";
+		};
+		125DD7822F3AC770006BBFB8 /* Onboarding */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7832F3AC770006BBFB8 /* OnboardingCoordinatorView.swift */,
+				125DD7842F3AC770006BBFB8 /* OnboardingAuthView.swift */,
+				125DD7852F3AC770006BBFB8 /* IntakeCoordinatorView.swift */,
+				125DD7862F3AC770006BBFB8 /* OTPVerificationView.swift */,
+				125DD7872F3AC770006BBFB8 /* NotificationPermissionView.swift */,
+				125DD7882F3AC770006BBFB8 /* OnboardingSuccessView.swift */,
+				125DD7892F3AC770006BBFB8 /* ProgramReviewView.swift */,
+				125DD78A2F3AC770006BBFB8 /* Screens */,
+				125DD7962F3AC770006BBFB8 /* GoalReviewView.swift */,
+			);
+			path = Onboarding;
+			sourceTree = "<group>";
+		};
+		125DD78A2F3AC770006BBFB8 /* Screens */ = {
+			isa = PBXGroup;
+			children = (
+				125DD78B2F3AC770006BBFB8 /* TextInputScreenView.swift */,
+				125DD78C2F3AC770006BBFB8 /* WeightPickerScreenView.swift */,
+				125DD78D2F3AC770006BBFB8 /* BirthdayPickerScreenView.swift */,
+				125DD78E2F3AC770006BBFB8 /* SimpleSelectScreenView.swift */,
+				125DD78F2F3AC770006BBFB8 /* GuidedVoiceScreenView.swift */,
+				125DD7902F3AC770006BBFB8 /* IntroNarrationView.swift */,
+				125DD7912F3AC770006BBFB8 /* HeightPickerScreenView.swift */,
+				125DD7922F3AC770006BBFB8 /* VoiceScreenView.swift */,
+				125DD7932F3AC770006BBFB8 /* IntakeCompleteScreenView.swift */,
+				125DD7942F3AC770006BBFB8 /* IntroCTAView.swift */,
+				125DD7952F3AC770006BBFB8 /* IntroHeroView.swift */,
+			);
+			path = Screens;
+			sourceTree = "<group>";
+		};
+		125DD7982F3AC770006BBFB8 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7992F3AC770006BBFB8 /* Components */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		125DD7992F3AC770006BBFB8 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				125DD79A2F3AC770006BBFB8 /* WaveformView.swift */,
+				125DD79B2F3AC770006BBFB8 /* OnboardingErrorCard.swift */,
+				125DD79C2F3AC770006BBFB8 /* SegmentedProgressBar.swift */,
+				125DD79D2F3AC770006BBFB8 /* PillsRow.swift */,
+				125DD79E2F3AC770006BBFB8 /* OnboardingTopBar.swift */,
+				125DD79F2F3AC770006BBFB8 /* OTPCodeField.swift */,
+				125DD7A02F3AC770006BBFB8 /* ExpandingFabMenu.swift */,
+				125DD7A12F3AC770006BBFB8 /* TypewriterTextView.swift */,
+				125DD7A22F3AC770006BBFB8 /* FloatingAIButton.swift */,
+				125DD7A32F3AC770006BBFB8 /* ToastView.swift */,
+				125DD7A42F3AC770006BBFB8 /* ThinTopBar.swift */,
+				125DD7A52F3AC770006BBFB8 /* SideDrawerView.swift */,
+				125DD7A62F3AC770006BBFB8 /* OnboardingProgressBar.swift */,
+				125DD7A72F3AC770006BBFB8 /* VoiceBottomBar.swift */,
+				125DD7A82F3AC770006BBFB8 /* UnitToggle.swift */,
+				125DD7A92F3AC770006BBFB8 /* OnboardingOrbView.swift */,
+				125DD7AA2F3AC770006BBFB8 /* ChevronButton.swift */,
+				125DD7AB2F3AC770006BBFB8 /* LoadingStateView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		125DD7AC2F3AC770006BBFB8 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7AD2F3AC770006BBFB8 /* WorkoutSessionModels.swift */,
+				125DD7AE2F3AC770006BBFB8 /* Location.swift */,
+				125DD7AF2F3AC770006BBFB8 /* LocalIntakeData.swift */,
+				125DD7B02F3AC770006BBFB8 /* OnboardingModels.swift */,
+				125DD7B12F3AC770006BBFB8 /* APIModels.swift */,
+				125DD7B22F3AC770006BBFB8 /* IntakeModels.swift */,
+				125DD7B32F3AC770006BBFB8 /* OnboardingScreenData.swift */,
+				125DD7B42F3AC770006BBFB8 /* AssessmentModels.swift */,
+				125DD7B52F3AC770006BBFB8 /* Exercise.swift */,
+				125DD7B62F3AC770006BBFB8 /* JourneyModels.swift */,
+				125DD7B72F3AC770006BBFB8 /* ProgramModels.swift */,
+				125DD7B82F3AC770006BBFB8 /* UIExercise.swift */,
+				125DD7B92F3AC770006BBFB8 /* CodableValue+Helpers.swift */,
+				125DD7BA2F3AC770006BBFB8 /* GoalModels.swift */,
+				125DD7BB2F3AC770006BBFB8 /* MonitoringModels.swift */,
+				125DD7BC2F3AC770006BBFB8 /* CheckinModels.swift */,
+				125DD7BD2F3AC770006BBFB8 /* WorkoutHistory.swift */,
+				125DD7BE2F3AC770006BBFB8 /* AgentModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		125DD7BF2F3AC770006BBFB8 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7C02F3AC770006BBFB8 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		125DD7C22F3AC770006BBFB8 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7C32F3AC770006BBFB8 /* TrainingProgramStore.swift */,
+				125DD7C42F3AC770006BBFB8 /* OnboardingStore.swift */,
+				125DD7C52F3AC770006BBFB8 /* FeatureTourManager.swift */,
+				125DD7C62F3AC770006BBFB8 /* Auth */,
+				125DD7C82F3AC770006BBFB8 /* APIService.swift */,
+				125DD7C92F3AC770006BBFB8 /* GoalContractStore.swift */,
+				125DD7CA2F3AC770006BBFB8 /* ExerciseStore.swift */,
+				125DD7CB2F3AC770006BBFB8 /* WorkoutSessionStore.swift */,
+				125DD7CC2F3AC770006BBFB8 /* AgentService.swift */,
+				125DD7CD2F3AC770006BBFB8 /* UserSettings.swift */,
+				125DD7CE2F3AC770006BBFB8 /* AppStateCoordinator.swift */,
+				125DD7CF2F3AC770006BBFB8 /* AssistantOverlayManager.swift */,
+				125DD7D02F3AC770006BBFB8 /* AssessmentSessionStore.swift */,
+				125DD7D12F3AC770006BBFB8 /* UserDataStore.swift */,
+				125DD7D22F3AC770006BBFB8 /* LocationService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		125DD7C62F3AC770006BBFB8 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				125DD7C72F3AC770006BBFB8 /* AuthView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
 		12761C382E57953800C4F8FE = {
 			isa = PBXGroup;
 			children = (
-				12901A142F350A93002C011D /* AI Personal Trainer App */,
+				125DD7422F3AC770006BBFB8 /* AI Personal Trainer App */,
 				12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */,
 				12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */,
 				12761C422E57953800C4F8FE /* Products */,
@@ -782,8 +1314,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				12901AE82F350A95002C011D /* Preview Assets.xcassets in Resources */,
-				12901ACC2F350A95002C011D /* Assets.xcassets in Resources */,
+				125DD8372F3AC771006BBFB8 /* Preview Assets.xcassets in Resources */,
+				125DD8122F3AC771006BBFB8 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -927,6 +1459,121 @@
 				12901AA72F350A94002C011D /* HomeView.swift in Sources */,
 				D1A2B3C4E5F6A7B8C9D0E1F1 /* StepProgressBar.swift in Sources */,
 				D2A2B3C4E5F6A7B8C9D0E1F2 /* ProcessOverviewView.swift in Sources */,
+				125DD82D2F3AC771006BBFB8 /* Exercise.swift in Sources */,
+				125DD80F2F3AC771006BBFB8 /* IntroCTAView.swift in Sources */,
+				125DD7E82F3AC770006BBFB8 /* GlowingOrbButton.swift in Sources */,
+				125DD8022F3AC770006BBFB8 /* OTPVerificationView.swift in Sources */,
+				125DD8422F3AC771006BBFB8 /* UserSettings.swift in Sources */,
+				125DD8242F3AC771006BBFB8 /* LoadingStateView.swift in Sources */,
+				125DD7E02F3AC770006BBFB8 /* ArtifactCard.swift in Sources */,
+				125DD7ED2F3AC770006BBFB8 /* ExerciseDotTracker.swift in Sources */,
+				125DD7F02F3AC770006BBFB8 /* IntervalsExerciseView.swift in Sources */,
+				125DD7EA2F3AC770006BBFB8 /* AIMessageView.swift in Sources */,
+				125DD7F92F3AC770006BBFB8 /* FeatureTourOverlay.swift in Sources */,
+				125DD80C2F3AC771006BBFB8 /* HeightPickerScreenView.swift in Sources */,
+				125DD7DD2F3AC770006BBFB8 /* FloatingMessageStack.swift in Sources */,
+				125DD8322F3AC771006BBFB8 /* GoalModels.swift in Sources */,
+				125DD8132F3AC771006BBFB8 /* WaveformView.swift in Sources */,
+				125DD80B2F3AC771006BBFB8 /* IntroNarrationView.swift in Sources */,
+				125DD7E62F3AC770006BBFB8 /* WorkoutPill.swift in Sources */,
+				125DD7D92F3AC770006BBFB8 /* AssistantOverlayView.swift in Sources */,
+				125DD7DA2F3AC770006BBFB8 /* MinimizedResponsePill.swift in Sources */,
+				125DD7EC2F3AC770006BBFB8 /* DurationExerciseView.swift in Sources */,
+				125DD7F42F3AC770006BBFB8 /* CurrentLocationPill.swift in Sources */,
+				125DD7DB2F3AC770006BBFB8 /* QuestionOptionsView.swift in Sources */,
+				125DD83D2F3AC771006BBFB8 /* APIService.swift in Sources */,
+				125DD8082F3AC770006BBFB8 /* BirthdayPickerScreenView.swift in Sources */,
+				125DD8102F3AC771006BBFB8 /* IntroHeroView.swift in Sources */,
+				125DD8402F3AC771006BBFB8 /* WorkoutSessionStore.swift in Sources */,
+				125DD82F2F3AC771006BBFB8 /* ProgramModels.swift in Sources */,
+				125DD8262F3AC771006BBFB8 /* Location.swift in Sources */,
+				125DD8212F3AC771006BBFB8 /* UnitToggle.swift in Sources */,
+				125DD8072F3AC770006BBFB8 /* WeightPickerScreenView.swift in Sources */,
+				125DD7E22F3AC770006BBFB8 /* InlineStepsView.swift in Sources */,
+				125DD7FC2F3AC770006BBFB8 /* TrainerDataHubView.swift in Sources */,
+				125DD7DF2F3AC770006BBFB8 /* MessageBubble.swift in Sources */,
+				125DD7D62F3AC770006BBFB8 /* ShimmerEffect.swift in Sources */,
+				125DD83B2F3AC771006BBFB8 /* FeatureTourManager.swift in Sources */,
+				125DD8392F3AC771006BBFB8 /* TrainingProgramStore.swift in Sources */,
+				125DD83A2F3AC771006BBFB8 /* OnboardingStore.swift in Sources */,
+				125DD7DC2F3AC770006BBFB8 /* CollapsedStepsSummary.swift in Sources */,
+				125DD7FB2F3AC770006BBFB8 /* StatsView.swift in Sources */,
+				125DD8292F3AC771006BBFB8 /* APIModels.swift in Sources */,
+				125DD7D32F3AC770006BBFB8 /* Color+Extensions.swift in Sources */,
+				125DD83C2F3AC771006BBFB8 /* AuthView.swift in Sources */,
+				125DD80E2F3AC771006BBFB8 /* IntakeCompleteScreenView.swift in Sources */,
+				125DD8432F3AC771006BBFB8 /* AppStateCoordinator.swift in Sources */,
+				125DD8192F3AC771006BBFB8 /* ExpandingFabMenu.swift in Sources */,
+				125DD8472F3AC771006BBFB8 /* LocationService.swift in Sources */,
+				125DD8282F3AC771006BBFB8 /* OnboardingModels.swift in Sources */,
+				125DD8172F3AC771006BBFB8 /* OnboardingTopBar.swift in Sources */,
+				125DD81A2F3AC771006BBFB8 /* TypewriterTextView.swift in Sources */,
+				125DD7EE2F3AC770006BBFB8 /* AIMessageSkeleton.swift in Sources */,
+				125DD7FD2F3AC770006BBFB8 /* TrainerMonitoringViews.swift in Sources */,
+				125DD8112F3AC771006BBFB8 /* GoalReviewView.swift in Sources */,
+				125DD8092F3AC771006BBFB8 /* SimpleSelectScreenView.swift in Sources */,
+				125DD8002F3AC770006BBFB8 /* OnboardingAuthView.swift in Sources */,
+				125DD82E2F3AC771006BBFB8 /* JourneyModels.swift in Sources */,
+				125DD83E2F3AC771006BBFB8 /* GoalContractStore.swift in Sources */,
+				125DD7E42F3AC770006BBFB8 /* WorkoutCoachSheets.swift in Sources */,
+				125DD8062F3AC770006BBFB8 /* TextInputScreenView.swift in Sources */,
+				125DD7F72F3AC770006BBFB8 /* LocationEditorView.swift in Sources */,
+				125DD80D2F3AC771006BBFB8 /* VoiceScreenView.swift in Sources */,
+				125DD7E12F3AC770006BBFB8 /* StreamingStepsLine.swift in Sources */,
+				125DD8182F3AC771006BBFB8 /* OTPCodeField.swift in Sources */,
+				125DD81F2F3AC771006BBFB8 /* OnboardingProgressBar.swift in Sources */,
+				125DD7E92F3AC770006BBFB8 /* StrengthExerciseView.swift in Sources */,
+				125DD8052F3AC770006BBFB8 /* ProgramReviewView.swift in Sources */,
+				125DD8042F3AC770006BBFB8 /* OnboardingSuccessView.swift in Sources */,
+				125DD82A2F3AC771006BBFB8 /* IntakeModels.swift in Sources */,
+				125DD7FE2F3AC770006BBFB8 /* TrainerJourneyView.swift in Sources */,
+				125DD8362F3AC771006BBFB8 /* AgentModels.swift in Sources */,
+				125DD7E72F3AC770006BBFB8 /* BodyweightExerciseView.swift in Sources */,
+				125DD8312F3AC771006BBFB8 /* CodableValue+Helpers.swift in Sources */,
+				125DD8352F3AC771006BBFB8 /* WorkoutHistory.swift in Sources */,
+				125DD8342F3AC771006BBFB8 /* CheckinModels.swift in Sources */,
+				125DD7E52F3AC770006BBFB8 /* HomeView.swift in Sources */,
+				125DD7D42F3AC770006BBFB8 /* SpeechManager.swift in Sources */,
+				125DD8252F3AC771006BBFB8 /* WorkoutSessionModels.swift in Sources */,
+				125DD7FA2F3AC770006BBFB8 /* ExerciseDetailSheet.swift in Sources */,
+				125DD8012F3AC770006BBFB8 /* IntakeCoordinatorView.swift in Sources */,
+				125DD8442F3AC771006BBFB8 /* AssistantOverlayManager.swift in Sources */,
+				125DD8382F3AC771006BBFB8 /* AI_Personal_Trainer_AppApp.swift in Sources */,
+				125DD7EF2F3AC770006BBFB8 /* ExerciseCard.swift in Sources */,
+				125DD7EB2F3AC770006BBFB8 /* IsometricExerciseView.swift in Sources */,
+				125DD7D72F3AC770006BBFB8 /* AppView.swift in Sources */,
+				125DD81B2F3AC771006BBFB8 /* FloatingAIButton.swift in Sources */,
+				125DD8302F3AC771006BBFB8 /* UIExercise.swift in Sources */,
+				125DD8272F3AC771006BBFB8 /* LocalIntakeData.swift in Sources */,
+				125DD7F32F3AC770006BBFB8 /* ProfileView.swift in Sources */,
+				125DD82B2F3AC771006BBFB8 /* OnboardingScreenData.swift in Sources */,
+				125DD8232F3AC771006BBFB8 /* ChevronButton.swift in Sources */,
+				125DD8452F3AC771006BBFB8 /* AssessmentSessionStore.swift in Sources */,
+				125DD7F52F3AC770006BBFB8 /* EquipmentInputView.swift in Sources */,
+				125DD81C2F3AC771006BBFB8 /* ToastView.swift in Sources */,
+				125DD8412F3AC771006BBFB8 /* AgentService.swift in Sources */,
+				125DD8142F3AC771006BBFB8 /* OnboardingErrorCard.swift in Sources */,
+				125DD8202F3AC771006BBFB8 /* VoiceBottomBar.swift in Sources */,
+				125DD8462F3AC771006BBFB8 /* UserDataStore.swift in Sources */,
+				125DD7F82F3AC770006BBFB8 /* LocationsListSheet.swift in Sources */,
+				125DD8162F3AC771006BBFB8 /* PillsRow.swift in Sources */,
+				125DD8222F3AC771006BBFB8 /* OnboardingOrbView.swift in Sources */,
+				125DD81D2F3AC771006BBFB8 /* ThinTopBar.swift in Sources */,
+				125DD7E32F3AC770006BBFB8 /* AssistantView.swift in Sources */,
+				125DD7D82F3AC770006BBFB8 /* supabase.swift in Sources */,
+				125DD7F22F3AC770006BBFB8 /* WritingModeView.swift in Sources */,
+				125DD7F62F3AC770006BBFB8 /* LocationMapPickerView.swift in Sources */,
+				125DD8332F3AC771006BBFB8 /* MonitoringModels.swift in Sources */,
+				125DD7DE2F3AC770006BBFB8 /* ChatInputBar.swift in Sources */,
+				125DD81E2F3AC771006BBFB8 /* SideDrawerView.swift in Sources */,
+				125DD7FF2F3AC770006BBFB8 /* OnboardingCoordinatorView.swift in Sources */,
+				125DD80A2F3AC771006BBFB8 /* GuidedVoiceScreenView.swift in Sources */,
+				125DD8032F3AC770006BBFB8 /* NotificationPermissionView.swift in Sources */,
+				125DD82C2F3AC771006BBFB8 /* AssessmentModels.swift in Sources */,
+				125DD7D52F3AC770006BBFB8 /* AppTheme.swift in Sources */,
+				125DD7F12F3AC770006BBFB8 /* ExpandableDescriptionView.swift in Sources */,
+				125DD8152F3AC771006BBFB8 /* SegmentedProgressBar.swift in Sources */,
+				125DD83F2F3AC771006BBFB8 /* ExerciseStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
