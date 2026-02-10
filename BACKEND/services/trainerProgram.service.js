@@ -9,15 +9,14 @@ const supabase = createClient(
   process.env.SUPABASE_SECRET_KEY
 );
 
-const DEFAULT_MODEL = process.env.PRIMARY_MODEL || 'claude-haiku-4-5';
+const DEFAULT_MODEL = process.env.PROGRAM_MODEL || process.env.PRIMARY_MODEL || 'claude-haiku-4-5';
 
 function nowIso() {
   return new Date().toISOString();
 }
 
 async function fetchLatestIntakeSummary(userId) {
-  // Try structured intake first (new flow)
-  const { data: structured, error: sErr } = await supabase
+  const { data, error } = await supabase
     .from('trainer_structured_intake')
     .select('*')
     .eq('user_id', userId)
@@ -25,18 +24,8 @@ async function fetchLatestIntakeSummary(userId) {
     .limit(1)
     .maybeSingle();
 
-  if (!sErr && structured) return structured;
-
-  // Fall back to old conversational intake summaries
-  const { data, error } = await supabase
-    .from('trainer_intake_summaries')
-    .select('summary_json, trainer_intake_sessions!inner(user_id)')
-    .eq('trainer_intake_sessions.user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
   if (error) throw error;
-  return data?.summary_json || null;
+  return data || null;
 }
 
 async function fetchLatestAssessmentBaseline(userId) {

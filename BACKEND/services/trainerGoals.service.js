@@ -9,7 +9,7 @@ const supabase = createClient(
   process.env.SUPABASE_SECRET_KEY
 );
 
-const DEFAULT_MODEL = process.env.PRIMARY_MODEL || 'claude-haiku-4-5';
+const DEFAULT_MODEL = process.env.GOALS_MODEL || process.env.PRIMARY_MODEL || 'claude-haiku-4-5';
 
 function nowIso() {
   return new Date().toISOString();
