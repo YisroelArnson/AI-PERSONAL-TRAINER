@@ -15,15 +15,17 @@ struct GuidedVoiceScreenView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Question
+            // Question — tap to dismiss keyboard
             Text(screen.question ?? "")
                 .font(.system(size: 32, weight: .bold))
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
                 .padding(.top, 32)
+                .contentShape(Rectangle())
+                .onTapGesture { isTextEditorFocused = false }
 
-            // Guided prompts as bullet list
+            // Guided prompts as bullet list — tap to dismiss keyboard
             if let prompts = screen.prompts {
                 VStack(alignment: .leading, spacing: 14) {
                     ForEach(prompts, id: \.self) { prompt in
@@ -42,6 +44,8 @@ struct GuidedVoiceScreenView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
                 .padding(.top, 20)
+                .contentShape(Rectangle())
+                .onTapGesture { isTextEditorFocused = false }
             }
 
             // Text area with clear button
@@ -105,10 +109,6 @@ struct GuidedVoiceScreenView: View {
                     onNext()
                 }
             )
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            isTextEditorFocused = false
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 30)

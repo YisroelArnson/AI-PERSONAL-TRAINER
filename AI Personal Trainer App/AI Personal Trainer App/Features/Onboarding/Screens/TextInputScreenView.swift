@@ -12,14 +12,19 @@ struct TextInputScreenView: View {
     var body: some View {
         VStack(spacing: 0) {
             Spacer()
+                .contentShape(Rectangle())
+                .onTapGesture { isFocused = false }
 
-            // Question
+            // Question — tap to dismiss keyboard
             Text(screen.question ?? "")
                 .font(.system(size: 28, weight: .bold))
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
                 .padding(.bottom, 20)
+                .frame(maxWidth: .infinity)
+                .contentShape(Rectangle())
+                .onTapGesture { isFocused = false }
 
             // Text field
             TextField(screen.placeholder ?? "Type here...", text: $text)
@@ -41,6 +46,8 @@ struct TextInputScreenView: View {
                 }
 
             Spacer()
+                .contentShape(Rectangle())
+                .onTapGesture { isFocused = false }
 
             // Bottom bar with chevron
             HStack {
@@ -51,10 +58,6 @@ struct TextInputScreenView: View {
             }
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            isFocused = false
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 30)

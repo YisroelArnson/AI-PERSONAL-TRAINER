@@ -15,13 +15,15 @@ struct VoiceScreenView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Question
+            // Question — tap to dismiss keyboard
             Text(screen.question ?? "")
                 .font(.system(size: 32, weight: .bold))
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 20)
                 .padding(.top, 32)
+                .contentShape(Rectangle())
+                .onTapGesture { isTextEditorFocused = false }
 
             // Sub text
             if let sub = screen.sub {
@@ -31,6 +33,8 @@ struct VoiceScreenView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
+                    .contentShape(Rectangle())
+                    .onTapGesture { isTextEditorFocused = false }
             }
 
             // Text area with clear button
@@ -94,10 +98,6 @@ struct VoiceScreenView: View {
                     onNext()
                 }
             )
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            isTextEditorFocused = false
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 30)
