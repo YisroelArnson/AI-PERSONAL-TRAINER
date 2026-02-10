@@ -16,8 +16,15 @@ struct OnboardingAuthView: View {
         return email.range(of: emailRegex, options: .regularExpression) != nil
     }
 
+    private var isReturningLogin: Bool {
+        onboardingStore.isReturningLogin
+    }
+
     private var canContinue: Bool {
-        isValidEmail && agreedToTerms && !isLoading
+        if isReturningLogin {
+            return isValidEmail && !isLoading
+        }
+        return isValidEmail && agreedToTerms && !isLoading
     }
 
     var body: some View {
@@ -45,12 +52,14 @@ struct OnboardingAuthView: View {
                 emailInput
                     .padding(.horizontal, AppTheme.Spacing.xxl)
 
-                Spacer()
-                    .frame(height: AppTheme.Spacing.xl)
+                // Terms checkbox (only for new signups)
+                if !isReturningLogin {
+                    Spacer()
+                        .frame(height: AppTheme.Spacing.xl)
 
-                // Terms checkbox
-                termsCheckbox
-                    .padding(.horizontal, AppTheme.Spacing.xxl)
+                    termsCheckbox
+                        .padding(.horizontal, AppTheme.Spacing.xxl)
+                }
 
                 // Error message
                 if let error = errorMessage {
@@ -86,7 +95,7 @@ struct OnboardingAuthView: View {
     // MARK: - Components
 
     private var trainerMessage: some View {
-        Text("Let's save your progress — what's your email?")
+        Text(isReturningLogin ? "Welcome back — enter your email to log in." : "Let's save your progress — what's your email?")
             .font(.system(size: 20, weight: .medium))
             .foregroundColor(AppTheme.Colors.primaryText)
             .multilineTextAlignment(.center)
@@ -191,14 +200,17 @@ struct OnboardingAuthView: View {
 
         Task {
             do {
-                // Store email and terms acceptance
+                // Store email
                 onboardingStore.setPendingEmail(email)
-                onboardingStore.acceptTerms()
+
+                if !isReturningLogin {
+                    onboardingStore.acceptTerms()
+                }
 
                 // Send OTP code via Supabase
                 try await supabase.auth.signInWithOTP(
                     email: email,
-                    shouldCreateUser: true
+                    shouldCreateUser: !isReturningLogin
                 )
 
                 // Move to verification screen

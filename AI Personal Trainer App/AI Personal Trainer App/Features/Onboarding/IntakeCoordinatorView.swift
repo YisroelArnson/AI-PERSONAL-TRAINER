@@ -94,9 +94,14 @@ struct IntakeCoordinatorView: View {
             }
 
         case .introCTA:
-            IntroCTAView {
-                Task { await store.goToNextStep() }
-            }
+            IntroCTAView(
+                onNext: {
+                    Task { await store.goToNextStep() }
+                },
+                onLogin: {
+                    Task { await store.startReturningLogin() }
+                }
+            )
 
         case .textInput:
             TextInputScreenView(

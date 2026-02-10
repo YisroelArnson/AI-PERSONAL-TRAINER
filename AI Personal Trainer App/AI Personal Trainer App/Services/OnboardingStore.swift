@@ -9,6 +9,7 @@ final class OnboardingStore: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String?
     @Published var isGoalLoading: Bool = false
+    @Published var isReturningLogin: Bool = false
 
     enum NavigationDirection { case forward, backward }
     @Published var navigationDirection: NavigationDirection = .forward
@@ -130,6 +131,16 @@ final class OnboardingStore: ObservableObject {
 
     func goToPreviousPhase() async {
         navigationDirection = .backward
+
+        // Returning login: back from auth goes to intro CTA
+        if isReturningLogin && state.currentPhase == .auth {
+            isReturningLogin = false
+            state.currentPhase = .intro
+            state.currentStep = OnboardingScreens.introCount - 1 // CTA screen
+            await saveAndSync()
+            return
+        }
+
         guard let previousPhase = state.currentPhase.previousPhase else { return }
         state.currentPhase = previousPhase
         await saveAndSync()
@@ -179,16 +190,62 @@ final class OnboardingStore: ObservableObject {
         saveLocally()
     }
 
+    func startReturningLogin() async {
+        isReturningLogin = true
+        navigationDirection = .forward
+        state.currentPhase = .auth
+        await saveAndSync()
+    }
+
     func completeAuth() async {
         navigationDirection = .forward
 
-        // Sync local intake data to backend
+        if isReturningLogin {
+            await completeLogin()
+            return
+        }
+
+        // New user flow: sync local intake data to backend
         await syncIntakeToBackend()
 
         // Start goal options generation in background
         Task { await GoalContractStore.shared.fetchGoalOptions() }
 
         state.currentPhase = .goalReview
+        await saveAndSync()
+    }
+
+    func completeLogin() async {
+        navigationDirection = .forward
+        isLoading = true
+
+        do {
+            let journey = try await apiService.fetchJourneyState()
+
+            if journey.programStatus == "active" {
+                // Fully onboarded user — skip to complete
+                state.currentPhase = .complete
+            } else if journey.goalsStatus == "complete" {
+                // Has goals but no active program — go to program review
+                state.currentPhase = .programReview
+            } else if journey.intakeStatus == "complete" {
+                // Intake done but no goals — generate goal options
+                Task { await GoalContractStore.shared.fetchGoalOptions() }
+                state.currentPhase = .goalReview
+            } else {
+                // No server-side progress — start fresh from intake
+                isReturningLogin = false
+                state.currentStep = OnboardingScreens.introCount // skip intro, start at first intake question
+                state.currentPhase = .intake
+            }
+        } catch {
+            // If we can't reach backend, assume fully onboarded
+            // (the AppView auth listener will load user data anyway)
+            state.currentPhase = .complete
+        }
+
+        isLoading = false
+        isReturningLogin = false
         await saveAndSync()
     }
 

@@ -2,10 +2,12 @@ import SwiftUI
 
 struct IntroCTAView: View {
     let onNext: () -> Void
+    let onLogin: () -> Void
 
     @State private var showHeadline = false
     @State private var showSubtext = false
     @State private var showButton = false
+    @State private var showLogin = false
     @State private var orbSettled = false
 
     var body: some View {
@@ -52,16 +54,30 @@ struct IntroCTAView: View {
 
                 Spacer()
 
-                // Get Started button
+                // Get Started button + Login link
                 if showButton {
-                    Button(action: onNext) {
-                        Text("Get Started")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(AppTheme.Colors.background)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 16)
-                            .background(AppTheme.Colors.primaryText)
-                            .clipShape(Capsule())
+                    VStack(spacing: 16) {
+                        Button(action: onNext) {
+                            Text("Get Started")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(AppTheme.Colors.background)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(AppTheme.Colors.primaryText)
+                                .clipShape(Capsule())
+                        }
+
+                        if showLogin {
+                            Button(action: onLogin) {
+                                Text("Already have an account? ")
+                                    .foregroundColor(AppTheme.Colors.secondaryText)
+                                + Text("Log in")
+                                    .foregroundColor(AppTheme.Colors.primaryText)
+                                    .fontWeight(.medium)
+                            }
+                            .font(.system(size: 15))
+                            .transition(.opacity)
+                        }
                     }
                     .padding(.horizontal, 20)
                     .padding(.bottom, 40)
@@ -93,6 +109,13 @@ struct IntroCTAView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                 withAnimation(.easeOut(duration: 0.3)) {
                     showButton = true
+                }
+            }
+
+            // Login link
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    showLogin = true
                 }
             }
         }
