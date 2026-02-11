@@ -60,6 +60,7 @@ struct BirthdayPickerScreenView: View {
 
             // Next button
             Button(action: {
+                Haptic.medium()
                 onChange(selectedDate)
                 onNext()
             }) {

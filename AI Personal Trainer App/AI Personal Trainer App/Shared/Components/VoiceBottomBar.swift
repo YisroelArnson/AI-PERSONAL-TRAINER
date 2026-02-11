@@ -10,7 +10,7 @@ struct VoiceBottomBar: View {
         HStack(spacing: 0) {
             if recording {
                 // Recording state: expanded pill with waveform
-                Button(action: onMic) {
+                Button(action: { Haptic.light(); onMic() }) {
                     HStack(spacing: 12) {
                         Image(systemName: "stop.fill")
                             .font(.system(size: 14))
@@ -27,7 +27,7 @@ struct VoiceBottomBar: View {
                 Spacer()
             } else {
                 // Idle state: mic button + spacer + chevron
-                Button(action: onMic) {
+                Button(action: { Haptic.light(); onMic() }) {
                     Image(systemName: "mic.fill")
                         .font(.system(size: 20))
                         .foregroundColor(AppTheme.Colors.primaryText)

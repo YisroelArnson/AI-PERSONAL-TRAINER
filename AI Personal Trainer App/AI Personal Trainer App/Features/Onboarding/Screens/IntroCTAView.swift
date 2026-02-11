@@ -57,7 +57,7 @@ struct IntroCTAView: View {
                 // Get Started button + Login link
                 if showButton {
                     VStack(spacing: 16) {
-                        Button(action: onNext) {
+                        Button(action: { Haptic.medium(); onNext() }) {
                             Text("Get Started")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(AppTheme.Colors.background)

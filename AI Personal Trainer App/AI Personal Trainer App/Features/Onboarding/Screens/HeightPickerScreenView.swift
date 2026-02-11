@@ -60,8 +60,7 @@ struct HeightPickerScreenView: View {
             .frame(height: 220)
             .padding(.horizontal, 40)
             .onChange(of: selectedInches) { _, newValue in
-                let haptic = UIImpactFeedbackGenerator(style: .light)
-                haptic.impactOccurred()
+                Haptic.light()
                 onChange(newValue)
             }
 
@@ -69,6 +68,7 @@ struct HeightPickerScreenView: View {
 
             // Next button
             Button(action: {
+                Haptic.medium()
                 onChange(selectedInches)
                 onNext()
             }) {

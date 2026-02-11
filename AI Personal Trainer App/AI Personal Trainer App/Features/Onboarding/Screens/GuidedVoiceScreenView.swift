@@ -66,6 +66,7 @@ struct GuidedVoiceScreenView: View {
                 // Clear button
                 if !text.isEmpty && !isRecording {
                     Button {
+                        Haptic.light()
                         text = ""
                         selectedPill = nil
                         if let field = screen.field {

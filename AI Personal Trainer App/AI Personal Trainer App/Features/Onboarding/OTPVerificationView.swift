@@ -35,6 +35,7 @@ struct OTPVerificationView: View {
 
                 // OTP Code input
                 OTPCodeField(code: $code) { completedCode in
+                    Haptic.success()
                     verifyCode(completedCode)
                 }
                 .disabled(isLoading)
@@ -150,6 +151,7 @@ struct OTPVerificationView: View {
                 // Move to next phase
                 await onboardingStore.completeAuth()
             } catch {
+                Haptic.error()
                 // Check if it's an invalid/expired code error
                 if error.localizedDescription.lowercased().contains("invalid") ||
                    error.localizedDescription.lowercased().contains("expired") {

@@ -131,7 +131,7 @@ struct OnboardingAuthView: View {
     }
 
     private var termsCheckbox: some View {
-        Button(action: { agreedToTerms.toggle() }) {
+        Button(action: { Haptic.selection(); agreedToTerms.toggle() }) {
             HStack(alignment: .top, spacing: AppTheme.Spacing.sm) {
                 Image(systemName: agreedToTerms ? "checkmark.square.fill" : "square")
                     .font(.system(size: 20))
@@ -194,6 +194,7 @@ struct OnboardingAuthView: View {
 
     private func sendOTP() {
         guard canContinue else { return }
+        Haptic.medium()
 
         isLoading = true
         errorMessage = nil

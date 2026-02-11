@@ -4,14 +4,12 @@ struct UnitToggle: View {
     let options: [String]
     @Binding var selectedIndex: Int
 
-    private let haptic = UIImpactFeedbackGenerator(style: .light)
-
     var body: some View {
         HStack(spacing: 0) {
             ForEach(Array(options.enumerated()), id: \.offset) { index, option in
                 Button {
                     guard selectedIndex != index else { return }
-                    haptic.impactOccurred()
+                    Haptic.light()
                     withAnimation(.easeInOut(duration: 0.2)) {
                         selectedIndex = index
                     }

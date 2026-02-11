@@ -57,6 +57,7 @@ struct IntroHeroView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
+            Haptic.light()
             onNext()
         }
         .onAppear {

@@ -140,6 +140,7 @@ struct ProgramReviewView: View {
     // MARK: - Actions
 
     private func activateProgram() {
+        Haptic.medium()
         isActivating = true
         Task {
             await programStore.approve()

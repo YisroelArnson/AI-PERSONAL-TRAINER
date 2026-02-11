@@ -149,6 +149,7 @@ struct ProcessOverviewView: View {
     // MARK: - Actions
 
     private func proceed() {
+        Haptic.medium()
         Task {
             await onboardingStore.completeProcessOverview()
         }
