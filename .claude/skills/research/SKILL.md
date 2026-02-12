@@ -54,7 +54,7 @@ Then wait for the user's research query.
 
 5. **Gather metadata for the research document:**
    - generate all relevant metadata
-   - Filename: `thoughts/shared/research/YYYY-MM-DD-ENG-XXXX-description.md`
+   - Filename: `docs/research/YYYY-MM-DD-ENG-XXXX-description.md`
      - Format: `YYYY-MM-DD-ENG-XXXX-description.md` where:
        - YYYY-MM-DD is today's date
        - ENG-XXXX is the ticket number (omit if no ticket)
@@ -111,14 +111,13 @@ Then wait for the user's research query.
      ## Architecture Insights
      [Patterns, conventions, and design decisions discovered]
 
-     ## Historical Context (from thoughts/)
-     [Relevant insights from thoughts/ directory with references]
-     - `thoughts/shared/something.md` - Historical decision about X
-     - `thoughts/local/notes.md` - Past exploration of Y
-     Note: Paths exclude "searchable/" even if found there
+     ## Historical Context
+     [Relevant insights from docs/ directory with references]
+     - `docs/research/something.md` - Historical decision about X
+     - `docs/plans/something.md` - Past plan for Y
 
      ## Related Research
-     [Links to other research documents in thoughts/shared/research/]
+     [Links to other research documents in docs/research/]
 
      ## Open Questions
      [Any areas that need further investigation]

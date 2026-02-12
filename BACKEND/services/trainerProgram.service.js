@@ -304,10 +304,15 @@ IMPORTANT for sessions: Do NOT lock in specific exercises. Instead, for each ses
   const client = getAnthropicClient();
   const response = await client.messages.create({
     model: DEFAULT_MODEL,
-    max_tokens: 4096,
+    max_tokens: 16384,
     system: [{ type: 'text', text: PROGRAM_SYSTEM_PROMPT }],
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
   });
+
+  if (response.stop_reason === 'max_tokens') {
+    console.error('Program response truncated — hit max_tokens limit');
+    throw new Error('Program generation was too long and got cut off. Please try again.');
+  }
 
   const textBlock = response.content.find(block => block.type === 'text');
   const raw = textBlock?.text || '';

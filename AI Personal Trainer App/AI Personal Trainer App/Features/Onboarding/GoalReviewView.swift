@@ -28,19 +28,13 @@ struct GoalReviewView: View {
                     errorState(error)
                 } else {
                     optionsContent
-                }
-            }
-
-            // Bottom confirm button
-            if selectedOption != nil && !isSelecting && !isRefining {
-                VStack {
-                    Spacer()
-                    confirmButton
+                    bottomBar
                 }
             }
         }
         .animation(.easeInOut(duration: 0.3), value: contentVisible)
         .animation(.easeInOut(duration: 0.25), value: selectedOption?.id)
+        .animation(.easeInOut(duration: 0.3), value: isRefining)
         .task {
             if goalStore.goalOptions.isEmpty && !goalStore.isLoading {
                 await goalStore.fetchGoalOptions()
@@ -85,111 +79,125 @@ struct GoalReviewView: View {
     // MARK: - Options Content
 
     private var optionsContent: some View {
-        ScrollView {
-            VStack(spacing: 0) {
-                // Header
-                Text("Choose Your Path")
-                    .font(.system(size: 28, weight: .bold))
-                    .foregroundColor(AppTheme.Colors.primaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 20)
-                    .opacity(contentVisible ? 1 : 0)
+        ZStack {
+            ScrollView {
+                VStack(spacing: 0) {
+                    // Header
+                    Text("Choose Your Path")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 20)
+                        .opacity(contentVisible ? 1 : 0)
 
-                // User's goal text from intake
-                if let goalText = userGoalText, !goalText.isEmpty {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Text("You said:")
-                            .font(.system(size: 13, weight: .medium))
+                    // User's goal text from intake
+                    if let goalText = userGoalText, !goalText.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("You said:")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(AppTheme.Colors.tertiaryText)
+                                .textCase(.uppercase)
+                                .tracking(0.5)
+
+                            Text("\"\(goalText)\"")
+                                .font(.system(size: 16))
+                                .foregroundColor(AppTheme.Colors.secondaryText)
+                                .italic()
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(16)
+                        .background(AppTheme.Colors.surface)
+                        .cornerRadius(AppTheme.CornerRadius.medium)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 16)
+                        .opacity(contentVisible ? 1 : 0)
+
+                        // Arrow indicating refinement
+                        Image(systemName: "arrow.down")
+                            .font(.system(size: 16, weight: .medium))
                             .foregroundColor(AppTheme.Colors.tertiaryText)
-                            .textCase(.uppercase)
-                            .tracking(0.5)
-
-                        Text("\"\(goalText)\"")
-                            .font(.system(size: 16))
-                            .foregroundColor(AppTheme.Colors.secondaryText)
-                            .italic()
-                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.vertical, 12)
+                            .opacity(contentVisible ? 1 : 0)
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(16)
-                    .background(AppTheme.Colors.surface)
-                    .cornerRadius(AppTheme.CornerRadius.medium)
-                    .padding(.horizontal, 24)
-                    .padding(.top, 16)
-                    .opacity(contentVisible ? 1 : 0)
 
-                    // Arrow indicating refinement
-                    Image(systemName: "arrow.down")
+                    // Subtitle
+                    Text("Pick the goal that resonates most, or refine below.")
+                        .font(.system(size: 15))
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 16)
+                        .opacity(contentVisible ? 1 : 0)
+
+                    // Goal option cards
+                    VStack(spacing: 12) {
+                        ForEach(Array(goalStore.goalOptions.enumerated()), id: \.element.id) { index, option in
+                            GoalOptionCard(
+                                option: option,
+                                isSelected: selectedOption?.id == option.id,
+                                onTap: { Haptic.selection(); selectedOption = option }
+                            )
+                            .opacity(contentVisible ? 1 : 0)
+                            .offset(y: contentVisible ? 0 : 20)
+                            .animation(.easeOut(duration: 0.4).delay(0.1 * Double(index + 1)), value: contentVisible)
+                        }
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+                }
+            }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 30)
+                    .onEnded { value in
+                        if value.translation.height > 30 {
+                            isEditFocused = false
+                        }
+                    }
+            )
+            .allowsHitTesting(!isRefining)
+
+            // Refining overlay
+            if isRefining {
+                AppTheme.Colors.background.opacity(0.75)
+
+                VStack(spacing: 14) {
+                    ProgressView()
+                        .scaleEffect(1.3)
+                    Text("Refining your goals...")
                         .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(AppTheme.Colors.tertiaryText)
-                        .padding(.vertical, 12)
-                        .opacity(contentVisible ? 1 : 0)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
                 }
-
-                // Subtitle
-                Text("Pick the goal that resonates most, or suggest changes below.")
-                    .font(.system(size: 15))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 24)
-                    .padding(.bottom, 16)
-                    .opacity(contentVisible ? 1 : 0)
-
-                // Goal option cards
-                VStack(spacing: 12) {
-                    ForEach(Array(goalStore.goalOptions.enumerated()), id: \.element.id) { index, option in
-                        GoalOptionCard(
-                            option: option,
-                            isSelected: selectedOption?.id == option.id,
-                            onTap: { Haptic.selection(); selectedOption = option }
-                        )
-                        .opacity(contentVisible ? 1 : 0)
-                        .offset(y: contentVisible ? 0 : 20)
-                        .animation(.easeOut(duration: 0.4).delay(0.1 * Double(index + 1)), value: contentVisible)
-                    }
-                }
-                .padding(.horizontal, 24)
-
-                // Edit / refine section
-                editSection
-                    .padding(.horizontal, 24)
-                    .padding(.top, 20)
-                    .padding(.bottom, selectedOption != nil ? 120 : 40)
-                    .opacity(contentVisible ? 1 : 0)
+                .transition(.opacity)
             }
         }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 30)
-                .onEnded { value in
-                    if value.translation.height > 30 {
-                        isEditFocused = false
-                    }
-                }
-        )
     }
 
-    // MARK: - Edit Section
+    // MARK: - Bottom Bar
 
-    private var editSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Want something different?")
-                .font(.system(size: 15, weight: .medium))
-                .foregroundColor(AppTheme.Colors.secondaryText)
+    private var bottomBar: some View {
+        VStack(spacing: 0) {
+            // Top separator
+            Rectangle()
+                .fill(AppTheme.Colors.tertiaryText.opacity(0.2))
+                .frame(height: 1)
 
-            HStack(spacing: 10) {
-                TextField("e.g., I'd rather focus on mobility...", text: $editText)
-                    .font(.system(size: 15))
-                    .foregroundColor(AppTheme.Colors.primaryText)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 12)
-                    .background(AppTheme.Colors.surface)
-                    .cornerRadius(AppTheme.CornerRadius.medium)
-                    .focused($isEditFocused)
-                    .submitLabel(.send)
-                    .onSubmit { refineGoals() }
+            VStack(spacing: 14) {
+                // Refine input
+                HStack(spacing: 10) {
+                    Image(systemName: "pencil.line")
+                        .font(.system(size: 14))
+                        .foregroundColor(AppTheme.Colors.tertiaryText)
 
-                if !editText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    TextField("Suggest changes to your goals...", text: $editText)
+                        .font(.system(size: 15))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .focused($isEditFocused)
+                        .submitLabel(.send)
+                        .onSubmit { refineGoals() }
+                        .disabled(isRefining)
+
                     Button(action: refineGoals) {
                         if isRefining {
                             ProgressView()
@@ -198,48 +206,47 @@ struct GoalReviewView: View {
                         } else {
                             Image(systemName: "arrow.up.circle.fill")
                                 .font(.system(size: 28))
-                                .foregroundColor(AppTheme.Colors.primaryText)
+                                .foregroundColor(
+                                    editText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                                        ? AppTheme.Colors.tertiaryText
+                                        : AppTheme.Colors.primaryText
+                                )
                         }
                     }
-                    .disabled(isRefining)
+                    .disabled(isRefining || editText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(AppTheme.Colors.surface)
+                .cornerRadius(AppTheme.CornerRadius.medium)
+
+                // Confirm button
+                if selectedOption != nil {
+                    Button(action: confirmSelection) {
+                        if isSelecting {
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                        } else {
+                            Text("Continue with this goal")
+                                .font(.system(size: 17, weight: .semibold))
+                                .foregroundColor(AppTheme.Colors.background)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                        }
+                    }
+                    .background(AppTheme.Colors.primaryText)
+                    .cornerRadius(AppTheme.CornerRadius.large)
+                    .disabled(isSelecting || isRefining)
                 }
             }
+            .padding(.horizontal, 24)
+            .padding(.top, 14)
+            .padding(.bottom, 16)
         }
-    }
-
-    // MARK: - Confirm Button
-
-    private var confirmButton: some View {
-        VStack(spacing: 0) {
-            Button(action: confirmSelection) {
-                if isSelecting {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: AppTheme.Colors.background))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                } else {
-                    Text("Continue with this goal")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.background)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                }
-            }
-            .background(AppTheme.Colors.primaryText)
-            .cornerRadius(AppTheme.CornerRadius.large)
-            .disabled(isSelecting)
-        }
-        .padding(.horizontal, AppTheme.Spacing.xxl)
-        .padding(.bottom, 40)
-        .background(
-            LinearGradient(
-                colors: [AppTheme.Colors.background.opacity(0), AppTheme.Colors.background],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 100)
-            .offset(y: -40)
-        )
+        .background(AppTheme.Colors.background)
+        .opacity(contentVisible ? 1 : 0)
     }
 
     // MARK: - Actions

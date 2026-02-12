@@ -149,7 +149,7 @@
                   "name": "dot1",
                   "width": 24,
                   "height": 8,
-                  "fill": "$accent-blue",
+                  "fill": "#FFFFFF",
                   "cornerRadius": 4
                 },
                 {
@@ -243,7 +243,7 @@
               "name": "td2",
               "width": 24,
               "height": 8,
-              "fill": "$accent-blue",
+              "fill": "#FFFFFF",
               "cornerRadius": 4
             },
             {
@@ -466,7 +466,7 @@
               "name": "d3c",
               "width": 24,
               "height": 8,
-              "fill": "$accent-blue",
+              "fill": "#FFFFFF",
               "cornerRadius": 4
             },
             {
@@ -689,7 +689,7 @@
               "name": "d4d",
               "width": 24,
               "height": 8,
-              "fill": "$accent-blue",
+              "fill": "#FFFFFF",
               "cornerRadius": 4
             },
             {
@@ -912,7 +912,7 @@
               "name": "d5e",
               "width": 24,
               "height": 8,
-              "fill": "$accent-blue",
+              "fill": "#FFFFFF",
               "cornerRadius": 4
             }
           ]
@@ -1124,7 +1124,7 @@
                   "name": "progFill6",
                   "width": 36,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#FFFFFF",
                   "cornerRadius": 2
                 }
               ]
@@ -1143,7 +1143,7 @@
               "type": "text",
               "id": "VnjYt",
               "name": "stepLabel6",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 1 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -1295,7 +1295,7 @@
                   "name": "progFill7",
                   "width": 69,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#FFFFFF",
                   "cornerRadius": 2
                 }
               ]
@@ -1314,7 +1314,7 @@
               "type": "text",
               "id": "wTCS3",
               "name": "stepLabel7",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 2 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -1350,7 +1350,7 @@
                   "stroke": {
                     "align": "inside",
                     "thickness": 1.5,
-                    "fill": "$accent-blue"
+                    "fill": "#FFFFFF"
                   },
                   "gap": 12,
                   "padding": [
@@ -1367,7 +1367,7 @@
                       "height": 22,
                       "iconFontName": "user",
                       "iconFontFamily": "lucide",
-                      "fill": "$accent-blue"
+                      "fill": "#FFFFFF"
                     },
                     {
                       "type": "text",
@@ -1562,7 +1562,7 @@
                   "name": "progFill8",
                   "width": 103,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#FFFFFF",
                   "cornerRadius": 2
                 }
               ]
@@ -1582,7 +1582,7 @@
               "type": "text",
               "id": "9gQl5",
               "name": "stepLabel8",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 3 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -1791,7 +1791,7 @@
                   "name": "pFill9",
                   "width": 138,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#FFFFFF",
                   "cornerRadius": 2
                 }
               ]
@@ -1811,7 +1811,7 @@
               "type": "text",
               "id": "CBDx4",
               "name": "step9",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 4 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -2108,7 +2108,7 @@
                   "name": "pFill10",
                   "width": 172,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#FFFFFF",
                   "cornerRadius": 2
                 }
               ]
@@ -2128,7 +2128,7 @@
               "type": "text",
               "id": "5WNiB",
               "name": "step10",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 5 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -2397,7 +2397,7 @@
                   "name": "pFill11",
                   "width": 207,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#FFFFFF",
                   "cornerRadius": 2
                 }
               ]
@@ -2417,7 +2417,7 @@
               "type": "text",
               "id": "7kKxh",
               "name": "step11v",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 6 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -2657,7 +2657,7 @@
                   "name": "pFill12",
                   "width": 241,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#FFFFFF",
                   "cornerRadius": 2
                 }
               ]
@@ -2677,7 +2677,7 @@
               "type": "text",
               "id": "5237Y",
               "name": "step12",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 7 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -2917,7 +2917,7 @@
                   "name": "pFill13",
                   "width": 276,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#FFFFFF",
                   "cornerRadius": 2
                 }
               ]
@@ -2937,7 +2937,7 @@
               "type": "text",
               "id": "3fWfR",
               "name": "step13",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 8 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -3177,7 +3177,7 @@
                   "name": "pFill14",
                   "width": 310,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#FFFFFF",
                   "cornerRadius": 2
                 }
               ]
@@ -3197,7 +3197,7 @@
               "type": "text",
               "id": "axysF",
               "name": "step14",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 9 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -3426,7 +3426,7 @@
               "name": "pBar15",
               "width": "fill_container",
               "height": 4,
-              "fill": "$accent-blue",
+              "fill": "#FFFFFF",
               "cornerRadius": 2
             }
           ]
@@ -3711,7 +3711,7 @@
                   "name": "dot1",
                   "width": 24,
                   "height": 8,
-                  "fill": "$accent-blue",
+                  "fill": "#1A1A1D",
                   "cornerRadius": 4
                 },
                 {
@@ -3805,7 +3805,7 @@
               "name": "td2",
               "width": 24,
               "height": 8,
-              "fill": "$accent-blue",
+              "fill": "#1A1A1D",
               "cornerRadius": 4
             },
             {
@@ -4028,7 +4028,7 @@
               "name": "d3c",
               "width": 24,
               "height": 8,
-              "fill": "$accent-blue",
+              "fill": "#1A1A1D",
               "cornerRadius": 4
             },
             {
@@ -4251,7 +4251,7 @@
               "name": "d4d",
               "width": 24,
               "height": 8,
-              "fill": "$accent-blue",
+              "fill": "#1A1A1D",
               "cornerRadius": 4
             },
             {
@@ -4474,7 +4474,7 @@
               "name": "d5e",
               "width": 24,
               "height": 8,
-              "fill": "$accent-blue",
+              "fill": "#1A1A1D",
               "cornerRadius": 4
             }
           ]
@@ -4686,7 +4686,7 @@
                   "name": "progFill6",
                   "width": 36,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#1A1A1D",
                   "cornerRadius": 2
                 }
               ]
@@ -4705,7 +4705,7 @@
               "type": "text",
               "id": "4THna",
               "name": "stepLabel6",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 1 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -4857,7 +4857,7 @@
                   "name": "progFill7",
                   "width": 69,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#1A1A1D",
                   "cornerRadius": 2
                 }
               ]
@@ -4876,7 +4876,7 @@
               "type": "text",
               "id": "rYitz",
               "name": "stepLabel7",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 2 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -4912,7 +4912,7 @@
                   "stroke": {
                     "align": "inside",
                     "thickness": 1.5,
-                    "fill": "$accent-blue"
+                    "fill": "#1A1A1D"
                   },
                   "gap": 12,
                   "padding": [
@@ -4929,7 +4929,7 @@
                       "height": 22,
                       "iconFontName": "user",
                       "iconFontFamily": "lucide",
-                      "fill": "$accent-blue"
+                      "fill": "#1A1A1D"
                     },
                     {
                       "type": "text",
@@ -5124,7 +5124,7 @@
                   "name": "progFill8",
                   "width": 103,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#1A1A1D",
                   "cornerRadius": 2
                 }
               ]
@@ -5144,7 +5144,7 @@
               "type": "text",
               "id": "mJiDx",
               "name": "stepLabel8",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 3 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -5353,7 +5353,7 @@
                   "name": "pFill9",
                   "width": 138,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#1A1A1D",
                   "cornerRadius": 2
                 }
               ]
@@ -5373,7 +5373,7 @@
               "type": "text",
               "id": "qJLxW",
               "name": "step9",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 4 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -5670,7 +5670,7 @@
                   "name": "pFill10",
                   "width": 172,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#1A1A1D",
                   "cornerRadius": 2
                 }
               ]
@@ -5690,7 +5690,7 @@
               "type": "text",
               "id": "eXFUh",
               "name": "step10",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 5 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -5959,7 +5959,7 @@
                   "name": "pFill11",
                   "width": 207,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#1A1A1D",
                   "cornerRadius": 2
                 }
               ]
@@ -5979,7 +5979,7 @@
               "type": "text",
               "id": "AjTYu",
               "name": "step11v",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 6 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -6219,7 +6219,7 @@
                   "name": "pFill12",
                   "width": 241,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#1A1A1D",
                   "cornerRadius": 2
                 }
               ]
@@ -6239,7 +6239,7 @@
               "type": "text",
               "id": "thR4y",
               "name": "step12",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 7 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -6479,7 +6479,7 @@
                   "name": "pFill13",
                   "width": 276,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#1A1A1D",
                   "cornerRadius": 2
                 }
               ]
@@ -6499,7 +6499,7 @@
               "type": "text",
               "id": "z6zrj",
               "name": "step13",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 8 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -6739,7 +6739,7 @@
                   "name": "pFill14",
                   "width": 310,
                   "height": 4,
-                  "fill": "$accent-blue",
+                  "fill": "#1A1A1D",
                   "cornerRadius": 2
                 }
               ]
@@ -6759,7 +6759,7 @@
               "type": "text",
               "id": "9gfdl",
               "name": "step14",
-              "fill": "$accent-blue",
+              "fill": "#8E8E93",
               "content": "Step 9 of 10",
               "fontFamily": "Inter",
               "fontSize": 14,
@@ -6988,7 +6988,7 @@
               "name": "pBar15",
               "width": "fill_container",
               "height": 4,
-              "fill": "$accent-blue",
+              "fill": "#1A1A1D",
               "cornerRadius": 2
             }
           ]

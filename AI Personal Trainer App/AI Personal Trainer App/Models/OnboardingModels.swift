@@ -84,8 +84,10 @@ enum OnboardingPhase: String, Codable, CaseIterable {
             return OrbConfig(size: 60, icon: nil, alignment: .topCenter)
         case .processOverview:
             return OrbConfig(size: 80, icon: nil, alignment: .hidden)
-        case .goalReview, .programReview:
-            return OrbConfig(size: 50, icon: nil, alignment: .topLeading)
+        case .goalReview:
+            return OrbConfig(size: 0, icon: nil, alignment: .hidden)
+        case .programReview:
+            return OrbConfig(size: 0, icon: nil, alignment: .hidden)
         case .notificationPermission:
             return OrbConfig(size: 100, icon: "bell.fill", alignment: .center)
         case .success:

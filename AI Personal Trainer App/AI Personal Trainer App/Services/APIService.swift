@@ -608,7 +608,7 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
 
-        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 45)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 120)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -623,7 +623,7 @@ class APIService: ObservableObject {
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(ProgramEditRequest(instruction: instruction))
 
-        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 45)
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 120)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
