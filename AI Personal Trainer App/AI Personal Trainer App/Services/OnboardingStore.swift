@@ -10,6 +10,7 @@ final class OnboardingStore: ObservableObject {
     @Published var errorMessage: String?
     @Published var isGoalLoading: Bool = false
     @Published var isReturningLogin: Bool = false
+    @Published var showResumeGate: Bool = false
 
     enum NavigationDirection { case forward, backward }
     @Published var navigationDirection: NavigationDirection = .forward
@@ -29,6 +30,11 @@ final class OnboardingStore: ObservableObject {
             } else {
                 // Restore in-progress state
                 self.state = savedState
+                // Show resume gate if user left during intake questions
+                if savedState.currentStep > OnboardingScreens.introCount
+                    && (savedState.currentPhase == .intake || savedState.currentPhase == .intakeComplete) {
+                    self.showResumeGate = true
+                }
             }
         } else {
             self.state = OnboardingState.initial
@@ -335,6 +341,18 @@ final class OnboardingStore: ObservableObject {
         navigationDirection = .forward
         state.currentPhase = .complete
         await saveAndSync()
+    }
+
+    // MARK: - Resume Gate
+
+    func dismissResumeGate() {
+        showResumeGate = false
+    }
+
+    func startOverFromResumeGate() {
+        state = OnboardingState.initial
+        showResumeGate = false
+        saveLocally()
     }
 
     // MARK: - Reset (for testing)

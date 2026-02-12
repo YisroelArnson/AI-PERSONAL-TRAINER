@@ -129,6 +129,7 @@ struct NotificationPermissionView: View {
     // MARK: - Actions
 
     private func requestNotificationPermission() {
+        Haptic.medium()
         isRequestingPermission = true
 
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, _ in
@@ -143,6 +144,7 @@ struct NotificationPermissionView: View {
     }
 
     private func skipNotifications() {
+        Haptic.light()
         Task {
             await onboardingStore.skipNotifications()
             await onboardingStore.setPhase(.success)

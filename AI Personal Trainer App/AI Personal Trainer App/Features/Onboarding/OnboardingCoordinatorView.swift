@@ -67,51 +67,61 @@ struct OnboardingCoordinatorView: View {
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: 0) {
-            // ThinTopBar (only for post-intake phases that need it)
-            if shouldShowTopBar {
-                ThinTopBar(
-                    title: onboardingStore.state.currentPhase.displayTitle,
-                    onBack: handleBack
-                )
-            }
-
-            // Step progress bar (Goals → Program → Ready)
-            if shouldShowStepBar {
-                StepProgressBar(currentPhase: onboardingStore.state.currentPhase)
-            }
-
-            ZStack {
-                // Phase content
-                currentPhaseView
-                    .id(onboardingStore.state.currentPhase)
-                    .transition(phaseTransition)
-
-                // Persistent orb (only for post-intake phases)
-                if currentOrbConfig.alignment != .hidden {
-                    OnboardingOrbView(
-                        size: currentOrbConfig.size,
-                        icon: currentOrbConfig.icon,
-                        isLoading: false
+        ZStack {
+            VStack(spacing: 0) {
+                // ThinTopBar (only for post-intake phases that need it)
+                if shouldShowTopBar {
+                    ThinTopBar(
+                        title: onboardingStore.state.currentPhase.displayTitle,
+                        onBack: handleBack
                     )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity,
-                           alignment: orbFrameAlignment)
-                    .padding(orbPadding)
-                    .animation(.spring(response: 0.5, dampingFraction: 0.8),
-                              value: onboardingStore.state.currentPhase)
-                    .allowsHitTesting(false)
+                }
+
+                // Step progress bar (Goals → Program → Ready)
+                if shouldShowStepBar {
+                    StepProgressBar(currentPhase: onboardingStore.state.currentPhase)
+                }
+
+                ZStack {
+                    // Phase content
+                    currentPhaseView
+                        .id(onboardingStore.state.currentPhase)
+                        .transition(phaseTransition)
+
+                    // Persistent orb (only for post-intake phases)
+                    if currentOrbConfig.alignment != .hidden {
+                        OnboardingOrbView(
+                            size: currentOrbConfig.size,
+                            icon: currentOrbConfig.icon,
+                            isLoading: false
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity,
+                               alignment: orbFrameAlignment)
+                        .padding(orbPadding)
+                        .animation(.spring(response: 0.5, dampingFraction: 0.8),
+                                  value: onboardingStore.state.currentPhase)
+                        .allowsHitTesting(false)
+                    }
                 }
             }
-        }
-        .animation(.easeInOut(duration: 0.35), value: onboardingStore.state.currentPhase)
-        .alert("Go Back?", isPresented: $showBackConfirmation) {
-            Button("Stay", role: .cancel) {}
-            Button("Go Back", role: .destructive) {
-                Task { await onboardingStore.goToPreviousPhase() }
+            .animation(.easeInOut(duration: 0.35), value: onboardingStore.state.currentPhase)
+            .alert("Go Back?", isPresented: $showBackConfirmation) {
+                Button("Stay", role: .cancel) {}
+                Button("Go Back", role: .destructive) {
+                    Task { await onboardingStore.goToPreviousPhase() }
+                }
+            } message: {
+                Text("Your progress on this screen may not be saved.")
             }
-        } message: {
-            Text("Your progress on this screen may not be saved.")
+
+            // Resume gate overlay — shown when user returns mid-onboarding
+            if onboardingStore.showResumeGate {
+                OnboardingResumeView()
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
         }
+        .animation(.easeInOut(duration: 0.3), value: onboardingStore.showResumeGate)
     }
 
     // MARK: - Actions

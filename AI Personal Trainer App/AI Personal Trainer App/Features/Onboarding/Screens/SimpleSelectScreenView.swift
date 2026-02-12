@@ -33,6 +33,7 @@ struct SimpleSelectScreenView: View {
             VStack(spacing: 8) {
                 ForEach(screen.options ?? [], id: \.self) { option in
                     Button {
+                        Haptic.selection()
                         selected = option
                         if let field = screen.field {
                             onChange(field, option)

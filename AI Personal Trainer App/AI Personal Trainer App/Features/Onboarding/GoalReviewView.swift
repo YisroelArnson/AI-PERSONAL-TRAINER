@@ -142,7 +142,7 @@ struct GoalReviewView: View {
                         GoalOptionCard(
                             option: option,
                             isSelected: selectedOption?.id == option.id,
-                            onTap: { selectedOption = option }
+                            onTap: { Haptic.selection(); selectedOption = option }
                         )
                         .opacity(contentVisible ? 1 : 0)
                         .offset(y: contentVisible ? 0 : 20)
@@ -246,6 +246,7 @@ struct GoalReviewView: View {
 
     private func confirmSelection() {
         guard let option = selectedOption else { return }
+        Haptic.medium()
         isSelecting = true
         Task {
             await goalStore.selectOption(option)
@@ -260,6 +261,7 @@ struct GoalReviewView: View {
     private func refineGoals() {
         let instruction = editText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !instruction.isEmpty else { return }
+        Haptic.light()
         isEditFocused = false
         isRefining = true
         selectedOption = nil

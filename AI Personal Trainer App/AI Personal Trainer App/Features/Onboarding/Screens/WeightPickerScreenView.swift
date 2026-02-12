@@ -58,8 +58,7 @@ struct WeightPickerScreenView: View {
             .frame(height: 220)
             .padding(.horizontal, 40)
             .onChange(of: selectedLbs) { _, newValue in
-                let haptic = UIImpactFeedbackGenerator(style: .light)
-                haptic.impactOccurred()
+                Haptic.light()
                 onChange(Double(newValue))
             }
 
@@ -67,6 +66,7 @@ struct WeightPickerScreenView: View {
 
             // Next button
             Button(action: {
+                Haptic.medium()
                 onChange(Double(selectedLbs))
                 onNext()
             }) {

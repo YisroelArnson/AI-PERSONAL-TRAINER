@@ -35,7 +35,7 @@ struct IntakeCompleteScreenView: View {
             Spacer()
 
             if showButton {
-                Button(action: onCreateProgram) {
+                Button(action: { Haptic.medium(); onCreateProgram() }) {
                     Text("Create my program")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AppTheme.Colors.background)

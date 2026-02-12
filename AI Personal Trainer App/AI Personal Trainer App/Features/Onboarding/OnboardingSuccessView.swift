@@ -142,8 +142,9 @@ struct OnboardingSuccessView: View {
     // MARK: - Animations
 
     private func startAnimations() {
-        // Confetti
+        // Confetti + haptic celebration
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            Haptic.success()
             showConfetti = true
         }
 
@@ -165,6 +166,7 @@ struct OnboardingSuccessView: View {
     // MARK: - Actions
 
     private func finishOnboarding() {
+        Haptic.medium()
         Task {
             await onboardingStore.completeOnboarding()
         }

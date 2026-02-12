@@ -7,6 +7,7 @@ struct ChevronButton: View {
     var body: some View {
         Button(action: {
             guard enabled else { return }
+            Haptic.medium()
             action()
         }) {
             Image(systemName: "chevron.right")
