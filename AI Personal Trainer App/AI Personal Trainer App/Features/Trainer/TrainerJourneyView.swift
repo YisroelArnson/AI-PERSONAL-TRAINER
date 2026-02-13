@@ -429,7 +429,7 @@ struct ProgramDesignView: View {
 
                 VStack(spacing: AppTheme.Spacing.lg) {
                     if let program = programStore.program {
-                        ProgramCard(program: program.program)
+                        ProgramCard(markdown: program.programMarkdown ?? "No program details available.")
 
                         VStack(spacing: AppTheme.Spacing.sm) {
                             TextField("Edit request (e.g., less time per session)", text: $editText)
@@ -480,19 +480,14 @@ struct ProgramDesignView: View {
 }
 
 struct ProgramCard: View {
-    let program: TrainingProgramDetail
+    let markdown: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-            SummarySection(title: "Primary Goal", value: program.goals.primary)
-            SummarySection(title: "Secondary Goal", value: program.goals.secondary)
-            SummarySection(title: "Weekly Template", value: "\(program.weeklyTemplate.daysPerWeek) days · \(program.weeklyTemplate.sessionTypes.joined(separator: ", "))")
-            SummarySection(title: "Sessions", value: program.sessions.map { $0.focus }.joined(separator: ", "))
-            SummarySection(title: "Progression", value: program.progression.strategy)
-            SummarySection(title: "Guardrails", value: program.guardrails.painScale)
-            SummarySection(title: "Coach Cues", value: program.coachCues.joined(separator: ", "))
+        ScrollView {
+            MarkdownContentView(markdown: markdown)
+                .padding(.horizontal, AppTheme.Spacing.xxl)
+                .padding(.vertical, AppTheme.Spacing.xl)
         }
-        .padding(.horizontal, AppTheme.Spacing.xl)
     }
 }
 

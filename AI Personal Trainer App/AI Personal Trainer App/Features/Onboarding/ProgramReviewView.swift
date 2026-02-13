@@ -157,131 +157,223 @@ struct MarkdownContentView: View {
     let markdown: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(parseLines().enumerated()), id: \.offset) { _, line in
-                lineView(line)
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.xxl) {
+            ForEach(Array(parseSections().enumerated()), id: \.offset) { _, section in
+                sectionCard(section)
             }
         }
     }
 
+    // MARK: - Data Models
+
     private enum MarkdownLine {
-        case h1(String)
         case h2(String)
         case h3(String)
         case bullet(String)
-        case indentedBullet(String) // sub-bullets with bold/italic
+        case indentedBullet(String)
         case quote(String)
         case italic(String)
-        case bold(String, String) // label, value
+        case bold(String, String)
         case text(String)
         case spacer
     }
 
-    private func parseLines() -> [MarkdownLine] {
-        var result: [MarkdownLine] = []
+    private struct ProgramSection {
+        let title: String
+        let iconName: String
+        let lines: [MarkdownLine]
+    }
+
+    // MARK: - Section Icon Mapping
+
+    private static let sectionIcons: [String: String] = [
+        "your training program": "figure.run",
+        "goals": "target",
+        "weekly structure": "calendar",
+        "training sessions": "dumbbell",
+        "progression plan": "chart.line.uptrend",
+        "recovery": "bed.double",
+        "safety guidelines": "shield.checkered",
+        "coach notes": "quote.opening",
+    ]
+
+    private static func iconForSection(_ title: String) -> String {
+        let lower = title.lowercased()
+        for (key, icon) in sectionIcons {
+            if lower.contains(key) { return icon }
+        }
+        return "doc.text"
+    }
+
+    // MARK: - Section Parser
+
+    private func parseSections() -> [ProgramSection] {
+        var sections: [ProgramSection] = []
+        var currentTitle: String? = nil
+        var currentLines: [MarkdownLine] = []
+
         for rawLine in markdown.components(separatedBy: "\n") {
             let line = rawLine.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty {
-                if result.last != nil {
-                    result.append(.spacer)
+
+            if line.hasPrefix("# ") && !line.hasPrefix("## ") {
+                // Flush previous section
+                if let title = currentTitle {
+                    sections.append(ProgramSection(
+                        title: title,
+                        iconName: Self.iconForSection(title),
+                        lines: currentLines
+                    ))
                 }
+                currentTitle = String(line.dropFirst(2))
+                currentLines = []
                 continue
-            } else if line.hasPrefix("# ") && !line.hasPrefix("## ") {
-                result.append(.h1(String(line.dropFirst(2))))
+            }
+
+            // Parse the line
+            if line.isEmpty {
+                if !currentLines.isEmpty, case .spacer = currentLines.last {} else if !currentLines.isEmpty {
+                    currentLines.append(.spacer)
+                }
             } else if line.hasPrefix("### ") {
-                result.append(.h3(String(line.dropFirst(4))))
+                currentLines.append(.h3(String(line.dropFirst(4))))
             } else if line.hasPrefix("## ") {
-                result.append(.h2(String(line.dropFirst(3))))
-            } else if line.hasPrefix("- **") || line.hasPrefix("  ") && line.contains("*") {
-                // Bullets with bold/italic content
-                let content = String(line.dropFirst(2))
-                result.append(.indentedBullet(content))
+                currentLines.append(.h2(String(line.dropFirst(3))))
+            } else if line.hasPrefix("- **") || (line.hasPrefix("  ") && line.contains("*")) {
+                let content = line.hasPrefix("- ") ? String(line.dropFirst(2)) : line.trimmingCharacters(in: .whitespaces)
+                currentLines.append(.indentedBullet(content))
             } else if line.hasPrefix("- ") {
-                result.append(.bullet(String(line.dropFirst(2))))
+                currentLines.append(.bullet(String(line.dropFirst(2))))
             } else if line.hasPrefix("> ") {
-                result.append(.quote(String(line.dropFirst(2))))
+                currentLines.append(.quote(String(line.dropFirst(2))))
             } else if line.hasPrefix("*") && line.hasSuffix("*") && !line.hasPrefix("**") {
                 let content = line.trimmingCharacters(in: CharacterSet(charactersIn: "*"))
-                result.append(.italic(content))
+                currentLines.append(.italic(content))
             } else if line.hasPrefix("**") && line.contains(":**") {
                 if let colonRange = line.range(of: ":**") {
                     let label = String(line[line.index(line.startIndex, offsetBy: 2)..<colonRange.lowerBound])
                     let value = String(line[colonRange.upperBound...]).trimmingCharacters(in: .whitespaces)
-                    result.append(.bold(label, value))
+                    currentLines.append(.bold(label, value))
                 } else {
-                    result.append(.text(line))
+                    currentLines.append(.text(line))
                 }
             } else {
-                result.append(.text(line))
+                // If no section started yet, start an implicit one
+                if currentTitle == nil {
+                    currentTitle = "Overview"
+                }
+                currentLines.append(.text(line))
             }
         }
-        return result
+
+        // Flush last section
+        if let title = currentTitle {
+            sections.append(ProgramSection(
+                title: title,
+                iconName: Self.iconForSection(title),
+                lines: currentLines
+            ))
+        }
+
+        return sections
     }
+
+    // MARK: - Section Card
+
+    @ViewBuilder
+    private func sectionCard(_ section: ProgramSection) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Section header
+            sectionHeader(title: section.title, icon: section.iconName)
+
+            // Section body
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(section.lines.enumerated()), id: \.offset) { _, line in
+                    lineView(line)
+                }
+            }
+        }
+        .padding(.horizontal, AppTheme.Spacing.xxxl)
+        .padding(.vertical, AppTheme.Spacing.xxl)
+        .background(AppTheme.Colors.surface)
+        .cornerRadius(AppTheme.CornerRadius.large)
+    }
+
+    // MARK: - Section Header
+
+    private func sectionHeader(title: String, icon: String) -> some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+            HStack(spacing: AppTheme.Spacing.md) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+                Text(title)
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundColor(AppTheme.Colors.primaryText)
+            }
+
+            Rectangle()
+                .fill(AppTheme.Colors.divider)
+                .frame(height: 1)
+        }
+        .padding(.bottom, AppTheme.Spacing.xl)
+    }
+
+    // MARK: - Line Renderers
 
     @ViewBuilder
     private func lineView(_ line: MarkdownLine) -> some View {
         switch line {
-        case .h1(let text):
-            Text(text)
-                .font(.system(size: 28, weight: .bold))
-                .foregroundColor(AppTheme.Colors.primaryText)
-                .padding(.top, 8)
-                .padding(.bottom, 4)
-
         case .h2(let text):
-            VStack(alignment: .leading, spacing: 0) {
-                Divider()
-                    .background(AppTheme.Colors.tertiaryText.opacity(0.2))
-                    .padding(.bottom, 16)
-                Text(text)
-                    .font(.system(size: 22, weight: .bold))
-                    .foregroundColor(AppTheme.Colors.primaryText)
-            }
-            .padding(.top, 20)
-            .padding(.bottom, 4)
+            sessionDayView(text)
 
         case .h3(let text):
             Text(text)
-                .font(.system(size: 18, weight: .semibold))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(AppTheme.Colors.primaryText)
-                .padding(.top, 12)
-                .padding(.bottom, 2)
+                .padding(.top, 16)
+                .padding(.bottom, 4)
 
         case .bullet(let text):
             HStack(alignment: .top, spacing: 10) {
-                Text("\u{2022}")
-                    .font(.system(size: 16))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-                    .padding(.top, 1)
+                Circle()
+                    .fill(AppTheme.Colors.tertiaryText)
+                    .frame(width: 6, height: 6)
+                    .padding(.top, 7)
                 Text(text)
-                    .font(.system(size: 16))
+                    .font(.system(size: 15.5))
                     .foregroundColor(AppTheme.Colors.primaryText)
+                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, 3)
 
         case .indentedBullet(let text):
             HStack(alignment: .top, spacing: 10) {
-                Text("\u{2022}")
-                    .font(.system(size: 16))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-                    .padding(.top, 1)
+                Circle()
+                    .fill(AppTheme.Colors.tertiaryText)
+                    .frame(width: 6, height: 6)
+                    .padding(.top, 7)
                 renderRichText(text)
+                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, 3)
 
         case .quote(let text):
-            HStack(spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(AppTheme.Colors.orbSkyMid.opacity(0.5))
+                    .fill(AppTheme.Colors.orbSkyMid)
                     .frame(width: 3)
                 Text(text)
                     .font(.system(size: 15))
                     .foregroundColor(AppTheme.Colors.secondaryText)
                     .italic()
+                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .padding(AppTheme.Spacing.lg)
+            .background(AppTheme.Colors.background.opacity(0.5))
+            .cornerRadius(AppTheme.CornerRadius.medium)
             .padding(.vertical, 4)
 
         case .italic(let text):
@@ -289,33 +381,88 @@ struct MarkdownContentView: View {
                 .font(.system(size: 15))
                 .foregroundColor(AppTheme.Colors.tertiaryText)
                 .italic()
+                .lineSpacing(4)
                 .padding(.vertical, 1)
 
         case .bold(let label, let value):
-            HStack(alignment: .top, spacing: 4) {
-                Text(label + ":")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(AppTheme.Colors.primaryText)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(label)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(AppTheme.Colors.secondaryText)
                 Text(value)
                     .font(.system(size: 16))
-                    .foregroundColor(AppTheme.Colors.secondaryText)
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                    .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, 2)
+            .padding(.vertical, 4)
 
         case .text(let text):
             Text(text)
                 .font(.system(size: 16))
                 .foregroundColor(AppTheme.Colors.primaryText)
+                .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.vertical, 2)
 
         case .spacer:
-            Color.clear.frame(height: 8)
+            Color.clear.frame(height: 12)
         }
     }
 
-    /// Parse inline **bold** and *italic* markers within a string
+    // MARK: - Session Day Sub-Card (H2)
+
+    private func sessionDayView(_ text: String) -> some View {
+        let parts = parseSessionTitle(text)
+
+        return HStack(alignment: .top, spacing: 0) {
+            // Left accent bar
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(AppTheme.Colors.orbSkyMid)
+                .frame(width: 3)
+
+            VStack(alignment: .leading, spacing: 4) {
+                // Day chip
+                if let dayLabel = parts.dayLabel {
+                    Text(dayLabel)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.orbSkyDeep)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(AppTheme.Colors.orbSkyMid.opacity(0.2))
+                        .cornerRadius(AppTheme.CornerRadius.small)
+                }
+
+                // Session name
+                Text(parts.sessionName)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(AppTheme.Colors.primaryText)
+            }
+            .padding(.leading, 12)
+        }
+        .padding(.top, 16)
+        .padding(.bottom, 6)
+    }
+
+    private struct SessionTitleParts {
+        let dayLabel: String?
+        let sessionName: String
+    }
+
+    private func parseSessionTitle(_ text: String) -> SessionTitleParts {
+        // Match patterns like "Day 1: Upper Push + Core"
+        if let colonIndex = text.firstIndex(of: ":") {
+            let prefix = String(text[text.startIndex..<colonIndex]).trimmingCharacters(in: .whitespaces)
+            let name = String(text[text.index(after: colonIndex)...]).trimmingCharacters(in: .whitespaces)
+            if prefix.lowercased().hasPrefix("day") {
+                return SessionTitleParts(dayLabel: prefix.uppercased(), sessionName: name)
+            }
+        }
+        return SessionTitleParts(dayLabel: nil, sessionName: text)
+    }
+
+    // MARK: - Rich Text Parser
+
     private func renderRichText(_ input: String) -> Text {
         var result = Text("")
         var remaining = input
@@ -323,25 +470,23 @@ struct MarkdownContentView: View {
         while !remaining.isEmpty {
             if remaining.hasPrefix("**"), let endRange = remaining.dropFirst(2).range(of: "**") {
                 let boldContent = remaining[remaining.index(remaining.startIndex, offsetBy: 2)..<endRange.lowerBound]
-                result = result + Text(String(boldContent)).font(.system(size: 16, weight: .semibold)).foregroundColor(AppTheme.Colors.primaryText)
+                result = result + Text(String(boldContent)).font(.system(size: 15.5, weight: .semibold)).foregroundColor(AppTheme.Colors.primaryText)
                 remaining = String(remaining[endRange.upperBound...])
             } else if remaining.hasPrefix("*"), let endRange = remaining.dropFirst(1).range(of: "*") {
                 let italicContent = remaining[remaining.index(remaining.startIndex, offsetBy: 1)..<endRange.lowerBound]
                 result = result + Text(String(italicContent)).font(.system(size: 15)).foregroundColor(AppTheme.Colors.tertiaryText).italic()
                 remaining = String(remaining[endRange.upperBound...])
             } else {
-                // Take one character at a time until we hit a marker
                 let nextBold = remaining.range(of: "**")?.lowerBound ?? remaining.endIndex
                 let nextItalic = remaining.range(of: "*")?.lowerBound ?? remaining.endIndex
                 let nextMarker = min(nextBold, nextItalic)
 
                 if nextMarker == remaining.startIndex {
-                    // Single * that's not a marker — take just the character
-                    result = result + Text(String(remaining.prefix(1))).font(.system(size: 16)).foregroundColor(AppTheme.Colors.primaryText)
+                    result = result + Text(String(remaining.prefix(1))).font(.system(size: 15.5)).foregroundColor(AppTheme.Colors.primaryText)
                     remaining = String(remaining.dropFirst(1))
                 } else {
                     let plain = String(remaining[remaining.startIndex..<nextMarker])
-                    result = result + Text(plain).font(.system(size: 16)).foregroundColor(AppTheme.Colors.primaryText)
+                    result = result + Text(plain).font(.system(size: 15.5)).foregroundColor(AppTheme.Colors.primaryText)
                     remaining = String(remaining[nextMarker...])
                 }
             }

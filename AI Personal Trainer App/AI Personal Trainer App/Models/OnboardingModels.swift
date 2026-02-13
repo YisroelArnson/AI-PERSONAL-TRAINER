@@ -140,6 +140,9 @@ struct OnboardingState: Codable {
     var notificationsEnabled: Bool?
     var notificationsSkippedAt: Date?
 
+    // Edit intake flow
+    var isEditingIntake: Bool
+
     // Session IDs
     var intakeId: String?
     var goalContractId: String?
@@ -161,6 +164,7 @@ struct OnboardingState: Codable {
             microphoneEnabled: nil,
             notificationsEnabled: nil,
             notificationsSkippedAt: nil,
+            isEditingIntake: false,
             intakeId: nil,
             goalContractId: nil,
             programId: nil,

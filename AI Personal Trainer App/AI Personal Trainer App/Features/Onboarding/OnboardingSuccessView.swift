@@ -77,41 +77,12 @@ struct OnboardingSuccessView: View {
                 .foregroundColor(AppTheme.Colors.secondaryText)
                 .textCase(.uppercase)
 
-            if let program = programStore.program?.program,
-               let firstSession = program.sessions.first {
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                    Text(firstSession.focus)
-                        .font(.system(size: 18, weight: .semibold))
+            if programStore.program != nil {
+                HStack {
+                    Text("Your program is ready — let's go!")
+                        .font(.system(size: 16))
                         .foregroundColor(AppTheme.Colors.primaryText)
-
-                    HStack(spacing: AppTheme.Spacing.lg) {
-                        HStack(spacing: AppTheme.Spacing.xs) {
-                            Image(systemName: "clock")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppTheme.Colors.secondaryText)
-                            Text("~\(firstSession.durationMin) min")
-                                .font(.system(size: 14))
-                                .foregroundColor(AppTheme.Colors.secondaryText)
-                        }
-
-                        if !firstSession.equipment.isEmpty {
-                            HStack(spacing: AppTheme.Spacing.xs) {
-                                Image(systemName: "dumbbell")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(AppTheme.Colors.secondaryText)
-                                Text(firstSession.equipment.prefix(2).joined(separator: ", "))
-                                    .font(.system(size: 14))
-                                    .foregroundColor(AppTheme.Colors.secondaryText)
-                            }
-                        }
-                    }
-
-                    if !firstSession.notes.isEmpty {
-                        Text(firstSession.notes)
-                            .font(.system(size: 14))
-                            .foregroundColor(AppTheme.Colors.tertiaryText)
-                            .lineLimit(2)
-                    }
+                    Spacer()
                 }
             } else {
                 HStack {

@@ -2,6 +2,7 @@ import SwiftUI
 
 struct IntakeCompleteScreenView: View {
     let userName: String?
+    var isEditing: Bool = false
     let onCreateProgram: () -> Void
 
     @State private var showContent = false
@@ -24,7 +25,9 @@ struct IntakeCompleteScreenView: View {
                     .padding(.horizontal, 32)
 
                 // Subtext
-                Text("I have everything I need to build your program. Let's create your account and get started.")
+                Text(isEditing
+                    ? "Your updated answers will be saved and we'll regenerate your goals."
+                    : "I have everything I need to build your program. Let's create your account and get started.")
                     .font(.system(size: 16))
                     .foregroundColor(AppTheme.Colors.secondaryText)
                     .multilineTextAlignment(.center)
@@ -36,7 +39,7 @@ struct IntakeCompleteScreenView: View {
 
             if showButton {
                 Button(action: { Haptic.medium(); onCreateProgram() }) {
-                    Text("Create my program")
+                    Text(isEditing ? "Save & update my goals" : "Create my program")
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(AppTheme.Colors.background)
                         .frame(maxWidth: .infinity)

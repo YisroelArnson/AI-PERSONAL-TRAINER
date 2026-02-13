@@ -12,6 +12,7 @@ AI Personal Trainer App/             # iOS app (Swift/SwiftUI)
 BACKEND/                             # Node.js backend services
 
 docs/
+  specs/                             # Feature specs (from /spec interviews)
   plans/                             # Implementation plans
   research/                          # Research documents
   designs/                           # Design files (.pen) and artifacts

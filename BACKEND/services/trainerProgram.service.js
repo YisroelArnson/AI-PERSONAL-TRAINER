@@ -226,9 +226,17 @@ function programToMarkdown(p) {
 }
 
 async function draftProgram(userId) {
+  console.log(`[program] Starting draft for user ${userId}`);
+  const t0 = Date.now();
+
   const intake = await fetchLatestIntakeSummary(userId);
+  console.log(`[program] Fetched intake: ${intake ? 'yes' : 'missing'} (${Date.now() - t0}ms)`);
+
   const baseline = await fetchLatestAssessmentBaseline(userId);
+  console.log(`[program] Fetched baseline: ${baseline ? 'yes' : 'missing'} (${Date.now() - t0}ms)`);
+
   const goals = await fetchApprovedGoal(userId);
+  console.log(`[program] Fetched goals: ${goals ? 'yes' : 'missing'} (${Date.now() - t0}ms)`);
 
   const prompt = `Design a personalized training program for this client.
 
@@ -301,6 +309,9 @@ IMPORTANT for sessions: Do NOT lock in specific exercises. Instead, for each ses
   "coach_notes": ["Personalized coaching observations — things you noticed from their intake that inform the program"]
 }`;
 
+  console.log(`[program] Calling Claude (${DEFAULT_MODEL}, max_tokens=16384)...`);
+  const tApi = Date.now();
+
   const client = getAnthropicClient();
   const response = await client.messages.create({
     model: DEFAULT_MODEL,
@@ -309,18 +320,25 @@ IMPORTANT for sessions: Do NOT lock in specific exercises. Instead, for each ses
     messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
   });
 
+  const apiMs = Date.now() - tApi;
+  console.log(`[program] Claude responded in ${apiMs}ms — stop_reason=${response.stop_reason}, usage: input=${response.usage?.input_tokens} output=${response.usage?.output_tokens}`);
+
   if (response.stop_reason === 'max_tokens') {
-    console.error('Program response truncated — hit max_tokens limit');
+    console.error('[program] Response truncated — hit max_tokens limit');
     throw new Error('Program generation was too long and got cut off. Please try again.');
   }
 
   const textBlock = response.content.find(block => block.type === 'text');
   const raw = textBlock?.text || '';
+  console.log(`[program] Raw response length: ${raw.length} chars`);
+
   const parsed = extractJson(raw);
   if (!parsed) {
-    console.error('Failed to parse program. Raw response:', raw.slice(0, 500));
+    console.error('[program] JSON parse failed. First 500 chars:', raw.slice(0, 500));
     throw new Error('Failed to parse program');
   }
+
+  console.log(`[program] Parsed OK — ${parsed.sessions?.length || 0} sessions, ${parsed.goals?.timeline_weeks || '?'} weeks`);
 
   const markdown = programToMarkdown(parsed);
 
@@ -338,13 +356,18 @@ IMPORTANT for sessions: Do NOT lock in specific exercises. Instead, for each ses
     .select()
     .single();
 
-  if (error) throw error;
+  if (error) {
+    console.error(`[program] DB insert failed:`, error.message);
+    throw error;
+  }
+
   await supabase.from('trainer_program_events').insert({
     program_id: data.id,
     event_type: 'draft',
     data: parsed
   });
 
+  console.log(`[program] Draft saved — id=${data.id}, total time ${Date.now() - t0}ms`);
   return data;
 }
 

@@ -9,6 +9,7 @@ struct ProcessOverviewView: View {
     @State private var step2Visible = false
     @State private var step3Visible = false
     @State private var buttonVisible = false
+    @State private var showEditIntakeAlert = false
 
     private struct ProcessStep {
         let icon: String
@@ -40,6 +41,18 @@ struct ProcessOverviewView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
+                // Back button
+                HStack {
+                    Button(action: { showEditIntakeAlert = true }) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(AppTheme.Colors.primaryText)
+                            .frame(width: 44, height: 44)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+
                 Spacer()
 
                 // Header
@@ -95,6 +108,14 @@ struct ProcessOverviewView: View {
         }
         .onAppear {
             startAnimations()
+        }
+        .alert("Edit your intake?", isPresented: $showEditIntakeAlert) {
+            Button("Edit Intake") {
+                Task { await onboardingStore.startEditingIntake() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("You'll go back through your intake questions. Your previous answers will still be filled in.")
         }
     }
 

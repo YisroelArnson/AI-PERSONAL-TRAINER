@@ -269,10 +269,42 @@ final class OnboardingStore: ObservableObject {
         isLoading = false
     }
 
+    // MARK: - Edit Intake (from ProcessOverview)
+
+    func startEditingIntake() async {
+        state.isEditingIntake = true
+        navigationDirection = .backward
+        state.currentStep = OnboardingScreens.introCount // first intake question
+        state.currentPhase = .intake
+        await saveAndSync()
+    }
+
     // MARK: - Intake Complete → Auth
 
     func completeIntake() async {
         navigationDirection = .forward
+
+        if state.isEditingIntake {
+            state.isEditingIntake = false
+
+            // Re-sync updated intake to backend
+            await syncIntakeToBackend()
+
+            // Clear existing goals so they regenerate from updated intake
+            GoalContractStore.shared.goalOptions = []
+            GoalContractStore.shared.contract = nil
+            GoalContractStore.shared.selectedOptionId = nil
+            state.goalContractId = nil
+
+            // Kick off fresh goal generation in background
+            Task { await GoalContractStore.shared.fetchGoalOptions() }
+
+            // Skip auth — go straight back to process overview
+            state.currentPhase = .processOverview
+            await saveAndSync()
+            return
+        }
+
         state.currentPhase = .auth
         await saveAndSync()
     }

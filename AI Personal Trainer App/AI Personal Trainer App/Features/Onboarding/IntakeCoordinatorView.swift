@@ -202,6 +202,7 @@ struct IntakeCoordinatorView: View {
         case .complete:
             IntakeCompleteScreenView(
                 userName: store.state.intakeData.name,
+                isEditing: store.state.isEditingIntake,
                 onCreateProgram: {
                     Task { await store.completeIntake() }
                 }
