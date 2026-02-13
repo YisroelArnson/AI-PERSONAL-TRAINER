@@ -37,7 +37,13 @@ Then wait for the user's input.
 
 ### Step 1: Context Gathering & Initial Analysis
 
-1. **Read all mentioned files immediately and FULLY**:
+1. **Check for an existing spec**:
+   - Look in `docs/specs/` for a spec related to the current task
+   - If one exists, read it FULLY — it is the primary requirements source
+   - Use the spec to skip questions it already answers
+   - If no spec exists, proceed normally (you can suggest running `/spec` first if the task is complex)
+
+2. **Read all mentioned files immediately and FULLY**:
    - Ticket files (e.g., `thoughts/allison/tickets/eng_1234.md`)
    - Research documents
    - Related implementation plans

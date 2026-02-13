@@ -125,7 +125,7 @@ struct ProgramReviewView: View {
             .disabled(isActivating)
         }
         .padding(.horizontal, AppTheme.Spacing.xxl)
-        .padding(.bottom, 40)
+        .padding(.bottom, 12)
         .background(
             LinearGradient(
                 colors: [AppTheme.Colors.background.opacity(0), AppTheme.Colors.background],
@@ -377,12 +377,7 @@ struct MarkdownContentView: View {
             .padding(.vertical, 4)
 
         case .italic(let text):
-            Text(text)
-                .font(.system(size: 15))
-                .foregroundColor(AppTheme.Colors.tertiaryText)
-                .italic()
-                .lineSpacing(4)
-                .padding(.vertical, 1)
+            exerciseDetailView(text)
 
         case .bold(let label, let value):
             VStack(alignment: .leading, spacing: 4) {
@@ -398,9 +393,7 @@ struct MarkdownContentView: View {
             .padding(.vertical, 4)
 
         case .text(let text):
-            Text(text)
-                .font(.system(size: 16))
-                .foregroundColor(AppTheme.Colors.primaryText)
+            renderRichText(text)
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.vertical, 2)
@@ -459,6 +452,100 @@ struct MarkdownContentView: View {
             }
         }
         return SessionTitleParts(dayLabel: nil, sessionName: text)
+    }
+
+    // MARK: - Exercise Detail View (parsed italic lines)
+
+    private struct ExerciseDetailParts {
+        let rpe: String?
+        let formCue: String?
+        let rest: String?
+    }
+
+    private func parseExerciseDetail(_ text: String) -> ExerciseDetailParts {
+        var rpe: String? = nil
+        var formCue: String? = nil
+        var rest: String? = nil
+        var remaining = text.trimmingCharacters(in: .whitespaces)
+
+        // Extract RPE (e.g. "RPE 7." or "RPE 6-7.")
+        if let rpeMatch = remaining.range(of: #"^RPE\s+[\d\-–]+\.?\s*"#, options: .regularExpression) {
+            let rpeText = String(remaining[rpeMatch]).trimmingCharacters(in: .whitespaces)
+            // Clean trailing period
+            rpe = rpeText.hasSuffix(".") ? String(rpeText.dropLast()).trimmingCharacters(in: .whitespaces) : rpeText
+            remaining = String(remaining[rpeMatch.upperBound...]).trimmingCharacters(in: .whitespaces)
+        }
+
+        // Extract Rest (e.g. "Rest 60-90 seconds." at the end)
+        if let restMatch = remaining.range(of: #"Rest\s+[\d\-–]+\s*seconds\.?\s*$"#, options: [.regularExpression, .caseInsensitive]) {
+            let restText = String(remaining[restMatch]).trimmingCharacters(in: .whitespaces)
+            rest = restText.hasSuffix(".") ? String(restText.dropLast()).trimmingCharacters(in: .whitespaces) : restText
+            remaining = String(remaining[remaining.startIndex..<restMatch.lowerBound]).trimmingCharacters(in: .whitespaces)
+        }
+
+        // Whatever is left is the form cue
+        if !remaining.isEmpty {
+            // Clean trailing period
+            formCue = remaining.hasSuffix(".") ? String(remaining.dropLast()).trimmingCharacters(in: .whitespaces) : remaining
+        }
+
+        return ExerciseDetailParts(rpe: rpe, formCue: formCue, rest: rest)
+    }
+
+    @ViewBuilder
+    private func exerciseDetailView(_ text: String) -> some View {
+        let parts = parseExerciseDetail(text)
+
+        // Only show structured view if we parsed at least RPE or rest
+        if parts.rpe != nil || parts.rest != nil {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    // RPE badge
+                    if let rpe = parts.rpe {
+                        Text(rpe)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(AppTheme.Colors.orbSkyDeep)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(AppTheme.Colors.orbSkyMid.opacity(0.15))
+                            .cornerRadius(AppTheme.CornerRadius.small)
+                    }
+
+                    // Rest pill
+                    if let rest = parts.rest {
+                        HStack(spacing: 4) {
+                            Image(systemName: "timer")
+                                .font(.system(size: 11))
+                            Text(rest)
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(AppTheme.Colors.background.opacity(0.6))
+                        .cornerRadius(AppTheme.CornerRadius.small)
+                    }
+                }
+
+                // Form cue
+                if let cue = parts.formCue {
+                    Text(cue)
+                        .font(.system(size: 14))
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                        .lineSpacing(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.vertical, 4)
+        } else {
+            // Fallback for italic lines that don't match the pattern
+            Text(text)
+                .font(.system(size: 15))
+                .foregroundColor(AppTheme.Colors.tertiaryText)
+                .italic()
+                .lineSpacing(4)
+                .padding(.vertical, 1)
+        }
     }
 
     // MARK: - Rich Text Parser

@@ -80,7 +80,9 @@ enum OnboardingPhase: String, Codable, CaseIterable {
         case .intake, .intakeComplete:
             // Intake screens don't show the persistent orb
             return OrbConfig(size: 0, icon: nil, alignment: .hidden)
-        case .auth, .authVerification:
+        case .auth:
+            return OrbConfig(size: 0, icon: nil, alignment: .hidden)
+        case .authVerification:
             return OrbConfig(size: 60, icon: nil, alignment: .topCenter)
         case .processOverview:
             return OrbConfig(size: 80, icon: nil, alignment: .hidden)
