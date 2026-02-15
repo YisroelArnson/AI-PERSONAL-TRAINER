@@ -13,12 +13,6 @@ struct NotificationPermissionView: View {
 
             VStack(spacing: 0) {
                 Spacer()
-
-                // Space for shared orb (rendered by coordinator)
-                Color.clear
-                    .frame(width: 100, height: 100)
-
-                Spacer()
                     .frame(height: AppTheme.Spacing.xxxl)
 
                 // Content

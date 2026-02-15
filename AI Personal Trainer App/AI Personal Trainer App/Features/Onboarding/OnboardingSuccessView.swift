@@ -25,12 +25,6 @@ struct OnboardingSuccessView: View {
 
             VStack(spacing: 0) {
                 Spacer()
-
-                // Space for the shared orb (rendered by coordinator)
-                Color.clear
-                    .frame(width: 120, height: 120)
-
-                Spacer()
                     .frame(height: AppTheme.Spacing.xxxl)
 
                 // Content

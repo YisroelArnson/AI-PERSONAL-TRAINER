@@ -15,6 +15,7 @@ class APIService: ObservableObject {
     
     // List of fallback IPs to try for physical devices
     private let fallbackIPs = [
+        "http://192.168.1.7:3000",
         "http://10.0.0.105:3000",
         "http://192.168.1.171:3000",
         "http://192.168.1.2:3000",

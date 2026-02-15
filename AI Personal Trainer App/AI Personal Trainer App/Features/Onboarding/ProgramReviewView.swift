@@ -21,14 +21,6 @@ struct ProgramReviewView: View {
                     programContent(program)
                 }
             }
-
-            // Bottom activate button
-            if programStore.program != nil {
-                VStack {
-                    Spacer()
-                    activateButton
-                }
-            }
         }
         .animation(.easeInOut(duration: 0.3), value: contentVisible)
         .onAppear {
@@ -98,7 +90,9 @@ struct ProgramReviewView: View {
                         .padding(.top, 40)
                 }
             }
-            .padding(.bottom, 120)
+        }
+        .safeAreaInset(edge: .bottom) {
+            activateButton
         }
     }
 

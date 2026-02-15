@@ -941,7 +941,8 @@
                   "content": "March  14  1994",
                   "textAlign": "center",
                   "fontFamily": "Inter",
-                  "fontSize": 20
+                  "fontSize": 20,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "text",
@@ -951,7 +952,8 @@
                   "content": "April   15  1995",
                   "textAlign": "center",
                   "fontFamily": "Inter",
-                  "fontSize": 20
+                  "fontSize": 20,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "frame",
@@ -990,7 +992,8 @@
                   "content": "July    16  1997",
                   "textAlign": "center",
                   "fontFamily": "Inter",
-                  "fontSize": 20
+                  "fontSize": 20,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "text",
@@ -1000,7 +1003,8 @@
                   "content": "August  17  1998",
                   "textAlign": "center",
                   "fontFamily": "Inter",
-                  "fontSize": 20
+                  "fontSize": 20,
+                  "fontWeight": "normal"
                 },
                 {
                   "type": "frame",
@@ -4482,6 +4486,1049 @@
               "fontFamily": "Inter",
               "fontSize": 17,
               "fontWeight": "600"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "HP8qR",
+      "x": 0,
+      "y": 2922,
+      "name": "Conv. Voice Input",
+      "clip": true,
+      "width": 402,
+      "height": 874,
+      "fill": "$bg",
+      "layout": "vertical",
+      "padding": [
+        60,
+        24,
+        40,
+        24
+      ],
+      "justifyContent": "space_between",
+      "children": [
+        {
+          "type": "frame",
+          "id": "7UJaV",
+          "name": "progressBar",
+          "width": "fill_container",
+          "height": 4,
+          "fill": "$surface-elevated",
+          "cornerRadius": 2,
+          "children": [
+            {
+              "type": "frame",
+              "id": "GKfWP",
+              "name": "progressFill",
+              "width": 280,
+              "height": 4,
+              "fill": "$text-primary",
+              "cornerRadius": 2
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "iKtJR",
+          "name": "topContent",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 24,
+          "children": [
+            {
+              "type": "frame",
+              "id": "TqWsJ",
+              "name": "trainerMessage",
+              "width": "fill_container",
+              "gap": 14,
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "UzCLO",
+                  "name": "orb",
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "radial",
+                    "enabled": true,
+                    "rotation": 0,
+                    "size": {
+                      "width": 1,
+                      "height": 1
+                    },
+                    "colors": [
+                      {
+                        "color": "#FF5A52",
+                        "position": 0
+                      },
+                      {
+                        "color": "#FF3B30",
+                        "position": 0.5
+                      },
+                      {
+                        "color": "#CC2F26",
+                        "position": 1
+                      }
+                    ]
+                  },
+                  "width": 36,
+                  "height": 36
+                },
+                {
+                  "type": "frame",
+                  "id": "0Sz27",
+                  "name": "msgBubble",
+                  "width": "fill_container",
+                  "fill": "$surface",
+                  "cornerRadius": [
+                    0,
+                    16,
+                    16,
+                    16
+                  ],
+                  "layout": "vertical",
+                  "gap": 10,
+                  "padding": [
+                    16,
+                    18
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "vpAVd",
+                      "name": "qLabel",
+                      "fill": "$text-muted",
+                      "content": "QUESTION 6 OF 8",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700",
+                      "letterSpacing": 2
+                    },
+                    {
+                      "type": "text",
+                      "id": "sTOCz",
+                      "name": "qText",
+                      "fill": "$text-primary",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Tell me about your schedule",
+                      "lineHeight": 1.25,
+                      "fontFamily": "Sora",
+                      "fontSize": 22,
+                      "fontWeight": "bold",
+                      "letterSpacing": -0.5
+                    },
+                    {
+                      "type": "text",
+                      "id": "1PQSV",
+                      "name": "qSub",
+                      "fill": "$text-secondary",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "When can you work out? How many days a week? Mornings or evenings?",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "TZd2r",
+              "name": "pillRow",
+              "width": "fill_container",
+              "gap": 8,
+              "justifyContent": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "uDzoz",
+                  "name": "pill1",
+                  "fill": "$surface",
+                  "cornerRadius": 20,
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "$border"
+                  },
+                  "padding": [
+                    8,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "S2Z4X",
+                      "name": "pill1Txt",
+                      "fill": "$text-secondary",
+                      "content": "3 days/week",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "ogFUk",
+                  "name": "pill2",
+                  "fill": "$surface",
+                  "cornerRadius": 20,
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "$border"
+                  },
+                  "padding": [
+                    8,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "o4wku",
+                      "name": "pill2Txt",
+                      "fill": "$text-secondary",
+                      "content": "Mornings",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "FegUN",
+                  "name": "pill3",
+                  "fill": "$surface",
+                  "cornerRadius": 20,
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "$border"
+                  },
+                  "padding": [
+                    8,
+                    14
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "CEKS2",
+                      "name": "pill3Txt",
+                      "fill": "$text-secondary",
+                      "content": "45 min",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "8yzA9",
+              "name": "userReply",
+              "width": "fill_container",
+              "layout": "vertical",
+              "alignItems": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Z3I0z",
+                  "name": "replyBubble",
+                  "width": 310,
+                  "fill": "$surface-elevated",
+                  "cornerRadius": [
+                    16,
+                    16,
+                    0,
+                    16
+                  ],
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "$border"
+                  },
+                  "layout": "vertical",
+                  "padding": [
+                    16,
+                    18
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Dc8D4",
+                      "name": "replyText",
+                      "fill": "$text-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "I can work out 3-4 days a week, usually in the mornings before work...",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "sRITh",
+          "name": "bottomBar",
+          "width": "fill_container",
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "XhjD0",
+              "name": "micBtn",
+              "width": 56,
+              "height": 56,
+              "fill": "$surface",
+              "cornerRadius": 28,
+              "stroke": {
+                "thickness": 1,
+                "fill": "$border-strong"
+              },
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "2L26E",
+                  "name": "micIc",
+                  "width": 24,
+                  "height": 24,
+                  "iconFontName": "mic",
+                  "iconFontFamily": "lucide",
+                  "fill": "$text-primary"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "kkN5p",
+              "name": "nextBtn",
+              "width": 56,
+              "height": 56,
+              "fill": "$surface",
+              "cornerRadius": 28,
+              "stroke": {
+                "thickness": 1,
+                "fill": "$border-strong"
+              },
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "YwFXB",
+                  "name": "nextIc",
+                  "width": 24,
+                  "height": 24,
+                  "iconFontName": "chevron-right",
+                  "iconFontFamily": "lucide",
+                  "fill": "$text-primary"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "gXwAu",
+      "x": 502,
+      "y": 2922,
+      "name": "Conv. Guided Voice",
+      "clip": true,
+      "width": 402,
+      "height": 874,
+      "fill": "$bg",
+      "layout": "vertical",
+      "padding": [
+        60,
+        24,
+        40,
+        24
+      ],
+      "justifyContent": "space_between",
+      "children": [
+        {
+          "type": "frame",
+          "id": "5w9cy",
+          "name": "progressBar",
+          "width": "fill_container",
+          "height": 4,
+          "fill": "$surface-elevated",
+          "cornerRadius": 2,
+          "children": [
+            {
+              "type": "frame",
+              "id": "xqdPm",
+              "name": "progressFill",
+              "width": 310,
+              "height": 4,
+              "fill": "$text-primary",
+              "cornerRadius": 2
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "yfZmZ",
+          "name": "topContent",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 24,
+          "children": [
+            {
+              "type": "frame",
+              "id": "Vkqp4",
+              "name": "trainerMessage",
+              "width": "fill_container",
+              "gap": 14,
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "vBKG6",
+                  "name": "orb",
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "radial",
+                    "enabled": true,
+                    "rotation": 0,
+                    "size": {
+                      "width": 1,
+                      "height": 1
+                    },
+                    "colors": [
+                      {
+                        "color": "#FF5A52",
+                        "position": 0
+                      },
+                      {
+                        "color": "#FF3B30",
+                        "position": 0.5
+                      },
+                      {
+                        "color": "#CC2F26",
+                        "position": 1
+                      }
+                    ]
+                  },
+                  "width": 36,
+                  "height": 36
+                },
+                {
+                  "type": "frame",
+                  "id": "HXxKw",
+                  "name": "msgBubble",
+                  "width": "fill_container",
+                  "fill": "$surface",
+                  "cornerRadius": [
+                    0,
+                    16,
+                    16,
+                    16
+                  ],
+                  "layout": "vertical",
+                  "gap": 14,
+                  "padding": [
+                    16,
+                    18
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "cs77r",
+                      "name": "gLabel",
+                      "fill": "$text-muted",
+                      "content": "QUESTION 7 OF 8",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700",
+                      "letterSpacing": 2
+                    },
+                    {
+                      "type": "text",
+                      "id": "NqcpV",
+                      "name": "gQuestion",
+                      "fill": "$text-primary",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Tell me about your workout preferences",
+                      "lineHeight": 1.25,
+                      "fontFamily": "Sora",
+                      "fontSize": 22,
+                      "fontWeight": "bold",
+                      "letterSpacing": -0.5
+                    },
+                    {
+                      "type": "frame",
+                      "id": "XIOuY",
+                      "name": "separator",
+                      "width": "fill_container",
+                      "height": 1,
+                      "fill": "$border"
+                    },
+                    {
+                      "type": "text",
+                      "id": "4Wzgw",
+                      "name": "gPromptLabel",
+                      "fill": "$text-muted",
+                      "content": "CONSIDER MENTIONING",
+                      "fontFamily": "Inter",
+                      "fontSize": 10,
+                      "fontWeight": "700",
+                      "letterSpacing": 2
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Q8cEM",
+                      "name": "prompt1",
+                      "width": "fill_container",
+                      "gap": 10,
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "GEdlX",
+                          "name": "dot",
+                          "fill": "$text-muted",
+                          "width": 5,
+                          "height": 5
+                        },
+                        {
+                          "type": "text",
+                          "id": "A88XF",
+                          "name": "p1Txt",
+                          "fill": "$text-secondary",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "What types of exercises do you enjoy?",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "cc3U6",
+                      "name": "prompt2",
+                      "width": "fill_container",
+                      "gap": 10,
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "gT0Hv",
+                          "name": "dot",
+                          "fill": "$text-muted",
+                          "width": 5,
+                          "height": 5
+                        },
+                        {
+                          "type": "text",
+                          "id": "huXKB",
+                          "name": "p2Txt",
+                          "fill": "$text-secondary",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Do you prefer working out at home or in a gym?",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "zJVrJ",
+                      "name": "prompt3",
+                      "width": "fill_container",
+                      "gap": 10,
+                      "children": [
+                        {
+                          "type": "ellipse",
+                          "id": "PSFJX",
+                          "name": "dot",
+                          "fill": "$text-muted",
+                          "width": 5,
+                          "height": 5
+                        },
+                        {
+                          "type": "text",
+                          "id": "ml4ma",
+                          "name": "p3Txt",
+                          "fill": "$text-secondary",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "Any equipment you have access to?",
+                          "lineHeight": 1.4,
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "rqrPF",
+              "name": "userReply",
+              "width": "fill_container",
+              "layout": "vertical",
+              "alignItems": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "3y5R9",
+                  "name": "replyBubble",
+                  "width": 310,
+                  "fill": "$surface-elevated",
+                  "cornerRadius": [
+                    16,
+                    16,
+                    0,
+                    16
+                  ],
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "$border"
+                  },
+                  "layout": "vertical",
+                  "padding": [
+                    16,
+                    18
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XQeC5",
+                      "name": "gReplyText",
+                      "fill": "$text-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "Tap to type or use the mic below...",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "O2zkX",
+          "name": "bottomBar",
+          "width": "fill_container",
+          "justifyContent": "space_between",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "F6MHB",
+              "name": "micBtn",
+              "width": 56,
+              "height": 56,
+              "fill": "$surface",
+              "cornerRadius": 28,
+              "stroke": {
+                "thickness": 1,
+                "fill": "$border-strong"
+              },
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "s4Tag",
+                  "name": "gMicIc",
+                  "width": 24,
+                  "height": 24,
+                  "iconFontName": "mic",
+                  "iconFontFamily": "lucide",
+                  "fill": "$text-primary"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "yUcr3",
+              "name": "nextBtn",
+              "width": 56,
+              "height": 56,
+              "fill": "$surface",
+              "cornerRadius": 28,
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "H9ID7",
+                  "name": "gNextIc",
+                  "width": 24,
+                  "height": 24,
+                  "iconFontName": "chevron-right",
+                  "iconFontFamily": "lucide",
+                  "fill": "$text-muted"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "VXrsH",
+      "x": 1004,
+      "y": 2922,
+      "name": "Conv. Simple Select",
+      "clip": true,
+      "width": 402,
+      "height": 874,
+      "fill": "$bg",
+      "layout": "vertical",
+      "padding": [
+        60,
+        24,
+        40,
+        24
+      ],
+      "justifyContent": "space_between",
+      "children": [
+        {
+          "type": "frame",
+          "id": "XxuMf",
+          "name": "progressBar",
+          "width": "fill_container",
+          "height": 4,
+          "fill": "$surface-elevated",
+          "cornerRadius": 2,
+          "children": [
+            {
+              "type": "frame",
+              "id": "2dAmO",
+              "name": "progressFill",
+              "width": 140,
+              "height": 4,
+              "fill": "$text-primary",
+              "cornerRadius": 2
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "i3EP9",
+          "name": "topContent",
+          "width": "fill_container",
+          "layout": "vertical",
+          "gap": 24,
+          "children": [
+            {
+              "type": "frame",
+              "id": "om1IP",
+              "name": "trainerMessage",
+              "width": "fill_container",
+              "gap": 14,
+              "children": [
+                {
+                  "type": "ellipse",
+                  "id": "yu8Jx",
+                  "name": "orb",
+                  "fill": {
+                    "type": "gradient",
+                    "gradientType": "radial",
+                    "enabled": true,
+                    "rotation": 0,
+                    "size": {
+                      "width": 1,
+                      "height": 1
+                    },
+                    "colors": [
+                      {
+                        "color": "#FF5A52",
+                        "position": 0
+                      },
+                      {
+                        "color": "#FF3B30",
+                        "position": 0.5
+                      },
+                      {
+                        "color": "#CC2F26",
+                        "position": 1
+                      }
+                    ]
+                  },
+                  "width": 36,
+                  "height": 36
+                },
+                {
+                  "type": "frame",
+                  "id": "IfIqE",
+                  "name": "msgBubble",
+                  "width": "fill_container",
+                  "fill": "$surface",
+                  "cornerRadius": [
+                    0,
+                    16,
+                    16,
+                    16
+                  ],
+                  "layout": "vertical",
+                  "gap": 10,
+                  "padding": [
+                    16,
+                    18
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "2Wup2",
+                      "name": "sLabel",
+                      "fill": "$text-muted",
+                      "content": "QUESTION 2 OF 8",
+                      "fontFamily": "Inter",
+                      "fontSize": 11,
+                      "fontWeight": "700",
+                      "letterSpacing": 2
+                    },
+                    {
+                      "type": "text",
+                      "id": "WAJen",
+                      "name": "sQuestion",
+                      "fill": "$text-primary",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "What's your experience level?",
+                      "lineHeight": 1.25,
+                      "fontFamily": "Sora",
+                      "fontSize": 22,
+                      "fontWeight": "bold",
+                      "letterSpacing": -0.5
+                    },
+                    {
+                      "type": "text",
+                      "id": "aeOoe",
+                      "name": "sSub",
+                      "fill": "$text-secondary",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "This helps me calibrate your program intensity.",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "b9z6N",
+              "name": "selectOptions",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 10,
+              "alignItems": "end",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "UXLko",
+                  "name": "opt1",
+                  "width": 280,
+                  "fill": "$surface-elevated",
+                  "cornerRadius": [
+                    16,
+                    16,
+                    0,
+                    16
+                  ],
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "$text-primary"
+                  },
+                  "padding": [
+                    14,
+                    20
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Z7h5D",
+                      "name": "opt1Txt",
+                      "fill": "$text-primary",
+                      "content": "Complete beginner",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "f3VXq",
+                  "name": "opt2",
+                  "width": 280,
+                  "fill": "$surface-elevated",
+                  "cornerRadius": [
+                    16,
+                    16,
+                    0,
+                    16
+                  ],
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "$border"
+                  },
+                  "padding": [
+                    14,
+                    20
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ckMkK",
+                      "name": "opt2Txt",
+                      "fill": "$text-primary",
+                      "content": "Some experience",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "7xTqT",
+                  "name": "opt3",
+                  "width": 280,
+                  "fill": "$surface-elevated",
+                  "cornerRadius": [
+                    16,
+                    16,
+                    0,
+                    16
+                  ],
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "$border"
+                  },
+                  "padding": [
+                    14,
+                    20
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "ItDd6",
+                      "name": "opt3Txt",
+                      "fill": "$text-primary",
+                      "content": "Intermediate",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "YinIl",
+                  "name": "opt4",
+                  "width": 280,
+                  "fill": "$surface-elevated",
+                  "cornerRadius": [
+                    16,
+                    16,
+                    0,
+                    16
+                  ],
+                  "stroke": {
+                    "thickness": 1,
+                    "fill": "$border"
+                  },
+                  "padding": [
+                    14,
+                    20
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "2Jibl",
+                      "name": "opt4Txt",
+                      "fill": "$text-primary",
+                      "content": "Advanced",
+                      "fontFamily": "Inter",
+                      "fontSize": 15,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "rgBdi",
+          "name": "bottomBar",
+          "width": "fill_container",
+          "justifyContent": "end",
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "7Bs1I",
+              "name": "nextBtn",
+              "width": 56,
+              "height": 56,
+              "fill": "$surface",
+              "cornerRadius": 28,
+              "stroke": {
+                "thickness": 1,
+                "fill": "$border-strong"
+              },
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "MOSID",
+                  "name": "sNextIc",
+                  "width": 24,
+                  "height": 24,
+                  "iconFontName": "chevron-right",
+                  "iconFontFamily": "lucide",
+                  "fill": "$text-primary"
+                }
+              ]
             }
           ]
         }

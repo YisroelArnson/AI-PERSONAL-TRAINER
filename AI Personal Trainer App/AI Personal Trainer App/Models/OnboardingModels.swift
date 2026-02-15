@@ -91,9 +91,9 @@ enum OnboardingPhase: String, Codable, CaseIterable {
         case .programReview:
             return OrbConfig(size: 0, icon: nil, alignment: .hidden)
         case .notificationPermission:
-            return OrbConfig(size: 100, icon: "bell.fill", alignment: .center)
+            return OrbConfig(size: 0, icon: nil, alignment: .hidden)
         case .success:
-            return OrbConfig(size: 120, icon: "checkmark", alignment: .center)
+            return OrbConfig(size: 0, icon: nil, alignment: .hidden)
         case .complete:
             return OrbConfig(size: 0, icon: nil, alignment: .hidden)
         }
