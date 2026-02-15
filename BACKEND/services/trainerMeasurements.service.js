@@ -55,8 +55,32 @@ async function correctMeasurement(userId, measurementId, payload) {
   });
 }
 
+/**
+ * Get the latest measurement for each requested type.
+ * Returns an object keyed by measurement_type, e.g. { weight: {...}, height: {...} }
+ */
+async function getLatestByTypes(userId, types) {
+  const { data, error } = await supabase
+    .from('trainer_measurements')
+    .select('*')
+    .eq('user_id', userId)
+    .in('measurement_type', types)
+    .order('measured_at', { ascending: false });
+
+  if (error) throw error;
+
+  const latest = {};
+  for (const row of (data || [])) {
+    if (!latest[row.measurement_type]) {
+      latest[row.measurement_type] = row;
+    }
+  }
+  return latest;
+}
+
 module.exports = {
   logMeasurement,
   listMeasurements,
-  correctMeasurement
+  correctMeasurement,
+  getLatestByTypes
 };

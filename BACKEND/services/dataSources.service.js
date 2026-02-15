@@ -3,6 +3,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const formatters = require('./dataFormatters.service');
+const { getLatestByTypes } = require('./trainerMeasurements.service');
 
 dotenv.config();
 
@@ -19,14 +20,26 @@ const DATA_SOURCES = {
   user_profile: {
     description: 'Basic user profile and body stats',
     fetch: async (userId) => {
-      const { data } = await supabase
-        .from('body_stats')
-        .select('*')
+      // Profile data (sex, dob) from app_user
+      const { data: profile } = await supabase
+        .from('app_user')
+        .select('user_id, first_name, last_name, sex, dob')
         .eq('user_id', userId)
         .single();
-      return data;
+
+      // Latest body measurements from trainer_measurements
+      const measurements = await getLatestByTypes(userId, ['weight', 'height', 'body_fat_pct']);
+
+      return {
+        sex: profile?.sex || null,
+        dob: profile?.dob || null,
+        first_name: profile?.first_name || null,
+        height_cm: measurements.height ? Number(measurements.height.value) : null,
+        weight_kg: measurements.weight ? Number(measurements.weight.value) : null,
+        body_fat_pct: measurements.body_fat_pct ? Number(measurements.body_fat_pct.value) : null
+      };
     },
-    format: formatters.formatBodyStats
+    format: formatters.formatUserProfile
   },
 
   workout_history: {

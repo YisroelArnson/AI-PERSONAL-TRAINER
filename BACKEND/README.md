@@ -82,8 +82,8 @@ Generate exercises that are highly personalized, effective, and optimal. That me
       "preferences": [
     	  {"type": "timing constraint", "permanent": "false", "expiration": "09/09/2025:5:30", "user_command": "I only have 20 minutes", "instructions": "limit exercise recommendations to fit the 20 minute time window"}
       ],
-      "body_stats": {
-        "sex": "male", "age_years": 30, "height_cm": 178, "weight_kg": 76.0
+      "user_profile": {
+        "sex": "male", "dob": "1995-01-15", "height_cm": 178, "weight_kg": 76.0
       },
       "workout_history": [
         {

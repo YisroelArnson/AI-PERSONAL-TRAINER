@@ -47,22 +47,26 @@ function formatUserSettings(settings) {
 }
 
 /**
- * Format body stats for context
- * @param {Object} stats - Body stats record
+ * Format user profile (demographics + latest body measurements) for context
+ * @param {Object} profile - Combined profile record from dataSources
  * @returns {string} Formatted string
  */
-function formatBodyStats(stats) {
-  if (!stats) {
-    return 'No body stats recorded.';
+function formatUserProfile(profile) {
+  if (!profile) {
+    return 'No profile data recorded.';
   }
 
   const parts = [];
-  if (stats.height_cm) parts.push(`Height: ${stats.height_cm}cm`);
-  if (stats.weight_kg) parts.push(`Weight: ${stats.weight_kg}kg`);
-  if (stats.age) parts.push(`Age: ${stats.age}`);
-  if (stats.gender) parts.push(`Gender: ${stats.gender}`);
-  
-  return parts.length > 0 ? parts.join(' | ') : 'No body stats recorded.';
+  if (profile.sex) parts.push(`Sex: ${profile.sex}`);
+  if (profile.dob) {
+    const age = Math.floor((Date.now() - new Date(profile.dob).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+    parts.push(`Age: ${age}`);
+  }
+  if (profile.height_cm) parts.push(`Height: ${profile.height_cm}cm`);
+  if (profile.weight_kg) parts.push(`Weight: ${profile.weight_kg}kg`);
+  if (profile.body_fat_pct) parts.push(`Body Fat: ${profile.body_fat_pct}%`);
+
+  return parts.length > 0 ? parts.join(' | ') : 'No profile data recorded.';
 }
 
 /**
@@ -192,7 +196,7 @@ function formatCurrentWorkout(workout) {
 module.exports = {
   formatWorkoutHistory,
   formatUserSettings,
-  formatBodyStats,
+  formatUserProfile,
   formatCurrentWorkout,
   formatAllLocations
 };

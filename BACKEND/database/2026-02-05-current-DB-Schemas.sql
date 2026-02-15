@@ -34,21 +34,12 @@ CREATE TABLE public.app_user (
   updated_at timestamp with time zone NOT NULL DEFAULT now(),
   first_name text,
   last_name text,
+  sex text CHECK ((sex = ANY (ARRAY['male'::text, 'female'::text, 'unspecified'::text])) OR sex IS NULL),
+  dob date,
   CONSTRAINT app_user_pkey PRIMARY KEY (user_id),
   CONSTRAINT app_user_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-CREATE TABLE public.body_stats (
-  id uuid NOT NULL DEFAULT gen_random_uuid(),
-  user_id uuid NOT NULL UNIQUE,
-  sex text CHECK ((sex = ANY (ARRAY['male'::text, 'female'::text, 'unspecified'::text])) OR sex IS NULL),
-  dob date,
-  height_cm bigint,
-  weight_kg bigint,
-  body_fat_pct bigint,
-  created_at timestamp with time zone NOT NULL DEFAULT now(),
-  CONSTRAINT body_stats_pkey PRIMARY KEY (id),
-  CONSTRAINT measurement_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.app_user(user_id)
-);
+-- body_stats table removed: sex/dob moved to app_user, measurements moved to trainer_measurements
 CREATE TABLE public.exercise_distribution_tracking (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL UNIQUE,

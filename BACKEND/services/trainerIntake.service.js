@@ -549,6 +549,48 @@ async function submitStructuredIntake(userId, intakeData) {
     .single();
 
   if (error) throw error;
+
+  // Sync profile fields (sex/dob) to app_user
+  const profileUpdates = {};
+  if (intakeData.gender) {
+    const genderMap = { male: 'male', female: 'female', m: 'male', f: 'female' };
+    profileUpdates.sex = genderMap[intakeData.gender.toLowerCase()] || 'unspecified';
+  }
+  if (intakeData.birthday) profileUpdates.dob = intakeData.birthday;
+
+  if (Object.keys(profileUpdates).length > 0) {
+    await supabase
+      .from('app_user')
+      .update({ ...profileUpdates, updated_at: new Date().toISOString() })
+      .eq('user_id', userId);
+  }
+
+  // Sync body measurements to trainer_measurements
+  const { logMeasurement } = require('./trainerMeasurements.service');
+  const now = new Date().toISOString();
+
+  if (intakeData.height_inches) {
+    const heightCm = Math.round(intakeData.height_inches * 2.54);
+    await logMeasurement(userId, {
+      measurement_type: 'height',
+      value: heightCm,
+      unit: 'cm',
+      measured_at: now,
+      source: 'onboarding'
+    });
+  }
+
+  if (intakeData.weight_lbs) {
+    const weightKg = Math.round(intakeData.weight_lbs * 0.453592 * 10) / 10;
+    await logMeasurement(userId, {
+      measurement_type: 'weight',
+      value: weightKg,
+      unit: 'kg',
+      measured_at: now,
+      source: 'onboarding'
+    });
+  }
+
   return data;
 }
 
