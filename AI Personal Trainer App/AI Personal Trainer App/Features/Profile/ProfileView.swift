@@ -12,8 +12,6 @@ struct ProfileView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var userSettings = UserSettings.shared
     @StateObject private var locationService = LocationService.shared
-    @StateObject private var exerciseStore = ExerciseStore.shared
-    
     @State private var showPermissionAlert = false
     @State private var showSettingsAlert = false
     @State private var isRequestingPermission = false
@@ -360,9 +358,8 @@ struct ProfileView: View {
         let distanceChanged = initialDistanceUnit != nil && initialDistanceUnit != userSettings.distanceUnit
         
         if weightChanged || distanceChanged {
-            // Units changed - trigger refresh to get exercises in new units
-            print("📐 Unit settings changed - triggering exercise refresh")
-            exerciseStore.triggerRefresh()
+            // Units changed
+            print("📐 Unit settings changed")
         }
         
         dismiss()

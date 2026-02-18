@@ -20,7 +20,7 @@ protocol ExerciseDisplayable {
     // Exercise metrics - TYPE: reps
     var sets: Int? { get }
     var reps: [Int]? { get }
-    var load_kg_each: [Double]? { get }
+    var load_each: [Double]? { get }
 
     // Exercise metrics - TYPE: hold
     var hold_duration_sec: [Int]? { get }
@@ -73,7 +73,7 @@ struct WorkoutHistoryItem: Codable, Identifiable, Equatable {
     // Exercise-specific fields (nullable based on type)
     let sets: Int?
     let reps: [Int]?
-    let load_kg_each: [Double]?
+    let load_each: [Double]?
     let rest_seconds: Int?
     let distance_km: Double?
     let duration_min: Int?
@@ -99,14 +99,14 @@ struct WorkoutHistoryItem: Codable, Identifiable, Equatable {
 
     enum CodingKeys: String, CodingKey {
         case id, user_id, exercise_name, exercise_type, performed_at
-        case sets, reps, load_kg_each, rest_seconds, distance_km, duration_min
+        case sets, reps, load_each, rest_seconds, distance_km, duration_min
         case target_pace, rounds, total_duration_min, hold_duration_sec
         case muscles_utilized, goals_addressed, reasoning, equipment, exercise_description
         case rpe, notes, created_at, updated_at
     }
 
     // Regular initializer for programmatic creation
-    init(id: UUID, user_id: UUID, exercise_name: String, exercise_type: String, performed_at: Date, sets: Int?, reps: [Int]?, load_kg_each: [Double]?, rest_seconds: Int?, distance_km: Double?, duration_min: Int?, target_pace: String?, rounds: Int?, total_duration_min: Int?, hold_duration_sec: [Int]?, muscles_utilized: [MuscleUtilization], goals_addressed: [GoalUtilization]?, reasoning: String?, equipment: [String]?, exercise_description: String?, rpe: Int?, notes: String?, created_at: Date, updated_at: Date) {
+    init(id: UUID, user_id: UUID, exercise_name: String, exercise_type: String, performed_at: Date, sets: Int?, reps: [Int]?, load_each: [Double]?, rest_seconds: Int?, distance_km: Double?, duration_min: Int?, target_pace: String?, rounds: Int?, total_duration_min: Int?, hold_duration_sec: [Int]?, muscles_utilized: [MuscleUtilization], goals_addressed: [GoalUtilization]?, reasoning: String?, equipment: [String]?, exercise_description: String?, rpe: Int?, notes: String?, created_at: Date, updated_at: Date) {
         self.id = id
         self.user_id = user_id
         self.exercise_name = exercise_name
@@ -114,7 +114,7 @@ struct WorkoutHistoryItem: Codable, Identifiable, Equatable {
         self.performed_at = performed_at
         self.sets = sets
         self.reps = reps
-        self.load_kg_each = load_kg_each
+        self.load_each = load_each
         self.rest_seconds = rest_seconds
         self.distance_km = distance_km
         self.duration_min = duration_min
@@ -167,7 +167,7 @@ struct WorkoutHistoryItem: Codable, Identifiable, Equatable {
         // Exercise-specific fields
         sets = try container.decodeIfPresent(Int.self, forKey: .sets)
         reps = try container.decodeIfPresent([Int].self, forKey: .reps)
-        load_kg_each = try container.decodeIfPresent([Double].self, forKey: .load_kg_each)
+        load_each = try container.decodeIfPresent([Double].self, forKey: .load_each)
         rest_seconds = try container.decodeIfPresent(Int.self, forKey: .rest_seconds)
         distance_km = try container.decodeIfPresent(Double.self, forKey: .distance_km)
         duration_min = try container.decodeIfPresent(Int.self, forKey: .duration_min)
@@ -219,7 +219,7 @@ struct WorkoutHistoryItem: Codable, Identifiable, Equatable {
             // Reps exercise - handles both weighted and bodyweight
             if let sets = sets, let reps = reps, !reps.isEmpty {
                 let repsStr = reps.map { String($0) }.joined(separator: ", ")
-                if let weights = load_kg_each, !weights.isEmpty {
+                if let weights = load_each, !weights.isEmpty {
                     let weightsStr = weights.map { weight in
                         weight.truncatingRemainder(dividingBy: 1) == 0
                             ? String(format: "%.0f", weight)

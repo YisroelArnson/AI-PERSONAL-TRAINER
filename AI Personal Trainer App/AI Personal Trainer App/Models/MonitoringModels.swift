@@ -58,6 +58,13 @@ struct CalendarEventResponse: Codable {
     let event: CalendarEvent
 }
 
+struct CalendarCheckRegenerateResponse: Codable {
+    let success: Bool
+    let regenerated: Bool
+    let events: [CalendarEvent]?
+    let reason: String?
+}
+
 struct CalendarEvent: Codable, Identifiable {
     let id: String
     let eventType: String

@@ -295,8 +295,8 @@ struct AssistantOverlayView: View {
     private func handleStartWorkout(_ artifact: Artifact) {
         print("🏋️ Starting workout from artifact: \(artifact.artifactId)")
 
-        // Load exercises from artifact into ExerciseStore (replaces current workout)
-        ExerciseStore.shared.loadFromArtifact(artifact)
+        // Load exercises from artifact into WorkoutStore (replaces current workout)
+        WorkoutStore.shared.loadFromArtifact(artifact)
 
         // Close the overlay to show the workout
         manager.minimize()
@@ -306,7 +306,7 @@ struct AssistantOverlayView: View {
         print("➕ Adding to current workout from artifact: \(artifact.artifactId)")
 
         // Add exercises from artifact to current workout
-        ExerciseStore.shared.addFromArtifact(artifact)
+        WorkoutStore.shared.loadFromArtifact(artifact)
 
         // Minimize to show the updated workout
         manager.minimize()
@@ -316,7 +316,7 @@ struct AssistantOverlayView: View {
         print("🔄 Replacing current workout from artifact: \(artifact.artifactId)")
 
         // Replace current workout with artifact exercises (same as Start)
-        ExerciseStore.shared.loadFromArtifact(artifact)
+        WorkoutStore.shared.loadFromArtifact(artifact)
 
         // Minimize to show the workout
         manager.minimize()

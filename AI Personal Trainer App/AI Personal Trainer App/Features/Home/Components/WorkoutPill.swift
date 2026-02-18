@@ -3,14 +3,13 @@
 //  AI Personal Trainer App
 //
 //  Pill-shaped button showing current workout with scrolling text and play button.
-//  The pill displays the workout name and duration with horizontal scrolling if text overflows.
+//  The pill displays the workout title with horizontal scrolling if text overflows.
 //
 
 import SwiftUI
 
 struct WorkoutPill: View {
-    let workoutName: String
-    let duration: Int // in minutes
+    let title: String
     let onTap: () -> Void
 
     // Animation state for scrolling text
@@ -25,10 +24,6 @@ struct WorkoutPill: View {
     private let playButtonSize: CGFloat = 32
     private let pillHeight: CGFloat = 50 // Match AI orb height
 
-    private var displayText: String {
-        "\(workoutName) (\(duration) min)"
-    }
-
     private var shouldScroll: Bool {
         textWidth > containerWidth
     }
@@ -38,7 +33,7 @@ struct WorkoutPill: View {
             HStack(spacing: 11) {
                 // Scrolling text container
                 GeometryReader { geometry in
-                    Text(displayText)
+                    Text(title)
                         .font(AppTheme.Typography.pillText)
                         .foregroundColor(AppTheme.Colors.primaryText)
                         .fixedSize(horizontal: true, vertical: false)
@@ -132,85 +127,6 @@ struct WorkoutPill: View {
     }
 }
 
-// MARK: - Alternative: Non-scrolling version for short text
-
-struct WorkoutPillStatic: View {
-    let workoutName: String
-    let duration: Int
-    let onTap: () -> Void
-
-    private let playButtonSize: CGFloat = 32
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 11) {
-                Text("\(workoutName) (\(duration) min)")
-                    .font(AppTheme.Typography.pillText)
-                    .foregroundColor(AppTheme.Colors.primaryText)
-                    .lineLimit(1)
-
-                Circle()
-                    .fill(AppTheme.Colors.accent)
-                    .frame(width: playButtonSize, height: playButtonSize)
-                    .overlay(
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(AppTheme.Colors.background)
-                            .offset(x: 1)
-                    )
-            }
-            .padding(.leading, 16)
-            .padding(.trailing, 10)
-            .padding(.vertical, 10)
-            .background(
-                Capsule()
-                    .fill(AppTheme.Colors.surface)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Empty State Variant (still looks like a button, not text input)
-
-struct WorkoutPillEmpty: View {
-    let message: String
-    let onTap: () -> Void
-
-    private let playButtonSize: CGFloat = 32
-    private let pillHeight: CGFloat = 50 // Match AI orb height
-
-    var body: some View {
-        Button(action: onTap) {
-            HStack(spacing: 11) {
-                Text(message)
-                    .font(AppTheme.Typography.pillText)
-                    .foregroundColor(AppTheme.Colors.primaryText)
-                    .lineLimit(1)
-
-                // Play button - same style as active pill
-                Circle()
-                    .fill(AppTheme.Colors.accent)
-                    .frame(width: playButtonSize, height: playButtonSize)
-                    .overlay(
-                        Image(systemName: "play.fill")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(AppTheme.Colors.background)
-                            .offset(x: 1)
-                    )
-            }
-            .padding(.leading, 16)
-            .padding(.trailing, 9)
-            .frame(height: pillHeight)
-            .background(
-                Capsule()
-                    .fill(AppTheme.Colors.surface)
-            )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
 // MARK: - Previews
 
 #Preview("Workout Pill") {
@@ -220,23 +136,21 @@ struct WorkoutPillEmpty: View {
         VStack(spacing: 20) {
             // Short text (no scroll)
             WorkoutPill(
-                workoutName: "Upper Body",
-                duration: 45,
+                title: "Upper Body Push",
                 onTap: {}
             )
             .frame(width: 250)
 
             // Long text (should scroll)
             WorkoutPill(
-                workoutName: "Upper Body Strength with Dumbbells",
-                duration: 45,
+                title: "Upper Body Strength with Dumbbells",
                 onTap: {}
             )
             .frame(width: 200)
 
-            // Empty state
-            WorkoutPillEmpty(
-                message: "No workout today",
+            // Default
+            WorkoutPill(
+                title: "Start Workout",
                 onTap: {}
             )
         }

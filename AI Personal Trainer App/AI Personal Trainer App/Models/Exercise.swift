@@ -15,7 +15,7 @@ struct Exercise: Codable, Identifiable {
     let sets: Int
     let reps: [Int]
     let duration_min: Int
-    let load_kg_each: [Double]
+    let load_each: [Double]
     let muscles_utilized: [MuscleUtilization]?
     let goals_addressed: [GoalUtilization]?
     let reasoning: String
@@ -28,13 +28,13 @@ struct Exercise: Codable, Identifiable {
     let equipment: [String]?
     
     // Full initializer for direct construction
-    init(name: String, exercise_type: String, sets: Int, reps: [Int], duration_min: Int, load_kg_each: [Double], muscles_utilized: [MuscleUtilization]?, goals_addressed: [GoalUtilization]?, reasoning: String, exercise_description: String?, distance_km: Double?, rounds: Int?, rest_seconds: Int?, target_pace: String?, hold_duration_sec: [Int]?, equipment: [String]?) {
+    init(name: String, exercise_type: String, sets: Int, reps: [Int], duration_min: Int, load_each: [Double], muscles_utilized: [MuscleUtilization]?, goals_addressed: [GoalUtilization]?, reasoning: String, exercise_description: String?, distance_km: Double?, rounds: Int?, rest_seconds: Int?, target_pace: String?, hold_duration_sec: [Int]?, equipment: [String]?) {
         self.name = name
         self.exercise_type = exercise_type
         self.sets = sets
         self.reps = reps
         self.duration_min = duration_min
-        self.load_kg_each = load_kg_each
+        self.load_each = load_each
         self.muscles_utilized = muscles_utilized
         self.goals_addressed = goals_addressed
         self.reasoning = reasoning
@@ -57,7 +57,7 @@ struct Exercise: Codable, Identifiable {
 
         if sets > 0 { dict["sets"] = sets }
         if !reps.isEmpty { dict["reps"] = reps }
-        if !load_kg_each.isEmpty { dict["load_kg_each"] = load_kg_each }
+        if !load_each.isEmpty { dict["load_each"] = load_each }
         if duration_min > 0 { dict["duration_min"] = duration_min }
         if let distance_km = distance_km { dict["distance_km"] = distance_km }
         if let rounds = rounds { dict["rounds"] = rounds }
@@ -75,7 +75,7 @@ struct Exercise: Codable, Identifiable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case name, exercise_type, sets, reps, duration_min, load_kg_each, muscles_utilized, goals_addressed, reasoning, exercise_description, distance_km, rounds, rest_seconds, target_pace, hold_duration_sec, equipment
+        case name, exercise_type, sets, reps, duration_min, load_each, muscles_utilized, goals_addressed, reasoning, exercise_description, distance_km, rounds, rest_seconds, target_pace, hold_duration_sec, equipment
     }
 }
 

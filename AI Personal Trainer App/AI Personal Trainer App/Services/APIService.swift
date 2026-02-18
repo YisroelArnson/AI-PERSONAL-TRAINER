@@ -15,6 +15,7 @@ class APIService: ObservableObject {
     
     // List of fallback IPs to try for physical devices
     private let fallbackIPs = [
+        "http://192.168.1.3:3000",
         "http://192.168.1.7:3000",
         "http://10.0.0.105:3000",
         "http://192.168.1.171:3000",
@@ -432,7 +433,7 @@ class APIService: ObservableObject {
         httpRequest.httpMethod = "POST"
         httpRequest.httpBody = try JSONEncoder().encode(request)
 
-        let (data, httpResponse) = try await dataWithFallback(for: httpRequest)
+        let (data, httpResponse) = try await dataWithFallback(for: httpRequest, timeout: 60)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -451,7 +452,7 @@ class APIService: ObservableObject {
         httpRequest.httpMethod = "POST"
         httpRequest.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, httpResponse) = try await dataWithFallback(for: httpRequest)
+        let (data, httpResponse) = try await dataWithFallback(for: httpRequest, timeout: 30)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -470,7 +471,7 @@ class APIService: ObservableObject {
         let requestBody = WorkoutCompletionRequest(reflection: reflection, log: log)
         httpRequest.httpBody = try JSONEncoder().encode(requestBody)
 
-        let (data, httpResponse) = try await dataWithFallback(for: httpRequest)
+        let (data, httpResponse) = try await dataWithFallback(for: httpRequest, timeout: 30)
         guard httpResponse.statusCode == 200 else {
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
@@ -881,6 +882,16 @@ class APIService: ObservableObject {
         var request = try await createAuthenticatedRequest(url: url)
         request.httpMethod = "POST"
         _ = try await dataWithFallback(for: request)
+    }
+
+    func checkAndRegenerateCalendar() async throws -> [CalendarEvent] {
+        guard let url = URL(string: "\(baseURL)/trainer/calendar/check-and-regenerate") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 30)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(CalendarCheckRegenerateResponse.self, from: data)
+        return response.events ?? []
     }
 
     func listWeeklyReports() async throws -> [WeeklyReport] {

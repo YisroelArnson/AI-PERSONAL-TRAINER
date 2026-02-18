@@ -68,6 +68,7 @@ class AgentService: ObservableObject {
     // MARK: - URL Configuration
     
     private let fallbackIPs = [
+        "http://192.168.1.3:3000",
         "http://10.0.0.105:3000",
         "http://192.168.1.171:3000",
         "http://192.168.1.2:3000",
@@ -364,7 +365,7 @@ class AgentService: ObservableObject {
         // Get current workout state if requested
         let currentWorkout: CurrentWorkoutPayload?
         if includeWorkoutContext {
-            currentWorkout = await ExerciseStore.shared.getCurrentWorkoutPayload()
+            currentWorkout = await WorkoutStore.shared.getCurrentWorkoutPayload()
         } else {
             currentWorkout = nil
         }
@@ -414,7 +415,7 @@ class AgentService: ObservableObject {
         // Get current workout state if requested
         let currentWorkout: CurrentWorkoutPayload?
         if includeWorkoutContext {
-            currentWorkout = await ExerciseStore.shared.getCurrentWorkoutPayload()
+            currentWorkout = await WorkoutStore.shared.getCurrentWorkoutPayload()
         } else {
             currentWorkout = nil
         }

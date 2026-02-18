@@ -12,22 +12,18 @@ struct HomeView: View {
     @EnvironmentObject var appCoordinator: AppStateCoordinator
 
     @StateObject private var apiService = APIService()
-    @StateObject private var exerciseStore = ExerciseStore.shared
-    @StateObject private var workoutSessionStore = WorkoutSessionStore.shared
+    @State private var workoutStore = WorkoutStore.shared
 
     // Sheet states
-    @State private var showQuickWorkoutSheet = false
-    @State private var showReadinessSheet = false
-    @State private var showReflectionSheet = false
-    @State private var showSummarySheet = false
     @State private var showScheduleSheet = false
     @State private var showRunComingSoon = false
+    @State private var showDiscardConfirm = false
+    @State private var isWorkoutPresented = false
 
     // Data states
     @State private var upcomingEvents: [CalendarEvent] = []
     @State private var latestReport: WeeklyReport?
     @State private var userStats: HomeUserStats?
-    @State private var selectedCoachMode: String = "quiet"
 
     // AI message state
     @State private var aiMessage: String = "Welcome back! Let's make today count."
@@ -59,67 +55,38 @@ struct HomeView: View {
                         .padding(.bottom, 16)
                         .padding(.top, 16)
                 }
-
             }
         }
-        .sheet(isPresented: $showQuickWorkoutSheet) {
-            QuickWorkoutSheet { input in
+        .sheet(isPresented: $workoutStore.showPreWorkoutSheet) {
+            PreWorkoutSheet(
+                isCustomWorkout: todaysEvent == nil && workoutStore.customRequestText.isEmpty == false || todaysEvent == nil,
+                sessionTitle: todaysEvent?.title ?? todaysEvent?.plannedSession?.intentJson["focus"]?.stringValue
+            )
+            .presentationDetents([.medium, .large])
+        }
+        .fullScreenCover(isPresented: $isWorkoutPresented) {
+            WorkoutFlowView()
+        }
+        .onChange(of: workoutStore.isWorkoutViewPresented) { _, newValue in
+            isWorkoutPresented = newValue
+        }
+        .onChange(of: isWorkoutPresented) { _, newValue in
+            if !newValue && workoutStore.isWorkoutViewPresented {
                 Task {
-                    await workoutSessionStore.startSession(
-                        intent: "quick_request",
-                        requestText: input.requestText,
-                        timeAvailableMin: input.timeAvailableMin,
-                        readiness: input.readiness,
-                        equipment: input.equipmentOverride,
-                        coachMode: selectedCoachMode
-                    )
+                    await workoutStore.suspendWorkout()
                 }
-            }
-        }
-        .sheet(isPresented: $showReadinessSheet) {
-            ReadinessCheckSheet { input in
-                Task {
-                    await workoutSessionStore.startSession(
-                        intent: "planned",
-                        requestText: nil,
-                        timeAvailableMin: input.timeAvailableMin,
-                        readiness: input.readiness,
-                        equipment: input.equipmentOverride,
-                        coachMode: selectedCoachMode
-                    )
-                }
-            }
-        }
-        .sheet(isPresented: $showReflectionSheet) {
-            WorkoutReflectionSheet { reflection in
-                Task {
-                    let exercises = exerciseStore.exercises
-                    let completedSetsPerExercise = exerciseStore.completedSetsPerExercise
-                    let log = WorkoutLogPayload(
-                        exercisesCompleted: exercises.count,
-                        setsCompleted: completedSetsPerExercise.values.reduce(0) { $0 + $1.count },
-                        totalDurationMin: nil
-                    )
-                    await workoutSessionStore.completeSession(reflection: reflection, logPayload: log)
-                    showSummarySheet = workoutSessionStore.summary != nil
-                }
-            }
-        }
-        .sheet(isPresented: $showSummarySheet) {
-            if let summary = workoutSessionStore.summary {
-                WorkoutSummarySheet(summary: summary)
             }
         }
         .alert("Something went wrong", isPresented: Binding(
-            get: { workoutSessionStore.errorMessage != nil },
-            set: { _ in workoutSessionStore.errorMessage = nil }
+            get: { workoutStore.errorMessage != nil },
+            set: { _ in workoutStore.errorMessage = nil }
         )) {
             Button("OK", role: .cancel) { }
         } message: {
-            Text(workoutSessionStore.errorMessage ?? "Please try again.")
+            Text(workoutStore.errorMessage ?? "Please try again.")
         }
         .onReceive(NotificationCenter.default.publisher(for: .showQuickWorkoutSheet)) { _ in
-            showQuickWorkoutSheet = true
+            workoutStore.startCustomSession()
         }
         .onReceive(NotificationCenter.default.publisher(for: .showScheduleWorkoutSheet)) { _ in
             showScheduleSheet = true
@@ -132,23 +99,21 @@ struct HomeView: View {
         } message: {
             Text("Running features are coming soon!")
         }
+        .alert("Discard Workout?", isPresented: $showDiscardConfirm) {
+            Button("Discard", role: .destructive) {
+                workoutStore.reset()
+                if let event = todaysEvent {
+                    workoutStore.startPlannedSession(calendarEvent: event)
+                } else {
+                    workoutStore.startCustomSession()
+                }
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("This will discard your current workout. You can't undo this.")
+        }
         .task {
             await loadHomeData()
-        }
-        .onChange(of: exerciseStore.allExercisesCompleted) { _, isAllCompleted in
-            if isAllCompleted && !exerciseStore.exercises.isEmpty {
-                showReflectionSheet = true
-            }
-        }
-        .onChange(of: workoutSessionStore.workoutInstance) { _, instance in
-            if instance != nil {
-                appCoordinator.markAsReady()
-            }
-        }
-        .onChange(of: exerciseStore.needsRefresh) { _, needsRefresh in
-            if needsRefresh {
-                showReadinessSheet = true
-            }
         }
     }
 
@@ -172,14 +137,44 @@ struct HomeView: View {
 
     private var bottomActionBar: some View {
         HStack(spacing: 10) {
-            // Workout Pill (takes most space)
-            WorkoutPill(
-                workoutName: currentScheduledWorkout?.name ?? "Upper Body Workout",
-                duration: currentScheduledWorkout?.duration ?? 45,
-                onTap: {
-                    showReadinessSheet = true
+            if workoutStore.hasActivePersistedWorkout {
+                // Resume pill
+                ResumePill(
+                    completedCount: workoutStore.totalCompletedExercises,
+                    totalCount: workoutStore.totalExercises,
+                    onTap: {
+                        workoutStore.resumeWorkout()
+                    }
+                )
+
+                // Start New pill
+                Button(action: {
+                    showDiscardConfirm = true
+                }) {
+                    Text("New")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .frame(height: 50)
+                        .padding(.horizontal, 16)
+                        .background(
+                            Capsule()
+                                .fill(AppTheme.Colors.surface)
+                        )
                 }
-            )
+                .buttonStyle(.plain)
+            } else {
+                // Normal workout pill
+                WorkoutPill(
+                    title: workoutButtonTitle,
+                    onTap: {
+                        if let event = todaysEvent {
+                            workoutStore.startPlannedSession(calendarEvent: event)
+                        } else {
+                            workoutStore.startCustomSession()
+                        }
+                    }
+                )
+            }
 
             // Space for AI Orb (handled by AssistantOverlayView)
             Color.clear
@@ -189,85 +184,129 @@ struct HomeView: View {
 
     // MARK: - Computed Properties
 
-    private var currentScheduledWorkout: (name: String, duration: Int)? {
-        // Check for today's scheduled workout from calendar events
-        let today = Calendar.current.startOfDay(for: Date())
-        if let todayEvent = upcomingEvents.first(where: { Calendar.current.isDate($0.startAt, inSameDayAs: today) }) {
-            let name = todayEvent.plannedSession?.intentJson["focus"]?.stringValue ?? todayEvent.title ?? "Today's Workout"
-            let duration = todayEvent.plannedSession?.intentJson["duration_min"]?.intValue ?? 45
-            return (name: name, duration: duration)
+    private var todaysEvent: CalendarEvent? {
+        upcomingEvents.first { event in
+            Calendar.current.isDateInToday(event.startAt) &&
+            event.status != "completed" && event.status != "skipped"
         }
-        return nil
     }
 
-    private var todayIntentLine: String? {
-        let today = Calendar.current.startOfDay(for: Date())
-        let todayEvent = upcomingEvents.first { Calendar.current.isDate($0.startAt, inSameDayAs: today) }
-        if let focus = todayEvent?.plannedSession?.intentJson["focus"]?.stringValue {
-            return focus
+    private var workoutButtonTitle: String {
+        if let event = todaysEvent {
+            if let focus = event.plannedSession?.intentJson["focus"]?.stringValue {
+                return focus
+            }
+            if let title = event.title {
+                return title
+            }
+            return "Today's Workout"
         }
-        if let title = todayEvent?.title {
-            return title
-        }
-        return nil
-    }
-
-    private var estimatedRemainingTime: Int {
-        // Estimate remaining time based on exercises left
-        let totalExercises = exerciseStore.exercises.count
-        let completedCount = exerciseStore.completedExerciseIds.count
-        let remaining = max(0, totalExercises - completedCount)
-        return remaining * 5 // Rough estimate: 5 min per exercise
+        return "Start Workout"
     }
 
     // MARK: - Data Loading
 
     private func loadHomeData() async {
-        // Load calendar events and reports
+        // Attempt to restore a persisted workout
+        let _ = workoutStore.loadPersistedState()
+
         do {
             let start = Calendar.current.startOfDay(for: Date())
             let end = Calendar.current.date(byAdding: .day, value: 7, to: start) ?? start
             upcomingEvents = try await apiService.listCalendarEvents(start: start, end: end)
             latestReport = try await apiService.listWeeklyReports().first
+
+            // Check if no planned/scheduled events — trigger catch-up review
+            let hasPlannedEvents = upcomingEvents.contains { $0.status == "scheduled" || $0.status == "planned" }
+            if !hasPlannedEvents {
+                let newEvents = try await apiService.checkAndRegenerateCalendar()
+                if !newEvents.isEmpty {
+                    upcomingEvents = try await apiService.listCalendarEvents(start: start, end: end)
+                }
+            }
         } catch {
             print("Failed to load home data: \(error)")
         }
 
-        // Build AI message based on loaded data
         buildAIMessage()
 
-        // Minimum display time for skeleton (prevents flash on fast loads)
         try? await Task.sleep(nanoseconds: 400_000_000)
 
-        // Animate transition to loaded content
         withAnimation(AppTheme.Animation.slow) {
             isLoadingAIMessage = false
-        }
-
-        // Restore session if needed
-        workoutSessionStore.restoreSessionIfNeeded()
-        if !exerciseStore.exercises.isEmpty {
-            appCoordinator.markAsReady()
         }
     }
 
     private func buildAIMessage() {
         var messageParts: [String] = []
 
-        // Weekly progress (real data when available, fallback to mock)
         let workoutCount = latestReport?.sessionsCompleted ?? 3
         messageParts.append("You've completed **\(workoutCount) workouts** this week.")
-
-        // Strength improvement (mock data for now - will be replaced with API data)
         messageParts.append("Your push strength is up **12%** from last month.")
-
-        // Streak days (mock data for now - will be replaced with API data)
         messageParts.append("Day **12** of your streak.")
-
-        // Motivational closer
         messageParts.append("Let's keep building.")
 
         aiMessage = messageParts.joined(separator: " ")
+    }
+}
+
+// MARK: - Workout Flow Container
+
+/// Manages the generating → active → completion flow as a fullScreenCover
+struct WorkoutFlowView: View {
+    @State var workoutStore = WorkoutStore.shared
+    @Environment(\.dismiss) var dismiss
+
+    var body: some View {
+        ZStack {
+            AppTheme.Colors.background.ignoresSafeArea()
+
+            switch workoutStore.sessionStatus {
+            case .generating:
+                generatingView
+            case .active:
+                ZStack {
+                    WorkoutView()
+                    AssistantOverlayView()
+                }
+                .onReceive(Timer.publish(every: 30, on: .main, in: .common).autoconnect()) { _ in
+                    if workoutStore.sessionStatus == .active {
+                        workoutStore.persist()
+                    }
+                }
+            case .completing, .completed:
+                WorkoutCompletionView()
+            default:
+                EmptyView()
+            }
+        }
+        .onChange(of: workoutStore.sessionStatus) { _, newStatus in
+            if newStatus == .idle {
+                dismiss()
+            }
+        }
+    }
+
+    private var generatingView: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            // AI Orb placeholder (56px circle with gradient)
+            Circle()
+                .fill(AppTheme.Gradients.orb)
+                .frame(width: 56, height: 56)
+                .shadow(color: AppTheme.Shadow.orb, radius: AppTheme.Shadow.orbRadius)
+
+            Text("Generating your workout...")
+                .font(AppTheme.Typography.aiMessageMedium)
+                .foregroundColor(AppTheme.Colors.secondaryText)
+
+            // Progress bar
+            ProgressView()
+                .tint(AppTheme.Colors.primaryText)
+
+            Spacer()
+        }
     }
 }
 

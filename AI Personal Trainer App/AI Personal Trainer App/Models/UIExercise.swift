@@ -16,7 +16,7 @@ struct UIExercise: Identifiable, Codable, Equatable {
     // === TYPE: reps - Count repetitions across sets ===
     let sets: Int?
     let reps: [Int]?
-    let load_kg_each: [Double]?  // Weight per set
+    let load_each: [Double]?  // Weight per set
     let load_unit: String?       // "lbs" or "kg"
 
     // === TYPE: hold - Hold positions for time ===
@@ -46,7 +46,7 @@ struct UIExercise: Identifiable, Codable, Equatable {
         type: String,
         duration_min: Int? = nil,
         reps: [Int]? = nil,
-        load_kg_each: [Double]? = nil,
+        load_each: [Double]? = nil,
         load_unit: String? = nil,
         sets: Int? = nil,
         distance_km: Double? = nil,
@@ -69,7 +69,7 @@ struct UIExercise: Identifiable, Codable, Equatable {
         self.type = type
         self.duration_min = duration_min
         self.reps = reps
-        self.load_kg_each = load_kg_each
+        self.load_each = load_each
         self.load_unit = load_unit
         self.sets = sets
         self.distance_km = distance_km
@@ -96,7 +96,7 @@ struct UIExercise: Identifiable, Codable, Equatable {
             sets: sets ?? 0,
             reps: reps ?? [],
             duration_min: duration_min ?? 0,
-            load_kg_each: load_kg_each ?? [],
+            load_each: load_each ?? [],
             muscles_utilized: muscles_utilized,
             goals_addressed: goals_addressed,
             reasoning: reasoning ?? "",
@@ -111,9 +111,10 @@ struct UIExercise: Identifiable, Codable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, exercise_name, type
+        case id, exercise_name
+        case type = "exercise_type"
         case duration_min, reps, sets, rounds
-        case load_kg_each, load_unit
+        case load_each, load_unit
         case distance_km, distance_unit
         case work_sec, total_duration_min
         case muscles_utilized, rest_seconds, target_pace
@@ -130,7 +131,7 @@ struct UIExercise: Identifiable, Codable, Equatable {
         type = try container.decode(String.self, forKey: .type)
         duration_min = try container.decodeIfPresent(Int.self, forKey: .duration_min)
         reps = try container.decodeIfPresent([Int].self, forKey: .reps)
-        load_kg_each = try container.decodeIfPresent([Double].self, forKey: .load_kg_each)
+        load_each = try container.decodeIfPresent([Double].self, forKey: .load_each)
         load_unit = try container.decodeIfPresent(String.self, forKey: .load_unit)
         sets = try container.decodeIfPresent(Int.self, forKey: .sets)
         distance_km = try container.decodeIfPresent(Double.self, forKey: .distance_km)
@@ -156,7 +157,7 @@ struct UIExercise: Identifiable, Codable, Equatable {
         try container.encode(type, forKey: .type)
         try container.encodeIfPresent(duration_min, forKey: .duration_min)
         try container.encodeIfPresent(reps, forKey: .reps)
-        try container.encodeIfPresent(load_kg_each, forKey: .load_kg_each)
+        try container.encodeIfPresent(load_each, forKey: .load_each)
         try container.encodeIfPresent(load_unit, forKey: .load_unit)
         try container.encodeIfPresent(sets, forKey: .sets)
         try container.encodeIfPresent(distance_km, forKey: .distance_km)
@@ -180,7 +181,7 @@ struct UIExercise: Identifiable, Codable, Equatable {
             exercise_name: "Barbell Bench Press",
             type: "reps",
             reps: [10, 10, 8],
-            load_kg_each: [40, 40, 45],
+            load_each: [40, 40, 45],
             load_unit: "kg",
             sets: 3,
             muscles_utilized: [

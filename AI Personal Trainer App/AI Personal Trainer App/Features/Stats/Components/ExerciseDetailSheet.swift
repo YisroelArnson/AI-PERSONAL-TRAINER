@@ -297,7 +297,7 @@ struct ExerciseDetailSheet: View {
                 metricRow(label: "Reps", value: reps.map { String($0) }.joined(separator: ", "))
             }
 
-            if let weights = exercise.load_kg_each, !weights.isEmpty {
+            if let weights = exercise.load_each, !weights.isEmpty {
                 let weightLabel = "Weight (\(userSettings.weightUnitLabel))"
                 let weightValues = weights.map { weight in
                     weight.truncatingRemainder(dividingBy: 1) == 0

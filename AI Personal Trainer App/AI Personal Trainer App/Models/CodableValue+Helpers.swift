@@ -17,6 +17,8 @@ extension CodableValue {
             return value.compactMap { $0.stringValue }.joined(separator: ", ")
         case .object:
             return nil
+        case .null:
+            return nil
         }
     }
 

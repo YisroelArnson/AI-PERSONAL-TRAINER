@@ -68,7 +68,6 @@ struct MainAppView: View {
                 .ignoresSafeArea(.keyboard)
 
             AssistantOverlayView()
-                .environment(\.assistantManager, assistantManager)
 
             // Top bar
             VStack(spacing: 0) {
@@ -76,6 +75,7 @@ struct MainAppView: View {
                 Spacer()
             }
         }
+        .environment(\.assistantManager, assistantManager)
         .sheet(isPresented: $showingProfile) {
             ProfileView()
         }

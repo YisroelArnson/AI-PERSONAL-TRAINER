@@ -182,13 +182,16 @@ enum CodableValue: Codable {
     case int(Int)
     case double(Double)
     case bool(Bool)
+    case null
     case stringArray([String])
     case array([CodableValue])
     case object([String: CodableValue])
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let value = try? container.decode([String: CodableValue].self) {
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode([String: CodableValue].self) {
             self = .object(value)
         } else if let value = try? container.decode([CodableValue].self) {
             self = .array(value)
@@ -222,6 +225,8 @@ enum CodableValue: Codable {
             try container.encode(value)
         case .bool(let value):
             try container.encode(value)
+        case .null:
+            try container.encodeNil()
         case .stringArray(let value):
             try container.encode(value)
         }
@@ -237,6 +242,8 @@ enum CodableValue: Codable {
             return value
         case .bool(let value):
             return value
+        case .null:
+            return NSNull()
         case .stringArray(let value):
             return value
         case .array(let value):

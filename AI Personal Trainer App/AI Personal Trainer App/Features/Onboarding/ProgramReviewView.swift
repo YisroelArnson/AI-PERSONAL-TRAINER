@@ -165,6 +165,7 @@ struct MarkdownContentView: View {
         case h3(String)
         case bullet(String)
         case indentedBullet(String)
+        case checkbox(Bool, String) // completed, label
         case quote(String)
         case italic(String)
         case bold(String, String)
@@ -186,9 +187,14 @@ struct MarkdownContentView: View {
         "weekly structure": "calendar",
         "training sessions": "dumbbell",
         "progression plan": "chart.line.uptrend",
+        "current phase": "arrow.trianglepath",
+        "available phases": "list.bullet",
+        "exercise rules": "checklist",
         "recovery": "bed.double",
         "safety guidelines": "shield.checkered",
         "coach notes": "quote.opening",
+        "milestones": "flag",
+        "scheduling recommendations": "calendar.badge.clock",
     ]
 
     private static func iconForSection(_ title: String) -> String {
@@ -232,6 +238,10 @@ struct MarkdownContentView: View {
                 currentLines.append(.h3(String(line.dropFirst(4))))
             } else if line.hasPrefix("## ") {
                 currentLines.append(.h2(String(line.dropFirst(3))))
+            } else if line.hasPrefix("- [x] ") || line.hasPrefix("- [X] ") {
+                currentLines.append(.checkbox(true, String(line.dropFirst(6))))
+            } else if line.hasPrefix("- [ ] ") {
+                currentLines.append(.checkbox(false, String(line.dropFirst(6))))
             } else if line.hasPrefix("- **") || (line.hasPrefix("  ") && line.contains("*")) {
                 let content = line.hasPrefix("- ") ? String(line.dropFirst(2)) : line.trimmingCharacters(in: .whitespaces)
                 currentLines.append(.indentedBullet(content))
@@ -336,6 +346,21 @@ struct MarkdownContentView: View {
                 Text(text)
                     .font(.system(size: 15.5))
                     .foregroundColor(AppTheme.Colors.primaryText)
+                    .lineSpacing(4)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.vertical, 3)
+
+        case .checkbox(let completed, let label):
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: completed ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 16))
+                    .foregroundColor(completed ? AppTheme.Colors.primaryText : AppTheme.Colors.tertiaryText)
+                    .padding(.top, 2)
+                Text(label)
+                    .font(.system(size: 15.5))
+                    .foregroundColor(completed ? AppTheme.Colors.secondaryText : AppTheme.Colors.primaryText)
+                    .strikethrough(completed)
                     .lineSpacing(4)
                     .fixedSize(horizontal: false, vertical: true)
             }
