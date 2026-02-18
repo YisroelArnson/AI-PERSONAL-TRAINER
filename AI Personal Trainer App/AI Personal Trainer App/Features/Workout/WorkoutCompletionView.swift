@@ -10,6 +10,7 @@ struct WorkoutCompletionView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var workoutStore = WorkoutStore.shared
     @State private var notes: String = ""
+    @State private var sessionRpe: Int?
 
     var body: some View {
         ScrollView {
@@ -18,6 +19,7 @@ struct WorkoutCompletionView: View {
                 statCardsRow
                 winsSection
                 nextFocusSection
+                sessionRpeSection
                 notesInput
                 doneButton
             }
@@ -27,6 +29,11 @@ struct WorkoutCompletionView: View {
         }
         .background(AppTheme.Colors.background)
         .navigationBarBackButtonHidden(true)
+        .onAppear {
+            if sessionRpe == nil {
+                sessionRpe = workoutStore.suggestedSessionRpe
+            }
+        }
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
                 Button {
@@ -159,6 +166,40 @@ struct WorkoutCompletionView: View {
         }
     }
 
+    // MARK: - Session RPE
+
+    private var sessionRpeSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("SESSION RPE")
+                .font(AppTheme.Typography.label)
+                .textCase(.uppercase)
+                .foregroundStyle(AppTheme.Colors.tertiaryText)
+
+            HStack(spacing: 8) {
+                ForEach([6, 7, 8, 9, 10], id: \.self) { value in
+                    Button {
+                        sessionRpe = value
+                    } label: {
+                        Text("\(value)")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(sessionRpe == value ? AppTheme.Colors.background : AppTheme.Colors.primaryText)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .background(sessionRpe == value ? AppTheme.Colors.accent : AppTheme.Colors.surface)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Button("Clear") {
+                sessionRpe = nil
+            }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(AppTheme.Colors.tertiaryText)
+        }
+    }
+
     // MARK: - Notes Input
 
     private var notesInput: some View {
@@ -176,7 +217,10 @@ struct WorkoutCompletionView: View {
     private var doneButton: some View {
         Button {
             Task {
-                await workoutStore.completeWorkout(notes: notes.isEmpty ? nil : notes)
+                await workoutStore.completeWorkout(
+                    notes: notes.isEmpty ? nil : notes,
+                    sessionRpe: sessionRpe
+                )
                 workoutStore.reset()
             }
         } label: {

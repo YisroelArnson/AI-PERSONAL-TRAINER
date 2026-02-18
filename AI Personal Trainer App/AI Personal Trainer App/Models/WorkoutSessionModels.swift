@@ -145,15 +145,29 @@ struct WorkoutReflection: Encodable {
     let notes: String?
 }
 
+struct ExerciseRPEEntry: Encodable {
+    let exerciseIndex: Int
+    let exerciseName: String
+    let rpe: Int
+
+    enum CodingKeys: String, CodingKey {
+        case exerciseIndex = "exercise_index"
+        case exerciseName = "exercise_name"
+        case rpe
+    }
+}
+
 struct WorkoutLogPayload: Encodable {
     let exercisesCompleted: Int?
     let setsCompleted: Int?
     let totalDurationMin: Int?
+    let exerciseRpe: [ExerciseRPEEntry]?
 
     enum CodingKeys: String, CodingKey {
         case exercisesCompleted = "exercisesCompleted"
         case setsCompleted = "setsCompleted"
         case totalDurationMin = "totalDurationMin"
+        case exerciseRpe = "exerciseRpe"
     }
 }
 

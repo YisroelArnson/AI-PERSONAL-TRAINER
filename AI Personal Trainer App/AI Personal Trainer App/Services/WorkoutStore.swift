@@ -40,6 +40,7 @@ struct ActiveWorkoutState: Codable {
     var completedSets: [String: [Int]]  // UUID string -> sorted set indices
     var skippedExercises: [String]       // UUID strings
     var painFlaggedExercises: [String]   // UUID strings
+    var exerciseRpeByIndex: [Int: Int]?
 
     var presentationMode: WorkoutPresentationMode
 
@@ -68,6 +69,8 @@ class WorkoutStore {
     var completedSets: [UUID: Set<Int>] = [:] // exerciseId -> completed set indices
     var skippedExercises: Set<UUID> = []
     var painFlaggedExercises: Set<UUID> = []
+    var exerciseRpeByIndex: [Int: Int] = [:]
+    var pendingRpeExerciseIndex: Int?
 
     // MARK: - View State
 
@@ -172,6 +175,19 @@ class WorkoutStore {
         return Int(total / 60)
     }
 
+    var pendingRpeExerciseName: String? {
+        guard let index = pendingRpeExerciseIndex,
+              index >= 0,
+              index < exercises.count else { return nil }
+        return exercises[index].exercise_name
+    }
+
+    var suggestedSessionRpe: Int? {
+        guard !exerciseRpeByIndex.isEmpty else { return nil }
+        let sorted = exerciseRpeByIndex.values.sorted()
+        return sorted[sorted.count / 2]
+    }
+
     /// The label for the Done button depending on context
     var doneButtonLabel: String {
         if allExercisesComplete || (isLastExercise && isLastSetForCurrentExercise) {
@@ -181,6 +197,20 @@ class WorkoutStore {
             return "Next Exercise"
         }
         return "Done"
+    }
+
+    func captureExerciseRpe(_ value: Int, forExerciseAt index: Int? = nil) {
+        let targetIndex = index ?? pendingRpeExerciseIndex
+        guard let targetIndex, targetIndex >= 0, targetIndex < exercises.count else { return }
+        let clamped = max(1, min(10, value))
+        exerciseRpeByIndex[targetIndex] = clamped
+        if pendingRpeExerciseIndex == targetIndex {
+            pendingRpeExerciseIndex = nil
+        }
+    }
+
+    func dismissPendingRpePrompt() {
+        pendingRpeExerciseIndex = nil
     }
 
     // MARK: - Session Lifecycle
@@ -402,6 +432,7 @@ class WorkoutStore {
         guard let exercise = currentExercise else { return }
         let totalSets = exercise.sets ?? 1
         let completedCount = completedSets[exercise.id]?.count ?? 0
+        let completedExerciseIndex = currentExerciseIndex
 
         // Already done — advance instead of over-counting
         if completedCount >= totalSets {
@@ -420,6 +451,9 @@ class WorkoutStore {
 
         let newCompleted = completedSets[exercise.id]?.count ?? 0
         if newCompleted >= totalSets {
+            if exerciseRpeByIndex[completedExerciseIndex] == nil {
+                pendingRpeExerciseIndex = completedExerciseIndex
+            }
             if !isLastExercise {
                 advanceToNextExercise()
             }
@@ -556,21 +590,36 @@ class WorkoutStore {
 
     // MARK: - Completion
 
-    func completeWorkout(notes: String?) async {
+    func completeWorkout(notes: String?, sessionRpe: Int? = nil) async {
         guard let session = currentSession else { return }
+        pendingRpeExerciseIndex = nil
+
+        let resolvedSessionRpe = sessionRpe ?? suggestedSessionRpe
 
         let reflection = WorkoutReflection(
-            rpe: nil,
+            rpe: resolvedSessionRpe,
             rir: nil,
             enjoyment: nil,
             pain: painFlaggedExercises.isEmpty ? nil : "Flagged \(painFlaggedExercises.count) exercise(s)",
             notes: notes
         )
 
+        let exerciseRpeEntries: [ExerciseRPEEntry] = exerciseRpeByIndex
+            .sorted { $0.key < $1.key }
+            .compactMap { index, rpe in
+                guard index >= 0, index < exercises.count else { return nil }
+                return ExerciseRPEEntry(
+                    exerciseIndex: index,
+                    exerciseName: exercises[index].exercise_name,
+                    rpe: rpe
+                )
+            }
+
         let log = WorkoutLogPayload(
             exercisesCompleted: totalCompletedExercises,
             setsCompleted: totalCompletedSets,
-            totalDurationMin: elapsedMinutes
+            totalDurationMin: elapsedMinutes,
+            exerciseRpe: exerciseRpeEntries.isEmpty ? nil : exerciseRpeEntries
         )
 
         do {
@@ -590,7 +639,7 @@ class WorkoutStore {
                     exercises: totalCompletedExercises,
                     totalSets: totalCompletedSets
                 ),
-                overallRpe: nil,
+                overallRpe: resolvedSessionRpe,
                 painNotes: nil,
                 wins: [],
                 nextSessionFocus: ""
@@ -668,6 +717,7 @@ class WorkoutStore {
             },
             skippedExercises: skippedExercises.map { $0.uuidString },
             painFlaggedExercises: painFlaggedExercises.map { $0.uuidString },
+            exerciseRpeByIndex: exerciseRpeByIndex,
             presentationMode: presentationMode,
             accumulatedSeconds: totalSeconds,
             lastActiveAt: Date()
@@ -707,6 +757,8 @@ class WorkoutStore {
             }
             skippedExercises = Set(state.skippedExercises.compactMap { UUID(uuidString: $0) })
             painFlaggedExercises = Set(state.painFlaggedExercises.compactMap { UUID(uuidString: $0) })
+            exerciseRpeByIndex = state.exerciseRpeByIndex ?? [:]
+            pendingRpeExerciseIndex = nil
 
             presentationMode = state.presentationMode
             accumulatedSeconds = state.accumulatedSeconds
@@ -778,6 +830,8 @@ class WorkoutStore {
         completedSets = [:]
         skippedExercises = []
         painFlaggedExercises = []
+        exerciseRpeByIndex = [:]
+        pendingRpeExerciseIndex = nil
 
         presentationMode = .workout
         showMidWorkoutActions = false
