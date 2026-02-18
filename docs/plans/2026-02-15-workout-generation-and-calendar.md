@@ -919,10 +919,10 @@ if upcomingEvents.filter({ $0.status == "planned" }).isEmpty {
 ### Success Criteria
 
 #### Automated Verification
-- [ ] Backend starts with cron job registered
-- [ ] `POST /trainer/calendar/check-and-regenerate` returns events
-- [ ] Stats calculator produces correct totals from test session data
-- [ ] App builds without errors
+- [x] Backend starts with cron job registered
+- [x] `POST /trainer/calendar/check-and-regenerate` returns events
+- [x] Stats calculator produces correct totals from test session data
+- [x] App builds without errors
 
 #### Manual Verification
 - [ ] After completing sessions during the week, Sunday night cron generates a new program version
@@ -972,3 +972,178 @@ if upcomingEvents.filter({ $0.status == "planned" }).isEmpty {
 - Research: `docs/research/2026-02-15-workout-generation-and-calendar.md`
 - Backend services: `BACKEND/services/trainerWorkouts.service.js`, `BACKEND/services/trainerCalendar.service.js`, `BACKEND/services/trainerProgram.service.js`
 - iOS models: `Models/Exercise.swift`, `Models/WorkoutSessionModels.swift`, `Models/ProgramModels.swift`
+
+---
+
+## UI Design Guidance
+
+How each new or modified screen should look, based on `docs/designs/artifacts/design-schema.json` and `docs/designs/artifacts/claude-app-design-artifact.jsx`. Follow the design system's core rules throughout: **monochrome only** (black/white + surface grays), **no shadows or borders** (except the AI orb), **text-first with inline stat highlights**, **AI orb is the only colored element**.
+
+### Phase 1 Screens
+
+#### Home Screen (refactored `HomeView.swift`)
+
+Already matches the design schema's `screens.home` layout. No visual changes — just wire the data correctly:
+
+- **Top-left**: Expanding FAB menu (hamburger icon, drops down to History + Profile)
+- **Top-right**: Plus button for custom workout / schedule / start run
+- **Middle**: AI message paragraph using `aiMessageLarge` (19px, weight 400, line-height 1.55). Key stats wrapped in inline `statHighlight` chips (subtle background `highlight` color, 4px radius, font-weight 600)
+- **Bottom bar**: Workout pill (left, flex) + AI orb (right, 50px)
+- Workout pill shows today's session title from calendar. `surface` background, `pill` border-radius (44px), 14px font. Play button circle (32px, `accent` background) on right side of pill
+- If no planned session: pill text reads "Start Workout"
+
+#### Pre-Workout Sheet (`PreWorkoutSheet.swift`)
+
+Present as a **bottom sheet** sliding up from the bottom. Use the `bottomSheet` component spec:
+- Background: `background` color
+- Top corners: 20px border-radius
+- Drag handle: 36px wide, 4px tall, `textTertiary` color, centered, 2px radius
+- Padding: 12px top, 20px horizontal, 32px bottom
+
+**Content layout (top to bottom):**
+
+1. **Title** — "Get Ready" or the planned session name. Use `screenTitle` (17px, weight 600). Centered below the drag handle.
+
+2. **Custom workout text field** (only when no planned session) — "What do you want to work on?" placeholder. Use `chatInput` spec: `surface` background, `medium` border-radius (11px), 14px padding, 15px font. Mic button (50px circle, `surface` background) to the right.
+
+3. **Location picker** — Show current location name as a tappable `menuItem` row: `surface` background, `large` border-radius (15px), 14px 16px padding. Left icon (map pin, 20px, `textSecondary`), location name (15px, weight 500), chevron right (16px, `textTertiary`). Below it, show equipment list as `pillTag` chips: `surface` background, `pill` radius (44px), 13px font, 8px gap between pills.
+
+4. **Energy level** — Section label "Energy" in `label` style (12px, weight 500, uppercase, `textTertiary`). Row of 5 tappable circles (44px each, `surface` background, `full` border-radius). Selected state: `accent` background with `background` text color. Numbers 1-5 inside, 15px weight 600. No colors — selected is white-on-black (dark mode) or black-on-white (light mode).
+
+5. **Time available** — Section label "Time Available" in `label` style. Row of preset pill buttons (15, 30, 45, 60, 90 min). Use `primaryButton.small` variant for selected (12px 20px padding, `accent` background, `background` text), unselected uses `surface` background with `text.primary` color. All `pill` border-radius.
+
+6. **Confirm button** — Full-width `primaryButton`: `accent` background, `background` text, `pill` border-radius, 16px 20px padding, 15px weight 600 text. Label: "Start Workout" with a play icon (16px) to the left.
+
+#### Generating State
+
+While the workout generates, show a centered view:
+- AI orb at `large` size (56px), centered, with its glow
+- Below it: "Generating your workout..." in `aiMessageMedium` (16px, weight 400, `textSecondary`)
+- Thin indeterminate progress bar below (3px, `surface` track, `text.primary` fill, animated)
+
+#### Workout Execution Screen (`WorkoutView.swift`)
+
+Maps directly to the design schema's `screens.strengthExercise`:
+
+- **Top bar** — Use `ThinTopBar` pattern: Close button (chevron-left or X, top-left), progress text "2 of 6" (center, 14px weight 500, `textSecondary`), edit button (pencil icon, top-right). All touch targets 44px minimum. No background color on the bar — it's transparent over `background`.
+- **Progress bar** — Directly below top bar, full width with 20px horizontal padding. 3px height, `surface` track, `text.primary` fill. Animates width on set/exercise completion (0.3s ease).
+- **Middle content** — Fills remaining space. This is either Workout Mode or List Mode (toggle via the edit button or a small icon button in the top bar).
+- **Bottom bar** — 3 elements in a row with 10px gap, 16px 20px 24px padding:
+  - Edit button: `iconButton.standard` (44px circle, `surface` background, pencil icon 18px, `text.primary`)
+  - Done button: `primaryButton` (flex: 1, `accent` background, checkmark icon 16px + "Done" label). Label changes contextually: "Done" → "Next Exercise" → "Finish Workout"
+  - AI orb: 50px, always rightmost
+
+#### Workout Mode View (`WorkoutModeView.swift` — swipeable)
+
+Each exercise page is a **text-first paragraph** filling the middle content area:
+
+- 20px horizontal padding
+- Exercise name in `statHighlight` inline chip (highlighted background, weight 600)
+- Set counter: "Set `2` of `3`" with numbers in `statHighlight` chips
+- Rep target and weight in `statHighlight` chips: "`10-12 reps`", "`25 lb`"
+- Form cues woven into natural language between the highlighted values
+- Font: `aiMessageMedium` size (16px) for the paragraph body, but use 18px (matching the design artifact's `StrengthContent`) for better readability
+- Line-height: 1.6
+- Color: `text.primary`
+
+Example rendering:
+> **Dumbbell Bench Press** — Set `2` of `3`. Aim for `10-12 reps` at `25 lb`. Keep your shoulder blades pinched together throughout the movement.
+
+Where bold text and backtick values are rendered as inline `statHighlight` chips.
+
+Swipe navigation: Use `TabView` with `.page` style. Dot indicators are NOT shown (the top progress bar serves this purpose). Swipe left = next exercise, swipe right = previous.
+
+#### List Mode View (`ListModeView.swift`)
+
+Compact checklist using `setRow`-inspired styling but for exercises:
+
+- Scrollable list, 20px horizontal padding
+- Each exercise row: `surface` background, `medium` border-radius (11px), 12px 16px padding, 6px margin-bottom
+- Left: exercise index number in a circle (24px, `highlight` background, 12px weight 600)
+- Middle (flex: 1): exercise name (15px, weight 500), below it "3 × 10-12 reps · 25 lb" (13px, `textSecondary`)
+- Right: checkmark icon (16px, `textSecondary`) for completed exercises
+- Current exercise: full opacity. Completed: 60% opacity with checkmark. Upcoming: full opacity, no checkmark
+- Tapping a row jumps to that exercise in workout mode
+
+#### Workout Completion Screen (`WorkoutCompletionView.swift`)
+
+Full-screen view replacing the workout. No bottom sheet — this is a destination screen.
+
+**Layout (top to bottom):**
+
+1. **Top bar** — Close/X button (top-left), "Workout Complete" text (center, `screenTitle`)
+
+2. **AI summary** — `aiMessageMedium` (16px, weight 400, line-height 1.55). Natural language with inline `statHighlight` chips for key stats. Example: "Great session! You completed `5 of 6` exercises in `38 minutes`. Your bench press is up `5 lb` from last week."
+
+3. **Stat cards row** — 3 cards in a horizontal row, 8px gap. Each card: `statCard.small` — `surface` background, `medium` border-radius (11px), 12px padding, centered text. Value in 18px weight 700, label in 11px uppercase `textTertiary`. Stats: Duration, Exercises, Volume.
+
+4. **Wins section** — Section label "Wins" in `label` style. Each win as a text line with a checkmark prefix (16px, `textSecondary`). 15px weight 400 text.
+
+5. **Next focus** — Section label "Next Session" in `label` style. AI text in `aiMessageMedium`.
+
+6. **Notes input** — `chatInput` style: `surface` background, `medium` border-radius, 14px 16px padding, 15px font. Placeholder: "Add notes about this session...". Mic button (50px circle, `surface` background) to the right.
+
+7. **Done button** — Full-width `primaryButton` at the bottom. "Done" label. Dismisses to home.
+
+### Phase 2 Screens
+
+#### Mid-Workout Action Sheet (`MidWorkoutActionSheet.swift`)
+
+Use the `bottomSheet` + `modalListItem` component specs exactly:
+
+- Sheet: `background` color, 20px top corner radius, drag handle (36px × 4px, `textTertiary`)
+- Backdrop: `rgba(0,0,0,0.4)`
+- Each option is a `modalListItem`: `surface` background, `medium` border-radius (11px), 14px 16px padding, 4px gap between items
+- Left: icon (20px, `textSecondary`)
+- Right: label (15px, weight 500, `text.primary`)
+
+**Options with icons:**
+- Swap exercise: swap/arrows icon → "Replace with an alternative"
+- Adjust difficulty: sliders icon → "Change weight, reps, or intensity"
+- Time scale: clock icon → "Compress or extend workout"
+- Pain flag: alert/exclamation icon → "Flag discomfort on this exercise"
+- Skip exercise: skip-forward icon → "Move past without replacement"
+
+Skip and Pain flag are non-destructive. No destructive (red) styling on any of these — they're all neutral actions. The design schema reserves `danger` (#FF3B30) only for truly destructive actions like "Delete exercise" or "Remove exercise", which aren't in our Phase 2 menu.
+
+### Phase 5 Screens
+
+#### Program Review View (updated `ProgramReviewView.swift`)
+
+The program is now pure markdown. Render it as styled sections:
+
+- Each `# ` header becomes a section card: `surface` background, `large` border-radius (15px), 16px padding, 8px margin-bottom
+- Section header: icon (20px, `textSecondary`) + title (`cardTitle` — 15px, weight 600) in a row
+- Section body: rendered markdown text in `bodyText` (14px, weight 400), respecting bold, lists, and blockquotes
+- Blockquotes (Coach Notes): left border 3px `highlight` color, 12px left padding, `textSecondary` color
+
+**Icon mappings for sections:**
+| Section | SF Symbol |
+|---------|-----------|
+| Your Training Program | `figure.strengthtraining.traditional` |
+| Goals | `target` |
+| Weekly Structure | `calendar` |
+| Training Sessions | `dumbbell` |
+| Progression Plan | `chart.line.uptrend.xyaxis` |
+| Current Phase | `arrow.trianglepath` |
+| Available Phases | `list.bullet` |
+| Exercise Rules | `checklist` |
+| Recovery | `bed.double` |
+| Safety Guidelines | `shield` |
+| Coach Notes | `quote.bubble` |
+| Milestones | `flag` |
+| Scheduling Recommendations | `calendar.badge.clock` |
+
+**Milestone checkboxes:** Render `[x]` as a filled checkmark circle (accent), `[ ]` as an empty circle (`surface` background, no border — distinguish by background shade).
+
+### General Rules (Apply Everywhere)
+
+1. **No shadows, no borders** — Distinguish surfaces by background color only (`background` vs `surface` vs `highlight`)
+2. **No colors** — Everything is monochrome. The only color in the app is the AI orb gradient and glow
+3. **Touch targets** — Minimum 44px, recommended 50px
+4. **Typography** — SF Pro Display (system default on iOS). Use the exact sizes from the design schema
+5. **Stat highlights** — Any time a number, exercise name, or key data point appears in AI text, wrap it in a `statHighlight` chip (inline, 0px 5px padding, `highlight` background, 4px radius, weight 600)
+6. **Bottom bar** — Always 2-3 elements max. 10px gap between items. 16px top, 20px horizontal, 24px bottom padding
+7. **Spacing** — Screen horizontal padding: 20px. Card gaps: 8px. Modal item gaps: 4px
+8. **Motion** — Sheet transitions: 300ms ease. Progress bar: 0.3s ease. Button hover: background shifts to `surfaceHover`
+9. **Dark mode** — background #000000, surface #111111. **Light mode** — background #FFFFFF, surface #F5F5F7. Support both
