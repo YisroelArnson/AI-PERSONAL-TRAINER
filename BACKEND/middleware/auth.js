@@ -5,6 +5,14 @@ dotenv.config();
 
 // Initialize Supabase client
 const supabase = createClient(process.env.SUPABASE_PUBLIC_URL, process.env.SUPABASE_PUBLISHABLE_KEY);
+const adminUserIds = (process.env.ADMIN_USER_IDS || '')
+  .split(',')
+  .map(value => value.trim())
+  .filter(Boolean);
+const adminEmails = (process.env.ADMIN_EMAILS || '')
+  .split(',')
+  .map(value => value.trim().toLowerCase())
+  .filter(Boolean);
 
 // Authentication middleware using Supabase getClaims
 const authenticateToken = async (req, res, next) => {
@@ -59,6 +67,35 @@ const authenticateToken = async (req, res, next) => {
   }
 };
 
+const authenticateAdmin = async (req, res, next) => {
+  if (process.env.ALLOW_UNAUTH_ADMIN === 'true') {
+    return next();
+  }
+
+  return authenticateToken(req, res, () => {
+    const claims = req.user || {};
+    const email = (claims.email || '').toLowerCase();
+    const appMetadata = claims.app_metadata || {};
+    const userMetadata = claims.user_metadata || {};
+    const appRoles = Array.isArray(appMetadata.roles) ? appMetadata.roles : [];
+
+    const isAdminByRole = claims.role === 'service_role' || appRoles.includes('admin') || appMetadata.role === 'admin';
+    const isAdminByUserMeta = userMetadata.is_admin === true;
+    const isAdminById = adminUserIds.includes(claims.id);
+    const isAdminByEmail = email && adminEmails.includes(email);
+
+    if (isAdminByRole || isAdminByUserMeta || isAdminById || isAdminByEmail) {
+      return next();
+    }
+
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'Admin access required'
+    });
+  });
+};
+
 module.exports = {
-  authenticateToken
+  authenticateToken,
+  authenticateAdmin
 };

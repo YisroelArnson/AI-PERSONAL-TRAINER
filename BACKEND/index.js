@@ -1,15 +1,5 @@
 // Initialize Sentry first - before any other modules!
 const Sentry = require('./instrument');
-Sentry.init({
-  dsn: "https://bdfee740ac71e0808444d221c0823121@o4510720841613312.ingest.us.sentry.io/4510720846200832",
-  tracesSampleRate: 1.0,
-  integrations: [
-    Sentry.openAIIntegration({
-      recordInputs: true,
-      recordOutputs: true,
-    }),
-  ],
-});
 const express = require('express');
 const path = require('path');
 const app = express();

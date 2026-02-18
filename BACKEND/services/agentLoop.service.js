@@ -140,7 +140,7 @@ async function runAgentLoop(userId, userInput, options = {}) {
 
   // Get or create session
   const session = existingSessionId
-    ? await sessionObs.getSession(existingSessionId)
+    ? await sessionObs.getSessionForUser(existingSessionId, userId)
     : await sessionObs.getOrCreateSession(userId);
 
   const sessionId = session.id;
@@ -322,8 +322,8 @@ async function runAgentLoop(userId, userInput, options = {}) {
  * @param {string} sessionId - The session UUID
  * @returns {Object} Session state with recent actions
  */
-async function getSessionState(sessionId) {
-  const session = await sessionObs.getSession(sessionId);
+async function getSessionState(sessionId, userId) {
+  const session = await sessionObs.getSessionForUser(sessionId, userId);
   const events = await sessionObs.getContextEvents(sessionId, session.context_start_sequence);
 
   // Extract last messages/results for client

@@ -17,21 +17,29 @@ function startOfWeek(date) {
   return d;
 }
 
+function sanitizeLimit(value, fallback = 8, max = 52) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 async function generateWeeklyReport(userId, weekStart = null) {
   const startDate = weekStart ? new Date(weekStart) : startOfWeek(new Date());
   const endDate = new Date(startDate);
   endDate.setDate(endDate.getDate() + 7);
 
-  const { data: logs, error } = await supabase
-    .from('trainer_workout_logs')
-    .select('log_json, created_at')
-    .gte('created_at', startDate.toISOString())
-    .lt('created_at', endDate.toISOString())
-    .order('created_at', { ascending: false });
+  const { data: sessions, error } = await supabase
+    .from('trainer_workout_sessions')
+    .select('id, completed_at')
+    .eq('user_id', userId)
+    .eq('status', 'completed')
+    .gte('completed_at', startDate.toISOString())
+    .lt('completed_at', endDate.toISOString())
+    .order('completed_at', { ascending: false });
 
   if (error) throw error;
 
-  const sessionCount = logs?.length || 0;
+  const sessionCount = sessions?.length || 0;
   const report = {
     week_start: startDate.toISOString().slice(0, 10),
     sessions_completed: sessionCount,
@@ -54,12 +62,14 @@ async function generateWeeklyReport(userId, weekStart = null) {
 }
 
 async function listReports(userId, limit = 8) {
+  const safeLimit = sanitizeLimit(limit, 8, 52);
+
   const { data, error } = await supabase
     .from('trainer_weekly_reports')
     .select('*')
     .eq('user_id', userId)
     .order('week_start', { ascending: false })
-    .limit(limit);
+    .limit(safeLimit);
 
   if (error) throw error;
   return data || [];

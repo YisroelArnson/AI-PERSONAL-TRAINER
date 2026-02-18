@@ -157,6 +157,24 @@ async function getSession(sessionId) {
 }
 
 /**
+ * Get session by ID, scoped to a specific user
+ * @param {string} sessionId - Session UUID
+ * @param {string} userId - User UUID
+ * @returns {Object} Session object
+ */
+async function getSessionForUser(sessionId, userId) {
+  const { data, error } = await supabase
+    .from('agent_sessions')
+    .select('*')
+    .eq('id', sessionId)
+    .eq('user_id', userId)
+    .single();
+
+  if (error) throw error;
+  return data;
+}
+
+/**
  * End a session and finalize totals
  * @param {string} sessionId - Session UUID
  * @param {string} status - Final status ('completed' or 'error')
@@ -253,12 +271,14 @@ async function updateContextStart(sessionId, newStartSequence) {
  * @returns {Array} Sessions
  */
 async function getUserSessions(userId, limit = 10) {
+  const safeLimit = sanitizeLimit(limit, 10, 50);
+
   const { data, error } = await supabase
     .from('agent_sessions')
     .select('*')
     .eq('user_id', userId)
     .order('updated_at', { ascending: false })
-    .limit(limit);
+    .limit(safeLimit);
 
   if (error) throw error;
   return data || [];
@@ -586,6 +606,12 @@ function generateShortId() {
   return id;
 }
 
+function sanitizeLimit(value, fallback = 10, max = 100) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 /**
  * Log an artifact event
  * Artifacts are structured outputs (workouts, reports, etc.) that can be delivered to the client
@@ -708,6 +734,7 @@ module.exports = {
   createSession,
   getOrCreateSession,
   getSession,
+  getSessionForUser,
   endSession,
   updateContextStart,
   getUserSessions,

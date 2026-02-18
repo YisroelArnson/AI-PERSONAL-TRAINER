@@ -3,6 +3,12 @@
 const { runAgentLoop, getSessionState } = require('../services/agentLoop.service');
 const { getUserSessions, getSession, createSession } = require('../services/sessionObservability.service');
 
+function parseLimit(value, fallback = 10, max = 50) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 /**
  * Handle chat request (non-streaming)
  */
@@ -153,7 +159,7 @@ async function getSessions(req, res) {
     const userId = req.user.id;
     const { limit } = req.query;
 
-    const sessions = await getUserSessions(userId, parseInt(limit) || 10);
+    const sessions = await getUserSessions(userId, parseLimit(limit, 10, 50));
     res.json({ sessions });
 
   } catch (error) {
@@ -168,10 +174,14 @@ async function getSessions(req, res) {
 async function getSessionById(req, res) {
   try {
     const { id } = req.params;
-    const state = await getSessionState(id);
+    const userId = req.user.id;
+    const state = await getSessionState(id, userId);
     res.json(state);
 
   } catch (error) {
+    if (error?.code === 'PGRST116') {
+      return res.status(404).json({ error: 'Session not found' });
+    }
     console.error('Get session error:', error);
     res.status(500).json({ error: error.message });
   }

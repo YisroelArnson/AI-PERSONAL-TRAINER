@@ -3,6 +3,7 @@
 
 const express = require('express');
 const router = express.Router();
+const { authenticateAdmin } = require('../middleware/auth');
 const {
   getMetricsSummary,
   getTokenUsage,
@@ -14,10 +15,7 @@ const {
   healthCheck
 } = require('../controllers/observability.controller');
 
-// NOTE: These routes are currently unprotected for local development.
-// For production, add admin authentication middleware here:
-// const { authenticateAdmin } = require('../middleware/auth');
-// router.use(authenticateAdmin);
+router.use(authenticateAdmin);
 
 // Health check
 router.get('/health', healthCheck);
