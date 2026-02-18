@@ -2,6 +2,8 @@ const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const { fetchMultipleDataSources } = require('./dataSources.service');
 const { getAnthropicClient } = require('./modelProviders.service');
+const { getActiveProgram } = require('./trainerProgram.service');
+const { getLatestProfile, formatProfileForPrompt } = require('./trainerWeightsProfile.service');
 
 dotenv.config();
 
@@ -287,28 +289,59 @@ function buildUserContextSummary(dataSourceResults) {
   return lines.join('\n');
 }
 
-function buildWorkoutPrompt(dataSourceResults, constraints) {
+function buildWorkoutPrompt(dataSourceResults, constraints, program, weightsProfile = null) {
   const context = buildUserContextSummary(dataSourceResults);
-  const readiness = constraints?.readiness || {};
-  const timeAvailable = constraints?.time_available_min || null;
+
+  const energyLevel = constraints?.energy_level ?? constraints?.readiness?.energy ?? 'unknown';
+  const timeAvailable = constraints?.time_available_min || 'unknown';
   const equipment = constraints?.equipment || [];
+  const intent = constraints?.intent || 'planned';
   const requestText = constraints?.request_text || null;
   const plannedSession = constraints?.planned_session || null;
+  const readiness = constraints?.readiness || {};
 
-  return `You are an AI personal trainer. Create a safe, effective workout for today using the 4-type exercise system.
+  let prompt = `You are an AI personal trainer. Create a safe, effective workout for today using the 4-type exercise system.
 
 User context:
 ${context}
+`;
 
-Session constraints:
-- intent: ${constraints?.intent || 'planned'}
-- time_available_min: ${timeAvailable || 'unknown'}
-- energy: ${readiness.energy || 'unknown'}
-- soreness: ${readiness.soreness || 'unknown'}
-- pain: ${readiness.pain || 'none'}
-- equipment_override: ${equipment.length ? equipment.join(', ') : 'none'}
-- quick_request: ${requestText || 'none'}
-- planned_session_intent: ${plannedSession ? JSON.stringify(plannedSession) : 'none'}
+  if (program?.program_markdown) {
+    prompt += `
+Active Training Program:
+${program.program_markdown}
+`;
+  }
+
+  const weightsText = formatProfileForPrompt(weightsProfile);
+  if (weightsText) {
+    prompt += `
+Current Weights Profile (use these loads when prescribing exercises):
+${weightsText}
+`;
+  }
+
+  prompt += `
+Pre-Workout Context:
+- Energy Level: ${energyLevel}/5
+- Time Available: ${timeAvailable} minutes
+- Available Equipment: ${equipment.length ? equipment.join(', ') : 'use equipment from user context'}
+- Session Intent: ${intent}`;
+
+  if (requestText) {
+    prompt += `\n- User Request: ${requestText}`;
+  }
+  if (plannedSession) {
+    prompt += `\n- Planned Session: ${JSON.stringify(plannedSession)}`;
+  }
+  if (readiness.soreness && readiness.soreness !== 'none') {
+    prompt += `\n- Soreness: ${readiness.soreness}`;
+  }
+  if (readiness.pain && readiness.pain !== 'none') {
+    prompt += `\n- Pain: ${readiness.pain}`;
+  }
+
+  prompt += `
 
 Return ONLY valid JSON with this shape:
 {
@@ -326,7 +359,7 @@ Return ONLY valid JSON with this shape:
       "equipment": ["string"],
       "sets": number,
       "reps": [number],
-      "load_kg_each": [number],
+      "load_each": [number],
       "load_unit": "kg|lbs",
       "hold_duration_sec": [number],
       "duration_min": number,
@@ -338,7 +371,15 @@ Return ONLY valid JSON with this shape:
     }
   ]
 }
-Ensure exercises align with equipment, constraints, and safety. Use conservative prescriptions if data is unknown.`;
+IMPORTANT weight rules:
+- Always use the user's preferred weight unit (shown in Units above). Do NOT convert between kg and lbs.
+- Round weights to practical increments: nearest 5 lbs (or 2.5 kg). For dumbbells, round to nearest 5 lbs (or 2.5 kg).
+- load_each values must be whole numbers or simple halves (e.g. 25, 30, 42.5), never odd decimals like 11.3 or 9.1.
+- load_each is an array with one value per set. Use different values when programming progressive sets (e.g. [135, 155, 175] for a pyramid). Use the same value repeated when sets are uniform (e.g. [25, 25, 25]).
+
+Ensure exercises align with the active training program's current phase, respect exercise rules and safety guidelines, match available equipment and time constraints, and use conservative prescriptions if data is unknown.`;
+
+  return prompt;
 }
 
 function extractJson(text) {
@@ -366,7 +407,7 @@ function normalizeExercise(exercise) {
     equipment: exercise.equipment || [],
     sets: exercise.sets || null,
     reps: exercise.reps || null,
-    load_kg_each: exercise.load_kg_each || exercise.load_each || null,
+    load_each: exercise.load_each || exercise.load_kg_each || null,
     load_unit: exercise.load_unit || null,
     hold_duration_sec: exercise.hold_duration_sec || exercise.hold_sec || null,
     duration_min: exercise.duration_min || null,
@@ -398,18 +439,23 @@ function normalizeWorkoutInstance(rawInstance, constraints = {}) {
 }
 
 async function generateWorkoutInstance(userId, constraints = {}) {
-  const dataSourceResults = await fetchMultipleDataSources(
-    ['user_profile', 'user_settings', 'all_locations', 'workout_history'],
-    userId
-  );
-  const prompt = buildWorkoutPrompt(dataSourceResults, constraints);
+  const [dataSourceResults, program, weightsProfile] = await Promise.all([
+    fetchMultipleDataSources(
+      ['user_profile', 'user_settings', 'all_locations', 'workout_history'],
+      userId
+    ),
+    getActiveProgram(userId),
+    getLatestProfile(userId)
+  ]);
+  const prompt = buildWorkoutPrompt(dataSourceResults, constraints, program, weightsProfile);
+  console.log(`[workout-gen] Prompt length: ${prompt.length} chars, program: ${program?.program_markdown?.length || 0} chars`);
   const client = getAnthropicClient();
 
   const response = await client.messages.create({
     model: DEFAULT_MODEL,
-    max_tokens: 2048,
+    max_tokens: 4096,
     system: [
-      { type: 'text', text: 'You are a concise JSON-only generator.' }
+      { type: 'text', text: 'You are a concise JSON-only generator. Return ONLY valid JSON, no markdown, no explanation, no code fences.' }
     ],
     messages: [
       { role: 'user', content: [{ type: 'text', text: prompt }] }
@@ -417,9 +463,13 @@ async function generateWorkoutInstance(userId, constraints = {}) {
   });
 
   const textBlock = response.content.find(block => block.type === 'text');
-  const parsed = extractJson(textBlock?.text || '');
+  const rawText = textBlock?.text || '';
+  console.log(`[workout-gen] Model response length: ${rawText.length}, stop_reason: ${response.stop_reason}, usage: input=${response.usage?.input_tokens} output=${response.usage?.output_tokens}`);
+
+  const parsed = extractJson(rawText);
 
   if (!parsed || !parsed.exercises) {
+    console.error('[workout-gen] Failed to parse JSON. First 1000 chars:', rawText.slice(0, 1000));
     throw new Error('Failed to parse workout instance from model response');
   }
 
@@ -505,7 +555,8 @@ Current exercise details: ${JSON.stringify(currentExercise)}
 Constraints: equipment=${(constraints.equipment || []).join(', ')}, pain=${constraints.pain || 'none'}.
 
 Return ONLY JSON:
-{"exercise": {"exercise_name": "string", "exercise_type": "reps|hold|duration|intervals", "muscles_utilized": [{"muscle": "string", "share": number}], "goals_addressed": [{"goal": "string", "share": number}], "reasoning": "string", "exercise_description": "string", "equipment": ["string"], "sets": number, "reps": [number], "load_kg_each": [number], "load_unit": "kg|lbs", "hold_duration_sec": [number], "duration_min": number, "distance_km": number, "distance_unit": "km|mi", "rounds": number, "work_sec": number, "rest_seconds": number}}
+{"exercise": {"exercise_name": "string", "exercise_type": "reps|hold|duration|intervals", "muscles_utilized": [{"muscle": "string", "share": number}], "goals_addressed": [{"goal": "string", "share": number}], "reasoning": "string", "exercise_description": "string", "equipment": ["string"], "sets": number, "reps": [number], "load_each": [number], "load_unit": "kg|lbs", "hold_duration_sec": [number], "duration_min": number, "distance_km": number, "distance_unit": "km|mi", "rounds": number, "work_sec": number, "rest_seconds": number}}
+Use the same weight unit as the original exercise. Do NOT convert between kg and lbs. Round to practical increments (nearest 5 lbs or 2.5 kg).
 
 User context:
 ${context}`;
@@ -540,7 +591,11 @@ async function applyAction({ sessionId, userId, actionType, payload }) {
   switch (actionType) {
     case 'swap_exercise': {
       if (!instanceJson) break;
-      const index = payload?.index ?? null;
+      let index = payload?.index ?? null;
+      if (index === null && payload?.exercise_name) {
+        index = instanceJson.exercises.findIndex(e => e.exercise_name === payload.exercise_name);
+        if (index === -1) index = null;
+      }
       if (index === null || index < 0 || index >= instanceJson.exercises.length) {
         throw new Error('Invalid exercise index');
       }
@@ -554,7 +609,11 @@ async function applyAction({ sessionId, userId, actionType, payload }) {
     }
     case 'adjust_prescription': {
       if (!instanceJson) break;
-      const index = payload?.index ?? null;
+      let index = payload?.index ?? null;
+      if (index === null && payload?.exercise_name) {
+        index = instanceJson.exercises.findIndex(e => e.exercise_name === payload.exercise_name);
+        if (index === -1) index = null;
+      }
       const direction = payload?.direction || 'easier';
       if (index === null || index < 0 || index >= instanceJson.exercises.length) {
         throw new Error('Invalid exercise index');
@@ -569,9 +628,9 @@ async function applyAction({ sessionId, userId, actionType, payload }) {
     }
     case 'time_scale': {
       if (!instanceJson) break;
-      const target = payload?.target_minutes || null;
+      const target = payload?.target_duration_min || null;
       if (!target) {
-        throw new Error('Time scale requires target_minutes');
+        throw new Error('Time scale requires target_duration_min');
       }
       const baseDuration = instanceJson.estimated_duration_min || estimateWorkoutDuration(instanceJson);
       const ratio = Math.min(1, Math.max(0.4, target / baseDuration));
@@ -679,5 +738,16 @@ module.exports = {
   saveWorkoutLog,
   saveSessionSummary,
   generateSessionSummary,
-  fetchEventsAfter
+  fetchEventsAfter,
+  // Exported for testing
+  extractJson,
+  normalizeExercise,
+  normalizeWorkoutInstance,
+  buildUserContextSummary,
+  buildWorkoutPrompt,
+  adjustExerciseIntensity,
+  scaleWorkoutInstance,
+  estimateWorkoutDuration,
+  generateSwapExercise,
+  findTodayWorkoutEvent
 };

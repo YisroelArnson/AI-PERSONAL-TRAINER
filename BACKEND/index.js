@@ -69,6 +69,13 @@ app.use('/trainer/journey', trainerJourneyRouter);
 const trainerCheckinsRouter = require('./routes/trainerCheckins.routes');
 app.use('/trainer/checkins', trainerCheckinsRouter);
 
+const trainerWeightsProfileRouter = require('./routes/trainerWeightsProfile.routes');
+app.use('/trainer/weights-profile', trainerWeightsProfileRouter);
+
+// Cron jobs
+const { registerWeeklyReviewCron } = require('./cron/weeklyReview.cron');
+registerWeeklyReviewCron();
+
 // Observability/Admin routes
 const observabilityRouter = require('./routes/observability.routes');
 app.use('/api/admin', observabilityRouter);

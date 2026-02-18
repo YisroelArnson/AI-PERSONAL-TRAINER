@@ -176,6 +176,77 @@ async function completeEvent(userId, eventId) {
   return fetchEventWithPlan(userId, data.id);
 }
 
+/**
+ * Parse the "# Training Sessions" section from program markdown.
+ * Extracts session day names, duration, and intensity from lines like:
+ *   ## Day 1: Upper Body Push
+ *   *45 minutes — moderate intensity*
+ */
+function parseSessionsFromMarkdown(markdown) {
+  if (!markdown) return [];
+
+  const sessions = [];
+  const lines = markdown.split('\n');
+  let inTrainingSessions = false;
+  let currentSession = null;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Detect Training Sessions section
+    if (/^#\s+Training Sessions/i.test(trimmed)) {
+      inTrainingSessions = true;
+      continue;
+    }
+
+    // Stop at the next top-level heading
+    if (inTrainingSessions && /^#\s+[^#]/.test(trimmed) && !/Training Sessions/i.test(trimmed)) {
+      if (currentSession) sessions.push(currentSession);
+      break;
+    }
+
+    if (!inTrainingSessions) continue;
+
+    // Match day headings like "## Day 1: Upper Body Push"
+    const dayMatch = trimmed.match(/^##\s+Day\s+(\d+):\s*(.+)/i);
+    if (dayMatch) {
+      if (currentSession) sessions.push(currentSession);
+      currentSession = {
+        dayNumber: parseInt(dayMatch[1]),
+        name: dayMatch[2].trim(),
+        durationMin: 45,
+        intensity: 'moderate'
+      };
+      continue;
+    }
+
+    // Match duration/intensity line like "*45 minutes — moderate intensity*"
+    if (currentSession && /^\*.*minutes.*\*$/.test(trimmed)) {
+      const durMatch = trimmed.match(/(\d+)\s*minutes/i);
+      if (durMatch) currentSession.durationMin = parseInt(durMatch[1]);
+      const intMatch = trimmed.match(/(low|moderate|high)\s*intensity/i);
+      if (intMatch) currentSession.intensity = intMatch[1].toLowerCase();
+    }
+  }
+
+  // Push last session if we hit end of file
+  if (currentSession && !sessions.includes(currentSession)) {
+    sessions.push(currentSession);
+  }
+
+  return sessions;
+}
+
+/**
+ * Parse days per week from markdown "# Weekly Structure" section.
+ * Looks for "**N** days per week" pattern.
+ */
+function parseDaysPerWeek(markdown) {
+  if (!markdown) return 3;
+  const match = markdown.match(/\*\*(\d+)\*\*\s*days?\s*per\s*week/i);
+  return match ? parseInt(match[1]) : 3;
+}
+
 async function syncCalendarFromProgram(userId) {
   const { data: activeProgram, error } = await supabase
     .from('trainer_active_program')
@@ -196,43 +267,38 @@ async function syncCalendarFromProgram(userId) {
 
   if (programError) throw programError;
 
-  const template = programData.program_json?.weekly_template;
-  const daysPerWeek = template?.days_per_week || 3;
+  const markdown = programData.program_markdown || '';
+  const sessionTemplates = parseSessionsFromMarkdown(markdown);
+  const daysPerWeek = parseDaysPerWeek(markdown);
   const safeDaysPerWeek = Math.max(1, Math.min(daysPerWeek, 7));
-  const preferredDays = template?.preferred_days || [];
-  const sessionTemplates = programData.program_json?.sessions || [];
 
   const today = startOfDay(new Date());
   const horizonDays = 28;
   const events = [];
 
-  const preferredLookup = preferredDays.map(day => day.toLowerCase());
-  const shouldScheduleOnDate = (date, offsetIndex) => {
-    if (preferredLookup.length) {
-      const dayName = date.toLocaleDateString('en-US', { weekday: 'short' }).toLowerCase();
-      return preferredLookup.includes(dayName);
-    }
-    const interval = Math.max(1, Math.floor(7 / safeDaysPerWeek));
-    return offsetIndex % interval === 0;
-  };
+  const interval = Math.max(1, Math.floor(7 / safeDaysPerWeek));
+  let sessionIndex = 0;
 
   for (let dayOffset = 0; dayOffset < horizonDays; dayOffset++) {
-    const date = addDays(today, dayOffset);
-    if (shouldScheduleOnDate(date, dayOffset)) {
+    if (dayOffset % interval === 0) {
+      const date = addDays(today, dayOffset);
+      const template = sessionTemplates[sessionIndex % Math.max(sessionTemplates.length, 1)] || {};
       events.push({
         user_id: userId,
         event_type: 'workout',
         start_at: date.toISOString(),
-        title: null,
+        title: template.name || null,
         status: 'scheduled',
         source: 'program_projection',
         user_modified: false,
         linked_program_id: programData.id,
         linked_program_version: programData.version
       });
+      sessionIndex++;
     }
   }
 
+  // Clean up existing future projections
   const { error: cleanupError } = await supabase
     .from('trainer_calendar_events')
     .delete()
@@ -253,28 +319,94 @@ async function syncCalendarFromProgram(userId) {
 
     for (let idx = 0; idx < createdEvents.length; idx++) {
       const event = createdEvents[idx];
-      const sessionTemplate = sessionTemplates[idx % Math.max(sessionTemplates.length, 1)] || {};
+      const template = sessionTemplates[idx % Math.max(sessionTemplates.length, 1)] || {};
       const intent = {
-        focus: sessionTemplate.focus || 'Workout',
-        duration_min: sessionTemplate.duration_min || 45,
-        equipment: sessionTemplate.equipment || [],
-        notes: sessionTemplate.notes || '',
-        session_type: (template?.session_types || [])[idx % Math.max(template?.session_types?.length || 1, 1)] || null,
-        time_variants: programData.program_json?.progression?.time_scaling || []
+        focus: template.name || 'Workout',
+        duration_min: template.durationMin || 45,
+        intensity: template.intensity || 'moderate'
       };
       await createPlannedSession(userId, event.id, intent);
-
-      const title = intent.focus || 'Planned workout';
-      await supabase
-        .from('trainer_calendar_events')
-        .update({ title })
-        .eq('id', event.id)
-        .eq('user_id', userId);
     }
     createdCount = createdEvents.length;
   }
 
   return { created: createdCount };
+}
+
+/**
+ * Regenerate the next week's calendar from program markdown.
+ * Deletes future planned/scheduled events and creates new ones.
+ */
+async function regenerateWeeklyCalendar(userId, programMarkdown) {
+  const sessionTemplates = parseSessionsFromMarkdown(programMarkdown);
+  const daysPerWeek = parseDaysPerWeek(programMarkdown);
+  const safeDaysPerWeek = Math.max(1, Math.min(daysPerWeek, 7));
+
+  // Get next Monday
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+  const nextMonday = startOfDay(addDays(now, daysUntilMonday));
+  const nextSunday = addDays(nextMonday, 6);
+  nextSunday.setHours(23, 59, 59, 999);
+
+  // Delete existing future planned events (not completed/user-modified)
+  const { error: deleteError } = await supabase
+    .from('trainer_calendar_events')
+    .delete()
+    .eq('user_id', userId)
+    .eq('source', 'program_projection')
+    .eq('user_modified', false)
+    .in('status', ['scheduled', 'planned'])
+    .gte('start_at', nextMonday.toISOString());
+
+  if (deleteError) throw deleteError;
+
+  // Create next week's events from template
+  const events = [];
+  const interval = Math.max(1, Math.floor(7 / safeDaysPerWeek));
+
+  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+    if (dayOffset % interval === 0 && events.length < safeDaysPerWeek) {
+      const date = addDays(nextMonday, dayOffset);
+      const template = sessionTemplates[events.length % Math.max(sessionTemplates.length, 1)] || {};
+      events.push({
+        user_id: userId,
+        event_type: 'workout',
+        start_at: date.toISOString(),
+        title: template.name || 'Workout',
+        status: 'scheduled',
+        source: 'program_projection',
+        user_modified: false
+      });
+    }
+  }
+
+  if (!events.length) {
+    return { created: 0 };
+  }
+
+  const { data: createdEvents, error: insertError } = await supabase
+    .from('trainer_calendar_events')
+    .insert(events)
+    .select();
+
+  if (insertError) throw insertError;
+
+  // Create planned sessions for each event
+  for (let idx = 0; idx < createdEvents.length; idx++) {
+    const event = createdEvents[idx];
+    const template = sessionTemplates[idx % Math.max(sessionTemplates.length, 1)] || {};
+    const intent = {
+      focus: template.name || 'Workout',
+      duration_min: template.durationMin || 45,
+      intensity: template.intensity || 'moderate'
+    };
+    await createPlannedSession(userId, event.id, intent);
+  }
+
+  console.log(`[calendar] Regenerated ${createdEvents.length} events for next week`);
+  return { created: createdEvents.length };
 }
 
 module.exports = {
@@ -286,5 +418,10 @@ module.exports = {
   rescheduleEvent,
   skipEvent,
   completeEvent,
-  syncCalendarFromProgram
+  syncCalendarFromProgram,
+  regenerateWeeklyCalendar,
+  parseSessionsFromMarkdown,
+  parseDaysPerWeek,
+  // Exported for testing
+  normalizeEvent
 };

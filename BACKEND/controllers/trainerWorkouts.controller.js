@@ -1,5 +1,6 @@
 const workoutService = require('../services/trainerWorkouts.service');
 const calendarService = require('../services/trainerCalendar.service');
+const weightsProfileService = require('../services/trainerWeightsProfile.service');
 
 async function createOrResumeSession(req, res) {
   try {
@@ -51,7 +52,7 @@ async function generateWorkout(req, res) {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const constraints = req.body || {};
+    const { intent, requestText, timeAvailableMin, equipment, readiness, coachMode } = req.body || {};
 
     const session = await workoutService.getSession(id);
     if (session.user_id !== userId) {
@@ -63,10 +64,17 @@ async function generateWorkout(req, res) {
       plannedSession = await calendarService.getPlannedSession(session.planned_session_id, userId);
     }
 
-    const instance = await workoutService.generateWorkoutInstance(userId, {
-      ...constraints,
+    const constraints = {
+      intent: intent || 'planned',
+      request_text: requestText || null,
+      time_available_min: timeAvailableMin || null,
+      equipment: equipment || [],
+      energy_level: readiness?.energy ?? null,
+      readiness: readiness || {},
       planned_session: plannedSession?.intent_json || null
-    });
+    };
+
+    const instance = await workoutService.generateWorkoutInstance(userId, constraints);
     const instanceRecord = await workoutService.createWorkoutInstance(id, instance);
 
     await workoutService.logEvent(id, workoutService.EVENT_TYPES.instanceGenerated, {
@@ -74,6 +82,10 @@ async function generateWorkout(req, res) {
       version: instanceRecord.version,
       timestamp: new Date().toISOString()
     });
+
+    if (coachMode) {
+      await workoutService.updateSession(id, { coach_mode: coachMode });
+    }
 
     res.json({
       success: true,
@@ -163,6 +175,10 @@ async function completeSession(req, res) {
       summary,
       timestamp: new Date().toISOString()
     });
+
+    // Async: update weights profile in background (don't block response)
+    weightsProfileService.updateAfterSession(userId, id, instance, summary)
+      .catch(err => console.error(`[weights-profile] Async update failed for session ${id}:`, err.message));
 
     res.json({ success: true, summary });
   } catch (error) {

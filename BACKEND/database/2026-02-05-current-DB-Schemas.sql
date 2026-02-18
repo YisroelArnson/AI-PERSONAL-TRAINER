@@ -447,7 +447,7 @@ CREATE TABLE public.workout_history (
   performed_at timestamp with time zone NOT NULL DEFAULT now(),
   sets integer,
   reps jsonb,
-  load_kg_each jsonb,
+  load_each jsonb,
   rest_seconds integer,
   distance_km numeric,
   duration_min integer,

@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS workout_history (
   -- Exercise-specific fields (nullable based on type)
   sets INT,
   reps JSONB,
-  load_kg_each JSONB,
+  load_each JSONB,
+  load_unit VARCHAR(10),
   rest_seconds INT,
   distance_km DECIMAL(6,2),
   duration_min INT,

@@ -1,28 +1,15 @@
 // BACKEND/agent/tools/exercises.js
-// Exercise and workout management tools for the 4-type exercise system
-const { v4: uuidv4 } = require('uuid');
+// Exercise and workout management tools — unified through trainerWorkouts service
+const workoutService = require('../../services/trainerWorkouts.service');
 const sessionObs = require('../../services/sessionObservability.service');
 
-// Valid muscles (16 preset)
-const VALID_MUSCLES = [
-  'Chest', 'Back', 'Shoulders', 'Biceps', 'Triceps', 'Abs',
-  'Lower Back', 'Quadriceps', 'Hamstrings', 'Glutes', 'Calves',
-  'Trapezius', 'Abductors', 'Adductors', 'Forearms', 'Neck'
-];
-
-// Group types for circuits, supersets, etc.
-const GROUP_TYPES = ['circuit', 'superset', 'giant_set', 'warmup', 'cooldown', 'sequence'];
-
-// Exercise types (4 core types)
-const EXERCISE_TYPES = ['reps', 'hold', 'duration', 'intervals'];
-
-// In-memory storage for current workout session
-// In production, this would be stored in the session state
-const workoutSessions = new Map();
+// Maps agent chat sessionId -> workout sessionId
+// Lightweight reference; all exercise state lives in the DB via the workout service
+const agentWorkoutSessions = new Map();
 
 const exerciseTools = {
   generate_workout: {
-    description: 'Generate a workout with exercises. Creates an artifact that must be delivered to the user via message_notify_user with the artifact_id.',
+    description: 'Generate a personalized workout based on the user\'s active training program, location, energy level, and time constraints. Creates an artifact that must be delivered to the user via message_notify_user with the artifact_id.',
     statusMessage: {
       start: 'Creating your workout...',
       done: 'Workout ready'
@@ -30,183 +17,92 @@ const exerciseTools = {
     parameters: {
       type: 'object',
       properties: {
-        workout: {
-          type: 'object',
-          description: 'The workout object containing exercises array',
-          properties: {
-            exercises: {
-              type: 'array',
-              items: {
-                type: 'object',
-                properties: {
-                  // === IDENTITY & ORDERING ===
-                  exercise_name: { type: 'string', description: 'Name of the exercise' },
-                  exercise_type: {
-                    type: 'string',
-                    enum: EXERCISE_TYPES,
-                    description: 'Type: "reps" (set/rep based), "hold" (isometric), "duration" (continuous), "intervals" (work/rest cycles)'
-                  },
-                  order: { type: 'integer', description: 'Position in workout (1-indexed)' },
-
-                  // === GROUPING (optional - for circuits, supersets, etc.) ===
-                  group: {
-                    type: 'object',
-                    description: 'Optional grouping for circuits, supersets, etc.',
-                    properties: {
-                      id: { type: 'string', description: 'Unique group identifier (e.g., "circuit-1", "superset-a")' },
-                      type: { type: 'string', enum: GROUP_TYPES, description: 'How to execute the group' },
-                      position: { type: 'integer', description: 'Order within group (1-indexed)' },
-                      name: { type: 'string', description: 'Display name (set on first exercise only)' },
-                      rounds: { type: 'integer', description: 'Times to repeat group (set on first exercise only)' },
-                      rest_between_rounds_sec: { type: 'integer', description: 'Rest after completing group' }
-                    },
-                    required: ['id', 'type', 'position']
-                  },
-
-                  // === METADATA (required) ===
-                  muscles_utilized: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        muscle: { type: 'string', enum: VALID_MUSCLES, description: 'Muscle name' },
-                        share: { type: 'number', description: 'Utilization share 0.0-1.0 (all shares must sum to ~1.0)' }
-                      },
-                      required: ['muscle', 'share']
-                    },
-                    description: 'Muscles worked with utilization percentages (shares must sum to 1.0)'
-                  },
-                  goals_addressed: {
-                    type: 'array',
-                    items: {
-                      type: 'object',
-                      properties: {
-                        goal: { type: 'string', description: 'Goal category (e.g., "strength", "endurance", "flexibility")' },
-                        share: { type: 'number', description: 'How much this exercise addresses the goal 0.0-1.0 (shares must sum to ~1.0)' }
-                      },
-                      required: ['goal', 'share']
-                    },
-                    description: 'Fitness goals this exercise addresses (shares must sum to 1.0)'
-                  },
-                  reasoning: { type: 'string', maxLength: 300, description: 'Brief explanation for this exercise selection' },
-                  exercise_description: { type: 'string', description: 'Instructions on how to perform the exercise' },
-                  equipment: { type: 'array', items: { type: 'string' }, description: 'Equipment needed' },
-
-                  // === TYPE: reps - Count repetitions across sets (strength, bodyweight) ===
-                  sets: { type: 'integer', description: '[reps, hold] Number of sets' },
-                  reps: {
-                    type: 'array',
-                    items: { type: 'integer' },
-                    description: '[reps] Target reps per set (array, e.g., [10, 10, 8])'
-                  },
-                  load_each: {
-                    type: 'array',
-                    items: { type: 'number' },
-                    description: '[reps] Weight per set (array, e.g., [20, 20, 25]). Null for bodyweight.'
-                  },
-                  load_unit: {
-                    type: 'string',
-                    enum: ['lbs', 'kg'],
-                    description: '[reps] Weight unit (lbs or kg)'
-                  },
-
-                  // === TYPE: hold - Hold positions for time (isometric, balance, static stretches) ===
-                  hold_sec: {
-                    type: 'array',
-                    items: { type: 'integer' },
-                    description: '[hold] Hold duration per set in seconds (array, e.g., [30, 30, 30])'
-                  },
-
-                  // === TYPE: duration - Continuous effort (cardio, yoga flows) ===
-                  duration_min: { type: 'number', description: '[duration] Total duration in minutes' },
-                  distance: { type: 'number', description: '[duration] Target distance (optional)' },
-                  distance_unit: {
-                    type: 'string',
-                    enum: ['km', 'mi'],
-                    description: '[duration] Distance unit (km or mi)'
-                  },
-                  target_pace: { type: 'string', description: '[duration] Target pace (e.g., "5:30/km")' },
-
-                  // === TYPE: intervals - Work/rest cycles (HIIT, tabata) ===
-                  rounds: { type: 'integer', description: '[intervals] Number of rounds' },
-                  work_sec: { type: 'integer', description: '[intervals] Work interval in seconds' },
-
-                  // === SHARED TIMING ===
-                  rest_sec: { type: 'integer', description: '[reps, hold, intervals] Rest between sets/intervals in seconds' }
-                },
-                required: ['exercise_name', 'exercise_type', 'order', 'muscles_utilized', 'goals_addressed', 'reasoning']
-              }
-            },
-            summary: {
-              type: 'object',
-              properties: {
-                title: { type: 'string' },
-                estimated_duration_min: { type: 'number', description: 'Estimated total workout duration' },
-                primary_goals: { type: 'array', items: { type: 'string' } },
-                muscles_targeted: { type: 'array', items: { type: 'string' } },
-                difficulty: { type: 'string', enum: ['beginner', 'intermediate', 'advanced'] }
-              }
-            }
-          },
-          required: ['exercises']
+        request_text: {
+          type: 'string',
+          description: 'What the user wants to work on (natural language request from conversation)'
+        },
+        time_available_min: {
+          type: 'integer',
+          description: 'How many minutes the user has available'
+        },
+        energy_level: {
+          type: 'integer',
+          description: 'User\'s energy level on a 1-5 scale'
+        },
+        intent: {
+          type: 'string',
+          enum: ['planned', 'custom', 'quick'],
+          description: 'Type of workout session'
         }
-      },
-      required: ['workout']
+      }
     },
     execute: async (args, context) => {
       const { userId, sessionId } = context;
 
-      // Accept either { workout: { exercises } } or { exercises } directly
-      const workout = args.workout || args;
+      try {
+        // Create a workout session via the service
+        const workoutSession = await workoutService.getOrCreateSession(userId, {
+          forceNew: true,
+          metadata: { source: 'agent', agent_session_id: sessionId }
+        });
 
-      if (!workout.exercises || !Array.isArray(workout.exercises)) {
+        // Build constraints from agent inputs
+        const constraints = {
+          intent: args.intent || 'custom',
+          request_text: args.request_text || null,
+          time_available_min: args.time_available_min || null,
+          energy_level: args.energy_level || null
+        };
+
+        // Generate workout via the unified service (includes active program, user context)
+        const instance = await workoutService.generateWorkoutInstance(userId, constraints);
+        const instanceRecord = await workoutService.createWorkoutInstance(workoutSession.id, instance);
+
+        // Log the generation event
+        await workoutService.logEvent(workoutSession.id, workoutService.EVENT_TYPES.instanceGenerated, {
+          constraints,
+          version: instanceRecord.version,
+          source: 'agent',
+          timestamp: new Date().toISOString()
+        });
+
+        // Store mapping for swap/adjust/remove operations
+        agentWorkoutSessions.set(sessionId, {
+          workoutSessionId: workoutSession.id
+        });
+
+        // Create artifact for agent UI delivery
+        const artifact = {
+          type: 'exercise_list',
+          schema_version: '1.0',
+          title: instance.title || 'Your Workout',
+          summary: {
+            duration_min: instance.estimated_duration_min || null,
+            focus: instance.focus || [],
+            exercise_count: instance.exercises.length
+          },
+          auto_start: false,
+          payload: {
+            exercises: instance.exercises,
+            workout_session_id: workoutSession.id
+          }
+        };
+
+        const { artifact_id } = await sessionObs.logArtifact(sessionId, artifact);
+
+        return {
+          success: true,
+          artifact_id,
+          exercise_count: instance.exercises.length,
+          workout_session_id: workoutSession.id,
+          summary: artifact.summary
+        };
+      } catch (error) {
         return {
           success: false,
-          error: 'Invalid workout format: exercises array is required'
+          error: error.message
         };
       }
-
-      // Assign unique IDs to each exercise
-      const exercisesWithIds = workout.exercises.map(exercise => ({
-        ...exercise,
-        id: uuidv4()
-      }));
-
-      // Build artifact object
-      const artifact = {
-        type: 'exercise_list',
-        schema_version: '1.0',
-        title: workout.summary?.title || 'Your Workout',
-        summary: {
-          duration_min: workout.summary?.total_duration_estimate || null,
-          focus: workout.summary?.focus_areas || [],
-          difficulty: workout.summary?.difficulty || 'intermediate',
-          exercise_count: exercisesWithIds.length
-        },
-        auto_start: false,
-        payload: {
-          exercises: exercisesWithIds,
-          summary: workout.summary
-        }
-      };
-
-      // Log artifact to session events
-      const { artifact_id } = await sessionObs.logArtifact(sessionId, artifact);
-
-      // Store in memory for swap/adjust/remove operations
-      workoutSessions.set(sessionId, {
-        exercises: exercisesWithIds,
-        summary: workout.summary,
-        artifact_id: artifact_id,
-        created_at: new Date().toISOString()
-      });
-
-      return {
-        success: true,
-        artifact_id: artifact_id,
-        exercise_count: exercisesWithIds.length,
-        summary: artifact.summary
-      };
     },
     formatResult: (result) => {
       if (!result.success) return `Workout generation failed: ${result.error}`;
@@ -215,7 +111,7 @@ const exerciseTools = {
   },
 
   swap_exercise: {
-    description: 'Replace an exercise in the current workout with a new one.',
+    description: 'Replace an exercise in the current workout with an AI-generated alternative.',
     statusMessage: {
       start: 'Finding alternative...',
       done: 'Exercise swapped'
@@ -223,90 +119,56 @@ const exerciseTools = {
     parameters: {
       type: 'object',
       properties: {
-        exercise_id: {
-          type: 'string',
-          description: 'ID of the exercise to replace (UUID or order number as string, e.g., "1" for first exercise)'
-        },
-        new_exercise: {
-          type: 'object',
-          description: 'The new exercise to insert (same format as generate_workout exercises)',
-          properties: {
-            exercise_name: { type: 'string' },
-            exercise_type: { type: 'string', enum: EXERCISE_TYPES },
-            order: { type: 'integer' },
-            group: { type: 'object' },
-            muscles_utilized: { type: 'array', items: { type: 'object', properties: { muscle: { type: 'string' }, share: { type: 'number' } } } },
-            goals_addressed: { type: 'array', items: { type: 'object', properties: { goal: { type: 'string' }, share: { type: 'number' } } } },
-            exercise_description: { type: 'string' },
-            reasoning: { type: 'string' },
-            equipment: { type: 'array', items: { type: 'string' } },
-            // Type: reps
-            sets: { type: 'integer' },
-            reps: { type: 'array', items: { type: 'integer' } },
-            load_each: { type: 'array', items: { type: 'number' } },
-            load_unit: { type: 'string', enum: ['lbs', 'kg'] },
-            // Type: hold
-            hold_sec: { type: 'array', items: { type: 'integer' } },
-            // Type: duration
-            duration_min: { type: 'number' },
-            distance: { type: 'number' },
-            distance_unit: { type: 'string', enum: ['km', 'mi'] },
-            target_pace: { type: 'string' },
-            // Type: intervals
-            rounds: { type: 'integer' },
-            work_sec: { type: 'integer' },
-            // Shared
-            rest_sec: { type: 'integer' }
-          },
-          required: ['exercise_name', 'exercise_type', 'order', 'muscles_utilized', 'goals_addressed', 'reasoning']
+        exercise_index: {
+          type: 'integer',
+          description: 'Index of the exercise to replace (0-based)'
         },
         reason: {
           type: 'string',
-          description: 'Reason for the swap'
+          description: 'Why the exercise should be replaced (e.g., "equipment not available", "causes shoulder pain")'
         }
       },
-      required: ['exercise_id', 'new_exercise']
+      required: ['exercise_index']
     },
     execute: async (args, context) => {
-      const { sessionId } = context;
-      const workout = workoutSessions.get(sessionId);
+      const { userId, sessionId } = context;
+      const workoutRef = agentWorkoutSessions.get(sessionId);
 
-      if (!workout) {
-        return { success: false, error: 'No active workout session' };
+      if (!workoutRef) {
+        return { success: false, error: 'No active workout session. Generate a workout first.' };
       }
 
-      // Try to find by UUID first, then by order number
-      let index = workout.exercises.findIndex(e => e.id === args.exercise_id);
+      try {
+        // Get current exercise name for the response
+        const latestInstance = await workoutService.getLatestInstance(workoutRef.workoutSessionId);
+        const exercises = latestInstance?.instance_json?.exercises || [];
+        const oldExercise = exercises[args.exercise_index];
 
-      // If not found by UUID, try treating exercise_id as an order number
-      if (index === -1) {
-        const orderNum = parseInt(args.exercise_id, 10);
-        if (!isNaN(orderNum)) {
-          index = workout.exercises.findIndex(e => e.order === orderNum);
+        if (!oldExercise) {
+          return {
+            success: false,
+            error: `Invalid exercise index ${args.exercise_index}. Workout has ${exercises.length} exercises (0-${exercises.length - 1}).`
+          };
         }
-      }
 
-      if (index === -1) {
-        // Provide helpful error with available exercises
-        const availableExercises = workout.exercises.map(e =>
-          `Order ${e.order}: "${e.exercise_name}" (id: ${e.id})`
-        ).join(', ');
+        const result = await workoutService.applyAction({
+          sessionId: workoutRef.workoutSessionId,
+          userId,
+          actionType: 'swap_exercise',
+          payload: { index: args.exercise_index, reason: args.reason }
+        });
+
+        const newExercise = result.instance?.exercises?.[args.exercise_index];
+
         return {
-          success: false,
-          error: `Exercise not found. Available exercises: ${availableExercises}`
+          success: true,
+          old_exercise: oldExercise.exercise_name,
+          new_exercise: newExercise?.exercise_name || 'replacement',
+          instance_updated: result.instanceUpdated
         };
+      } catch (error) {
+        return { success: false, error: error.message };
       }
-
-      const oldExercise = workout.exercises[index];
-      const newExercise = { ...args.new_exercise, id: uuidv4() };
-      workout.exercises[index] = newExercise;
-
-      return {
-        success: true,
-        old_exercise: oldExercise.exercise_name,
-        new_exercise: newExercise.exercise_name,
-        new_id: newExercise.id
-      };
     },
     formatResult: (result) => {
       if (!result.success) return `Swap failed: ${result.error}`;
@@ -315,7 +177,7 @@ const exerciseTools = {
   },
 
   adjust_exercise: {
-    description: 'Modify parameters of an existing exercise (sets, reps, duration, etc.).',
+    description: 'Adjust the difficulty of an exercise (make it easier or harder).',
     statusMessage: {
       start: 'Adjusting exercise...',
       done: 'Exercise updated'
@@ -323,69 +185,49 @@ const exerciseTools = {
     parameters: {
       type: 'object',
       properties: {
-        exercise_id: {
-          type: 'string',
-          description: 'ID of the exercise to modify (UUID or order number as string, e.g., "1" for first exercise)'
+        exercise_index: {
+          type: 'integer',
+          description: 'Index of the exercise to adjust (0-based)'
         },
-        adjustments: {
-          type: 'object',
-          description: 'Fields to update',
-          additionalProperties: true
+        direction: {
+          type: 'string',
+          enum: ['easier', 'harder'],
+          description: 'Whether to make the exercise easier or harder'
         }
       },
-      required: ['exercise_id', 'adjustments']
+      required: ['exercise_index', 'direction']
     },
     execute: async (args, context) => {
-      const { sessionId } = context;
-      const workout = workoutSessions.get(sessionId);
+      const { userId, sessionId } = context;
+      const workoutRef = agentWorkoutSessions.get(sessionId);
 
-      if (!workout) {
-        return { success: false, error: 'No active workout session' };
+      if (!workoutRef) {
+        return { success: false, error: 'No active workout session. Generate a workout first.' };
       }
 
-      // Try to find by UUID first, then by order number
-      let exercise = workout.exercises.find(e => e.id === args.exercise_id);
+      try {
+        const result = await workoutService.applyAction({
+          sessionId: workoutRef.workoutSessionId,
+          userId,
+          actionType: 'adjust_prescription',
+          payload: { index: args.exercise_index, direction: args.direction }
+        });
 
-      // If not found by UUID, try treating exercise_id as an order number
-      if (!exercise) {
-        const orderNum = parseInt(args.exercise_id, 10);
-        if (!isNaN(orderNum)) {
-          exercise = workout.exercises.find(e => e.order === orderNum);
-        }
-      }
+        const exercise = result.instance?.exercises?.[args.exercise_index];
 
-      if (!exercise) {
-        // Provide helpful error with available exercises
-        const availableExercises = workout.exercises.map(e =>
-          `Order ${e.order}: "${e.exercise_name}" (id: ${e.id})`
-        ).join(', ');
         return {
-          success: false,
-          error: `Exercise not found. Available exercises: ${availableExercises}`
+          success: true,
+          exercise_name: exercise?.exercise_name || 'exercise',
+          direction: args.direction,
+          instance_updated: result.instanceUpdated
         };
+      } catch (error) {
+        return { success: false, error: error.message };
       }
-
-      const oldValues = {};
-      for (const [key, value] of Object.entries(args.adjustments)) {
-        if (key !== 'id' && key !== 'type') { // Prevent changing id or type
-          oldValues[key] = exercise[key];
-          exercise[key] = value;
-        }
-      }
-
-      return {
-        success: true,
-        exercise_name: exercise.exercise_name,
-        adjustments: args.adjustments,
-        old_values: oldValues
-      };
     },
     formatResult: (result) => {
       if (!result.success) return `Adjustment failed: ${result.error}`;
-      const changes = Object.entries(result.adjustments)
-        .map(([k, v]) => `${k}: ${result.old_values[k]} → ${v}`)
-        .join(', ');
-      return `Adjusted "${result.exercise_name}": ${changes}`;
+      return `Made "${result.exercise_name}" ${result.direction}`;
     }
   },
 
@@ -398,54 +240,60 @@ const exerciseTools = {
     parameters: {
       type: 'object',
       properties: {
-        exercise_id: {
-          type: 'string',
-          description: 'ID of the exercise to remove (UUID or order number as string, e.g., "1" for first exercise)'
+        exercise_index: {
+          type: 'integer',
+          description: 'Index of the exercise to remove (0-based)'
         },
         reason: {
           type: 'string',
           description: 'Reason for removal'
         }
       },
-      required: ['exercise_id']
+      required: ['exercise_index']
     },
     execute: async (args, context) => {
-      const { sessionId } = context;
-      const workout = workoutSessions.get(sessionId);
+      const { userId, sessionId } = context;
+      const workoutRef = agentWorkoutSessions.get(sessionId);
 
-      if (!workout) {
-        return { success: false, error: 'No active workout session' };
+      if (!workoutRef) {
+        return { success: false, error: 'No active workout session. Generate a workout first.' };
       }
 
-      // Try to find by UUID first, then by order number
-      let index = workout.exercises.findIndex(e => e.id === args.exercise_id);
+      try {
+        const latestInstance = await workoutService.getLatestInstance(workoutRef.workoutSessionId);
+        const instanceJson = latestInstance?.instance_json;
 
-      // If not found by UUID, try treating exercise_id as an order number
-      if (index === -1) {
-        const orderNum = parseInt(args.exercise_id, 10);
-        if (!isNaN(orderNum)) {
-          index = workout.exercises.findIndex(e => e.order === orderNum);
+        if (!instanceJson?.exercises) {
+          return { success: false, error: 'No exercises found in workout' };
         }
-      }
 
-      if (index === -1) {
-        // Provide helpful error with available exercises
-        const availableExercises = workout.exercises.map(e =>
-          `Order ${e.order}: "${e.exercise_name}" (id: ${e.id})`
-        ).join(', ');
+        const exercises = [...instanceJson.exercises];
+        if (args.exercise_index < 0 || args.exercise_index >= exercises.length) {
+          return {
+            success: false,
+            error: `Invalid exercise index ${args.exercise_index}. Workout has ${exercises.length} exercises (0-${exercises.length - 1}).`
+          };
+        }
+
+        const removed = exercises.splice(args.exercise_index, 1)[0];
+        const updatedInstance = { ...instanceJson, exercises };
+        await workoutService.createWorkoutInstance(workoutRef.workoutSessionId, updatedInstance);
+
+        await workoutService.logEvent(workoutRef.workoutSessionId, workoutService.EVENT_TYPES.action, {
+          action_type: 'remove_exercise',
+          payload: { index: args.exercise_index, reason: args.reason },
+          removed_exercise: removed.exercise_name,
+          timestamp: new Date().toISOString()
+        });
+
         return {
-          success: false,
-          error: `Exercise not found. Available exercises: ${availableExercises}`
+          success: true,
+          removed_exercise: removed.exercise_name,
+          remaining_count: exercises.length
         };
+      } catch (error) {
+        return { success: false, error: error.message };
       }
-
-      const removed = workout.exercises.splice(index, 1)[0];
-
-      return {
-        success: true,
-        removed_exercise: removed.exercise_name,
-        remaining_count: workout.exercises.length
-      };
     },
     formatResult: (result) => {
       if (!result.success) return `Removal failed: ${result.error}`;
@@ -454,7 +302,7 @@ const exerciseTools = {
   },
 
   log_workout: {
-    description: 'Log the completed workout to history and update exercise distribution.',
+    description: 'Log the completed workout to history.',
     statusMessage: {
       start: 'Saving your workout...',
       done: 'Workout logged'
@@ -467,15 +315,13 @@ const exerciseTools = {
           items: {
             type: 'object',
             properties: {
-              exercise_id: { type: 'string' },
+              exercise_index: { type: 'integer', description: 'Index of the exercise (0-based)' },
               completed: { type: 'boolean' },
-              actual_sets: { type: 'number' },
-              actual_reps: { type: 'number' },
               notes: { type: 'string' }
             },
-            required: ['exercise_id', 'completed']
+            required: ['exercise_index', 'completed']
           },
-          description: 'Array of completed exercise data'
+          description: 'Array of exercise completion data'
         },
         workout_notes: {
           type: 'string',
@@ -486,28 +332,33 @@ const exerciseTools = {
     },
     execute: async (args, context) => {
       const { userId, sessionId } = context;
-      const workout = workoutSessions.get(sessionId);
-      
-      if (!workout) {
+      const workoutRef = agentWorkoutSessions.get(sessionId);
+
+      if (!workoutRef) {
         return { success: false, error: 'No active workout session' };
       }
 
-      const completedIds = new Set(
-        args.completed_exercises
-          .filter(e => e.completed)
-          .map(e => e.exercise_id)
-      );
+      try {
+        const logPayload = {
+          completed_exercises: args.completed_exercises,
+          workout_notes: args.workout_notes || null
+        };
 
-      const completedExercises = workout.exercises.filter(e => completedIds.has(e.id));
+        await workoutService.saveWorkoutLog(workoutRef.workoutSessionId, logPayload);
 
-      // Clear the session workout
-      workoutSessions.delete(sessionId);
+        const completedCount = args.completed_exercises.filter(e => e.completed).length;
 
-      return {
-        success: true,
-        logged_count: completedExercises.length,
-        total_in_workout: workout.exercises.length
-      };
+        // Clean up agent session mapping
+        agentWorkoutSessions.delete(sessionId);
+
+        return {
+          success: true,
+          logged_count: completedCount,
+          total_in_workout: args.completed_exercises.length
+        };
+      } catch (error) {
+        return { success: false, error: error.message };
+      }
     },
     formatResult: (result) => {
       if (!result.success) return `Logging failed: ${result.error}`;
@@ -516,9 +367,9 @@ const exerciseTools = {
   }
 };
 
-// Export session getter for other modules
+// Get workout session reference for an agent session
 function getWorkoutSession(sessionId) {
-  return workoutSessions.get(sessionId);
+  return agentWorkoutSessions.get(sessionId) || null;
 }
 
 module.exports = { exerciseTools, getWorkoutSession };

@@ -1,6 +1,7 @@
 const programService = require('../services/trainerProgram.service');
 const journeyService = require('../services/trainerJourney.service');
 const calendarService = require('../services/trainerCalendar.service');
+const weightsProfileService = require('../services/trainerWeightsProfile.service');
 
 async function draftProgram(req, res) {
   try {
@@ -70,6 +71,11 @@ async function activateProgram(req, res) {
     await calendarService.syncCalendarFromProgram(userId);
     await journeyService.setPhaseStatus(userId, 'program', 'active');
     await journeyService.setPhaseStatus(userId, 'monitoring', 'active');
+
+    // Async: create initial weights profile in background (don't block response)
+    weightsProfileService.createInitialProfile(userId)
+      .catch(err => console.error(`[weights-profile] Initial profile creation failed for user ${userId}:`, err.message));
+
     res.json({ success: true, program: updated });
   } catch (error) {
     console.error('Activate program error:', error);

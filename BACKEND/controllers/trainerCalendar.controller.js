@@ -1,4 +1,5 @@
 const calendarService = require('../services/trainerCalendar.service');
+const weeklyReviewService = require('../services/weeklyReview.service');
 
 async function listEvents(req, res) {
   try {
@@ -71,11 +72,33 @@ async function syncCalendar(req, res) {
   }
 }
 
+async function checkAndRegenerate(req, res) {
+  try {
+    const userId = req.user.id;
+    const result = await weeklyReviewService.checkAndRunCatchUpReview(userId);
+
+    if (result.regenerated) {
+      // Return the newly generated events
+      const start = new Date();
+      const end = new Date();
+      end.setDate(end.getDate() + 14);
+      const events = await calendarService.listEvents(userId, start.toISOString(), end.toISOString());
+      return res.json({ success: true, regenerated: true, events });
+    }
+
+    res.json({ success: true, regenerated: false, reason: result.reason });
+  } catch (error) {
+    console.error('Check and regenerate error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
 module.exports = {
   listEvents,
   createEvent,
   rescheduleEvent,
   skipEvent,
   completeEvent,
-  syncCalendar
+  syncCalendar,
+  checkAndRegenerate
 };
