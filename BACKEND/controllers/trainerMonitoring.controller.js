@@ -1,5 +1,11 @@
 const monitoringService = require('../services/trainerMonitoring.service');
 
+function parseLimit(value, fallback = 8, max = 52) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 async function generateWeeklyReport(req, res) {
   try {
     const userId = req.user.id;
@@ -15,7 +21,7 @@ async function generateWeeklyReport(req, res) {
 async function listReports(req, res) {
   try {
     const userId = req.user.id;
-    const limit = parseInt(req.query.limit || '8', 10);
+    const limit = parseLimit(req.query.limit, 8, 52);
     const reports = await monitoringService.listReports(userId, limit);
     res.json({ success: true, reports: reports.map(r => r.report_json) });
   } catch (error) {

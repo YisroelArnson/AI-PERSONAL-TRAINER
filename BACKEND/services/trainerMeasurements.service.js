@@ -8,6 +8,12 @@ const supabase = createClient(
   process.env.SUPABASE_SECRET_KEY
 );
 
+function sanitizeLimit(value, fallback = 50, max = 200) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 async function logMeasurement(userId, payload) {
   const record = {
     user_id: userId,
@@ -32,12 +38,14 @@ async function logMeasurement(userId, payload) {
 }
 
 async function listMeasurements(userId, types = [], limit = 50) {
+  const safeLimit = sanitizeLimit(limit, 50, 200);
+
   let query = supabase
     .from('trainer_measurements')
     .select('*')
     .eq('user_id', userId)
     .order('measured_at', { ascending: false })
-    .limit(limit);
+    .limit(safeLimit);
 
   if (types.length) {
     query = query.in('measurement_type', types);

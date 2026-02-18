@@ -1,5 +1,11 @@
 const checkinService = require('../services/trainerCheckins.service');
 
+function parseLimit(value, fallback = 10, max = 100) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 async function createOrResumeCheckin(req, res) {
   try {
     const userId = req.user.id;
@@ -31,7 +37,7 @@ async function submitCheckin(req, res) {
 async function listCheckins(req, res) {
   try {
     const userId = req.user.id;
-    const limit = parseInt(req.query.limit || '10', 10);
+    const limit = parseLimit(req.query.limit, 10, 100);
     const checkins = await checkinService.listCheckins(userId, limit);
     res.json({ success: true, checkins });
   } catch (error) {

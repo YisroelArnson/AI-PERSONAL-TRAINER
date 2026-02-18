@@ -31,10 +31,14 @@ const INITIALIZER_RESPONSE_SCHEMA = {
           items: {
             type: "object",
             properties: {
-              source: { type: "string", description: "Data source name" },
-              days_back: { 
+              source: {
+                type: "string",
+                enum: ["user_profile", "workout_history", "user_settings", "all_locations"],
+                description: "Data source name"
+              },
+              limit: {
                 type: ["integer", "null"],
-                description: "For workout_history: number of days to look back (default 14)"
+                description: "For workout_history: max number of records to load (default 10)"
               },
               reason: { 
                 type: "string", 
@@ -42,7 +46,7 @@ const INITIALIZER_RESPONSE_SCHEMA = {
                 description: "Reason for adding"
               }
             },
-            required: ["source", "reason", "days_back"],
+            required: ["source", "reason", "limit"],
             additionalProperties: false
           }
         },
@@ -74,8 +78,8 @@ The system uses an APPEND-ONLY architecture for KV-cache efficiency.
 APPEND-ONLY RULES:
 - Knowledge is APPENDED to the context, never replaced or removed
 - If a data source is already in context, you can still add MORE of it with different parameters
-- Example: workout_history with days_back:14 is in context, but user asks about this month
-  → Append workout_history with days_back:30 (LLM will see both and use combined info)
+- Example: workout_history with limit:10 is in context, but user asks for more history
+  → Append workout_history with limit:20 (LLM will see both and use combined info)
 - Only request NEW data or EXPANDED data, not data already covered
 </important>
 
@@ -90,51 +94,26 @@ APPEND-ONLY RULES:
 <task_to_data_mapping>
 Use this guide to determine which data sources are needed for common tasks:
 
-WORKOUT GENERATION / EXERCISE RECOMMENDATIONS:
-- category_goals (includes distribution metrics - if not in context)
-- muscle_goals (includes distribution metrics - if not in context)
-- active_preferences (if not in context)
-- workout_history (days_back: 14, or expand if need more)
+WORKOUT GENERATION / PERSONALIZATION:
+- user_profile
+- user_settings
+- all_locations
+- workout_history (limit: 10 by default, increase if user asks for longer history)
 
-GOAL SETTING / ADJUSTMENTS:
-- category_goals (includes distribution metrics to show current state and impact)
-- muscle_goals (includes distribution metrics to show current state and impact)
-
-VIEWING STATISTICS / PROGRESS:
-- workout_history (set days_back based on request: week=7, month=30, year=365)
-  → If current history is 14 days but user asks for month, ADD days_back: 30
-- category_goals (includes distribution metrics for comparison)
-
-SCHEDULING / PLANNING:
-- scheduled_workouts (set days_ahead based on request)
-- workout_plans (if discussing multi-week plans)
-- milestone_goals (if discussing specific goals)
-
-PREFERENCE MANAGEMENT:
-- active_preferences (to show current state)
-
-TIMER / INTERVAL REQUESTS:
-- No additional data needed - current_workout_session is automatically provided by the client app
-- The client sends the current workout state with each request when a workout is active
-
-GENERAL QUESTIONS / CONVERSATION:
-- Usually minimal data needed
-- Only add if specifically relevant to question
-
-INJURY / RECOVERY DISCUSSION:
-- active_preferences (to check existing injury prefs)
-- workout_history (recent, days_back: 7)
+PROGRESS QUESTIONS / HISTORY REVIEW:
+- workout_history (adjust limit based on request)
 
 LOCATION / EQUIPMENT QUERIES:
-- all_locations (to see all user locations with equipment details)
-- Use when user asks: "what equipment do I have?", "where can I workout?",
-  "switch to gym", "what's at home?", "show my locations", "compare my locations"
-- The stable prefix ALWAYS includes current_location, but all_locations
-  provides full details of ALL locations for comparison or switching
+- all_locations
+
+UNITS / PREFERENCES QUESTIONS:
+- user_settings
+
+GENERAL PROFILE QUESTIONS:
+- user_profile
 
 NOTE: current_workout_session is CLIENT-PROVIDED data, not a fetchable data source.
-The iOS app automatically includes the current workout state in each request.
-Do NOT try to add current_workout_session to append_knowledge - it's handled separately.
+Do NOT add current_workout_session to append_knowledge.
 </task_to_data_mapping>
 
 <output_format>
@@ -142,15 +121,15 @@ Respond with ONLY a JSON object in this exact format:
 {
   "reasoning": "Brief explanation of what data is needed and why",
   "append_knowledge": [
-    { "source": "source_name", "reason": "not_in_context" },
-    { "source": "source_name", "params": { "days_back": 30 }, "reason": "expand_range" }
+    { "source": "source_name", "reason": "not_in_context", "limit": null },
+    { "source": "workout_history", "reason": "expand_range", "limit": 20 }
   ],
   "use_existing": ["source1", "source2"]
 }
 
 Reasons for adding:
 - "not_in_context": Data source not present, needs to be added
-- "expand_range": Data exists but with smaller range, need more (e.g., 14 days → 30 days)
+- "expand_range": Data exists but with smaller scope, need more (e.g., 10 records → 20 records)
 - "refresh_state": Data may be stale and needs current state (e.g., current_workout_session during workout)
 
 If no additional data sources are needed, return:
@@ -234,14 +213,9 @@ async function getExistingKnowledge(sessionId, contextStartSequence) {
 function getKnowledgeDisplayName(source) {
   const names = {
     'workout_history': 'Loading workout history',
-    'category_goals': 'Loading category goals',
-    'muscle_goals': 'Loading muscle goals',
-    'active_preferences': 'Loading preferences',
     'user_profile': 'Loading profile',
-    'exercise_distribution': 'Analyzing exercise patterns',
     'user_settings': 'Loading settings',
-    'all_locations': 'Loading locations',
-    'current_workout_session': 'Loading current workout'
+    'all_locations': 'Loading locations'
   };
   return names[source] || source.replace(/_/g, ' ');
 }
@@ -291,9 +265,9 @@ async function initializeContext(sessionId, userId, userInput, emit = null) {
     // Build params object keyed by source name
     const paramsMap = {};
     for (const k of selection.append_knowledge) {
-      // Handle days_back parameter for workout_history
-      if (k.days_back !== null && k.days_back !== undefined) {
-        paramsMap[k.source] = { days_back: k.days_back };
+      // Handle optional per-source limit (primarily for workout_history)
+      if (k.limit !== null && k.limit !== undefined) {
+        paramsMap[k.source] = { limit: k.limit };
       }
     }
 

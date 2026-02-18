@@ -1,12 +1,16 @@
 // BACKEND/controllers/agent.controller.js
 // HTTP handlers for agent endpoints
 const { runAgentLoop, getSessionState } = require('../services/agentLoop.service');
-const { getUserSessions, getSession, createSession } = require('../services/sessionObservability.service');
+const { getUserSessions, createSession } = require('../services/sessionObservability.service');
 
 function parseLimit(value, fallback = 10, max = 50) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed) || parsed < 1) return fallback;
   return Math.min(parsed, max);
+}
+
+function isSessionNotFound(error) {
+  return error?.code === 'PGRST116';
 }
 
 /**
@@ -33,6 +37,9 @@ async function handleChat(req, res) {
     });
 
   } catch (error) {
+    if (isSessionNotFound(error)) {
+      return res.status(404).json({ error: 'Session not found' });
+    }
     console.error('Chat error:', error);
     res.status(500).json({ error: error.message });
   }
@@ -146,7 +153,8 @@ async function handleStreamChat(req, res) {
 
   } catch (error) {
     console.error('Stream error:', error);
-    res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+    const message = isSessionNotFound(error) ? 'Session not found' : error.message;
+    res.write(`data: ${JSON.stringify({ type: 'error', message })}\n\n`);
     res.end();
   }
 }
@@ -179,7 +187,7 @@ async function getSessionById(req, res) {
     res.json(state);
 
   } catch (error) {
-    if (error?.code === 'PGRST116') {
+    if (isSessionNotFound(error)) {
       return res.status(404).json({ error: 'Session not found' });
     }
     console.error('Get session error:', error);

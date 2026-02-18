@@ -12,6 +12,39 @@ const supabase = createClient(
   process.env.SUPABASE_SECRET_KEY
 );
 
+async function getUserSessionIds(userId, options = {}) {
+  const { startDate, endDate } = options;
+
+  let query = supabase
+    .from('agent_sessions')
+    .select('id')
+    .eq('user_id', userId);
+
+  if (startDate) {
+    query = query.gte('created_at', startDate);
+  }
+
+  if (endDate) {
+    query = query.lte('created_at', endDate);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []).map(row => row.id);
+}
+
+function sanitizeLimit(value, fallback = 50, max = 200) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
+function sanitizeOffset(value, fallback = 0) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return parsed;
+}
+
 /**
  * Get summary metrics for the dashboard
  * @param {Object} options - Query options
@@ -44,23 +77,32 @@ async function getSummaryMetrics(options = {}) {
   
   if (sessionsError) throw sessionsError;
   
-  // Get LLM response events for detailed metrics
-  let eventsQuery = supabase
-    .from('agent_session_events')
-    .select('session_id, event_type, data, duration_ms, timestamp')
-    .eq('event_type', 'llm_response');
-  
-  if (startDate) {
-    eventsQuery = eventsQuery.gte('timestamp', startDate);
+  const sessionIds = sessions.map(session => session.id);
+  let events = [];
+
+  if (!userId || sessionIds.length > 0) {
+    // Get LLM response events for detailed metrics
+    let eventsQuery = supabase
+      .from('agent_session_events')
+      .select('session_id, event_type, data, duration_ms, timestamp')
+      .eq('event_type', 'llm_response');
+
+    if (userId) {
+      eventsQuery = eventsQuery.in('session_id', sessionIds);
+    }
+
+    if (startDate) {
+      eventsQuery = eventsQuery.gte('timestamp', startDate);
+    }
+
+    if (endDate) {
+      eventsQuery = eventsQuery.lte('timestamp', endDate);
+    }
+
+    const { data: eventRows, error: eventsError } = await eventsQuery;
+    if (eventsError) throw eventsError;
+    events = eventRows || [];
   }
-  
-  if (endDate) {
-    eventsQuery = eventsQuery.lte('timestamp', endDate);
-  }
-  
-  const { data: events, error: eventsError } = await eventsQuery;
-  
-  if (eventsError) throw eventsError;
   
   // Calculate aggregates from sessions
   const completedSessions = sessions.filter(s => s.status === 'completed');
@@ -120,6 +162,14 @@ async function getSummaryMetrics(options = {}) {
  */
 async function getTokenUsageOverTime(options = {}) {
   const { userId, startDate, endDate, granularity = 'day' } = options;
+
+  let sessionIds = null;
+  if (userId) {
+    sessionIds = await getUserSessionIds(userId, { startDate, endDate });
+    if (sessionIds.length === 0) {
+      return [];
+    }
+  }
   
   // Get LLM response events
   let query = supabase
@@ -127,6 +177,10 @@ async function getTokenUsageOverTime(options = {}) {
     .select('timestamp, data')
     .eq('event_type', 'llm_response')
     .order('timestamp', { ascending: true });
+
+  if (sessionIds) {
+    query = query.in('session_id', sessionIds);
+  }
   
   if (startDate) {
     query = query.gte('timestamp', startDate);
@@ -177,13 +231,25 @@ async function getTokenUsageOverTime(options = {}) {
  * @returns {Array} Tool analytics data
  */
 async function getToolAnalytics(options = {}) {
-  const { startDate, endDate } = options;
+  const { userId, startDate, endDate } = options;
+
+  let sessionIds = null;
+  if (userId) {
+    sessionIds = await getUserSessionIds(userId, { startDate, endDate });
+    if (sessionIds.length === 0) {
+      return [];
+    }
+  }
   
   // Get tool result events
   let query = supabase
     .from('agent_session_events')
     .select('data, duration_ms')
     .eq('event_type', 'tool_result');
+
+  if (sessionIds) {
+    query = query.in('session_id', sessionIds);
+  }
   
   if (startDate) {
     query = query.gte('timestamp', startDate);
@@ -253,13 +319,30 @@ async function getToolAnalytics(options = {}) {
  * @returns {Object} Latency distribution data
  */
 async function getLatencyDistribution(options = {}) {
-  const { startDate, endDate } = options;
+  const { userId, startDate, endDate } = options;
+
+  let sessionIds = null;
+  if (userId) {
+    sessionIds = await getUserSessionIds(userId, { startDate, endDate });
+    if (sessionIds.length === 0) {
+      return {
+        by_event_type: {
+          llm_response: { count: 0, avg: 0, p50: 0, p75: 0, p90: 0, p95: 0, p99: 0, min: 0, max: 0 },
+          tool_result: { count: 0, avg: 0, p50: 0, p75: 0, p90: 0, p95: 0, p99: 0, min: 0, max: 0 }
+        }
+      };
+    }
+  }
   
   // Get LLM response and tool result events
   let query = supabase
     .from('agent_session_events')
     .select('event_type, data, duration_ms')
     .in('event_type', ['llm_response', 'tool_result']);
+
+  if (sessionIds) {
+    query = query.in('session_id', sessionIds);
+  }
   
   if (startDate) {
     query = query.gte('timestamp', startDate);
@@ -318,12 +401,14 @@ async function getLatencyDistribution(options = {}) {
  */
 async function getRecentSessions(options = {}) {
   const { userId, status, limit = 50, offset = 0 } = options;
+  const safeLimit = sanitizeLimit(limit, 50, 200);
+  const safeOffset = sanitizeOffset(offset, 0);
   
   let query = supabase
     .from('agent_sessions')
     .select('*', { count: 'exact' })
     .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1);
+    .range(safeOffset, safeOffset + safeLimit - 1);
   
   if (userId) {
     query = query.eq('user_id', userId);
@@ -340,8 +425,8 @@ async function getRecentSessions(options = {}) {
   return {
     sessions: data || [],
     total: count || 0,
-    limit,
-    offset
+    limit: safeLimit,
+    offset: safeOffset
   };
 }
 

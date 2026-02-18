@@ -12,6 +12,12 @@ const supabase = createClient(
 
 const DEFAULT_MODEL = process.env.PRIMARY_MODEL || 'claude-haiku-4-5';
 
+function sanitizeLimit(value, fallback = 10, max = 100) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 function nowIso() {
   return new Date().toISOString();
 }
@@ -42,12 +48,14 @@ async function getLatestProfile(userId) {
 }
 
 async function getProfileHistory(userId, limit = 10) {
+  const safeLimit = sanitizeLimit(limit, 10, 100);
+
   const { data, error } = await supabase
     .from('trainer_weights_profiles')
     .select('*')
     .eq('user_id', userId)
     .order('version', { ascending: false })
-    .limit(limit);
+    .limit(safeLimit);
 
   if (error) throw error;
   return data || [];

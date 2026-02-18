@@ -110,20 +110,36 @@ async function getNextSequence(sessionId) {
 }
 
 async function logEvent(sessionId, eventType, data) {
-  const sequenceNumber = await getNextSequence(sessionId);
-  const { data: event, error } = await supabase
-    .from('trainer_assessment_events')
-    .insert({
-      session_id: sessionId,
-      sequence_number: sequenceNumber,
-      event_type: eventType,
-      data
-    })
-    .select()
-    .single();
+  const maxRetries = 5;
+  let lastError = null;
 
-  if (error) throw error;
-  return event;
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    const sequenceNumber = await getNextSequence(sessionId);
+    const { data: event, error } = await supabase
+      .from('trainer_assessment_events')
+      .insert({
+        session_id: sessionId,
+        sequence_number: sequenceNumber,
+        event_type: eventType,
+        data
+      })
+      .select()
+      .single();
+
+    if (!error) {
+      return event;
+    }
+
+    if (error.code === '23505') {
+      lastError = error;
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 50));
+      continue;
+    }
+
+    throw error;
+  }
+
+  throw lastError;
 }
 
 function getStepIndex(stepId) {

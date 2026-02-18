@@ -8,6 +8,12 @@ const supabase = createClient(
   process.env.SUPABASE_SECRET_KEY
 );
 
+function sanitizeLimit(value, fallback = 10, max = 100) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 const DEFAULT_QUESTIONS = [
   { id: 'energy', label: 'Energy level', type: 'scale_1_5' },
   { id: 'soreness', label: 'Soreness level', type: 'scale_1_5' },
@@ -91,12 +97,14 @@ async function submitCheckin(checkinId, userId, responses) {
 }
 
 async function listCheckins(userId, limit = 10) {
+  const safeLimit = sanitizeLimit(limit, 10, 100);
+
   const { data, error } = await supabase
     .from('trainer_checkins')
     .select('*')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(limit);
+    .limit(safeLimit);
 
   if (error) throw error;
   return data || [];

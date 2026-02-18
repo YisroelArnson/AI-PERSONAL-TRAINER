@@ -1,5 +1,11 @@
 const weightsProfileService = require('../services/trainerWeightsProfile.service');
 
+function parseLimit(value, fallback = 10, max = 100) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 async function getLatestProfile(req, res) {
   try {
     const userId = req.user.id;
@@ -14,7 +20,7 @@ async function getLatestProfile(req, res) {
 async function getProfileHistory(req, res) {
   try {
     const userId = req.user.id;
-    const limit = parseInt(req.query.limit || '10', 10);
+    const limit = parseLimit(req.query.limit, 10, 100);
     const history = await weightsProfileService.getProfileHistory(userId, limit);
     res.json({ success: true, history });
   } catch (error) {

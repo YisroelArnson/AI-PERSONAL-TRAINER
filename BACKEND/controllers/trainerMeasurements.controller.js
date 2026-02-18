@@ -1,5 +1,11 @@
 const measurementService = require('../services/trainerMeasurements.service');
 
+function parseLimit(value, fallback = 50, max = 200) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 async function createMeasurement(req, res) {
   try {
     const userId = req.user.id;
@@ -15,7 +21,7 @@ async function listMeasurements(req, res) {
   try {
     const userId = req.user.id;
     const types = req.query.types ? req.query.types.split(',') : [];
-    const limit = parseInt(req.query.limit || '50', 10);
+    const limit = parseLimit(req.query.limit, 50, 200);
     const data = await measurementService.listMeasurements(userId, types, limit);
     res.json({ success: true, measurements: data });
   } catch (error) {

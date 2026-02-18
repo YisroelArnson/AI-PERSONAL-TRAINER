@@ -186,6 +186,9 @@ class UserDataStore: ObservableObject {
 
     /// Update an existing location
     func updateLocation(_ location: Location) async throws {
+        let session = try await supabase.auth.session
+        let userId = session.user.id
+
         struct LocationUpdate: Codable {
             let name: String
             let description: String?
@@ -209,6 +212,7 @@ class UserDataStore: ObservableObject {
                 .from("user_locations")
                 .update(update)
                 .eq("id", value: String(location.id))
+                .eq("user_id", value: userId.uuidString)
                 .select()
                 .single()
                 .execute()
@@ -258,10 +262,14 @@ class UserDataStore: ObservableObject {
 
     /// Delete a location
     func deleteLocation(id: Int64) async throws {
+        let session = try await supabase.auth.session
+        let userId = session.user.id
+
         try await supabase
             .from("user_locations")
             .delete()
             .eq("id", value: String(id))
+            .eq("user_id", value: userId.uuidString)
             .execute()
 
         locations.removeAll { $0.id == id }
@@ -286,6 +294,7 @@ class UserDataStore: ObservableObject {
             .from("user_locations")
             .update(["current_location": true])
             .eq("id", value: String(locationId))
+            .eq("user_id", value: userId.uuidString)
             .execute()
 
         // Update local state

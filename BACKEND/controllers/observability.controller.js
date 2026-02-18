@@ -3,6 +3,18 @@
 
 const metrics = require('../services/observability/metrics.service');
 
+function parseLimit(value, fallback = 50, max = 200) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
+function parseOffset(value, fallback = 0) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 0) return fallback;
+  return parsed;
+}
+
 /**
  * Get summary metrics for dashboard overview
  * GET /api/admin/metrics/summary
@@ -99,8 +111,8 @@ async function listSessions(req, res) {
     const result = await metrics.getRecentSessions({
       userId,
       status,
-      limit: parseInt(limit) || 50,
-      offset: parseInt(offset) || 0
+      limit: parseLimit(limit, 50, 200),
+      offset: parseOffset(offset, 0)
     });
     
     res.json(result);

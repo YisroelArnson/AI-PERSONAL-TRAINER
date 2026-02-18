@@ -12,6 +12,12 @@ const supabase = createClient(
   process.env.SUPABASE_SECRET_KEY
 );
 
+function sanitizeLimit(value, fallback = 10, max = 50) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed < 1) return fallback;
+  return Math.min(parsed, max);
+}
+
 /**
  * Registry of all available data sources
  * Each source has: fetch function, formatter, and description
@@ -45,7 +51,7 @@ const DATA_SOURCES = {
   workout_history: {
     description: 'Recent workout history',
     fetch: async (userId, params = {}) => {
-      const limit = params.limit || 10;
+      const limit = sanitizeLimit(params.limit ?? params.days_back, 10, 50);
       const { data } = await supabase
         .from('workout_history')
         .select('*')

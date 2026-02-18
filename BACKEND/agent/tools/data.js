@@ -16,13 +16,13 @@ const dataTools = {
           type: 'array',
           items: {
             type: 'string',
-            enum: ['user_profile', 'category_goals', 'muscle_goals', 'active_preferences', 'workout_history', 'exercise_distribution', 'user_settings', 'all_locations']
+            enum: ['user_profile', 'workout_history', 'user_settings', 'all_locations']
           },
           description: 'Array of data source names to fetch'
         },
         params: {
           type: 'object',
-          description: 'Optional parameters for specific sources (e.g., { workout_history: { limit: 5 } })'
+          description: 'Optional parameters for specific sources (e.g., { workout_history: { limit: 10 } })'
         }
       },
       required: ['sources']
