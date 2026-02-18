@@ -1,358 +1,415 @@
-//
-//  PreWorkoutSheet.swift
-//  AI Personal Trainer App
-//
-//  Bottom sheet for pre-workout inputs before generating a workout.
-//  Captures location, energy level, time available, and optional custom request.
-//
-
 import SwiftUI
 
 struct PreWorkoutSheet: View {
-    var isCustomWorkout: Bool = false
-    var sessionTitle: String?
-
-    @State var workoutStore = WorkoutStore.shared
+    @State private var workoutStore = WorkoutStore.shared
     @StateObject private var userDataStore = UserDataStore.shared
 
-    @State private var showLocationPicker = false
     @State private var isStarting = false
-
-    private let timePresets = [15, 30, 45, 60, 90]
+    @State private var showDurationPicker = false
+    @State private var showLocationManagementSheet = false
+    @State private var locationSheetControl = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Title
-            Text(sessionTitle ?? "Get Ready")
-                .font(AppTheme.Typography.screenTitle)
-                .foregroundColor(AppTheme.Colors.primaryText)
-                .padding(.top, 24)
-                .padding(.bottom, 24)
-
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Custom workout text field
-                    if isCustomWorkout {
-                        customRequestField
-                    }
-
-                    // Location card (location row + equipment)
-                    locationCard
-
-                    // Readiness section (energy + time grouped)
-                    readinessCard
-                }
-                .padding(.horizontal, 20)
-                .padding(.bottom, 24)
+        ZStack {
+            if workoutStore.preWorkoutPage == .intent {
+                intentPage
+                    .transition(.opacity)
+            } else {
+                reviewPage
+                    .transition(.opacity)
             }
-
-            // Confirm button pinned at bottom
-            confirmButton
-                .padding(.horizontal, 20)
-                .padding(.bottom, 32)
-                .padding(.top, 12)
         }
         .background(AppTheme.Colors.background)
         .presentationDragIndicator(.visible)
-        .sheet(isPresented: $showLocationPicker) {
-            locationPickerSheet
+        .animation(AppTheme.Animation.slow, value: workoutStore.preWorkoutPage)
+        .sheet(isPresented: $showDurationPicker) {
+            durationPickerSheet
+        }
+        .sheet(isPresented: $showLocationManagementSheet) {
+            LocationsListSheet(
+                selectedLocation: $workoutStore.selectedLocation,
+                shouldShowEditor: $locationSheetControl
+            )
+            .environmentObject(userDataStore)
         }
         .onAppear {
             if workoutStore.selectedLocation == nil {
                 workoutStore.selectedLocation = userDataStore.currentLocation
             }
         }
+        .onChange(of: showLocationManagementSheet) { _, isPresented in
+            if !isPresented {
+                locationSheetControl = false
+                if let selected = workoutStore.selectedLocation {
+                    if !userDataStore.locations.contains(where: { $0.id == selected.id }) {
+                        workoutStore.selectedLocation = userDataStore.currentLocation
+                    }
+                } else {
+                    workoutStore.selectedLocation = userDataStore.currentLocation
+                }
+            }
+        }
     }
 
-    // MARK: - Custom Request Field
+    private var intentPage: some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(AppTheme.Colors.tertiaryText)
+                .frame(width: 36, height: 4)
+                .padding(.top, 12)
+                .padding(.bottom, 20)
 
-    private var customRequestField: some View {
-        HStack(spacing: 12) {
-            TextField("What do you want to work on?", text: $workoutStore.customRequestText)
-                .font(AppTheme.Typography.input)
-                .foregroundColor(AppTheme.Colors.primaryText)
-                .padding(14)
-                .background(AppTheme.Colors.surface)
-                .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
+            Text("Describe your workout,\nI'll build a personalized plan.")
+                .font(AppTheme.Typography.aiMessageLarge)
+                .foregroundStyle(AppTheme.Colors.primaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
 
-            Button(action: {
-                // Mic action placeholder
-            }) {
+            ZStack(alignment: .topLeading) {
+                if workoutStore.intentText.isEmpty {
+                    Text("E.g., \"I want to do legs today, about 45 minutes, focus on glutes and hamstrings.\"")
+                        .font(AppTheme.Typography.cardSubtitle)
+                        .foregroundStyle(AppTheme.Colors.tertiaryText)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 16)
+                }
+
+                TextEditor(text: $workoutStore.intentText)
+                    .font(AppTheme.Typography.input)
+                    .foregroundStyle(AppTheme.Colors.primaryText)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .frame(minHeight: 200)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+            }
+            .background(AppTheme.Colors.surface)
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
+            .padding(.horizontal, 20)
+            .padding(.top, 24)
+
+            Button(action: {}) {
                 Image(systemName: "mic.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(AppTheme.Colors.primaryText)
+                    .font(.system(size: 20))
+                    .foregroundStyle(AppTheme.Colors.primaryText)
                     .frame(width: 50, height: 50)
                     .background(AppTheme.Colors.surface)
                     .clipShape(Circle())
             }
+            .buttonStyle(.plain)
+            .padding(.top, 16)
+
+            Spacer()
+
+            Button {
+                Task {
+                    await workoutStore.submitIntent()
+                }
+            } label: {
+                Text(workoutStore.isLoadingIntentPlan ? "Planning..." : "Plan My Workout")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.background)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .padding(.horizontal, 20)
+                    .background(
+                        AppTheme.Colors.accent.opacity(
+                            workoutStore.intentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || workoutStore.isLoadingIntentPlan ? 0.4 : 1
+                        )
+                    )
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(workoutStore.intentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || workoutStore.isLoadingIntentPlan)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 32)
+            .padding(.top, 16)
         }
     }
 
-    // MARK: - Location Card
+    private var reviewPage: some View {
+        VStack(spacing: 0) {
+            HStack {
+                if workoutStore.arrivedFromIntentPage {
+                    Button {
+                        withAnimation(AppTheme.Animation.slow) {
+                            workoutStore.preWorkoutPage = .intent
+                        }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(AppTheme.Colors.primaryText)
+                            .frame(width: 44, height: 44)
+                            .background(AppTheme.Colors.surface)
+                            .clipShape(Circle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+
+            if let _ = workoutStore.intentPlanError {
+                errorContent
+            } else if workoutStore.isLoadingIntentPlan {
+                loadingContent
+            } else {
+                contentForm
+            }
+        }
+    }
+
+    private var contentForm: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            TextField("Workout title", text: $workoutStore.preWorkoutTitle)
+                .font(AppTheme.Typography.screenTitle)
+                .foregroundStyle(AppTheme.Colors.primaryText)
+                .padding(.horizontal, 20)
+                .padding(.top, workoutStore.arrivedFromIntentPage ? 12 : 24)
+
+            TextEditor(text: $workoutStore.preWorkoutDescription)
+                .font(AppTheme.Typography.aiMessageMedium)
+                .foregroundStyle(AppTheme.Colors.secondaryText)
+                .frame(minHeight: 120)
+                .scrollContentBackground(.hidden)
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+
+            durationCard
+                .padding(.horizontal, 20)
+                .padding(.top, 24)
+
+            locationCard
+                .padding(.horizontal, 20)
+                .padding(.top, 12)
+
+            Spacer()
+
+            Button {
+                guard !isStarting else { return }
+                isStarting = true
+                Task {
+                    await workoutStore.generateWorkout()
+                    isStarting = false
+                }
+            } label: {
+                HStack(spacing: 8) {
+                    if isStarting {
+                        ProgressView()
+                            .tint(AppTheme.Colors.background)
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 16))
+                    }
+
+                    Text(isStarting ? "Generating..." : "Get Started")
+                        .font(.system(size: 15, weight: .semibold))
+                }
+                .foregroundStyle(AppTheme.Colors.background)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .padding(.horizontal, 20)
+                .background(isStarting ? AppTheme.Colors.accent.opacity(0.7) : AppTheme.Colors.accent)
+                .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(isStarting)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 32)
+        }
+    }
+
+    private var durationCard: some View {
+        HStack(spacing: 0) {
+            Text("This session should take ")
+                .foregroundStyle(AppTheme.Colors.secondaryText)
+            Button {
+                showDurationPicker = true
+            } label: {
+                HStack(spacing: 4) {
+                    Text("\(workoutStore.preWorkoutDurationMin)")
+                        .font(.system(size: 14, weight: .semibold))
+                    Image(systemName: "pencil")
+                        .font(.system(size: 12))
+                }
+                .foregroundStyle(AppTheme.Colors.primaryText)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(AppTheme.Colors.surfaceHover)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+            Text(" minutes")
+                .foregroundStyle(AppTheme.Colors.secondaryText)
+            Spacer(minLength: 0)
+        }
+        .font(AppTheme.Typography.input)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(AppTheme.Colors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large))
+    }
 
     private var locationCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Location row
-            Button(action: {
-                showLocationPicker = true
-            }) {
-                HStack(spacing: 12) {
-                    Image(systemName: "mappin")
-                        .font(.system(size: 18))
-                        .foregroundColor(AppTheme.Colors.secondaryText)
-                        .frame(width: 20)
+        HStack(spacing: 0) {
+            Text("Built around your ")
+                .foregroundStyle(AppTheme.Colors.secondaryText)
 
-                    Text(workoutStore.selectedLocation?.name ?? "Select Location")
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(AppTheme.Colors.primaryText)
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14))
-                        .foregroundColor(AppTheme.Colors.tertiaryText)
+            Menu {
+                if userDataStore.locations.isEmpty {
+                    Button("No location set") {}
+                        .disabled(true)
+                } else {
+                    ForEach(userDataStore.locations) { location in
+                        Button(location.name) {
+                            workoutStore.selectedLocation = location
+                        }
+                    }
                 }
-                .padding(.vertical, 14)
-                .padding(.horizontal, 16)
+
+                Divider()
+
+                Button("Manage Locations") {
+                    locationSheetControl = true
+                    showLocationManagementSheet = true
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Text(workoutStore.selectedLocation?.name ?? "No location set")
+                        .font(.system(size: 14, weight: .semibold))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(AppTheme.Colors.primaryText)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(AppTheme.Colors.surfaceHover)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+            }
+
+            Text(" location")
+                .foregroundStyle(AppTheme.Colors.secondaryText)
+
+            Spacer(minLength: 0)
+        }
+        .font(AppTheme.Typography.input)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .background(AppTheme.Colors.surface)
+        .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large))
+    }
+
+    private var loadingContent: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(AppTheme.Colors.surface)
+                .frame(width: 220, height: 20)
+                .padding(.top, 24)
+
+            RoundedRectangle(cornerRadius: 6)
+                .fill(AppTheme.Colors.surface)
+                .frame(height: 14)
+            RoundedRectangle(cornerRadius: 6)
+                .fill(AppTheme.Colors.surface)
+                .frame(width: 260, height: 14)
+
+            durationCard
+                .redacted(reason: .placeholder)
+
+            locationCard
+
+            Spacer()
+
+            Text("Get Started")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppTheme.Colors.background)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .padding(.horizontal, 20)
+                .background(AppTheme.Colors.accent.opacity(0.7))
+                .clipShape(Capsule())
+                .padding(.bottom, 32)
+        }
+        .padding(.horizontal, 20)
+    }
+
+    private var errorContent: some View {
+        VStack(spacing: 16) {
+            Spacer()
+
+            Image(systemName: "face.dashed")
+                .font(.system(size: 48))
+                .foregroundStyle(AppTheme.Colors.tertiaryText)
+
+            Text("Something went wrong. Please try again.")
+                .font(AppTheme.Typography.aiMessageMedium)
+                .foregroundStyle(AppTheme.Colors.secondaryText)
+                .multilineTextAlignment(.center)
+                .frame(maxWidth: 250)
+
+            Button {
+                Task {
+                    await workoutStore.retryIntentPlan()
+                }
+            } label: {
+                Text("Retry")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.background)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(AppTheme.Colors.accent)
+                    .clipShape(Capsule())
             }
             .buttonStyle(.plain)
 
-            // Equipment chips (inside the same card)
-            if let equipment = workoutStore.selectedLocation?.equipment, !equipment.isEmpty {
-                Divider()
-                    .background(AppTheme.Colors.divider)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(equipment) { item in
-                            Text(item.name)
-                                .font(.system(size: 13))
-                                .foregroundColor(AppTheme.Colors.secondaryText)
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 6)
-                                .background(AppTheme.Colors.background)
-                                .clipShape(Capsule())
-                                .overlay(
-                                    Capsule()
-                                        .strokeBorder(AppTheme.Colors.divider, lineWidth: 1)
-                                )
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                }
-            }
+            Spacer()
         }
-        .background(AppTheme.Colors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large))
+        .frame(maxWidth: .infinity)
     }
 
-    // MARK: - Readiness Card
-
-    private var readinessCard: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            // Energy level
-            VStack(alignment: .leading, spacing: 10) {
-                Text("ENERGY")
-                    .font(AppTheme.Typography.label)
-                    .foregroundColor(AppTheme.Colors.tertiaryText)
-                    .textCase(.uppercase)
-
-                HStack(spacing: 10) {
-                    ForEach(1...5, id: \.self) { level in
-                        Button(action: {
-                            workoutStore.energyLevel = level
-                        }) {
-                            Text("\(level)")
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundColor(
-                                    workoutStore.energyLevel == level
-                                        ? AppTheme.Colors.background
-                                        : AppTheme.Colors.primaryText
-                                )
-                                .frame(width: 44, height: 44)
-                                .background(
-                                    workoutStore.energyLevel == level
-                                        ? AppTheme.Colors.accent
-                                        : AppTheme.Colors.background
-                                )
-                                .clipShape(Circle())
-                                .overlay(
-                                    workoutStore.energyLevel != level
-                                        ? Circle().strokeBorder(AppTheme.Colors.divider, lineWidth: 1)
-                                        : nil
-                                )
-                        }
-                        .buttonStyle(.plain)
-                    }
+    private var durationPickerSheet: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Spacer()
+                Button("Done") {
+                    showDurationPicker = false
                 }
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(AppTheme.Colors.primaryText)
             }
-
-            Divider()
-                .background(AppTheme.Colors.divider)
-
-            // Time available
-            VStack(alignment: .leading, spacing: 10) {
-                Text("TIME AVAILABLE")
-                    .font(AppTheme.Typography.label)
-                    .foregroundColor(AppTheme.Colors.tertiaryText)
-                    .textCase(.uppercase)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 10) {
-                        ForEach(timePresets, id: \.self) { minutes in
-                            Button(action: {
-                                workoutStore.timeAvailableMin = minutes
-                            }) {
-                                Text("\(minutes) min")
-                                    .font(AppTheme.Typography.pillText)
-                                    .foregroundColor(
-                                        workoutStore.timeAvailableMin == minutes
-                                            ? AppTheme.Colors.background
-                                            : AppTheme.Colors.primaryText
-                                    )
-                                    .padding(.horizontal, 18)
-                                    .padding(.vertical, 10)
-                                    .background(
-                                        workoutStore.timeAvailableMin == minutes
-                                            ? AppTheme.Colors.accent
-                                            : AppTheme.Colors.background
-                                    )
-                                    .clipShape(Capsule())
-                                    .overlay(
-                                        workoutStore.timeAvailableMin != minutes
-                                            ? Capsule().strokeBorder(AppTheme.Colors.divider, lineWidth: 1)
-                                            : nil
-                                    )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(16)
-        .background(AppTheme.Colors.surface)
-        .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large))
-    }
-
-    // MARK: - Confirm Button
-
-    private var confirmButton: some View {
-        Button(action: {
-            guard !isStarting else { return }
-            isStarting = true
-            Task {
-                await WorkoutStore.shared.generateWorkout()
-            }
-        }) {
-            HStack(spacing: 8) {
-                if isStarting {
-                    ProgressView()
-                        .tint(AppTheme.Colors.background)
-                        .scaleEffect(0.8)
-                } else {
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 16))
-                }
-
-                Text(isStarting ? "Generating..." : "Start Workout")
-                    .font(.system(size: 15, weight: .semibold))
-            }
-            .foregroundColor(AppTheme.Colors.background)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
             .padding(.horizontal, 20)
-            .background(isStarting ? AppTheme.Colors.accent.opacity(0.7) : AppTheme.Colors.accent)
-            .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        .disabled(isStarting)
-    }
+            .padding(.top, 20)
 
-    // MARK: - Location Picker Sheet
-
-    private var locationPickerSheet: some View {
-        VStack(spacing: 16) {
-            Text("Select Location")
-                .font(AppTheme.Typography.screenTitle)
-                .foregroundColor(AppTheme.Colors.primaryText)
-                .padding(.top, 24)
-
-            ScrollView {
-                VStack(spacing: 8) {
-                    ForEach(userDataStore.locations) { location in
-                        Button(action: {
-                            workoutStore.selectedLocation = location
-                            showLocationPicker = false
-                        }) {
-                            HStack(spacing: 12) {
-                                Image(systemName: "mappin")
-                                    .font(.system(size: 18))
-                                    .foregroundColor(AppTheme.Colors.secondaryText)
-                                    .frame(width: 20)
-
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(location.name)
-                                        .font(.system(size: 15, weight: .medium))
-                                        .foregroundColor(AppTheme.Colors.primaryText)
-
-                                    if !location.equipment.isEmpty {
-                                        Text("\(location.equipment.count) equipment")
-                                            .font(AppTheme.Typography.label)
-                                            .foregroundColor(AppTheme.Colors.tertiaryText)
-                                    }
-                                }
-
-                                Spacer()
-
-                                if workoutStore.selectedLocation?.id == location.id {
-                                    Image(systemName: "checkmark")
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(AppTheme.Colors.primaryText)
-                                }
-                            }
-                            .padding(.vertical, 14)
-                            .padding(.horizontal, 16)
-                            .background(
-                                workoutStore.selectedLocation?.id == location.id
-                                    ? AppTheme.Colors.surfaceHover
-                                    : AppTheme.Colors.surface
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large))
-                        }
-                        .buttonStyle(.plain)
-                    }
+            Picker("Duration", selection: $workoutStore.preWorkoutDurationMin) {
+                ForEach(Array(stride(from: 10, through: 120, by: 5)), id: \.self) { minutes in
+                    Text("\(minutes) min")
+                        .tag(minutes)
                 }
-                .padding(.horizontal, 20)
+            }
+            .pickerStyle(.wheel)
+            .labelsHidden()
+            .onChange(of: workoutStore.preWorkoutDurationMin) { _, newValue in
+                workoutStore.preWorkoutDurationMin = max(10, min(120, newValue))
+                workoutStore.timeAvailableMin = workoutStore.preWorkoutDurationMin
             }
         }
-        .background(AppTheme.Colors.background)
+        .presentationDetents([.height(280)])
         .presentationDragIndicator(.visible)
+        .background(AppTheme.Colors.background)
     }
 }
 
-// MARK: - Preview
-
-#Preview("Pre-Workout Sheet") {
+#Preview {
     ZStack {
         AppTheme.Colors.background.ignoresSafeArea()
         Color.clear
     }
     .sheet(isPresented: .constant(true)) {
         PreWorkoutSheet()
-            .presentationDetents([.medium, .large])
-    }
-}
-
-#Preview("Custom Workout") {
-    ZStack {
-        AppTheme.Colors.background.ignoresSafeArea()
-        Color.clear
-    }
-    .sheet(isPresented: .constant(true)) {
-        PreWorkoutSheet(isCustomWorkout: true, sessionTitle: "Custom Workout")
-            .presentationDetents([.medium, .large])
+            .presentationDetents([.large])
     }
 }

@@ -2,14 +2,39 @@ const workoutService = require('../services/trainerWorkouts.service');
 const calendarService = require('../services/trainerCalendar.service');
 const weightsProfileService = require('../services/trainerWeightsProfile.service');
 
+function isClientInputError(error) {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    message.includes('not found') ||
+    message.includes('do not match') ||
+    message.includes('is required')
+  );
+}
+
 async function createOrResumeSession(req, res) {
   try {
     const userId = req.user.id;
-    const { force_new, metadata } = req.body || {};
+    const {
+      force_new,
+      metadata,
+      calendar_event_id,
+      planned_session_id
+    } = req.body || {};
 
+    const safeMetadata = metadata && typeof metadata === 'object' && !Array.isArray(metadata)
+      ? metadata
+      : {};
+    const normalizedCalendarEventId = typeof calendar_event_id === 'string'
+      ? calendar_event_id.trim()
+      : calendar_event_id;
+    const normalizedPlannedSessionId = typeof planned_session_id === 'string'
+      ? planned_session_id.trim()
+      : planned_session_id;
     const session = await workoutService.getOrCreateSession(userId, {
       forceNew: Boolean(force_new),
-      metadata: metadata || {}
+      metadata: safeMetadata,
+      calendarEventId: normalizedCalendarEventId || null,
+      plannedSessionId: normalizedPlannedSessionId || null
     });
 
     await workoutService.logEvent(session.id, workoutService.EVENT_TYPES.sessionStarted, {
@@ -20,7 +45,8 @@ async function createOrResumeSession(req, res) {
     res.json({ success: true, session });
   } catch (error) {
     console.error('Create/resume workout session error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    const status = isClientInputError(error) ? 400 : 500;
+    res.status(status).json({ success: false, error: error.message });
   }
 }
 
@@ -52,7 +78,20 @@ async function generateWorkout(req, res) {
   try {
     const { id } = req.params;
     const userId = req.user.id;
-    const { intent, requestText, timeAvailableMin, equipment, readiness, coachMode } = req.body || {};
+    const {
+      intent,
+      requestText,
+      request_text,
+      timeAvailableMin,
+      time_available_min,
+      equipment,
+      coachMode,
+      coach_mode,
+      plannedIntentOriginal,
+      plannedIntentEdited,
+      planned_intent_original,
+      planned_intent_edited
+    } = req.body || {};
 
     const session = await workoutService.getSession(id);
     if (session.user_id !== userId) {
@@ -66,12 +105,12 @@ async function generateWorkout(req, res) {
 
     const constraints = {
       intent: intent || 'planned',
-      request_text: requestText || null,
-      time_available_min: timeAvailableMin || null,
-      equipment: equipment || [],
-      energy_level: readiness?.energy ?? null,
-      readiness: readiness || {},
-      planned_session: plannedSession?.intent_json || null
+      request_text: String(requestText || request_text || '').trim() || null,
+      time_available_min: timeAvailableMin || time_available_min || null,
+      equipment: Array.isArray(equipment) ? equipment : [],
+      planned_session: plannedSession?.intent_json || null,
+      planned_intent_original: plannedIntentOriginal || planned_intent_original || null,
+      planned_intent_edited: plannedIntentEdited || planned_intent_edited || null
     };
 
     const instance = await workoutService.generateWorkoutInstance(userId, constraints);
@@ -83,8 +122,9 @@ async function generateWorkout(req, res) {
       timestamp: new Date().toISOString()
     });
 
-    if (coachMode) {
-      await workoutService.updateSession(id, { coach_mode: coachMode });
+    const resolvedCoachMode = coachMode || coach_mode || null;
+    if (resolvedCoachMode) {
+      await workoutService.updateSession(id, { coach_mode: resolvedCoachMode });
     }
 
     res.json({
@@ -95,6 +135,24 @@ async function generateWorkout(req, res) {
   } catch (error) {
     console.error('Generate workout error:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+}
+
+async function planIntent(req, res) {
+  try {
+    const userId = req.user.id;
+    const { intentText, intent_text } = req.body || {};
+    const resolvedIntentText = intentText || intent_text;
+
+    if (!resolvedIntentText || !String(resolvedIntentText).trim()) {
+      return res.status(400).json({ success: false, error: 'intentText is required' });
+    }
+
+    const plan = await workoutService.generateIntentPlan(userId, String(resolvedIntentText).trim());
+    res.json({ success: true, plan });
+  } catch (error) {
+    console.error('Plan intent error:', error);
+    res.status(500).json({ success: false, error: 'Failed to generate plan from intent' });
   }
 }
 
@@ -240,6 +298,7 @@ async function streamEvents(req, res) {
 module.exports = {
   createOrResumeSession,
   getSession,
+  planIntent,
   generateWorkout,
   performAction,
   completeSession,

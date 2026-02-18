@@ -221,7 +221,7 @@ Presented as a full-height bottom sheet (`.presentationDetents([.large])`).
 | Location card | `surface` bg, `large` radius (15px) | Padding: 14px 16px. Full-width within 20px horizontal margins. |
 | Location label text | `bodyText` (14px, 400) | Color: `secondaryText`. Text: "Built around your {Location} location" |
 | Location chip (the name) | `statHighlight` | Same style as duration chip. `highlight` bg, 4px radius, padding 0 5px. Font: 14px weight 600, `primaryText`. Contains location name + `chevron.down` (10px, `tertiaryText`). |
-| Location menu | SwiftUI `Menu` | Triggered by tapping the location chip. Lists user's saved locations as menu items. Last item: "Add New Location" which opens the location creation sheet. |
+| Location menu | SwiftUI `Menu` + management sheet | Triggered by tapping the location chip. Menu shows saved locations and a final "Manage Locations" action. Manage sheet supports: add location, view all locations, edit existing locations, and selecting current location. |
 | "Get Started" button | `primaryButton` | Full-width. `accent` bg, `background` text. `pill` radius (44px). Padding: 16px vertical, 20px horizontal. Icon: `play.fill` 16px + text "Get Started" 15px weight 600, gap 8px. Pinned to bottom with 32px bottom padding. |
 | Disabled "Get Started" | — | During loading state: `accent` at 0.7 opacity, tap ignored. |
 
@@ -634,6 +634,7 @@ func retryIntentPlan() async {
 **`PreWorkoutReviewView.swift`** (Screen B content)
 - Located at: `AI Personal Trainer App/Features/Home/PreWorkoutReviewView.swift`
 - Editable title field, editable description field, duration chip with wheel picker, location dropdown with menu, "Get Started" button
+- Includes location management sheet flow (add/view/edit/select location) triggered from "Manage Locations"
 - Shimmer loading state for when arriving from intent flow
 - Error state with retry
 - Back chevron (when `arrivedFromIntentPage == true`) — triggers crossfade back to Screen A
@@ -695,28 +696,32 @@ struct IntentPlan: Codable {
     let focus: String
     let notes: String
     let durationMin: Int
-}
 
-// IntentPlan maps duration_min -> durationMin via CodingKeys
+    enum CodingKeys: String, CodingKey {
+        case focus
+        case notes
+        case durationMin = "duration_min"
+    }
+}
 ```
 
 ---
 
 ## Removals
 
-### Energy Level — Full Removal
+### Readiness Pipeline — Full Removal
 
-Energy level is no longer collected anywhere in the pre-workout flow. Remove all references across the stack:
+Readiness is no longer collected in the pre-workout flow. Remove all readiness references (energy, soreness, pain) across the stack.
 
 **iOS:**
 
 | File | What to remove |
 |---|---|
 | `WorkoutStore.swift:76` | `var energyLevel: Int = 3` property |
-| `WorkoutStore.swift:211` | `WorkoutReadiness(energy: String(energyLevel), ...)` — stop constructing readiness with energy. Send `readiness: nil` or omit from request. |
+| `WorkoutStore.swift:211` | `WorkoutReadiness(...)` construction — remove readiness payload entirely from generate request. |
 | `WorkoutStore.swift:633` | `energyLevel = 3` in `reset()` |
 | `PreWorkoutSheet.swift:156–189` | Entire energy level selector UI (the 1–5 buttons in `readinessCard`). This file is being replaced by `PreWorkoutReviewPage.swift` so it goes away naturally. |
-| `WorkoutSessionModels.swift:111–114` | `WorkoutReadiness` struct — remove `energy` field. Keep the struct if `soreness`/`pain` are still used elsewhere, otherwise delete entirely. |
+| `WorkoutSessionModels.swift` | `WorkoutReadiness` struct — remove entirely. |
 | `WorkoutSessionModels.swift:98` | `readiness: WorkoutReadiness?` in `WorkoutGenerateRequest` — remove this field. |
 
 **Backend:**
@@ -724,9 +729,8 @@ Energy level is no longer collected anywhere in the pre-workout flow. Remove all
 | File | What to remove |
 |---|---|
 | `trainerWorkouts.controller.js:55` | Stop extracting `readiness` from `req.body` |
-| `trainerWorkouts.controller.js:72–73` | Remove `energy_level: readiness?.energy ?? null` and `readiness: readiness || {}` from `constraints` |
-| `trainerWorkouts.service.js:295` | Remove `const energyLevel = constraints?.energy_level ?? constraints?.readiness?.energy ?? 'unknown'` |
-| `trainerWorkouts.service.js:326` | Remove `- Energy Level: ${energyLevel}/5` from the prompt template |
+| `trainerWorkouts.controller.js` | Remove `energy_level` and `readiness` from `constraints` object. |
+| `trainerWorkouts.service.js` | Remove all prompt mentions of readiness (`Energy Level`, `Soreness`, `Pain`). |
 | `agent/tools/exercises.js:28–30` | Remove `energy_level` parameter definition from the tool schema |
 | `agent/tools/exercises.js:54` | Remove `energy_level: args.energy_level || null` from constraints |
 | `agent/tools/exercises.js:12` | Update description to remove "energy level" mention |
@@ -739,7 +743,7 @@ The stats calculator reads `energy_level` from session metadata for historical t
 
 ### Other Removals
 
-- **Soreness indicator** — Not currently in UI, but ensure it's not added.
+- **Soreness/Pain inputs** — Remove any UI or request fields for soreness and pain in this flow.
 - **Time preset buttons** — Replace with the duration chip + wheel picker.
 - **Equipment display** — Remove from pre-workout page (equipment is still sent to the backend from the selected location, just not displayed).
 - **Custom request text field** — Replaced by the intent specification page (Screen A).
@@ -768,16 +772,17 @@ The stats calculator reads `energy_level` from session metadata for historical t
 | 9 | `planIntent extracts JSON from Claude response with surrounding text` | Claude returns `"Here's the plan: {...} Let me know"` — `extractJson` still parses it |
 | 10 | `planIntent defaults focus to "Custom Workout" when Claude omits it` | If parsed JSON lacks `focus`, falls back to a sensible default |
 
-**File:** `BACKEND/__tests__/calendarAdHocEvent.test.js` — New
+**File:** `BACKEND/__tests__/trainerCalendar.test.js` — Extend existing
 
 | # | Test | What it verifies |
 |---|---|---|
-| 11 | `createAdHocWorkoutEvent creates a calendar event and planned session` | Both DB rows are created with correct data |
-| 12 | `createAdHocWorkoutEvent links planned session to calendar event` | The event's `linked_planned_session_id` matches the planned session's `id` |
-| 13 | `createAdHocWorkoutEvent sets source to user_created` | The calendar event's `source` field is `"user_created"` |
-| 14 | `createAdHocWorkoutEvent sets event status to scheduled` | The event starts in `"scheduled"` status |
-| 15 | `createAdHocWorkoutEvent sets event title to intentJson.focus` | The calendar event title matches the focus field |
-| 16 | `createAdHocWorkoutEvent sets start_at to current time` | The event's `start_at` is approximately now |
+| 11 | `createEvent creates a calendar event and planned session when intent_json exists` | Existing endpoint creates both rows with correct data |
+| 12 | `createEvent links planned session to calendar event` | The event's `linked_planned_session_id` matches planned session `id` |
+| 13 | `createEvent honors source=user_created` | The calendar event source is `"user_created"` |
+| 14 | `createEvent sets event status to scheduled` | Event starts in `"scheduled"` status |
+| 15 | `createEvent sets title to intent_json.focus` | Event title matches `focus` |
+| 16 | `createEvent sets start_at to current time` | Event starts approximately now |
+| 16b | `deleteEvent with cascade_planned deletes linked planned session` | Rollback path removes both records |
 
 **File:** `BACKEND/__tests__/trainerWorkouts.test.js` — Extend existing (buildWorkoutPrompt)
 
@@ -785,7 +790,7 @@ The stats calculator reads `energy_level` from session metadata for historical t
 
 | # | Test | What it verifies |
 |---|---|---|
-| 17 | `includes energy level in prompt` | Energy level from constraints appears in output string |
+| 17 | `does not include readiness lines in prompt` | Prompt excludes energy/soreness/pain lines after readiness removal |
 | 18 | `includes time available in prompt` | Time constraint appears in output string |
 | 19 | `includes equipment list in prompt` | Equipment array is comma-joined into prompt |
 | 20 | `includes program markdown when provided` | "Active Training Program" section appears with markdown content |
@@ -794,10 +799,11 @@ The stats calculator reads `energy_level` from session metadata for historical t
 | 23 | `includes request text when provided` | `constraints.request_text` shows up as "User Request" line |
 | 24 | `omits request text when null` | No "User Request" line when `request_text` is null |
 | 25 | `includes weights profile when provided` | "Current Weights Profile" section appears with formatted text |
-| 26 | `handles all constraints being null/empty` | Doesn't crash, uses defaults like "unknown" for energy/time |
+| 26 | `handles all constraints being null/empty` | Doesn't crash and uses sensible defaults for remaining fields |
 | 27 | `includes plannedIntentOriginal when provided` | New field appears as "Original Planned Intent" in prompt (new feature) |
 | 28 | `includes plannedIntentEdited when provided` | New field appears as "User Modified Intent" in prompt (new feature) |
 | 29 | `omits plannedIntentEdited when null` | No "User Modified Intent" line when user made no changes |
+| 29b | `includes intent user_specified when provided` | Prompt and metadata include `intent: "user_specified"` |
 
 **File:** `BACKEND/__tests__/trainerWorkouts.test.js` — Extend existing (generateWorkoutInstance)
 
@@ -813,6 +819,7 @@ The stats calculator reads `energy_level` from session metadata for historical t
 |---|---|---|
 | 33 | `findTodayWorkoutEvent returns today's scheduled event` | Finds event with status "scheduled" and `event_type: "workout"` for today |
 | 34 | `findTodayWorkoutEvent returns null when no events exist` | Returns null gracefully when Supabase returns no rows |
+| 35 | `createSession uses explicit calendar_event_id/planned_session_id when provided` | Explicit IDs override auto-link lookup |
 
 ### iOS Tests (Manual Verification)
 
@@ -824,12 +831,14 @@ These cannot be unit tested with the current backend test setup and need manual 
 | M2 | + menu "Generate custom workout" opens Screen A | Tap the `+` button in the top-right ThinTopBar. Select "Generate custom workout." The Intent Specification Page (Screen A) opens as a full-height sheet. |
 | M3 | Intent → Screen B shimmer → populated fields | Type an intent on Screen A, tap "Plan My Workout." Screen B appears with shimmer loading. Once the backend responds, fields populate with the returned focus, notes, and duration_min. |
 | M4 | Duration chip opens wheel picker | On Screen B, tap the duration chip. An iOS wheel picker appears. Selecting a new value updates the displayed duration. |
-| M5 | Location dropdown shows locations | On Screen B, tap the location chip. A dropdown menu shows saved locations and "Add New Location." Selecting one updates the chip. |
-| M6 | Editing fields tracks changes | Edit the title or description on Screen B. When "Get Started" is tapped, the request includes both the original and edited values. |
+| M5 | Location dropdown and management works | On Screen B, tap the location chip. Menu shows saved locations and "Manage Locations." Opening management sheet allows add/view/edit/select flows smoothly. |
+| M6 | Editing fields tracks changes | Edit the title or description on Screen B. When "Get Started" is tapped, the request includes `plannedIntentOriginal` plus `plannedIntentEdited` with changed fields only. |
 | M7 | Error state on Screen B | Simulate a backend failure. Screen B shows the error view with frown face and retry button. Tapping retry re-sends the request. |
 | M8 | Back button returns to Screen A | From Screen B (arrived via intent flow), tap back. Returns to Screen A with the original intent text preserved. |
 | M9 | "Get Started" generates the workout | Tap "Get Started" on Screen B. The workout generates and transitions to the active workout view. |
 | M10 | Ad-hoc workout creates calendar event | After generating a workout from the intent flow, verify a new calendar event appears on the home screen (or in the calendar). |
+| M11 | `+` menu custom workout with active session shows discard confirm | If workout is active, choosing "Generate custom workout" prompts discard confirmation before starting new flow. |
+| M12 | Bottom "New" button removed | Verify Home bottom bar no longer shows "New", and resume/start interactions still work smoothly. |
 
 ---
 
@@ -838,7 +847,7 @@ These cannot be unit tested with the current backend test setup and need manual 
 1. **Empty intent text** — "Plan My Workout" button is disabled until the user enters text.
 2. **User edits nothing on Screen B** — `plannedIntentEdited` is `null` (no changes detected). Backend uses the original intent as-is.
 3. **No active program** — The `plan-intent` endpoint works without a program. The prompt still generates a reasonable plan based on the user's request alone.
-4. **No saved locations** — Location chip shows "No location set." The "Add New Location" option is still available. Equipment array sent to backend is empty.
+4. **No saved locations** — Location chip shows "No location set." "Manage Locations" still opens and allows adding the first location. Equipment array sent to backend is empty.
 5. **Backend timeout on plan-intent** — After 30 seconds, show the error state on Screen B. User can retry or go back.
 6. **User dismisses Screen B by swiping down (intent flow)** — Resets state. User can re-open from the `+` button.
 7. **User dismisses Screen B by swiping down (planned flow)** — Resets state. Workout pill is still tappable on the home screen.
@@ -847,108 +856,25 @@ These cannot be unit tested with the current backend test setup and need manual 
 10. **Multiple rapid taps on "Get Started"** — Disable button after first tap (same pattern as current `isStarting` guard).
 11. **Empty `intent_json: {}`** — All fields fall back gracefully: title → `calendarEvent.title ?? "Today's Workout"`, description → `""`, duration → `45`.
 12. **`duration_min` is 0 or negative from Claude** — Clamp to range 10–120 on the backend before returning. iOS picker also constrains to 10–120.
-13. **User dismisses Screen B mid-loading (intent flow)** — `reset()` clears state. The in-flight `planIntent` API call should be cancelled (Task cancellation) or its response should be discarded if `showPreWorkoutReview` is no longer true.
+13. **User dismisses Screen B mid-loading (intent flow)** — `reset()` clears state. The in-flight `planIntent` API call should be cancelled (Task cancellation) or its response should be discarded if `showPreWorkoutSheet` is no longer true.
 14. **Multiple rapid taps on "Plan My Workout"** — Disable button after first tap to prevent duplicate API calls.
-15. **Concurrent flow triggers** — If Screen B is open from a planned workout and the user triggers "Generate custom workout" from the + menu, `startNewWorkout()` calls `reset()` first, which dismisses the current sheet. No confirmation dialog — acceptable since no generation has started yet.
+15. **Concurrent flow triggers** — If user triggers "Generate custom workout" from `+` while active workout exists, show discard confirmation first. Only call `startNewWorkout()` after explicit confirm.
 
 ---
 
-## Spec Review Report
+## Spec Review Resolution
 
-> **Date:** 2026-02-17
-> **Reviewers:** ios-analyzer, backend-analyzer, spec-consistency-checker (automated agents)
-> **Method:** Each agent read the full spec and all relevant source files, then cross-referenced for coherence, data flow gaps, and logic problems.
+> **Date:** 2026-02-18
+> **Status:** Resolved by product decisions
 
-### Critical Issues
+Automated review concerns are incorporated into this version with the following outcomes:
 
-#### ~~C1. SwiftUI Sheet Race Condition in `submitIntent()`~~ — RESOLVED
-Resolved by using a single sheet with internal crossfade. No sheet dismiss/present cycle needed.
-
-#### ~~C2. SwiftUI Multiple `.sheet()` Modifiers — Fragile Pattern~~ — RESOLVED
-Resolved by using a single `.sheet()` with `PreWorkoutPage` enum controlling which screen is displayed inside. Crossfade transitions via `.transition(.opacity)` with `withAnimation(AppTheme.Animation.slow)`.
-
-#### C3. `intensity` vs `notes` Data Shape Mismatch
-**Source:** Backend analysis
-
-Existing planned sessions in the DB have `intent_json: { focus, duration_min, intensity }`. The spec's pre-workout review page reads `intent?["notes"]?.stringValue` for the description — this returns `nil` for all existing planned sessions because they have `intensity`, not `notes`.
-
-**Fix:** iOS should read both fields with fallback: `intent?["notes"]?.stringValue ?? intent?["intensity"]?.stringValue ?? ""`. The `plan-intent` endpoint returns `notes` (new format). Document that old sessions use `intensity` and new ones use `notes`.
-
-#### C4. `createSession` Auto-Links to Wrong Calendar Event
-**Source:** Backend analysis
-
-`createSession()` calls `findTodayWorkoutEvent()` which returns the FIRST scheduled event for today (ordered by `start_at ASC`). For ad-hoc workouts, the user may have both a program-projected event (at midnight) and a new ad-hoc event (at current time). `findTodayWorkoutEvent` returns the midnight one — linking the session to the wrong event.
-
-**Fix:** The `createOrResumeWorkoutSession()` API should accept optional `calendarEventId` and `plannedSessionId` parameters. When the iOS app creates an ad-hoc event first, it passes those IDs explicitly to the session creation call, bypassing `findTodayWorkoutEvent()`.
-
-#### C5. Removing `readiness` from Controller Breaks Soreness/Pain in Prompt
-**Source:** Spec-consistency analysis
-
-The Removals section says to remove `readiness` from the controller (`trainerWorkouts.controller.js:55`). But `buildWorkoutPrompt()` still reads `readiness.soreness` and `readiness.pain` at lines 337–342. If `readiness` is removed entirely, these prompt lines break.
-
-**Fix:** Keep the `readiness` object in the controller but remove only the `energy` field extraction. The `constraints` object should still include `readiness: readiness || {}` so soreness/pain continue to flow through. On iOS, keep `WorkoutReadiness` struct but remove the `energy` field (leaving `soreness` and `pain`). Update the Removals section to be precise: remove `energy` from readiness, not readiness itself.
-
-### Moderate Issues
-
-#### M1. `generateWorkout()` Still References `showPreWorkoutSheet`
-**Source:** iOS analysis
-
-Current code at `WorkoutStore.swift:194` does `showPreWorkoutSheet = false`. Since `showPreWorkoutSheet` is being removed, this must become `showPreWorkoutReview = false`.
-
-#### M2. Data Flow Path Mismatch
-**Source:** Spec-consistency analysis
-
-The "New Workout Flow" data flow diagram says `POST /trainer/calendar/events` but the Backend Changes section defines the endpoint as `POST /trainer/calendar/events/create-for-workout`. These should match.
-
-#### M3. Test #17 Contradicts Energy Level Removal
-**Source:** Backend analysis, Spec-consistency analysis (both found this independently)
-
-Test #17 (`includes energy level in prompt`) verifies energy IS present, but the Removals section deletes it from the prompt. Change test #17 to: `does NOT include energy level in prompt after removal`.
-
-#### M4. `plannedIntentOriginal`/`plannedIntentEdited` Wiring Not Specified
-**Source:** Backend analysis, Spec-consistency analysis
-
-The spec says to "accept additional fields" in the generate endpoint but doesn't show the controller destructuring or the constraints object mapping. Needs explicit detail:
-1. Add to controller destructuring: `const { ..., plannedIntentOriginal, plannedIntentEdited } = req.body`
-2. Add to constraints: `planned_intent_original: plannedIntentOriginal || null, planned_intent_edited: plannedIntentEdited || null`
-
-#### M5. `intentText` Not Carried to `generateWorkout()`
-**Source:** Spec-consistency analysis
-
-The New Workout data flow sends `requestText: <original intent text>` in the generate request, but `generateWorkout()` modification notes don't mention reading `intentText` from WorkoutStore and mapping it to `requestText`.
-
-#### M6. `IntentPlan` Missing CodingKeys
-**Source:** iOS analysis, Spec-consistency analysis
-
-`IntentPlan.durationMin` (camelCase) needs a CodingKeys enum to map from the JSON key `duration_min` (snake_case), or decoding will fail.
-
-#### M7. Missing `currentCalendarEventId` Property
-**Source:** iOS analysis
-
-The planned workout flow has no mechanism to pass the calendar event ID to the session creation call. Add a `currentCalendarEventId: String?` property to WorkoutStore, set it in `startPlannedSession()` from `calendarEvent.id`, and pass it to `createOrResumeWorkoutSession()`.
-
-#### M8. `createAdHocWorkoutEvent` Is Redundant with Existing `createEvent`
-**Source:** Backend analysis
-
-The existing `POST /trainer/calendar/events` endpoint (via `createEvent` service) already creates calendar events, planned sessions, and links them. The new dedicated endpoint is functionally identical. Consider using the existing endpoint with specific fields instead of creating a new one. If keeping the new endpoint for API clarity, document why.
-
-#### M9. Route Ordering for Express Parameter Matching
-**Source:** Backend analysis
-
-`POST /trainer/workouts/plan-intent` must be placed BEFORE `:id` routes in `trainerWorkouts.routes.js`, otherwise Express treats `"plan-intent"` as a session ID. Same for `/events/create-for-workout` in `trainerCalendar.routes.js` — must go before `/events/:id/reschedule`.
-
-### Minor Issues
-
-| # | Issue | Fix |
-|---|---|---|
-| L1 | `WorkoutReadiness` can be safely deleted from iOS if soreness/pain are also removed (currently only constructed in one place) | Decide: keep readiness without energy, or remove entirely |
-| L2 | `reset()` missing complete list of new properties to clear | List all 12 new properties in spec |
-| L3 | `CreateEventForWorkoutResponse` needs ISO8601 decoder for CalendarEvent dates | Note in spec that `makeISO8601Decoder()` must be used |
-| L4 | `WorkoutGenerateRequest` new fields should be typed `[String: CodableValue]?` not `[String: Any]` | Update spec model to use CodableValue |
-| L5 | `generateIntentPlan` missing from `module.exports` mention | Add to spec |
-| L6 | Controller `planIntent` missing from `module.exports` mention | Add to spec |
-| L7 | `intent: "user_specified"` is a new value not in existing agent tool enum | Document as intentional new value |
-| L8 | `generateIntentPlan()` naming breaks pattern vs controller `planIntent()` | Consider renaming to `planIntent()` in service too |
-| L9 | No controller-level 400 test for `createEventForWorkout` with missing `intentJson` | Add test #16b |
-| L10 | Test #26 description references "energy/time" defaults — update to just "time" | Update description |
-| L11 | No test for `intent: "user_specified"` in `buildWorkoutPrompt` | Add test |
+- Single-sheet crossfade architecture retained (`.large` only).
+- Existing `POST /trainer/calendar/events` is the canonical ad-hoc creation path.
+- `POST /trainer/workouts/sessions` accepts explicit `calendar_event_id` / `planned_session_id`.
+- Readiness is removed completely from request and prompt context.
+- `intent: "user_specified"` is the canonical intent for scratch flow.
+- `plannedIntentEdited` carries changed fields only.
+- Ad-hoc creation rollback uses delete endpoint with cascade planned-session cleanup.
+- Home entry behavior is unified: top-right `+` is the custom-workout path; bottom "New" button is removed; discard confirmation is required when an active workout exists.
+- `IntentPlan` model mapping includes `duration_min -> durationMin`.

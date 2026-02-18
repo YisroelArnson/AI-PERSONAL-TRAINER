@@ -25,6 +25,11 @@ enum WorkoutPresentationMode: String, Codable {
     case list
 }
 
+enum PreWorkoutPage: Equatable {
+    case intent
+    case review
+}
+
 // MARK: - Persistence Model
 
 struct ActiveWorkoutState: Codable {
@@ -73,9 +78,24 @@ class WorkoutStore {
     // MARK: - Pre-Workout Inputs
 
     var selectedLocation: Location?
-    var energyLevel: Int = 3 // 1-5
+    var preWorkoutTitle: String = ""
+    var preWorkoutDescription: String = ""
+    var preWorkoutDurationMin: Int = 45
+
+    var originalTitle: String = ""
+    var originalDescription: String = ""
+    var originalDurationMin: Int = 45
+
+    var intentText: String = ""
+    var isLoadingIntentPlan: Bool = false
+    var intentPlanError: String?
+
+    var preWorkoutPage: PreWorkoutPage = .intent
+    var arrivedFromIntentPage: Bool = false
+    var currentCalendarEventId: String?
+    var currentPlannedSessionId: String?
+    var latestGeneratedAdHocEventId: String?
     var timeAvailableMin: Int = 60
-    var customRequestText: String = ""
 
     // MARK: - Timing
 
@@ -169,27 +189,125 @@ class WorkoutStore {
     func startPlannedSession(calendarEvent: CalendarEvent) {
         reset()
         sessionStatus = .preWorkout
-        showPreWorkoutSheet = true
+        currentCalendarEventId = calendarEvent.id
+        currentPlannedSessionId = calendarEvent.plannedSession?.id
 
-        // Pre-fill from planned session data
-        if let duration = calendarEvent.plannedSession?.intentJson["duration_min"]?.intValue {
-            timeAvailableMin = duration
-        }
+        let intent = calendarEvent.plannedSession?.intentJson ?? [:]
+        preWorkoutTitle = intent["focus"]?.stringValue ?? calendarEvent.title ?? "Today's Workout"
+        preWorkoutDescription = intent["notes"]?.stringValue ?? ""
+        preWorkoutDurationMin = max(10, min(120, intent["duration_min"]?.intValue ?? 45))
+        timeAvailableMin = preWorkoutDurationMin
 
-        // Pre-fill location from UserDataStore
+        originalTitle = preWorkoutTitle
+        originalDescription = preWorkoutDescription
+        originalDurationMin = preWorkoutDurationMin
+
         selectedLocation = UserDataStore.shared.currentLocation
+        preWorkoutPage = .review
+        arrivedFromIntentPage = false
+        showPreWorkoutSheet = true
     }
 
-    /// Start a custom workout (no planned session)
-    func startCustomSession() {
+    /// Start a custom workout intent flow
+    func startNewWorkout() {
         reset()
         sessionStatus = .preWorkout
-        showPreWorkoutSheet = true
         selectedLocation = UserDataStore.shared.currentLocation
+        preWorkoutPage = .intent
+        arrivedFromIntentPage = false
+        showPreWorkoutSheet = true
+    }
+
+    /// Backwards-compatible alias while callers migrate
+    func startCustomSession() {
+        startNewWorkout()
+    }
+
+    func submitIntent() async {
+        guard !intentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        guard !isLoadingIntentPlan else { return }
+
+        arrivedFromIntentPage = true
+        isLoadingIntentPlan = true
+        intentPlanError = nil
+
+        withAnimation(AppTheme.Animation.slow) {
+            preWorkoutPage = .review
+        }
+
+        do {
+            let planResponse = try await apiService.planIntent(intentText: intentText)
+
+            if !showPreWorkoutSheet {
+                isLoadingIntentPlan = false
+                return
+            }
+
+            preWorkoutTitle = planResponse.plan.focus
+            preWorkoutDescription = planResponse.plan.notes
+            preWorkoutDurationMin = max(10, min(120, planResponse.plan.durationMin))
+            timeAvailableMin = preWorkoutDurationMin
+
+            originalTitle = preWorkoutTitle
+            originalDescription = preWorkoutDescription
+            originalDurationMin = preWorkoutDurationMin
+
+            isLoadingIntentPlan = false
+            intentPlanError = nil
+        } catch {
+            if !showPreWorkoutSheet {
+                isLoadingIntentPlan = false
+                return
+            }
+            isLoadingIntentPlan = false
+            intentPlanError = "Something went wrong. Please try again."
+        }
+    }
+
+    func retryIntentPlan() async {
+        await submitIntent()
+    }
+
+    private func cleaned(_ value: String, fallback: String = "") -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? fallback : trimmed
+    }
+
+    private func codableIntentPayload(title: String, description: String, duration: Int) -> [String: CodableValue] {
+        [
+            "focus": .string(cleaned(title, fallback: "Custom Workout")),
+            "notes": .string(cleaned(description)),
+            "duration_min": .int(max(10, min(120, duration)))
+        ]
+    }
+
+    private func editedIntentPayload() -> [String: CodableValue]? {
+        var edited: [String: CodableValue] = [:]
+
+        let currentTitle = cleaned(preWorkoutTitle, fallback: "Custom Workout")
+        let originalCleanTitle = cleaned(originalTitle, fallback: "Custom Workout")
+        if currentTitle != originalCleanTitle {
+            edited["focus"] = .string(currentTitle)
+        }
+        let currentDescription = cleaned(preWorkoutDescription)
+        let originalCleanDescription = cleaned(originalDescription)
+        if currentDescription != originalCleanDescription {
+            edited["notes"] = .string(currentDescription)
+        }
+        let clampedDuration = max(10, min(120, preWorkoutDurationMin))
+        let clampedOriginalDuration = max(10, min(120, originalDurationMin))
+        if clampedDuration != clampedOriginalDuration {
+            edited["duration_min"] = .int(clampedDuration)
+        }
+
+        return edited.isEmpty ? nil : edited
     }
 
     /// Generate the workout after pre-workout inputs confirmed
     func generateWorkout() async {
+        sessionStatus = .generating
+        errorMessage = nil
+
         // Dismiss the pre-workout sheet first so fullScreenCover presents cleanly
         showPreWorkoutSheet = false
 
@@ -197,29 +315,54 @@ class WorkoutStore {
         try? await Task.sleep(nanoseconds: 300_000_000)
 
         isWorkoutViewPresented = true
-        sessionStatus = .generating
-        errorMessage = nil
+
+        let effectiveTitle = cleaned(preWorkoutTitle, fallback: "Custom Workout")
+        let effectiveDescription = cleaned(preWorkoutDescription)
+        let effectiveDuration = max(10, min(120, preWorkoutDurationMin))
+        let originalFocus = cleaned(originalTitle, fallback: effectiveTitle)
+        let originalNotes = cleaned(originalDescription, fallback: effectiveDescription)
+        let originalDuration = originalDurationMin == 0 ? effectiveDuration : max(10, min(120, originalDurationMin))
+        let originalIntentPayload = codableIntentPayload(
+            title: originalFocus,
+            description: originalNotes,
+            duration: originalDuration
+        )
+        let editedPayload = editedIntentPayload()
+        var adHocEventIdForRollback: String?
 
         do {
+            if arrivedFromIntentPage {
+                let event = try await apiService.createCalendarEvent(
+                    eventType: "workout",
+                    startAt: Date(),
+                    title: originalFocus,
+                    status: "scheduled",
+                    intentJson: originalIntentPayload
+                )
+                currentCalendarEventId = event.id
+                currentPlannedSessionId = event.plannedSession?.id
+                latestGeneratedAdHocEventId = event.id
+                adHocEventIdForRollback = event.id
+            }
+
             // 1. Create or resume session
-            let sessionResponse = try await apiService.createOrResumeWorkoutSession(forceNew: true)
+            let sessionResponse = try await apiService.createOrResumeWorkoutSession(
+                forceNew: true,
+                calendarEventId: currentCalendarEventId,
+                plannedSessionId: currentPlannedSessionId
+            )
             currentSession = sessionResponse.session
 
             // 2. Build generate request
             let equipment = selectedLocation?.equipment.map { $0.name }
-            let readiness = WorkoutReadiness(
-                energy: String(energyLevel),
-                soreness: nil,
-                pain: nil
-            )
-
-            let intent = customRequestText.isEmpty ? "planned" : "quick_request"
+            let intent = arrivedFromIntentPage ? "user_specified" : "planned"
             let request = WorkoutGenerateRequest(
                 intent: intent,
-                requestText: customRequestText.isEmpty ? nil : customRequestText,
-                timeAvailableMin: timeAvailableMin,
+                requestText: arrivedFromIntentPage ? cleaned(intentText) : nil,
+                timeAvailableMin: effectiveDuration,
                 equipment: equipment,
-                readiness: readiness,
+                plannedIntentOriginal: originalIntentPayload,
+                plannedIntentEdited: editedPayload,
                 coachMode: nil
             )
 
@@ -234,10 +377,21 @@ class WorkoutStore {
             sessionStatus = .active
             accumulatedSeconds = 0
             currentSegmentStart = Date()
+            timeAvailableMin = effectiveDuration
 
         } catch {
+            if let eventId = adHocEventIdForRollback {
+                try? await apiService.deleteCalendarEvent(eventId: eventId, cascadePlanned: true)
+                currentCalendarEventId = nil
+                currentPlannedSessionId = nil
+                latestGeneratedAdHocEventId = nil
+            }
+            currentSession = nil
+            currentInstance = nil
             errorMessage = "Failed to generate workout. Please try again."
             sessionStatus = .preWorkout
+            isWorkoutViewPresented = false
+            showPreWorkoutSheet = true
             print("Workout generation failed: \(error)")
         }
     }
@@ -630,9 +784,21 @@ class WorkoutStore {
         showPreWorkoutSheet = false
 
         selectedLocation = nil
-        energyLevel = 3
+        preWorkoutTitle = ""
+        preWorkoutDescription = ""
+        preWorkoutDurationMin = 45
+        originalTitle = ""
+        originalDescription = ""
+        originalDurationMin = 45
+        intentText = ""
+        isLoadingIntentPlan = false
+        intentPlanError = nil
+        preWorkoutPage = .intent
+        arrivedFromIntentPage = false
+        currentCalendarEventId = nil
+        currentPlannedSessionId = nil
+        latestGeneratedAdHocEventId = nil
         timeAvailableMin = 60
-        customRequestText = ""
 
         accumulatedSeconds = 0
         currentSegmentStart = nil

@@ -176,6 +176,40 @@ async function completeEvent(userId, eventId) {
   return fetchEventWithPlan(userId, data.id);
 }
 
+async function deleteEvent(userId, eventId, options = {}) {
+  const cascadePlanned = Boolean(options.cascadePlanned);
+  let linkedPlannedSessionId = null;
+
+  if (cascadePlanned) {
+    const { data: existing, error: fetchError } = await supabase
+      .from('trainer_calendar_events')
+      .select('linked_planned_session_id')
+      .eq('id', eventId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (fetchError) throw fetchError;
+    linkedPlannedSessionId = existing?.linked_planned_session_id || null;
+  }
+
+  const { error } = await supabase
+    .from('trainer_calendar_events')
+    .delete()
+    .eq('id', eventId)
+    .eq('user_id', userId);
+  if (error) throw error;
+
+  if (cascadePlanned && linkedPlannedSessionId) {
+    const { error: plannedError } = await supabase
+      .from('trainer_planned_sessions')
+      .delete()
+      .eq('id', linkedPlannedSessionId)
+      .eq('user_id', userId);
+    if (plannedError && plannedError.code !== 'PGRST116') {
+      throw plannedError;
+    }
+  }
+}
+
 /**
  * Parse the "# Training Sessions" section from program markdown.
  * Extracts session day names, duration, and intensity from lines like:
@@ -418,6 +452,7 @@ module.exports = {
   rescheduleEvent,
   skipEvent,
   completeEvent,
+  deleteEvent,
   syncCalendarFromProgram,
   regenerateWeeklyCalendar,
   parseSessionsFromMarkdown,

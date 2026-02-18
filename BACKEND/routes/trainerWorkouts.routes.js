@@ -5,6 +5,7 @@ const controller = require('../controllers/trainerWorkouts.controller');
 
 router.use(authenticateToken);
 
+router.post('/plan-intent', controller.planIntent);
 router.post('/sessions', controller.createOrResumeSession);
 router.get('/sessions/:id', controller.getSession);
 router.post('/sessions/:id/generate', controller.generateWorkout);

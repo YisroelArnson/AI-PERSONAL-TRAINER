@@ -9,7 +9,7 @@ const agentWorkoutSessions = new Map();
 
 const exerciseTools = {
   generate_workout: {
-    description: 'Generate a personalized workout based on the user\'s active training program, location, energy level, and time constraints. Creates an artifact that must be delivered to the user via message_notify_user with the artifact_id.',
+    description: 'Generate a personalized workout based on the user\'s active training program, location, and time constraints. Creates an artifact that must be delivered to the user via message_notify_user with the artifact_id.',
     statusMessage: {
       start: 'Creating your workout...',
       done: 'Workout ready'
@@ -25,13 +25,9 @@ const exerciseTools = {
           type: 'integer',
           description: 'How many minutes the user has available'
         },
-        energy_level: {
-          type: 'integer',
-          description: 'User\'s energy level on a 1-5 scale'
-        },
         intent: {
           type: 'string',
-          enum: ['planned', 'custom', 'quick'],
+          enum: ['planned', 'custom', 'user_specified'],
           description: 'Type of workout session'
         }
       }
@@ -50,8 +46,7 @@ const exerciseTools = {
         const constraints = {
           intent: args.intent || 'custom',
           request_text: args.request_text || null,
-          time_available_min: args.time_available_min || null,
-          energy_level: args.energy_level || null
+          time_available_min: args.time_available_min || null
         };
 
         // Generate workout via the unified service (includes active program, user context)

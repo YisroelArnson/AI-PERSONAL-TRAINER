@@ -18,6 +18,7 @@ struct HomeView: View {
     @State private var showScheduleSheet = false
     @State private var showRunComingSoon = false
     @State private var showDiscardConfirm = false
+    @State private var pendingStartNewWorkoutFromPlus = false
     @State private var isWorkoutPresented = false
 
     // Data states
@@ -58,17 +59,19 @@ struct HomeView: View {
             }
         }
         .sheet(isPresented: $workoutStore.showPreWorkoutSheet) {
-            PreWorkoutSheet(
-                isCustomWorkout: todaysEvent == nil && workoutStore.customRequestText.isEmpty == false || todaysEvent == nil,
-                sessionTitle: todaysEvent?.title ?? todaysEvent?.plannedSession?.intentJson["focus"]?.stringValue
-            )
-            .presentationDetents([.medium, .large])
+            PreWorkoutSheet()
+                .presentationDetents([.large])
         }
         .fullScreenCover(isPresented: $isWorkoutPresented) {
             WorkoutFlowView()
         }
         .onChange(of: workoutStore.isWorkoutViewPresented) { _, newValue in
             isWorkoutPresented = newValue
+        }
+        .onChange(of: workoutStore.showPreWorkoutSheet) { _, isPresented in
+            if !isPresented && workoutStore.sessionStatus == .preWorkout {
+                workoutStore.reset()
+            }
         }
         .onChange(of: isWorkoutPresented) { _, newValue in
             if !newValue && workoutStore.isWorkoutViewPresented {
@@ -86,13 +89,23 @@ struct HomeView: View {
             Text(workoutStore.errorMessage ?? "Please try again.")
         }
         .onReceive(NotificationCenter.default.publisher(for: .showQuickWorkoutSheet)) { _ in
-            workoutStore.startCustomSession()
+            if workoutStore.hasActivePersistedWorkout {
+                pendingStartNewWorkoutFromPlus = true
+                showDiscardConfirm = true
+            } else {
+                workoutStore.startNewWorkout()
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .showScheduleWorkoutSheet)) { _ in
             showScheduleSheet = true
         }
         .onReceive(NotificationCenter.default.publisher(for: .showStartRunSheet)) { _ in
             showRunComingSoon = true
+        }
+        .alert("Coming Soon", isPresented: $showScheduleSheet) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Workout scheduling features are coming soon!")
         }
         .alert("Coming Soon", isPresented: $showRunComingSoon) {
             Button("OK", role: .cancel) { }
@@ -102,13 +115,14 @@ struct HomeView: View {
         .alert("Discard Workout?", isPresented: $showDiscardConfirm) {
             Button("Discard", role: .destructive) {
                 workoutStore.reset()
-                if let event = todaysEvent {
-                    workoutStore.startPlannedSession(calendarEvent: event)
-                } else {
-                    workoutStore.startCustomSession()
+                if pendingStartNewWorkoutFromPlus {
+                    pendingStartNewWorkoutFromPlus = false
+                    workoutStore.startNewWorkout()
                 }
             }
-            Button("Cancel", role: .cancel) { }
+            Button("Cancel", role: .cancel) {
+                pendingStartNewWorkoutFromPlus = false
+            }
         } message: {
             Text("This will discard your current workout. You can't undo this.")
         }
@@ -146,14 +160,18 @@ struct HomeView: View {
                         workoutStore.resumeWorkout()
                     }
                 )
-
-                // Start New pill
-                Button(action: {
-                    showDiscardConfirm = true
-                }) {
-                    Text("New")
+            } else {
+                if let event = todaysEvent {
+                    WorkoutPill(
+                        title: workoutButtonTitle,
+                        onTap: {
+                            workoutStore.startPlannedSession(calendarEvent: event)
+                        }
+                    )
+                } else {
+                    Text("Use + to generate workout")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
                         .frame(height: 50)
                         .padding(.horizontal, 16)
                         .background(
@@ -161,19 +179,6 @@ struct HomeView: View {
                                 .fill(AppTheme.Colors.surface)
                         )
                 }
-                .buttonStyle(.plain)
-            } else {
-                // Normal workout pill
-                WorkoutPill(
-                    title: workoutButtonTitle,
-                    onTap: {
-                        if let event = todaysEvent {
-                            workoutStore.startPlannedSession(calendarEvent: event)
-                        } else {
-                            workoutStore.startCustomSession()
-                        }
-                    }
-                )
             }
 
             // Space for AI Orb (handled by AssistantOverlayView)
@@ -201,7 +206,7 @@ struct HomeView: View {
             }
             return "Today's Workout"
         }
-        return "Start Workout"
+        return "Today's Workout"
     }
 
     // MARK: - Data Loading

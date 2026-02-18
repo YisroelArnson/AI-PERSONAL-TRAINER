@@ -61,6 +61,19 @@ async function completeEvent(req, res) {
   }
 }
 
+async function deleteEvent(req, res) {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const cascadePlanned = req.query.cascade_planned === 'true';
+    await calendarService.deleteEvent(userId, id, { cascadePlanned });
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete event error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+}
+
 async function syncCalendar(req, res) {
   try {
     const userId = req.user.id;
@@ -99,6 +112,7 @@ module.exports = {
   rescheduleEvent,
   skipEvent,
   completeEvent,
+  deleteEvent,
   syncCalendar,
   checkAndRegenerate
 };

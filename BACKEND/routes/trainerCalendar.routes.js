@@ -7,6 +7,7 @@ router.use(authenticateToken);
 
 router.get('/', controller.listEvents);
 router.post('/events', controller.createEvent);
+router.delete('/events/:id', controller.deleteEvent);
 router.post('/events/:id/reschedule', controller.rescheduleEvent);
 router.post('/events/:id/skip', controller.skipEvent);
 router.post('/events/:id/complete', controller.completeEvent);

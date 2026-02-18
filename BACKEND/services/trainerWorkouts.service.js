@@ -43,6 +43,18 @@ function addDays(date, days) {
   return d;
 }
 
+function clampInt(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
+
+function toIntOrNull(value) {
+  if (value === null || value === undefined) return null;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.round(parsed);
+}
+
 async function findTodayWorkoutEvent(userId) {
   const start = startOfDay(new Date());
   const end = addDays(start, 1);
@@ -76,20 +88,78 @@ async function getActiveSession(userId) {
   return data;
 }
 
-async function createSession(userId, metadata = {}) {
-  const todayEvent = await findTodayWorkoutEvent(userId);
+async function createSession(userId, metadata = {}, explicitLinks = {}) {
+  const hasExplicitLinks = Boolean(explicitLinks.calendarEventId || explicitLinks.plannedSessionId);
+  const todayEvent = hasExplicitLinks ? null : await findTodayWorkoutEvent(userId);
+  let resolvedCalendarEventId = explicitLinks.calendarEventId || todayEvent?.id || null;
+  let resolvedPlannedSessionId = explicitLinks.plannedSessionId || todayEvent?.linked_planned_session_id || null;
+  let explicitEvent = null;
+  let explicitPlan = null;
+
+  if (hasExplicitLinks && resolvedCalendarEventId) {
+    const { data: linkedEvent, error: linkedEventError } = await supabase
+      .from('trainer_calendar_events')
+      .select('id, linked_planned_session_id')
+      .eq('id', resolvedCalendarEventId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (linkedEventError) throw linkedEventError;
+    if (!linkedEvent) {
+      throw new Error('calendar_event_id not found');
+    }
+    explicitEvent = linkedEvent;
+    if (!resolvedPlannedSessionId) {
+      resolvedPlannedSessionId = linkedEvent.linked_planned_session_id || null;
+    }
+  }
+
+  if (hasExplicitLinks && resolvedPlannedSessionId) {
+    const { data: linkedPlan, error: linkedPlanError } = await supabase
+      .from('trainer_planned_sessions')
+      .select('id, calendar_event_id')
+      .eq('id', resolvedPlannedSessionId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (linkedPlanError) throw linkedPlanError;
+    if (!linkedPlan) {
+      throw new Error('planned_session_id not found');
+    }
+    explicitPlan = linkedPlan;
+    if (!resolvedCalendarEventId) {
+      resolvedCalendarEventId = linkedPlan.calendar_event_id || null;
+    }
+  }
+
+  if (
+    hasExplicitLinks &&
+    explicitEvent?.linked_planned_session_id &&
+    explicitPlan?.id &&
+    explicitEvent.linked_planned_session_id !== explicitPlan.id
+  ) {
+    throw new Error('calendar_event_id and planned_session_id do not match');
+  }
+
+  if (
+    hasExplicitLinks &&
+    explicitPlan?.calendar_event_id &&
+    explicitEvent?.id &&
+    explicitPlan.calendar_event_id !== explicitEvent.id
+  ) {
+    throw new Error('calendar_event_id and planned_session_id do not match');
+  }
+
   const { data, error } = await supabase
     .from('trainer_workout_sessions')
     .insert({
       user_id: userId,
       status: 'in_progress',
       coach_mode: metadata.coach_mode || 'quiet',
-      planned_session_id: todayEvent?.linked_planned_session_id || null,
-      calendar_event_id: todayEvent?.id || null,
+      planned_session_id: resolvedPlannedSessionId,
+      calendar_event_id: resolvedCalendarEventId,
       metadata: {
         ...metadata,
-        planned_session_id: todayEvent?.linked_planned_session_id || null,
-        calendar_event_id: todayEvent?.id || null
+        planned_session_id: resolvedPlannedSessionId,
+        calendar_event_id: resolvedCalendarEventId
       }
     })
     .select()
@@ -100,14 +170,19 @@ async function createSession(userId, metadata = {}) {
 }
 
 async function getOrCreateSession(userId, options = {}) {
-  const { forceNew = false, metadata = {} } = options;
+  const {
+    forceNew = false,
+    metadata = {},
+    calendarEventId = null,
+    plannedSessionId = null
+  } = options;
 
   if (!forceNew) {
     const active = await getActiveSession(userId);
     if (active) return active;
   }
 
-  return createSession(userId, metadata);
+  return createSession(userId, metadata, { calendarEventId, plannedSessionId });
 }
 
 async function getSession(sessionId) {
@@ -292,13 +367,13 @@ function buildUserContextSummary(dataSourceResults) {
 function buildWorkoutPrompt(dataSourceResults, constraints, program, weightsProfile = null) {
   const context = buildUserContextSummary(dataSourceResults);
 
-  const energyLevel = constraints?.energy_level ?? constraints?.readiness?.energy ?? 'unknown';
   const timeAvailable = constraints?.time_available_min || 'unknown';
   const equipment = constraints?.equipment || [];
   const intent = constraints?.intent || 'planned';
   const requestText = constraints?.request_text || null;
   const plannedSession = constraints?.planned_session || null;
-  const readiness = constraints?.readiness || {};
+  const plannedIntentOriginal = constraints?.planned_intent_original || null;
+  const plannedIntentEdited = constraints?.planned_intent_edited || null;
 
   let prompt = `You are an AI personal trainer. Create a safe, effective workout for today using the 4-type exercise system.
 
@@ -323,7 +398,6 @@ ${weightsText}
 
   prompt += `
 Pre-Workout Context:
-- Energy Level: ${energyLevel}/5
 - Time Available: ${timeAvailable} minutes
 - Available Equipment: ${equipment.length ? equipment.join(', ') : 'use equipment from user context'}
 - Session Intent: ${intent}`;
@@ -334,11 +408,11 @@ Pre-Workout Context:
   if (plannedSession) {
     prompt += `\n- Planned Session: ${JSON.stringify(plannedSession)}`;
   }
-  if (readiness.soreness && readiness.soreness !== 'none') {
-    prompt += `\n- Soreness: ${readiness.soreness}`;
+  if (plannedIntentOriginal) {
+    prompt += `\n- Original Planned Intent: ${JSON.stringify(plannedIntentOriginal)}`;
   }
-  if (readiness.pain && readiness.pain !== 'none') {
-    prompt += `\n- Pain: ${readiness.pain}`;
+  if (plannedIntentEdited) {
+    prompt += `\n- User Modified Intent: ${JSON.stringify(plannedIntentEdited)}`;
   }
 
   prompt += `
@@ -433,8 +507,73 @@ function normalizeWorkoutInstance(rawInstance, constraints = {}) {
       intent: constraints.intent || 'planned',
       request_text: constraints.request_text || null,
       planned_session: constraints.planned_session || null,
+      planned_intent_original: constraints.planned_intent_original || null,
+      planned_intent_edited: constraints.planned_intent_edited || null,
       generated_at: nowIso()
     }
+  };
+}
+
+function buildIntentPlanPrompt(intentText, context, programMarkdown = '') {
+  return `You are an AI personal trainer assistant. The user wants to plan a specific workout session.
+
+User's training program (for context only - prioritize the user's stated intent):
+${programMarkdown || 'No active program available.'}
+
+User context:
+${context || 'No additional user context available.'}
+
+The user said: "${intentText}"
+
+Based on their request, generate a structured session plan. Return ONLY valid JSON:
+{
+  "focus": "Short title for the session (e.g., 'Lower Body - Glutes & Hamstrings')",
+  "notes": "1-2 sentence description of the session's intent and approach",
+  "duration_min": <number>
+}
+
+Rules:
+- The focus should be a clear, descriptive title
+- The notes should capture the user's intent and any specific instructions
+- The duration_min should match what the user requested, or default to 45 if unspecified
+- Prioritize the user's specific request over the general program plan`;
+}
+
+async function generateIntentPlan(userId, intentText) {
+  const [dataSourceResults, program] = await Promise.all([
+    fetchMultipleDataSources(['user_profile', 'user_settings', 'all_locations'], userId),
+    getActiveProgram(userId)
+  ]);
+  const context = buildUserContextSummary(dataSourceResults);
+  const prompt = buildIntentPlanPrompt(intentText, context, program?.program_markdown);
+  const client = getAnthropicClient();
+
+  const response = await client.messages.create({
+    model: DEFAULT_MODEL,
+    max_tokens: 512,
+    system: [
+      { type: 'text', text: 'Return ONLY valid JSON with focus, notes, and duration_min.' }
+    ],
+    messages: [
+      { role: 'user', content: [{ type: 'text', text: prompt }] }
+    ]
+  });
+
+  const textBlock = response.content.find(block => block.type === 'text');
+  const parsed = extractJson(textBlock?.text || '');
+  if (!parsed) {
+    throw new Error('Failed to parse intent plan JSON');
+  }
+
+  const duration = toIntOrNull(parsed.duration_min) ?? 45;
+  return {
+    focus: typeof parsed.focus === 'string' && parsed.focus.trim()
+      ? parsed.focus.trim()
+      : 'Custom Workout',
+    notes: typeof parsed.notes === 'string' && parsed.notes.trim()
+      ? parsed.notes.trim()
+      : 'Custom workout based on your request.',
+    duration_min: clampInt(duration, 10, 120)
   };
 }
 
@@ -734,6 +873,7 @@ module.exports = {
   createWorkoutInstance,
   getLatestInstance,
   generateWorkoutInstance,
+  generateIntentPlan,
   applyAction,
   saveWorkoutLog,
   saveSessionSummary,

@@ -387,7 +387,12 @@ class APIService: ObservableObject {
     
     // MARK: - Trainer Workout Sessions (Phase E)
 
-    func createOrResumeWorkoutSession(forceNew: Bool, coachMode: String? = nil) async throws -> WorkoutSessionResponse {
+    func createOrResumeWorkoutSession(
+        forceNew: Bool,
+        coachMode: String? = nil,
+        calendarEventId: String? = nil,
+        plannedSessionId: String? = nil
+    ) async throws -> WorkoutSessionResponse {
         guard let url = URL(string: "\(baseURL)/trainer/workouts/sessions") else {
             throw APIError.invalidURL
         }
@@ -398,6 +403,12 @@ class APIService: ObservableObject {
         var body: [String: Any] = ["force_new": forceNew]
         if let coachMode = coachMode {
             body["metadata"] = ["coach_mode": coachMode]
+        }
+        if let calendarEventId = calendarEventId {
+            body["calendar_event_id"] = calendarEventId
+        }
+        if let plannedSessionId = plannedSessionId {
+            body["planned_session_id"] = plannedSessionId
         }
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
@@ -439,6 +450,23 @@ class APIService: ObservableObject {
         }
 
         return try JSONDecoder().decode(WorkoutInstanceResponse.self, from: data)
+    }
+
+    func planIntent(intentText: String) async throws -> IntentPlanResponse {
+        guard let url = URL(string: "\(baseURL)/trainer/workouts/plan-intent") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["intentText": intentText])
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 30)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        return try JSONDecoder().decode(IntentPlanResponse.self, from: data)
     }
 
     func sendWorkoutAction(sessionId: String, actionType: String, payload: [String: CodableValue]) async throws -> WorkoutActionResponse {
@@ -875,6 +903,18 @@ class APIService: ObservableObject {
         guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
         let response = try makeISO8601Decoder().decode(CalendarEventResponse.self, from: data)
         return response.event
+    }
+
+    func deleteCalendarEvent(eventId: String, cascadePlanned: Bool = false) async throws {
+        var components = URLComponents(string: "\(baseURL)/trainer/calendar/events/\(eventId)")!
+        if cascadePlanned {
+            components.queryItems = [URLQueryItem(name: "cascade_planned", value: "true")]
+        }
+        guard let url = components.url else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "DELETE"
+        let (_, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
     }
 
     func syncCalendar() async throws {

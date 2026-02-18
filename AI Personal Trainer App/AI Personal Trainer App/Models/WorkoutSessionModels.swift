@@ -95,7 +95,8 @@ struct WorkoutGenerateRequest: Encodable {
     let requestText: String?
     let timeAvailableMin: Int?
     let equipment: [String]?
-    let readiness: WorkoutReadiness?
+    let plannedIntentOriginal: [String: CodableValue]?
+    let plannedIntentEdited: [String: CodableValue]?
     let coachMode: String?
 
     enum CodingKeys: String, CodingKey {
@@ -103,15 +104,27 @@ struct WorkoutGenerateRequest: Encodable {
         case requestText = "request_text"
         case timeAvailableMin = "time_available_min"
         case equipment
-        case readiness
+        case plannedIntentOriginal = "planned_intent_original"
+        case plannedIntentEdited = "planned_intent_edited"
         case coachMode = "coach_mode"
     }
 }
 
-struct WorkoutReadiness: Codable {
-    let energy: String?
-    let soreness: String?
-    let pain: String?
+struct IntentPlanResponse: Codable {
+    let success: Bool
+    let plan: IntentPlan
+}
+
+struct IntentPlan: Codable {
+    let focus: String
+    let notes: String
+    let durationMin: Int
+
+    enum CodingKeys: String, CodingKey {
+        case focus
+        case notes
+        case durationMin = "duration_min"
+    }
 }
 
 struct WorkoutActionRequest: Encodable {
