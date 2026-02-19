@@ -8,106 +8,67 @@ const supabase = createClient(
   process.env.SUPABASE_SECRET_KEY
 );
 
-/**
- * Calculate per-session stats from workout events and instance data.
- * Deterministic — no LLM calls.
- */
-function calculateSessionStats(instance, events, session) {
-  const exercises = instance?.exercises || [];
-  const setEvents = events.filter(e => e.event_type === 'log_set');
-  const intervalEvents = events.filter(e => e.event_type === 'log_interval');
-  const safetyEvents = events.filter(e => e.event_type === 'safety_flag');
+function calculateSessionStats({ exercises = [], actions = [], session = {}, workout = null }) {
+  const totalExercises = exercises.length;
+  const exercisesCompleted = exercises.filter(ex => ex.status === 'completed' || ex.status === 'skipped').length;
+  const exercisesSkipped = exercises.filter(ex => ex.status === 'skipped').length;
+  const totalReps = exercises.reduce((sum, ex) => sum + Number(ex.total_reps || 0), 0);
+  const totalVolume = exercises.reduce((sum, ex) => sum + Number(ex.volume || 0), 0);
+  const totalDurationSec = exercises.reduce((sum, ex) => sum + Number(ex.duration_sec || 0), 0);
 
   let totalSets = 0;
-  let totalReps = 0;
-  let totalVolume = 0;
-  let cardioTimeMin = 0;
-
-  for (const evt of setEvents) {
-    const d = evt.data?.payload || evt.data || {};
-    totalSets++;
-    const reps = d.reps_completed || d.reps || 0;
-    totalReps += reps;
-    const load = d.load || d.weight || 0;
-    totalVolume += reps * load;
-  }
-
-  for (const evt of intervalEvents) {
-    const d = evt.data?.payload || evt.data || {};
-    const durationSec = d.duration_sec || d.work_sec || 0;
-    cardioTimeMin += durationSec / 60;
-  }
-
-  // Calculate duration exercises from instance
   for (const ex of exercises) {
-    if (ex.exercise_type === 'duration' && ex.duration_min) {
-      cardioTimeMin += ex.duration_min;
-    }
+    const sets = ex.payload_json?.performance?.sets || [];
+    totalSets += sets.filter(set => {
+      return (
+        set?.actual_reps !== null && set?.actual_reps !== undefined
+        || set?.actual_duration_sec !== null && set?.actual_duration_sec !== undefined
+        || set?.actual_distance_km !== null && set?.actual_distance_km !== undefined
+        || set?.actual_load !== null && set?.actual_load !== undefined
+      );
+    }).length;
   }
 
-  // Workout duration from session timestamps
-  let workoutDurationMin = null;
-  if (session.created_at && session.updated_at) {
-    const startMs = new Date(session.created_at).getTime();
-    const endMs = new Date(session.updated_at).getTime();
+  const painFlags = actions.filter(action => action.action_type === 'set_exercise_note').reduce((count, action) => {
+    const notes = String(action?.action_payload_json?.command?.notes || '').toLowerCase();
+    return notes.includes('pain') ? count + 1 : count;
+  }, 0);
+
+  let workoutDurationMin = Number.isFinite(workout?.actual_duration_min) ? workout.actual_duration_min : null;
+  if (!Number.isFinite(workoutDurationMin) && session.started_at && session.completed_at) {
+    const startMs = new Date(session.started_at).getTime();
+    const endMs = new Date(session.completed_at).getTime();
     if (endMs > startMs) {
       workoutDurationMin = Math.round((endMs - startMs) / 60000);
     }
   }
 
-  // Exercises skipped = planned - those with at least one logged event
-  const exercisesWithLogs = new Set();
-  for (const evt of setEvents) {
-    const idx = evt.data?.payload?.index ?? evt.data?.index;
-    if (idx !== undefined) exercisesWithLogs.add(idx);
-  }
-  for (const evt of intervalEvents) {
-    const idx = evt.data?.payload?.index ?? evt.data?.index;
-    if (idx !== undefined) exercisesWithLogs.add(idx);
-  }
-  const exercisesCompleted = exercisesWithLogs.size || exercises.length;
-  const exercisesSkipped = Math.max(0, exercises.length - exercisesCompleted);
-
-  // Pain flags
-  const painFlags = safetyEvents.length;
-
-  // Energy rating from reflection or session metadata
-  const energyRating = session.metadata?.energy_level || null;
-
   return {
-    total_exercises: exercises.length,
+    total_exercises: totalExercises,
     exercises_completed: exercisesCompleted,
     exercises_skipped: exercisesSkipped,
     total_sets: totalSets,
     total_reps: totalReps,
     total_volume: totalVolume,
-    cardio_time_min: Math.round(cardioTimeMin * 10) / 10,
+    cardio_time_min: Math.round((totalDurationSec / 60) * 10) / 10,
     workout_duration_min: workoutDurationMin,
     pain_flags: painFlags,
-    energy_rating: energyRating
+    energy_rating: Number.isFinite(session.session_rpe) ? session.session_rpe : null
   };
 }
 
-/**
- * Calculate weekly rollup from session data for a given week.
- * @param {string} userId
- * @param {Date} weekStart - Monday of the week
- * @param {Date} weekEnd - Sunday end of the week
- */
 async function calculateWeeklyStats(userId, weekStart, weekEnd) {
-  // Get completed sessions in the date range
   const { data: sessions, error: sessError } = await supabase
-    .from('trainer_workout_sessions')
+    .from('workout_sessions')
     .select('*')
     .eq('user_id', userId)
     .eq('status', 'completed')
-    .gte('created_at', weekStart.toISOString())
-    .lte('created_at', weekEnd.toISOString())
-    .order('created_at', { ascending: true });
+    .gte('started_at', weekStart.toISOString())
+    .lte('started_at', weekEnd.toISOString())
+    .order('started_at', { ascending: true });
 
   if (sessError) throw sessError;
 
-  // Get planned events count for the week
   const { count: plannedCount, error: planError } = await supabase
     .from('trainer_calendar_events')
     .select('*', { count: 'exact', head: true })
@@ -119,8 +80,50 @@ async function calculateWeeklyStats(userId, weekStart, weekEnd) {
   if (planError) throw planError;
 
   const sessionsCompleted = sessions?.length || 0;
+  const sessionIds = (sessions || []).map(session => session.id);
 
-  // Aggregate per-session stats
+  let workouts = [];
+  let exercises = [];
+  let actions = [];
+
+  if (sessionIds.length) {
+    const { data: workoutRows, error: workoutsError } = await supabase
+      .from('workouts')
+      .select('*')
+      .in('session_id', sessionIds);
+    if (workoutsError) throw workoutsError;
+    workouts = workoutRows || [];
+
+    const workoutIds = workouts.map(workout => workout.id);
+    if (workoutIds.length) {
+      const { data: exerciseRows, error: exercisesError } = await supabase
+        .from('workout_exercises')
+        .select('*')
+        .in('workout_id', workoutIds);
+      if (exercisesError) throw exercisesError;
+      exercises = exerciseRows || [];
+    }
+
+    const { data: actionRows, error: actionsError } = await supabase
+      .from('workout_action_logs')
+      .select('*')
+      .in('session_id', sessionIds);
+    if (actionsError) throw actionsError;
+    actions = actionRows || [];
+  }
+
+  const workoutBySession = new Map(workouts.map(workout => [workout.session_id, workout]));
+  const exercisesByWorkout = new Map();
+  for (const exercise of exercises) {
+    if (!exercisesByWorkout.has(exercise.workout_id)) exercisesByWorkout.set(exercise.workout_id, []);
+    exercisesByWorkout.get(exercise.workout_id).push(exercise);
+  }
+  const actionsBySession = new Map();
+  for (const action of actions) {
+    if (!actionsBySession.has(action.session_id)) actionsBySession.set(action.session_id, []);
+    actionsBySession.get(action.session_id).push(action);
+  }
+
   let totalReps = 0;
   let totalVolume = 0;
   let totalCardioMin = 0;
@@ -129,26 +132,16 @@ async function calculateWeeklyStats(userId, weekStart, weekEnd) {
   let energyCount = 0;
 
   for (const session of (sessions || [])) {
-    // Get instance for this session
-    const { data: instance } = await supabase
-      .from('trainer_workout_instances')
-      .select('instance_json')
-      .eq('session_id', session.id)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const workout = workoutBySession.get(session.id) || null;
+    const workoutExercises = workout ? (exercisesByWorkout.get(workout.id) || []) : [];
+    const sessionActions = actionsBySession.get(session.id) || [];
 
-    // Get events for this session
-    const { data: events } = await supabase
-      .from('trainer_workout_events')
-      .select('*')
-      .eq('session_id', session.id);
-
-    const stats = calculateSessionStats(
-      instance?.instance_json,
-      events || [],
-      session
-    );
+    const stats = calculateSessionStats({
+      exercises: workoutExercises,
+      actions: sessionActions,
+      session,
+      workout
+    });
 
     totalReps += stats.total_reps;
     totalVolume += stats.total_volume;
@@ -160,18 +153,17 @@ async function calculateWeeklyStats(userId, weekStart, weekEnd) {
     }
   }
 
-  // Get prior week stats for trends
   const priorWeekStart = new Date(weekStart);
   priorWeekStart.setDate(priorWeekStart.getDate() - 7);
   const priorWeekEnd = new Date(weekStart);
 
   const { data: priorSessions } = await supabase
-    .from('trainer_workout_sessions')
+    .from('workout_sessions')
     .select('id')
     .eq('user_id', userId)
     .eq('status', 'completed')
-    .gte('created_at', priorWeekStart.toISOString())
-    .lt('created_at', priorWeekEnd.toISOString());
+    .gte('started_at', priorWeekStart.toISOString())
+    .lt('started_at', priorWeekEnd.toISOString());
 
   const priorSessionCount = priorSessions?.length || 0;
 
@@ -195,15 +187,12 @@ async function calculateWeeklyStats(userId, weekStart, weekEnd) {
     avg_session_duration_min: sessionsCompleted > 0 ? Math.round(totalWorkoutMin / sessionsCompleted) : null,
     trends: {
       sessions: trend(sessionsCompleted, priorSessionCount),
-      volume: 'flat', // Would need prior week volume for accurate trend
+      volume: 'flat',
       cardio: 'flat'
     }
   };
 }
 
-/**
- * Get the current week's Monday and Sunday.
- */
 function getCurrentWeekBounds() {
   const now = new Date();
   const dayOfWeek = now.getDay();

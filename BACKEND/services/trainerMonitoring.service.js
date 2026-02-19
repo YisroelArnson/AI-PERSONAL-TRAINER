@@ -29,7 +29,7 @@ async function generateWeeklyReport(userId, weekStart = null) {
   endDate.setDate(endDate.getDate() + 7);
 
   const { data: sessions, error } = await supabase
-    .from('trainer_workout_sessions')
+    .from('workout_sessions')
     .select('id, completed_at')
     .eq('user_id', userId)
     .eq('status', 'completed')

@@ -1,39 +1,221 @@
 import Foundation
 
-struct WorkoutSessionResponse: Codable {
+struct WorkoutTrackingSessionResponse: Codable {
     let success: Bool
     let session: WorkoutSession
-}
-
-struct WorkoutSessionDetailResponse: Codable {
-    let success: Bool
-    let session: WorkoutSession
+    let workout: WorkoutTrackingWorkout?
+    let exercises: [WorkoutTrackingExercise]
     let instance: WorkoutInstance?
     let instanceVersion: Int?
 
     enum CodingKeys: String, CodingKey {
-        case success, session, instance
+        case success, session, workout, exercises, instance
         case instanceVersion = "instance_version"
     }
 }
 
-struct WorkoutInstanceResponse: Codable {
-    let success: Bool
-    let instance: WorkoutInstance
-    let version: Int
-}
-
-struct WorkoutActionResponse: Codable {
-    let success: Bool
-    let action: String
-    let instance: WorkoutInstance?
-    let instanceVersion: Int?
-    let instanceUpdated: Bool
+struct WorkoutTrackingSessionCreateRequest: Encodable {
+    let intent: String?
+    let requestText: String?
+    let timeAvailableMin: Int?
+    let equipment: [String]?
+    let plannedSession: [String: CodableValue]?
+    let plannedIntentOriginal: [String: CodableValue]?
+    let plannedIntentEdited: [String: CodableValue]?
+    let calendarEventId: String?
+    let plannedSessionId: String?
+    let coachMode: String?
+    let metadata: [String: CodableValue]?
 
     enum CodingKeys: String, CodingKey {
-        case success, action, instance
-        case instanceVersion = "instance_version"
-        case instanceUpdated = "instance_updated"
+        case intent
+        case requestText = "request_text"
+        case timeAvailableMin = "time_available_min"
+        case equipment
+        case plannedSession = "planned_session"
+        case plannedIntentOriginal = "planned_intent_original"
+        case plannedIntentEdited = "planned_intent_edited"
+        case calendarEventId = "calendar_event_id"
+        case plannedSessionId = "planned_session_id"
+        case coachMode = "coach_mode"
+        case metadata
+    }
+}
+
+struct WorkoutTrackingWorkout: Codable {
+    let id: String
+    let sessionId: String
+    let title: String
+    let workoutType: String?
+    let plannedDurationMin: Int?
+    let actualDurationMin: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case sessionId = "session_id"
+        case title
+        case workoutType = "workout_type"
+        case plannedDurationMin = "planned_duration_min"
+        case actualDurationMin = "actual_duration_min"
+    }
+}
+
+struct WorkoutTrackingExercise: Codable, Identifiable {
+    let id: String
+    let workoutId: String
+    let exerciseOrder: Int
+    let exerciseType: String
+    let status: String
+    let payloadVersion: Int
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case workoutId = "workout_id"
+        case exerciseOrder = "exercise_order"
+        case exerciseType = "exercise_type"
+        case status
+        case payloadVersion = "payload_version"
+    }
+}
+
+enum WorkoutExerciseCommandType: String, Codable {
+    case completeSet = "complete_set"
+    case updateSetTarget = "update_set_target"
+    case updateSetActual = "update_set_actual"
+    case setExerciseRpe = "set_exercise_rpe"
+    case setExerciseNote = "set_exercise_note"
+    case skipExercise = "skip_exercise"
+    case unskipExercise = "unskip_exercise"
+    case completeExercise = "complete_exercise"
+    case reopenExercise = "reopen_exercise"
+    case adjustRestSeconds = "adjust_rest_seconds"
+}
+
+struct WorkoutExerciseCommand: Encodable, Codable {
+    let type: WorkoutExerciseCommandType
+    let setIndex: Int?
+    let actualReps: Int?
+    let actualLoad: Double?
+    let loadUnit: String?
+    let actualDurationSec: Int?
+    let actualDistanceKm: Double?
+    let targetReps: Int?
+    let targetLoad: Double?
+    let targetDurationSec: Int?
+    let targetDistanceKm: Double?
+    let rpe: Int?
+    let notes: String?
+    let reason: String?
+    let restSeconds: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case type
+        case setIndex = "set_index"
+        case actualReps = "actual_reps"
+        case actualLoad = "actual_load"
+        case loadUnit = "load_unit"
+        case actualDurationSec = "actual_duration_sec"
+        case actualDistanceKm = "actual_distance_km"
+        case targetReps = "target_reps"
+        case targetLoad = "target_load"
+        case targetDurationSec = "target_duration_sec"
+        case targetDistanceKm = "target_distance_km"
+        case rpe
+        case notes
+        case reason
+        case restSeconds = "rest_seconds"
+    }
+}
+
+struct WorkoutCommandClientMeta: Encodable, Codable {
+    let sourceScreen: String?
+    let appVersion: String?
+    let deviceId: String?
+    let correlationId: String?
+    let clientTimestamp: String?
+
+    enum CodingKeys: String, CodingKey {
+        case sourceScreen = "source_screen"
+        case appVersion = "app_version"
+        case deviceId = "device_id"
+        case correlationId = "correlation_id"
+        case clientTimestamp = "client_timestamp"
+    }
+}
+
+struct WorkoutExerciseCommandRequest: Encodable, Codable {
+    let commandId: String
+    let expectedVersion: Int
+    let command: WorkoutExerciseCommand
+    let clientMeta: WorkoutCommandClientMeta?
+
+    enum CodingKeys: String, CodingKey {
+        case commandId = "command_id"
+        case expectedVersion = "expected_version"
+        case command
+        case clientMeta = "client_meta"
+    }
+}
+
+struct WorkoutExerciseCommandResponse: Codable {
+    let success: Bool
+    let exerciseId: String?
+    let payloadVersion: Int?
+    let status: String?
+    let payloadJson: [String: CodableValue]?
+    let currentPayloadVersion: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case success, status
+        case exerciseId = "exercise_id"
+        case payloadVersion = "payload_version"
+        case payloadJson = "payload_json"
+        case currentPayloadVersion = "current_payload_version"
+    }
+}
+
+struct WorkoutHistoryResponse: Codable {
+    let success: Bool
+    let items: [WorkoutHistorySessionItem]
+    let nextCursor: String?
+
+    enum CodingKeys: String, CodingKey {
+        case success, items
+        case nextCursor = "next_cursor"
+    }
+}
+
+struct WorkoutHistorySessionItem: Codable, Identifiable {
+    let sessionId: String
+    let status: String
+    let startedAt: Date?
+    let completedAt: Date?
+    let title: String
+    let workoutType: String?
+    let plannedDurationMin: Int?
+    let actualDurationMin: Int?
+    let exerciseCount: Int
+    let completedExerciseCount: Int
+    let skippedExerciseCount: Int
+    let totalVolume: Int
+    let sessionRpe: Int?
+
+    var id: String { sessionId }
+
+    enum CodingKeys: String, CodingKey {
+        case sessionId = "session_id"
+        case status
+        case startedAt = "started_at"
+        case completedAt = "completed_at"
+        case title
+        case workoutType = "workout_type"
+        case plannedDurationMin = "planned_duration_min"
+        case actualDurationMin = "actual_duration_min"
+        case exerciseCount = "exercise_count"
+        case completedExerciseCount = "completed_exercise_count"
+        case skippedExerciseCount = "skipped_exercise_count"
+        case totalVolume = "total_volume"
+        case sessionRpe = "session_rpe"
     }
 }
 
@@ -90,26 +272,6 @@ struct WorkoutInstanceMetadata: Codable, Equatable {
     }
 }
 
-struct WorkoutGenerateRequest: Encodable {
-    let intent: String
-    let requestText: String?
-    let timeAvailableMin: Int?
-    let equipment: [String]?
-    let plannedIntentOriginal: [String: CodableValue]?
-    let plannedIntentEdited: [String: CodableValue]?
-    let coachMode: String?
-
-    enum CodingKeys: String, CodingKey {
-        case intent
-        case requestText = "request_text"
-        case timeAvailableMin = "time_available_min"
-        case equipment
-        case plannedIntentOriginal = "planned_intent_original"
-        case plannedIntentEdited = "planned_intent_edited"
-        case coachMode = "coach_mode"
-    }
-}
-
 struct IntentPlanResponse: Codable {
     let success: Bool
     let plan: IntentPlan
@@ -124,16 +286,6 @@ struct IntentPlan: Codable {
         case focus
         case notes
         case durationMin = "duration_min"
-    }
-}
-
-struct WorkoutActionRequest: Encodable {
-    let actionType: String
-    let payload: [String: CodableValue]?
-
-    enum CodingKeys: String, CodingKey {
-        case actionType = "action_type"
-        case payload
     }
 }
 
@@ -172,6 +324,12 @@ struct WorkoutLogPayload: Encodable {
 }
 
 struct WorkoutCompletionRequest: Encodable {
+    let reflection: WorkoutReflection
+    let log: WorkoutLogPayload
+}
+
+struct WorkoutStopRequest: Encodable {
+    let reason: String
     let reflection: WorkoutReflection
     let log: WorkoutLogPayload
 }

@@ -144,6 +144,7 @@ enum APIError: Error, LocalizedError {
     case forbidden
     case authenticationRequired
     case networkError
+    case conflict(currentVersion: Int?)
     
     var errorDescription: String? {
         switch self {
@@ -161,7 +162,11 @@ enum APIError: Error, LocalizedError {
             return "Please sign in to access this feature"
         case .networkError:
             return "Unable to connect to server. Please check your network connection."
+        case .conflict(let currentVersion):
+            if let currentVersion {
+                return "Version conflict. Server is at version \(currentVersion)."
+            }
+            return "Version conflict. Please refresh and retry."
         }
     }
 }
-

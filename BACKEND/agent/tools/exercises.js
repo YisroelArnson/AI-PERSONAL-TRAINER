@@ -1,15 +1,21 @@
 // BACKEND/agent/tools/exercises.js
-// Exercise and workout management tools — unified through trainerWorkouts service
-const workoutService = require('../../services/trainerWorkouts.service');
+// Exercise and workout management tools backed by workout tracking V2
+const workoutTrackingService = require('../../services/workoutTrackingV2.service');
 const sessionObs = require('../../services/sessionObservability.service');
 
 // Maps agent chat sessionId -> workout sessionId
-// Lightweight reference; all exercise state lives in the DB via the workout service
 const agentWorkoutSessions = new Map();
+
+function unsupportedMutationResult(feature) {
+  return {
+    success: false,
+    error: `${feature} is not available in the V2 command API yet.`
+  };
+}
 
 const exerciseTools = {
   generate_workout: {
-    description: 'Generate a personalized workout based on the user\'s active training program, location, and time constraints. Creates an artifact that must be delivered to the user via message_notify_user with the artifact_id.',
+    description: 'Generate a personalized workout and create an artifact the user can view.',
     statusMessage: {
       start: 'Creating your workout...',
       done: 'Workout ready'
@@ -36,50 +42,35 @@ const exerciseTools = {
       const { userId, sessionId } = context;
 
       try {
-        // Create a workout session via the service
-        const workoutSession = await workoutService.getOrCreateSession(userId, {
-          forceNew: true,
-          metadata: { source: 'agent', agent_session_id: sessionId }
+        const detail = await workoutTrackingService.createWorkoutSession({
+          userId,
+          requestBody: {
+            intent: args.intent || 'custom',
+            request_text: args.request_text || null,
+            time_available_min: args.time_available_min || null,
+            metadata: { source: 'agent', agent_session_id: sessionId }
+          }
         });
 
-        // Build constraints from agent inputs
-        const constraints = {
-          intent: args.intent || 'custom',
-          request_text: args.request_text || null,
-          time_available_min: args.time_available_min || null
-        };
-
-        // Generate workout via the unified service (includes active program, user context)
-        const instance = await workoutService.generateWorkoutInstance(userId, constraints);
-        const instanceRecord = await workoutService.createWorkoutInstance(workoutSession.id, instance);
-
-        // Log the generation event
-        await workoutService.logEvent(workoutSession.id, workoutService.EVENT_TYPES.instanceGenerated, {
-          constraints,
-          version: instanceRecord.version,
-          source: 'agent',
-          timestamp: new Date().toISOString()
-        });
-
-        // Store mapping for swap/adjust/remove operations
         agentWorkoutSessions.set(sessionId, {
-          workoutSessionId: workoutSession.id
+          workoutSessionId: detail.session.id
         });
 
-        // Create artifact for agent UI delivery
+        const instance = detail.instance || { title: detail.workout?.title || 'Your Workout', exercises: [] };
+
         const artifact = {
           type: 'exercise_list',
           schema_version: '1.0',
           title: instance.title || 'Your Workout',
           summary: {
-            duration_min: instance.estimated_duration_min || null,
+            duration_min: instance.estimated_duration_min || detail.workout?.planned_duration_min || null,
             focus: instance.focus || [],
-            exercise_count: instance.exercises.length
+            exercise_count: instance.exercises?.length || 0
           },
           auto_start: false,
           payload: {
-            exercises: instance.exercises,
-            workout_session_id: workoutSession.id
+            exercises: instance.exercises || [],
+            workout_session_id: detail.session.id
           }
         };
 
@@ -88,8 +79,8 @@ const exerciseTools = {
         return {
           success: true,
           artifact_id,
-          exercise_count: instance.exercises.length,
-          workout_session_id: workoutSession.id,
+          exercise_count: artifact.summary.exercise_count,
+          workout_session_id: detail.session.id,
           summary: artifact.summary
         };
       } catch (error) {
@@ -107,83 +98,29 @@ const exerciseTools = {
 
   swap_exercise: {
     description: 'Replace an exercise in the current workout with an AI-generated alternative.',
-    statusMessage: {
-      start: 'Finding alternative...',
-      done: 'Exercise swapped'
-    },
+    statusMessage: { start: 'Finding alternative...', done: 'Exercise swapped' },
     parameters: {
       type: 'object',
       properties: {
-        exercise_index: {
-          type: 'integer',
-          description: 'Index of the exercise to replace (0-based)'
-        },
-        reason: {
-          type: 'string',
-          description: 'Why the exercise should be replaced (e.g., "equipment not available", "causes shoulder pain")'
-        }
+        exercise_index: { type: 'integer', description: 'Index of the exercise to replace (0-based)' },
+        reason: { type: 'string', description: 'Why the exercise should be replaced' }
       },
       required: ['exercise_index']
     },
-    execute: async (args, context) => {
-      const { userId, sessionId } = context;
-      const workoutRef = agentWorkoutSessions.get(sessionId);
-
-      if (!workoutRef) {
-        return { success: false, error: 'No active workout session. Generate a workout first.' };
-      }
-
-      try {
-        // Get current exercise name for the response
-        const latestInstance = await workoutService.getLatestInstance(workoutRef.workoutSessionId);
-        const exercises = latestInstance?.instance_json?.exercises || [];
-        const oldExercise = exercises[args.exercise_index];
-
-        if (!oldExercise) {
-          return {
-            success: false,
-            error: `Invalid exercise index ${args.exercise_index}. Workout has ${exercises.length} exercises (0-${exercises.length - 1}).`
-          };
-        }
-
-        const result = await workoutService.applyAction({
-          sessionId: workoutRef.workoutSessionId,
-          userId,
-          actionType: 'swap_exercise',
-          payload: { index: args.exercise_index, reason: args.reason }
-        });
-
-        const newExercise = result.instance?.exercises?.[args.exercise_index];
-
-        return {
-          success: true,
-          old_exercise: oldExercise.exercise_name,
-          new_exercise: newExercise?.exercise_name || 'replacement',
-          instance_updated: result.instanceUpdated
-        };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    },
+    execute: async () => unsupportedMutationResult('swap_exercise'),
     formatResult: (result) => {
       if (!result.success) return `Swap failed: ${result.error}`;
-      return `Swapped "${result.old_exercise}" with "${result.new_exercise}"`;
+      return 'Swap complete';
     }
   },
 
   adjust_exercise: {
     description: 'Adjust the difficulty of an exercise (make it easier or harder).',
-    statusMessage: {
-      start: 'Adjusting exercise...',
-      done: 'Exercise updated'
-    },
+    statusMessage: { start: 'Adjusting exercise...', done: 'Exercise updated' },
     parameters: {
       type: 'object',
       properties: {
-        exercise_index: {
-          type: 'integer',
-          description: 'Index of the exercise to adjust (0-based)'
-        },
+        exercise_index: { type: 'integer', description: 'Index of the exercise to adjust (0-based)' },
         direction: {
           type: 'string',
           enum: ['easier', 'harder'],
@@ -192,112 +129,33 @@ const exerciseTools = {
       },
       required: ['exercise_index', 'direction']
     },
-    execute: async (args, context) => {
-      const { userId, sessionId } = context;
-      const workoutRef = agentWorkoutSessions.get(sessionId);
-
-      if (!workoutRef) {
-        return { success: false, error: 'No active workout session. Generate a workout first.' };
-      }
-
-      try {
-        const result = await workoutService.applyAction({
-          sessionId: workoutRef.workoutSessionId,
-          userId,
-          actionType: 'adjust_prescription',
-          payload: { index: args.exercise_index, direction: args.direction }
-        });
-
-        const exercise = result.instance?.exercises?.[args.exercise_index];
-
-        return {
-          success: true,
-          exercise_name: exercise?.exercise_name || 'exercise',
-          direction: args.direction,
-          instance_updated: result.instanceUpdated
-        };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    },
+    execute: async () => unsupportedMutationResult('adjust_exercise'),
     formatResult: (result) => {
       if (!result.success) return `Adjustment failed: ${result.error}`;
-      return `Made "${result.exercise_name}" ${result.direction}`;
+      return 'Adjustment complete';
     }
   },
 
   remove_exercise: {
     description: 'Remove an exercise from the current workout.',
-    statusMessage: {
-      start: 'Removing exercise...',
-      done: 'Exercise removed'
-    },
+    statusMessage: { start: 'Removing exercise...', done: 'Exercise removed' },
     parameters: {
       type: 'object',
       properties: {
-        exercise_index: {
-          type: 'integer',
-          description: 'Index of the exercise to remove (0-based)'
-        },
-        reason: {
-          type: 'string',
-          description: 'Reason for removal'
-        }
+        exercise_index: { type: 'integer', description: 'Index of the exercise to remove (0-based)' },
+        reason: { type: 'string', description: 'Reason for removal' }
       },
       required: ['exercise_index']
     },
-    execute: async (args, context) => {
-      const { userId, sessionId } = context;
-      const workoutRef = agentWorkoutSessions.get(sessionId);
-
-      if (!workoutRef) {
-        return { success: false, error: 'No active workout session. Generate a workout first.' };
-      }
-
-      try {
-        const latestInstance = await workoutService.getLatestInstance(workoutRef.workoutSessionId);
-        const instanceJson = latestInstance?.instance_json;
-
-        if (!instanceJson?.exercises) {
-          return { success: false, error: 'No exercises found in workout' };
-        }
-
-        const exercises = [...instanceJson.exercises];
-        if (args.exercise_index < 0 || args.exercise_index >= exercises.length) {
-          return {
-            success: false,
-            error: `Invalid exercise index ${args.exercise_index}. Workout has ${exercises.length} exercises (0-${exercises.length - 1}).`
-          };
-        }
-
-        const removed = exercises.splice(args.exercise_index, 1)[0];
-        const updatedInstance = { ...instanceJson, exercises };
-        await workoutService.createWorkoutInstance(workoutRef.workoutSessionId, updatedInstance);
-
-        await workoutService.logEvent(workoutRef.workoutSessionId, workoutService.EVENT_TYPES.action, {
-          action_type: 'remove_exercise',
-          payload: { index: args.exercise_index, reason: args.reason },
-          removed_exercise: removed.exercise_name,
-          timestamp: new Date().toISOString()
-        });
-
-        return {
-          success: true,
-          removed_exercise: removed.exercise_name,
-          remaining_count: exercises.length
-        };
-      } catch (error) {
-        return { success: false, error: error.message };
-      }
-    },
+    execute: async () => unsupportedMutationResult('remove_exercise'),
     formatResult: (result) => {
       if (!result.success) return `Removal failed: ${result.error}`;
-      return `Removed "${result.removed_exercise}". ${result.remaining_count} exercises remaining.`;
+      return 'Exercise removed.';
     }
   },
 
   log_workout: {
-    description: 'Log the completed workout to history.',
+    description: 'Finalize and log the active workout session.',
     statusMessage: {
       start: 'Saving your workout...',
       done: 'Workout logged'
@@ -322,8 +180,7 @@ const exerciseTools = {
           type: 'string',
           description: 'Overall workout notes'
         }
-      },
-      required: ['completed_exercises']
+      }
     },
     execute: async (args, context) => {
       const { userId, sessionId } = context;
@@ -334,22 +191,25 @@ const exerciseTools = {
       }
 
       try {
-        const logPayload = {
-          completed_exercises: args.completed_exercises,
-          workout_notes: args.workout_notes || null
-        };
+        const completedCount = Array.isArray(args.completed_exercises)
+          ? args.completed_exercises.filter(e => e.completed).length
+          : 0;
 
-        await workoutService.saveWorkoutLog(workoutRef.workoutSessionId, logPayload);
+        const summary = await workoutTrackingService.finalizeSession({
+          userId,
+          sessionId: workoutRef.workoutSessionId,
+          reflection: {
+            notes: args.workout_notes || null
+          },
+          mode: 'complete'
+        });
 
-        const completedCount = args.completed_exercises.filter(e => e.completed).length;
-
-        // Clean up agent session mapping
         agentWorkoutSessions.delete(sessionId);
 
         return {
           success: true,
           logged_count: completedCount,
-          total_in_workout: args.completed_exercises.length
+          summary
         };
       } catch (error) {
         return { success: false, error: error.message };
@@ -357,12 +217,11 @@ const exerciseTools = {
     },
     formatResult: (result) => {
       if (!result.success) return `Logging failed: ${result.error}`;
-      return `Logged ${result.logged_count}/${result.total_in_workout} exercises to history.`;
+      return `Workout logged. ${result.logged_count} exercises marked complete.`;
     }
   }
 };
 
-// Get workout session reference for an agent session
 function getWorkoutSession(sessionId) {
   return agentWorkoutSessions.get(sessionId) || null;
 }

@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - Enums
 
@@ -41,11 +42,23 @@ struct ActiveWorkoutState: Codable {
     var skippedExercises: [String]       // UUID strings
     var painFlaggedExercises: [String]   // UUID strings
     var exerciseRpeByIndex: [Int: Int]?
+    var exercisePayloadVersions: [String: Int]?
+    var pendingCommands: [PendingExerciseCommand]?
 
     var presentationMode: WorkoutPresentationMode
 
     var accumulatedSeconds: TimeInterval
     var lastActiveAt: Date
+}
+
+struct PendingExerciseCommand: Codable, Identifiable {
+    let id: String
+    let sessionId: String
+    let exerciseId: String
+    var expectedVersion: Int
+    let command: WorkoutExerciseCommand
+    let createdAt: Date
+    var retryCount: Int
 }
 
 // MARK: - WorkoutStore
@@ -70,6 +83,8 @@ class WorkoutStore {
     var skippedExercises: Set<UUID> = []
     var painFlaggedExercises: Set<UUID> = []
     var exerciseRpeByIndex: [Int: Int] = [:]
+    var exercisePayloadVersions: [UUID: Int] = [:]
+    var pendingCommands: [PendingExerciseCommand] = []
     var pendingRpeExerciseIndex: Int?
 
     // MARK: - View State
@@ -108,6 +123,7 @@ class WorkoutStore {
     // MARK: - Dependencies
 
     private let apiService = APIService()
+    private var isFlushingCommandOutbox: Bool = false
 
     private init() {}
 
@@ -202,15 +218,36 @@ class WorkoutStore {
     func captureExerciseRpe(_ value: Int, forExerciseAt index: Int? = nil) {
         let targetIndex = index ?? pendingRpeExerciseIndex
         guard let targetIndex, targetIndex >= 0, targetIndex < exercises.count else { return }
+        let exercise = exercises[targetIndex]
         let clamped = max(1, min(10, value))
         exerciseRpeByIndex[targetIndex] = clamped
         if pendingRpeExerciseIndex == targetIndex {
             pendingRpeExerciseIndex = nil
         }
+        let command = WorkoutExerciseCommand(
+            type: .setExerciseRpe,
+            setIndex: nil,
+            actualReps: nil,
+            actualLoad: nil,
+            loadUnit: nil,
+            actualDurationSec: nil,
+            actualDistanceKm: nil,
+            targetReps: nil,
+            targetLoad: nil,
+            targetDurationSec: nil,
+            targetDistanceKm: nil,
+            rpe: clamped,
+            notes: nil,
+            reason: nil,
+            restSeconds: nil
+        )
+        enqueueExerciseCommand(for: exercise, command: command)
+        persist()
     }
 
     func dismissPendingRpePrompt() {
         pendingRpeExerciseIndex = nil
+        persist()
     }
 
     // MARK: - Session Lifecycle
@@ -375,35 +412,42 @@ class WorkoutStore {
                 adHocEventIdForRollback = event.id
             }
 
-            // 1. Create or resume session
-            let sessionResponse = try await apiService.createOrResumeWorkoutSession(
-                forceNew: true,
-                calendarEventId: currentCalendarEventId,
-                plannedSessionId: currentPlannedSessionId
-            )
-            currentSession = sessionResponse.session
-
-            // 2. Build generate request
+            // 1. Build V2 create session request
             let equipment = selectedLocation?.equipment.map { $0.name }
             let intent = arrivedFromIntentPage ? "user_specified" : "planned"
-            let request = WorkoutGenerateRequest(
+            let createRequest = WorkoutTrackingSessionCreateRequest(
                 intent: intent,
                 requestText: arrivedFromIntentPage ? cleaned(intentText) : nil,
                 timeAvailableMin: effectiveDuration,
                 equipment: equipment,
+                plannedSession: nil,
                 plannedIntentOriginal: originalIntentPayload,
                 plannedIntentEdited: editedPayload,
-                coachMode: nil
+                calendarEventId: currentCalendarEventId,
+                plannedSessionId: currentPlannedSessionId,
+                coachMode: nil,
+                metadata: [
+                    "source": .string("ios"),
+                    "arrived_from_intent": .bool(arrivedFromIntentPage)
+                ]
             )
 
-            // 3. Generate workout instance
-            let instanceResponse = try await apiService.generateWorkoutInstance(
-                sessionId: currentSession!.id,
-                request: request
+            // 2. Create V2 session and receive generated workout
+            let trackingResponse = try await apiService.createWorkoutTrackingSession(createRequest)
+            currentSession = trackingResponse.session
+            currentInstance = trackingResponse.instance
+            exercisePayloadVersions = Dictionary(
+                uniqueKeysWithValues: trackingResponse.exercises.compactMap { exercise in
+                    guard let exerciseId = UUID(uuidString: exercise.id) else { return nil }
+                    return (exerciseId, exercise.payloadVersion)
+                }
             )
-            currentInstance = instanceResponse.instance
+            if exercisePayloadVersions.isEmpty, let generatedExercises = trackingResponse.instance?.exercises {
+                exercisePayloadVersions = Dictionary(uniqueKeysWithValues: generatedExercises.map { ($0.id, 1) })
+            }
+            pendingCommands = []
 
-            // 4. Transition to active
+            // 3. Transition to active
             sessionStatus = .active
             accumulatedSeconds = 0
             currentSegmentStart = Date()
@@ -448,6 +492,14 @@ class WorkoutStore {
             completedSets[exercise.id] = []
         }
         completedSets[exercise.id]?.insert(completedCount)
+        persist()
+
+        if let command = commandForCompletedSet(
+            exercise: exercise,
+            setIndex: completedCount
+        ) {
+            enqueueExerciseCommand(for: exercise, command: command)
+        }
 
         let newCompleted = completedSets[exercise.id]?.count ?? 0
         if newCompleted >= totalSets {
@@ -483,6 +535,26 @@ class WorkoutStore {
     func skipExercise() {
         guard let exercise = currentExercise else { return }
         skippedExercises.insert(exercise.id)
+        persist()
+
+        let command = WorkoutExerciseCommand(
+            type: .skipExercise,
+            setIndex: nil,
+            actualReps: nil,
+            actualLoad: nil,
+            loadUnit: nil,
+            actualDurationSec: nil,
+            actualDistanceKm: nil,
+            targetReps: nil,
+            targetLoad: nil,
+            targetDurationSec: nil,
+            targetDistanceKm: nil,
+            rpe: nil,
+            notes: nil,
+            reason: "user_skipped",
+            restSeconds: nil
+        )
+        enqueueExerciseCommand(for: exercise, command: command)
 
         if isLastExercise || allExercisesComplete {
             sessionStatus = .completing
@@ -491,109 +563,254 @@ class WorkoutStore {
         }
     }
 
+    private func commandForCompletedSet(
+        exercise: UIExercise,
+        setIndex: Int
+    ) -> WorkoutExerciseCommand? {
+        switch exercise.type {
+        case "intervals":
+            return WorkoutExerciseCommand(
+                type: .completeSet,
+                setIndex: setIndex,
+                actualReps: nil,
+                actualLoad: nil,
+                loadUnit: nil,
+                actualDurationSec: exercise.work_sec,
+                actualDistanceKm: nil,
+                targetReps: nil,
+                targetLoad: nil,
+                targetDurationSec: nil,
+                targetDistanceKm: nil,
+                rpe: nil,
+                notes: nil,
+                reason: nil,
+                restSeconds: nil
+            )
+        case "duration":
+            let duration = exercise.duration_min.map { max(0, $0 * 60) }
+            return WorkoutExerciseCommand(
+                type: .completeSet,
+                setIndex: min(setIndex, 0),
+                actualReps: nil,
+                actualLoad: nil,
+                loadUnit: nil,
+                actualDurationSec: duration,
+                actualDistanceKm: exercise.distance_km,
+                targetReps: nil,
+                targetLoad: nil,
+                targetDurationSec: nil,
+                targetDistanceKm: nil,
+                rpe: nil,
+                notes: nil,
+                reason: nil,
+                restSeconds: nil
+            )
+        case "hold":
+            let holds = exercise.hold_duration_sec ?? []
+            let safe = min(max(setIndex, 0), max(holds.count - 1, 0))
+            let duration = holds.isEmpty ? nil : holds[safe]
+            return WorkoutExerciseCommand(
+                type: .completeSet,
+                setIndex: safe,
+                actualReps: nil,
+                actualLoad: nil,
+                loadUnit: exercise.load_unit,
+                actualDurationSec: duration,
+                actualDistanceKm: nil,
+                targetReps: nil,
+                targetLoad: nil,
+                targetDurationSec: nil,
+                targetDistanceKm: nil,
+                rpe: nil,
+                notes: nil,
+                reason: nil,
+                restSeconds: nil
+            )
+        default:
+            var repsValue: Int?
+            if let reps = exercise.reps, !reps.isEmpty {
+                let safe = min(max(setIndex, 0), reps.count - 1)
+                repsValue = reps[safe]
+            }
+            var loadValue: Double?
+            if let loads = exercise.load_each, !loads.isEmpty {
+                let safe = loads.count == 1 ? 0 : min(max(setIndex, 0), loads.count - 1)
+                loadValue = loads[safe]
+            }
+            return WorkoutExerciseCommand(
+                type: .completeSet,
+                setIndex: setIndex,
+                actualReps: repsValue,
+                actualLoad: loadValue,
+                loadUnit: exercise.load_unit,
+                actualDurationSec: nil,
+                actualDistanceKm: nil,
+                targetReps: nil,
+                targetLoad: nil,
+                targetDurationSec: nil,
+                targetDistanceKm: nil,
+                rpe: nil,
+                notes: nil,
+                reason: nil,
+                restSeconds: nil
+            )
+        }
+    }
+
+    private func commandClientMeta() -> WorkoutCommandClientMeta {
+        WorkoutCommandClientMeta(
+            sourceScreen: "workout",
+            appVersion: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String,
+            deviceId: UIDevice.current.identifierForVendor?.uuidString,
+            correlationId: currentSession?.id,
+            clientTimestamp: ISO8601DateFormatter().string(from: Date())
+        )
+    }
+
+    private func enqueueExerciseCommand(for exercise: UIExercise, command: WorkoutExerciseCommand) {
+        guard let session = currentSession else { return }
+
+        let expectedVersion = exercisePayloadVersions[exercise.id] ?? 1
+        exercisePayloadVersions[exercise.id] = expectedVersion + 1
+
+        let pending = PendingExerciseCommand(
+            id: UUID().uuidString,
+            sessionId: session.id,
+            exerciseId: exercise.id.uuidString,
+            expectedVersion: expectedVersion,
+            command: command,
+            createdAt: Date(),
+            retryCount: 0
+        )
+
+        pendingCommands.append(pending)
+        persist()
+
+        Task {
+            await flushPendingCommands()
+        }
+    }
+
+    private func syncTrackingSessionState(sessionId: String) async {
+        do {
+            let detail = try await apiService.fetchWorkoutTrackingSession(sessionId: sessionId)
+            if let instance = detail.instance {
+                currentInstance = instance
+            }
+            var versions: [UUID: Int] = [:]
+            for exercise in detail.exercises {
+                if let uuid = UUID(uuidString: exercise.id) {
+                    versions[uuid] = exercise.payloadVersion
+                }
+            }
+            if !versions.isEmpty {
+                exercisePayloadVersions = versions
+            }
+        } catch {
+            print("Failed to sync V2 tracking session state: \(error)")
+        }
+    }
+
+    private func flushPendingCommands() async {
+        guard !isFlushingCommandOutbox else { return }
+        isFlushingCommandOutbox = true
+        defer { isFlushingCommandOutbox = false }
+
+        while !pendingCommands.isEmpty {
+            var next = pendingCommands[0]
+            guard let exerciseUUID = UUID(uuidString: next.exerciseId) else {
+                pendingCommands.removeFirst()
+                persist()
+                continue
+            }
+
+            do {
+                inFlightActionCount += 1
+                defer { inFlightActionCount -= 1 }
+
+                let request = WorkoutExerciseCommandRequest(
+                    commandId: next.id,
+                    expectedVersion: next.expectedVersion,
+                    command: next.command,
+                    clientMeta: commandClientMeta()
+                )
+                let response = try await apiService.sendWorkoutExerciseCommand(
+                    exerciseId: next.exerciseId,
+                    requestBody: request
+                )
+
+                if let payloadVersion = response.payloadVersion {
+                    exercisePayloadVersions[exerciseUUID] = payloadVersion
+                }
+                pendingCommands.removeFirst()
+                persist()
+            } catch APIError.conflict(let currentVersion) {
+                let serverVersion = currentVersion ?? exercisePayloadVersions[exerciseUUID] ?? next.expectedVersion
+                next.expectedVersion = max(serverVersion, 1)
+                next.retryCount += 1
+                pendingCommands[0] = next
+                exercisePayloadVersions[exerciseUUID] = next.expectedVersion
+                persist()
+
+                if next.retryCount > 4 {
+                    await syncTrackingSessionState(sessionId: next.sessionId)
+                    pendingCommands.removeFirst()
+                    persist()
+                }
+            } catch {
+                next.retryCount += 1
+                pendingCommands[0] = next
+                persist()
+                print("Queued command send failed: \(error)")
+                break
+            }
+        }
+    }
+
     // MARK: - Mid-Workout Actions
 
     func flagPain() async {
-        guard let session = currentSession, let exercise = currentExercise else { return }
+        guard currentSession != nil, let exercise = currentExercise else { return }
         painFlaggedExercises.insert(exercise.id)
-        inFlightActionCount += 1
-        defer { inFlightActionCount -= 1 }
+        persist()
 
-        do {
-            let payload: [String: CodableValue] = [
-                "exercise_id": .string(exercise.id.uuidString),
-                "exercise_name": .string(exercise.exercise_name)
-            ]
-            let response = try await apiService.sendWorkoutAction(
-                sessionId: session.id,
-                actionType: "flag_pain",
-                payload: payload
-            )
-            if let updatedInstance = response.instance {
-                currentInstance = updatedInstance
-            }
-        } catch {
-            print("Pain flag failed: \(error)")
-        }
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let command = WorkoutExerciseCommand(
+            type: .setExerciseNote,
+            setIndex: nil,
+            actualReps: nil,
+            actualLoad: nil,
+            loadUnit: nil,
+            actualDurationSec: nil,
+            actualDistanceKm: nil,
+            targetReps: nil,
+            targetLoad: nil,
+            targetDurationSec: nil,
+            targetDistanceKm: nil,
+            rpe: nil,
+            notes: "Pain flagged at \(timestamp)",
+            reason: nil,
+            restSeconds: nil
+        )
+        enqueueExerciseCommand(for: exercise, command: command)
     }
 
     func swapExercise() async {
-        guard let session = currentSession, let exercise = currentExercise else { return }
-        inFlightActionCount += 1
-        defer { inFlightActionCount -= 1 }
-
-        do {
-            let payload: [String: CodableValue] = [
-                "exercise_id": .string(exercise.id.uuidString),
-                "exercise_name": .string(exercise.exercise_name)
-            ]
-            let response = try await apiService.sendWorkoutAction(
-                sessionId: session.id,
-                actionType: "swap_exercise",
-                payload: payload
-            )
-            if let updatedInstance = response.instance {
-                currentInstance = updatedInstance
-            }
-        } catch {
-            errorMessage = "Failed to swap exercise."
-            print("Swap exercise failed: \(error)")
-        }
+        errorMessage = "Exercise swap is unavailable in V2."
     }
 
     func adjustDifficulty() async {
-        guard let session = currentSession, let exercise = currentExercise else { return }
-        inFlightActionCount += 1
-        defer { inFlightActionCount -= 1 }
-
-        do {
-            let payload: [String: CodableValue] = [
-                "exercise_id": .string(exercise.id.uuidString),
-                "exercise_name": .string(exercise.exercise_name)
-            ]
-            let response = try await apiService.sendWorkoutAction(
-                sessionId: session.id,
-                actionType: "adjust_prescription",
-                payload: payload
-            )
-            if let updatedInstance = response.instance {
-                currentInstance = updatedInstance
-            }
-        } catch {
-            errorMessage = "Failed to adjust difficulty."
-            print("Adjust difficulty failed: \(error)")
-        }
+        errorMessage = "Difficulty adjustment is unavailable in V2."
     }
 
     func timeScale(targetMinutes: Int) async {
-        guard let session = currentSession else { return }
-        inFlightActionCount += 1
-        defer { inFlightActionCount -= 1 }
-
-        do {
-            let payload: [String: CodableValue] = [
-                "target_duration_min": .int(targetMinutes)
-            ]
-            let response = try await apiService.sendWorkoutAction(
-                sessionId: session.id,
-                actionType: "time_scale",
-                payload: payload
-            )
-            if let updatedInstance = response.instance {
-                currentInstance = updatedInstance
-            }
-        } catch {
-            errorMessage = "Failed to adjust workout duration."
-            print("Time scale failed: \(error)")
-        }
+        _ = targetMinutes
+        errorMessage = "Time scaling is unavailable in V2."
     }
 
     // MARK: - Completion
 
-    func completeWorkout(notes: String?, sessionRpe: Int? = nil) async {
-        guard let session = currentSession else { return }
-        pendingRpeExerciseIndex = nil
-
+    private func buildCompletionPayload(notes: String?, sessionRpe: Int?) -> (reflection: WorkoutReflection, log: WorkoutLogPayload) {
         let resolvedSessionRpe = sessionRpe ?? suggestedSessionRpe
 
         let reflection = WorkoutReflection(
@@ -622,11 +839,21 @@ class WorkoutStore {
             exerciseRpe: exerciseRpeEntries.isEmpty ? nil : exerciseRpeEntries
         )
 
+        return (reflection, log)
+    }
+
+    func completeWorkout(notes: String?, sessionRpe: Int? = nil) async {
+        guard let session = currentSession else { return }
+        await flushPendingCommands()
+        pendingRpeExerciseIndex = nil
+        let payload = buildCompletionPayload(notes: notes, sessionRpe: sessionRpe)
+        let resolvedSessionRpe = payload.reflection.rpe
+
         do {
             let response = try await apiService.completeWorkoutSession(
                 sessionId: session.id,
-                reflection: reflection,
-                log: log
+                reflection: payload.reflection,
+                log: payload.log
             )
             summary = response.summary
             sessionStatus = .completed
@@ -645,6 +872,23 @@ class WorkoutStore {
                 nextSessionFocus: ""
             )
             sessionStatus = .completed
+        }
+    }
+
+    func stopWorkout(reason: String = "user_stopped", notes: String? = nil, sessionRpe: Int? = nil) async {
+        guard let session = currentSession else { return }
+        await flushPendingCommands()
+        let payload = buildCompletionPayload(notes: notes, sessionRpe: sessionRpe)
+
+        do {
+            _ = try await apiService.stopWorkoutSession(
+                sessionId: session.id,
+                reason: reason,
+                reflection: payload.reflection,
+                log: payload.log
+            )
+        } catch {
+            print("Stop workout failed: \(error)")
         }
     }
 
@@ -718,6 +962,10 @@ class WorkoutStore {
             skippedExercises: skippedExercises.map { $0.uuidString },
             painFlaggedExercises: painFlaggedExercises.map { $0.uuidString },
             exerciseRpeByIndex: exerciseRpeByIndex,
+            exercisePayloadVersions: exercisePayloadVersions.reduce(into: [:]) { partialResult, item in
+                partialResult[item.key.uuidString] = item.value
+            },
+            pendingCommands: pendingCommands,
             presentationMode: presentationMode,
             accumulatedSeconds: totalSeconds,
             lastActiveAt: Date()
@@ -758,11 +1006,26 @@ class WorkoutStore {
             skippedExercises = Set(state.skippedExercises.compactMap { UUID(uuidString: $0) })
             painFlaggedExercises = Set(state.painFlaggedExercises.compactMap { UUID(uuidString: $0) })
             exerciseRpeByIndex = state.exerciseRpeByIndex ?? [:]
+            exercisePayloadVersions = (state.exercisePayloadVersions ?? [:]).reduce(into: [:]) { partialResult, item in
+                if let uuid = UUID(uuidString: item.key) {
+                    partialResult[uuid] = item.value
+                }
+            }
+            if exercisePayloadVersions.isEmpty {
+                exercisePayloadVersions = Dictionary(uniqueKeysWithValues: exercises.map { ($0.id, 1) })
+            }
+            pendingCommands = state.pendingCommands ?? []
             pendingRpeExerciseIndex = nil
 
             presentationMode = state.presentationMode
             accumulatedSeconds = state.accumulatedSeconds
             currentSegmentStart = nil // Timer is paused until resumeWorkout()
+
+            if !pendingCommands.isEmpty {
+                Task {
+                    await flushPendingCommands()
+                }
+            }
 
             return true
         } catch {
@@ -805,6 +1068,7 @@ class WorkoutStore {
     var isWorkoutViewPresented: Bool = false
 
     func suspendWorkout() async {
+        await flushPendingCommands()
         await waitForInFlightActions()
         pauseTimer()
         showMidWorkoutActions = false
@@ -831,6 +1095,8 @@ class WorkoutStore {
         skippedExercises = []
         painFlaggedExercises = []
         exerciseRpeByIndex = [:]
+        exercisePayloadVersions = [:]
+        pendingCommands = []
         pendingRpeExerciseIndex = nil
 
         presentationMode = .workout
@@ -857,6 +1123,7 @@ class WorkoutStore {
         accumulatedSeconds = 0
         currentSegmentStart = nil
         inFlightActionCount = 0
+        isFlushingCommandOutbox = false
         isWorkoutViewPresented = false
         discardPersistedState()
     }

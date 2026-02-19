@@ -114,10 +114,13 @@ struct HomeView: View {
         }
         .alert("Discard Workout?", isPresented: $showDiscardConfirm) {
             Button("Discard", role: .destructive) {
-                workoutStore.reset()
-                if pendingStartNewWorkoutFromPlus {
-                    pendingStartNewWorkoutFromPlus = false
-                    workoutStore.startNewWorkout()
+                Task {
+                    await workoutStore.stopWorkout(reason: "user_discarded")
+                    workoutStore.reset()
+                    if pendingStartNewWorkoutFromPlus {
+                        pendingStartNewWorkoutFromPlus = false
+                        workoutStore.startNewWorkout()
+                    }
                 }
             }
             Button("Cancel", role: .cancel) {
