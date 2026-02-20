@@ -24,35 +24,22 @@ function nowIso() {
  */
 async function getWeekSessionSummaries(userId, weekStart, weekEnd) {
   const { data: sessions, error: sessError } = await supabase
-    .from('trainer_workout_sessions')
-    .select('id, created_at, status')
+    .from('workout_sessions')
+    .select('id, started_at, status, summary_json')
     .eq('user_id', userId)
     .eq('status', 'completed')
-    .gte('created_at', weekStart.toISOString())
-    .lte('created_at', weekEnd.toISOString())
-    .order('created_at', { ascending: true });
+    .gte('started_at', weekStart.toISOString())
+    .lte('started_at', weekEnd.toISOString())
+    .order('started_at', { ascending: true });
 
   if (sessError) throw sessError;
   if (!sessions?.length) return [];
 
-  const summaries = [];
-  for (const session of sessions) {
-    const { data: summary } = await supabase
-      .from('trainer_session_summaries')
-      .select('summary_json')
-      .eq('session_id', session.id)
-      .order('version', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    summaries.push({
-      session_id: session.id,
-      date: session.created_at,
-      summary: summary?.summary_json || null
-    });
-  }
-
-  return summaries;
+  return sessions.map(session => ({
+    session_id: session.id,
+    date: session.started_at,
+    summary: session.summary_json || null
+  }));
 }
 
 /**

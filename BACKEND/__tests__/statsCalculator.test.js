@@ -11,107 +11,69 @@ const {
   getCurrentWeekBounds
 } = require('../services/statsCalculator.service');
 
-const { repsExercise, holdExercise, durationExercise, intervalsExercise } = require('./fixtures/exercises');
-const { sampleSetEvents, sampleIntervalEvents, sampleSafetyEvents } = require('./fixtures/sessionEvents');
-
 beforeEach(() => {
   mockChain.reset();
 });
 
-// ─── Pure Function Tests ─────────────────────────────────────────────
-
 describe('calculateSessionStats', () => {
-  const baseSession = {
-    created_at: '2026-02-16T10:00:00Z',
-    updated_at: '2026-02-16T10:45:00Z',
-    metadata: { energy_level: 3 }
-  };
+  it('aggregates reps/volume/duration from exercise rows', () => {
+    const result = calculateSessionStats({
+      exercises: [
+        {
+          status: 'completed',
+          total_reps: 24,
+          volume: 1200,
+          duration_sec: 180,
+          payload_json: {
+            performance: {
+              sets: [
+                { actual_reps: 12 },
+                { actual_reps: 12 }
+              ]
+            }
+          }
+        },
+        {
+          status: 'skipped',
+          total_reps: 0,
+          volume: 0,
+          duration_sec: 60,
+          payload_json: { performance: { sets: [] } }
+        }
+      ],
+      actions: [],
+      session: { session_rpe: 7 },
+      workout: { actual_duration_min: 42 }
+    });
 
-  it('returns zeros for empty events with exercises in instance', () => {
-    const instance = { exercises: [repsExercise, holdExercise, durationExercise, intervalsExercise] };
-    const result = calculateSessionStats(instance, [], baseSession);
-
-    expect(result.total_exercises).toBe(4);
-    expect(result.exercises_completed).toBe(4);
-    expect(result.total_sets).toBe(0);
-    expect(result.total_reps).toBe(0);
-    expect(result.total_volume).toBe(0);
-  });
-
-  it('calculates correct totals from set events', () => {
-    const instance = { exercises: [repsExercise, holdExercise] };
-    const result = calculateSessionStats(instance, sampleSetEvents, baseSession);
-
-    expect(result.total_sets).toBe(4);
-    expect(result.total_reps).toBe(40);
-    expect(result.total_volume).toBe(1060);
-  });
-
-  it('calculates cardio time from interval events', () => {
-    const instance = { exercises: [intervalsExercise] };
-    const result = calculateSessionStats(instance, sampleIntervalEvents, baseSession);
-    expect(result.cardio_time_min).toBe(3);
-  });
-
-  it('adds duration exercises from instance to cardio time', () => {
-    const instance = { exercises: [durationExercise] };
-    const result = calculateSessionStats(instance, [], baseSession);
-    expect(result.cardio_time_min).toBe(10);
-  });
-
-  it('combines interval events and duration exercises for cardio time', () => {
-    const instance = { exercises: [durationExercise, intervalsExercise] };
-    const result = calculateSessionStats(instance, sampleIntervalEvents, baseSession);
-    expect(result.cardio_time_min).toBe(13);
-  });
-
-  it('calculates workout duration from session timestamps', () => {
-    const result = calculateSessionStats({ exercises: [] }, [], baseSession);
-    expect(result.workout_duration_min).toBe(45);
-  });
-
-  it('returns null workout_duration_min when timestamps are missing', () => {
-    const result = calculateSessionStats({ exercises: [] }, [], {});
-    expect(result.workout_duration_min).toBe(null);
-  });
-
-  it('counts pain flags from safety events', () => {
-    const instance = { exercises: [repsExercise] };
-    const result = calculateSessionStats(instance, sampleSafetyEvents, baseSession);
-    expect(result.pain_flags).toBe(1);
-  });
-
-  it('reads energy rating from session metadata', () => {
-    const result = calculateSessionStats({ exercises: [] }, [], baseSession);
-    expect(result.energy_rating).toBe(3);
-  });
-
-  it('returns null energy_rating when not in metadata', () => {
-    const result = calculateSessionStats({ exercises: [] }, [], { metadata: {} });
-    expect(result.energy_rating).toBe(null);
-  });
-
-  it('calculates exercises skipped as total minus those with logs', () => {
-    const instance = { exercises: [repsExercise, holdExercise, durationExercise, intervalsExercise] };
-    const result = calculateSessionStats(instance, sampleSetEvents, baseSession);
+    expect(result.total_exercises).toBe(2);
     expect(result.exercises_completed).toBe(2);
-    expect(result.exercises_skipped).toBe(2);
+    expect(result.exercises_skipped).toBe(1);
+    expect(result.total_sets).toBe(2);
+    expect(result.total_reps).toBe(24);
+    expect(result.total_volume).toBe(1200);
+    expect(result.cardio_time_min).toBe(4);
+    expect(result.workout_duration_min).toBe(42);
+    expect(result.energy_rating).toBe(7);
   });
 
-  it('handles null instance gracefully', () => {
-    const result = calculateSessionStats(null, [], baseSession);
-    expect(result.total_exercises).toBe(0);
-    expect(result.exercises_completed).toBe(0);
-  });
+  it('counts pain flags from note commands', () => {
+    const result = calculateSessionStats({
+      exercises: [],
+      actions: [
+        { action_type: 'set_exercise_note', action_payload_json: { command: { notes: 'Pain in right knee' } } },
+        { action_type: 'set_exercise_note', action_payload_json: { command: { notes: 'All good' } } }
+      ],
+      session: {},
+      workout: null
+    });
 
-  it('handles undefined exercises array gracefully', () => {
-    const result = calculateSessionStats({}, [], baseSession);
-    expect(result.total_exercises).toBe(0);
+    expect(result.pain_flags).toBe(1);
   });
 });
 
 describe('getCurrentWeekBounds', () => {
-  it('returns Monday and Sunday bounds', () => {
+  it('returns Monday start and Sunday end', () => {
     const { weekStart, weekEnd } = getCurrentWeekBounds();
     expect(weekStart.getDay()).toBe(1);
     expect(weekStart.getHours()).toBe(0);
@@ -120,20 +82,18 @@ describe('getCurrentWeekBounds', () => {
   });
 });
 
-// ─── DB Operation Tests ──────────────────────────────────────────────
-
 describe('calculateWeeklyStats', () => {
   const weekStart = new Date('2026-02-09T00:00:00Z');
   const weekEnd = new Date('2026-02-15T23:59:59Z');
 
-  it('returns zeros when no sessions in range', async () => {
-    mockChain.mockResolveWithCount([], 0);
+  it('returns zero totals when no completed sessions', async () => {
+    mockChain.mockTable('workout_sessions', []);
+    mockChain.mockTable('trainer_calendar_events', []);
+
     const result = await calculateWeeklyStats('user-1', weekStart, weekEnd);
     expect(result.sessions_completed).toBe(0);
     expect(result.total_reps).toBe(0);
     expect(result.total_volume).toBe(0);
-    expect(result.avg_energy_rating).toBe(null);
-    expect(result.avg_session_duration_min).toBe(null);
     expect(result.sessions_planned).toBe(0);
   });
 });

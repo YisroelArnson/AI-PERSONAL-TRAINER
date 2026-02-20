@@ -115,19 +115,19 @@ describe('getWeekSessionSummaries', () => {
   const weekEnd = new Date('2026-02-15T23:59:59Z');
 
   it('returns empty array when no sessions', async () => {
-    mockChain.mockTable('trainer_workout_sessions', []);
+    mockChain.mockTable('workout_sessions', []);
     const result = await getWeekSessionSummaries('user-1', weekStart, weekEnd);
     expect(result).toEqual([]);
   });
 
   it('queries the correct table', async () => {
-    mockChain.mockTable('trainer_workout_sessions', []);
+    mockChain.mockTable('workout_sessions', []);
     await getWeekSessionSummaries('user-1', weekStart, weekEnd);
-    expect(mockChain.from).toHaveBeenCalledWith('trainer_workout_sessions');
+    expect(mockChain.from).toHaveBeenCalledWith('workout_sessions');
   });
 
   it('throws on Supabase error', async () => {
-    mockChain.mockTable('trainer_workout_sessions', null, { message: 'DB error' });
+    mockChain.mockTable('workout_sessions', null, { message: 'DB error' });
     await expect(getWeekSessionSummaries('user-1', weekStart, weekEnd)).rejects.toEqual({ message: 'DB error' });
   });
 });
@@ -157,7 +157,7 @@ describe('runWeeklyReview', () => {
   beforeEach(() => {
     getCurrentWeekBounds.mockReturnValue({ weekStart, weekEnd });
     // Default: no sessions from Supabase
-    mockChain.mockTable('trainer_workout_sessions', []);
+    mockChain.mockTable('workout_sessions', []);
   });
 
   it('skips when no sessions this week', async () => {
@@ -172,10 +172,9 @@ describe('runWeeklyReview', () => {
 
   it('skips when no active program', async () => {
     // Need sessions for it to get past the sessions check
-    mockChain.mockTable('trainer_workout_sessions', [
-      { id: 's1', created_at: '2026-02-16T10:00:00Z', status: 'completed' }
+    mockChain.mockTable('workout_sessions', [
+      { id: 's1', started_at: '2026-02-16T10:00:00Z', status: 'completed', summary_json: {} }
     ]);
-    mockChain.mockTable('trainer_session_summaries', { summary_json: {} });
     getActiveProgram.mockResolvedValue(null);
     getLatestProfile.mockResolvedValue(null);
     calculateWeeklyStats.mockResolvedValue({ sessions_completed: 1 });
