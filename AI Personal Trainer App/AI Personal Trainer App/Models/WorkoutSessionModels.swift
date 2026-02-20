@@ -91,7 +91,7 @@ enum WorkoutExerciseCommandType: String, Codable {
     case adjustRestSeconds = "adjust_rest_seconds"
 }
 
-struct WorkoutExerciseCommand: Encodable, Codable {
+struct WorkoutExerciseCommand: Codable {
     let type: WorkoutExerciseCommandType
     let setIndex: Int?
     let actualReps: Int?
@@ -127,7 +127,7 @@ struct WorkoutExerciseCommand: Encodable, Codable {
     }
 }
 
-struct WorkoutCommandClientMeta: Encodable, Codable {
+struct WorkoutCommandClientMeta: Codable {
     let sourceScreen: String?
     let appVersion: String?
     let deviceId: String?
@@ -143,7 +143,7 @@ struct WorkoutCommandClientMeta: Encodable, Codable {
     }
 }
 
-struct WorkoutExerciseCommandRequest: Encodable, Codable {
+struct WorkoutExerciseCommandRequest: Codable {
     let commandId: String
     let expectedVersion: Int
     let command: WorkoutExerciseCommand
