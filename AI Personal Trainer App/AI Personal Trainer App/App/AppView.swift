@@ -49,6 +49,7 @@ struct AppView: View {
 struct MainAppView: View {
     @EnvironmentObject var userDataStore: UserDataStore
     @StateObject private var appCoordinator = AppStateCoordinator()
+    @State private var workoutStore = WorkoutStore.shared
 
     // Global AI Assistant overlay manager
     @State private var assistantManager = AssistantOverlayManager()
@@ -67,12 +68,16 @@ struct MainAppView: View {
             currentPageView
                 .ignoresSafeArea(.keyboard)
 
-            AssistantOverlayView()
+            if !(currentPage == .home && workoutStore.showPreWorkoutSheet) {
+                AssistantOverlayView()
+            }
 
             // Top bar
-            VStack(spacing: 0) {
-                homeTopBar
-                Spacer()
+            if !(currentPage == .home && workoutStore.showPreWorkoutSheet) {
+                VStack(spacing: 0) {
+                    homeTopBar
+                    Spacer()
+                }
             }
         }
         .environment(\.assistantManager, assistantManager)

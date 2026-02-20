@@ -31,7 +31,7 @@ struct HomeView: View {
     @State private var isLoadingAIMessage: Bool = true
 
     var body: some View {
-        GeometryReader { geometry in
+        GeometryReader { _ in
             ZStack {
                 // Background
                 AppTheme.Colors.background
@@ -56,12 +56,15 @@ struct HomeView: View {
                         .padding(.bottom, 16)
                         .padding(.top, 16)
                 }
+
+                if workoutStore.showPreWorkoutSheet {
+                    PreWorkoutSheet()
+                        .zIndex(20)
+                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
             }
         }
-        .sheet(isPresented: $workoutStore.showPreWorkoutSheet) {
-            PreWorkoutSheet()
-                .presentationDetents([.large])
-        }
+        .animation(AppTheme.Animation.slow, value: workoutStore.showPreWorkoutSheet)
         .fullScreenCover(isPresented: $isWorkoutPresented) {
             WorkoutFlowView()
         }
@@ -93,7 +96,9 @@ struct HomeView: View {
                 pendingStartNewWorkoutFromPlus = true
                 showDiscardConfirm = true
             } else {
-                workoutStore.startNewWorkout()
+                withAnimation(AppTheme.Animation.slow) {
+                    workoutStore.startNewWorkout()
+                }
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .showScheduleWorkoutSheet)) { _ in
@@ -119,7 +124,9 @@ struct HomeView: View {
                     workoutStore.reset()
                     if pendingStartNewWorkoutFromPlus {
                         pendingStartNewWorkoutFromPlus = false
-                        workoutStore.startNewWorkout()
+                        withAnimation(AppTheme.Animation.slow) {
+                            workoutStore.startNewWorkout()
+                        }
                     }
                 }
             }
@@ -155,10 +162,8 @@ struct HomeView: View {
     private var bottomActionBar: some View {
         HStack(spacing: 10) {
             if workoutStore.hasActivePersistedWorkout {
-                // Resume pill
-                ResumePill(
-                    completedCount: workoutStore.totalCompletedExercises,
-                    totalCount: workoutStore.totalExercises,
+                WorkoutPill(
+                    title: resumeWorkoutTitle,
                     onTap: {
                         workoutStore.resumeWorkout()
                     }
@@ -168,19 +173,20 @@ struct HomeView: View {
                     WorkoutPill(
                         title: workoutButtonTitle,
                         onTap: {
-                            workoutStore.startPlannedSession(calendarEvent: event)
+                            withAnimation(AppTheme.Animation.slow) {
+                                workoutStore.startPlannedSession(calendarEvent: event)
+                            }
                         }
                     )
                 } else {
-                    Text("Use + to generate workout")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.secondaryText)
-                        .frame(height: 50)
-                        .padding(.horizontal, 16)
-                        .background(
-                            Capsule()
-                                .fill(AppTheme.Colors.surface)
-                        )
+                    WorkoutPill(
+                        title: "Start a new workout",
+                        onTap: {
+                            withAnimation(AppTheme.Animation.slow) {
+                                workoutStore.startNewWorkout()
+                            }
+                        }
+                    )
                 }
             }
 
@@ -210,6 +216,15 @@ struct HomeView: View {
             return "Today's Workout"
         }
         return "Today's Workout"
+    }
+
+    private var resumeWorkoutTitle: String {
+        let total = max(workoutStore.totalExercises, 0)
+        let remaining = max(total - workoutStore.totalCompletedExercises, 0)
+        if total > 0 {
+            return "Resume workout (\(remaining)/\(total) left)"
+        }
+        return "Resume workout"
     }
 
     // MARK: - Data Loading

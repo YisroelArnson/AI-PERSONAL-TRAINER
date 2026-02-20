@@ -29,6 +29,7 @@ enum WorkoutPresentationMode: String, Codable {
 enum PreWorkoutPage: Equatable {
     case intent
     case review
+    case preview
 }
 
 // MARK: - Persistence Model
@@ -374,14 +375,10 @@ class WorkoutStore {
     func generateWorkout() async {
         sessionStatus = .generating
         errorMessage = nil
-
-        // Dismiss the pre-workout sheet first so fullScreenCover presents cleanly
-        showPreWorkoutSheet = false
-
-        // Small delay to let the sheet dismiss animation complete
-        try? await Task.sleep(nanoseconds: 300_000_000)
-
-        isWorkoutViewPresented = true
+        currentSession = nil
+        currentInstance = nil
+        exercisePayloadVersions = [:]
+        pendingCommands = []
 
         let effectiveTitle = cleaned(preWorkoutTitle, fallback: "Custom Workout")
         let effectiveDescription = cleaned(preWorkoutDescription)
@@ -434,6 +431,14 @@ class WorkoutStore {
 
             // 2. Create V2 session and receive generated workout
             let trackingResponse = try await apiService.createWorkoutTrackingSession(createRequest)
+
+            if !showPreWorkoutSheet {
+                if let eventId = adHocEventIdForRollback {
+                    try? await apiService.deleteCalendarEvent(eventId: eventId, cascadePlanned: true)
+                }
+                return
+            }
+
             currentSession = trackingResponse.session
             currentInstance = trackingResponse.instance
             exercisePayloadVersions = Dictionary(
@@ -447,10 +452,10 @@ class WorkoutStore {
             }
             pendingCommands = []
 
-            // 3. Transition to active
-            sessionStatus = .active
+            // 3. Keep workout in pre-workout flow until user explicitly starts
+            sessionStatus = .preWorkout
             accumulatedSeconds = 0
-            currentSegmentStart = Date()
+            currentSegmentStart = nil
             timeAvailableMin = effectiveDuration
 
         } catch {
@@ -460,6 +465,9 @@ class WorkoutStore {
                 currentPlannedSessionId = nil
                 latestGeneratedAdHocEventId = nil
             }
+            if !showPreWorkoutSheet {
+                return
+            }
             currentSession = nil
             currentInstance = nil
             errorMessage = "Failed to generate workout. Please try again."
@@ -468,6 +476,18 @@ class WorkoutStore {
             showPreWorkoutSheet = true
             print("Workout generation failed: \(error)")
         }
+    }
+
+    /// Start the generated workout from preview page.
+    func startGeneratedWorkout() {
+        guard currentInstance != nil else { return }
+        sessionStatus = .active
+        currentExerciseIndex = 0
+        showMidWorkoutActions = false
+        accumulatedSeconds = 0
+        currentSegmentStart = Date()
+        showPreWorkoutSheet = false
+        isWorkoutViewPresented = true
     }
 
     // MARK: - Exercise Execution

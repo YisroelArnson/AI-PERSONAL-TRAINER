@@ -12,52 +12,77 @@ struct WorkoutPill: View {
     let title: String
     let onTap: () -> Void
 
-    // Animation state for scrolling text
     @State private var textWidth: CGFloat = 0
     @State private var containerWidth: CGFloat = 0
     @State private var scrollOffset: CGFloat = 0
-    @State private var isScrollingForward: Bool = true
+    @State private var scrollTask: Task<Void, Never>?
 
-    // Scrolling configuration
-    private let scrollSpeed: CGFloat = 0.4 // px per frame
-    private let pauseDuration: TimeInterval = 1.0 // seconds to pause at each end
+    private let scrollSpeed: CGFloat = 20 // points per second
+    private let pauseDuration: TimeInterval = 0.9
     private let playButtonSize: CGFloat = 32
-    private let pillHeight: CGFloat = 50 // Match AI orb height
+    private let pillHeight: CGFloat = 50
 
     private var shouldScroll: Bool {
-        textWidth > containerWidth
+        textOverflow > 6
+    }
+
+    private var textOverflow: CGFloat {
+        max(0, textWidth - containerWidth)
+    }
+
+    private var maxScrollDistance: CGFloat {
+        textOverflow + 12
     }
 
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: 11) {
-                // Scrolling text container
+                // Scrolling title
                 GeometryReader { geometry in
                     Text(title)
                         .font(AppTheme.Typography.pillText)
                         .foregroundColor(AppTheme.Colors.primaryText)
+                        .lineLimit(1)
                         .fixedSize(horizontal: true, vertical: false)
                         .frame(maxHeight: .infinity)
                         .offset(x: shouldScroll ? scrollOffset : 0)
                         .background(
                             GeometryReader { textGeometry in
-                                Color.clear.onAppear {
-                                    textWidth = textGeometry.size.width
-                                }
+                                Color.clear
+                                    .onAppear {
+                                        textWidth = textGeometry.size.width
+                                        restartScrollIfNeeded()
+                                    }
+                                    .onChange(of: textGeometry.size.width) { _, newWidth in
+                                        textWidth = newWidth
+                                        restartScrollIfNeeded()
+                                    }
                             }
                         )
                         .onAppear {
                             containerWidth = geometry.size.width
-                            if shouldScroll {
-                                startScrollAnimation()
-                            }
+                            restartScrollIfNeeded()
                         }
                         .onChange(of: geometry.size.width) { _, newWidth in
                             containerWidth = newWidth
-                            if shouldScroll {
-                                startScrollAnimation()
-                            }
+                            restartScrollIfNeeded()
                         }
+                }
+                .mask {
+                    if shouldScroll {
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: .black, location: 0.07),
+                                .init(color: .black, location: 0.93),
+                                .init(color: .clear, location: 1)
+                            ],
+                            startPoint: .leading,
+                            endPoint: .trailing
+                        )
+                    } else {
+                        Color.black
+                    }
                 }
                 .frame(height: 20)
                 .clipped()
@@ -82,46 +107,45 @@ struct WorkoutPill: View {
             )
         }
         .buttonStyle(.plain)
+        .onChange(of: title) { _, _ in
+            restartScrollIfNeeded()
+        }
+        .onDisappear {
+            scrollTask?.cancel()
+            scrollTask = nil
+        }
     }
 
-    private func startScrollAnimation() {
-        // Start the scroll timer
-        Timer.scheduledTimer(withTimeInterval: 0.03, repeats: true) { timer in
-            guard shouldScroll else {
-                timer.invalidate()
-                return
-            }
+    private func restartScrollIfNeeded() {
+        scrollTask?.cancel()
+        scrollTask = nil
+        scrollOffset = 0
 
-            let maxOffset = -(textWidth - containerWidth + 8) // Extra padding
+        guard shouldScroll else { return }
 
-            if isScrollingForward {
-                // Scrolling left (text moves left, revealing more)
-                scrollOffset -= scrollSpeed
+        let distance = maxScrollDistance
+        let duration = max(0.8, Double(distance / scrollSpeed))
 
-                if scrollOffset <= maxOffset {
-                    // Reached end, pause then reverse direction
-                    scrollOffset = maxOffset
-                    timer.invalidate()
+        scrollTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(pauseDuration * 1_000_000_000))
 
-                    DispatchQueue.main.asyncAfter(deadline: .now() + pauseDuration) {
-                        isScrollingForward = false
-                        startScrollAnimation()
-                    }
+            while !Task.isCancelled && shouldScroll {
+                withAnimation(.easeInOut(duration: duration)) {
+                    scrollOffset = -distance
                 }
-            } else {
-                // Scrolling right (text moves right, returning)
-                scrollOffset += scrollSpeed
+                try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+                if Task.isCancelled { break }
 
-                if scrollOffset >= 0 {
-                    // Reached start, pause then forward direction
+                try? await Task.sleep(nanoseconds: UInt64(pauseDuration * 1_000_000_000))
+                if Task.isCancelled { break }
+
+                withAnimation(.easeInOut(duration: duration)) {
                     scrollOffset = 0
-                    timer.invalidate()
-
-                    DispatchQueue.main.asyncAfter(deadline: .now() + pauseDuration) {
-                        isScrollingForward = true
-                        startScrollAnimation()
-                    }
                 }
+                try? await Task.sleep(nanoseconds: UInt64(duration * 1_000_000_000))
+                if Task.isCancelled { break }
+
+                try? await Task.sleep(nanoseconds: UInt64(pauseDuration * 1_000_000_000))
             }
         }
     }
