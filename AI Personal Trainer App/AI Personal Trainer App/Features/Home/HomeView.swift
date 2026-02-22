@@ -119,14 +119,17 @@ struct HomeView: View {
         }
         .alert("Discard Workout?", isPresented: $showDiscardConfirm) {
             Button("Discard", role: .destructive) {
-                Task {
-                    await workoutStore.stopWorkout(reason: "user_discarded")
-                    workoutStore.reset()
-                    if pendingStartNewWorkoutFromPlus {
-                        pendingStartNewWorkoutFromPlus = false
-                        withAnimation(AppTheme.Animation.slow) {
-                            workoutStore.startNewWorkout()
-                        }
+                let shouldStartNewWorkout = pendingStartNewWorkoutFromPlus
+                pendingStartNewWorkoutFromPlus = false
+
+                // Do not block UI on stop call; queue it and transition immediately.
+                workoutStore.queueStopCurrentWorkout(reason: "user_discarded")
+
+                withAnimation(AppTheme.Animation.slow) {
+                    if shouldStartNewWorkout {
+                        workoutStore.startNewWorkout()
+                    } else {
+                        workoutStore.reset()
                     }
                 }
             }
@@ -169,7 +172,7 @@ struct HomeView: View {
                     }
                 )
             } else {
-                if let event = todaysEvent {
+                if let event = todaysPlannedEvent {
                     WorkoutPill(
                         title: workoutButtonTitle,
                         onTap: {
@@ -205,8 +208,13 @@ struct HomeView: View {
         }
     }
 
+    private var todaysPlannedEvent: CalendarEvent? {
+        guard let event = todaysEvent, hasUsablePlannedIntent(event) else { return nil }
+        return event
+    }
+
     private var workoutButtonTitle: String {
-        if let event = todaysEvent {
+        if let event = todaysPlannedEvent {
             if let focus = event.plannedSession?.intentJson["focus"]?.stringValue {
                 return focus
             }
@@ -225,6 +233,22 @@ struct HomeView: View {
             return "Resume workout (\(remaining)/\(total) left)"
         }
         return "Resume workout"
+    }
+
+    private func hasUsablePlannedIntent(_ event: CalendarEvent) -> Bool {
+        guard let intent = event.plannedSession?.intentJson else { return false }
+
+        if let focus = intent["focus"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !focus.isEmpty {
+            return true
+        }
+        if let notes = intent["notes"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+            return true
+        }
+        if intent["duration_min"]?.intValue != nil {
+            return true
+        }
+
+        return false
     }
 
     // MARK: - Data Loading

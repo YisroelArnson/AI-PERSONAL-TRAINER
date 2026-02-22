@@ -1,5 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
+const { buildCalendarTemplatesFromSchedule, WEEKDAY_ORDER } = require('./programSchedule.service');
 
 dotenv.config();
 
@@ -18,6 +19,11 @@ function addDays(date, days) {
   const d = new Date(date);
   d.setDate(d.getDate() + days);
   return d;
+}
+
+function clampInt(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, Math.round(value)));
 }
 
 function normalizeEvent(event) {
@@ -281,6 +287,106 @@ function parseDaysPerWeek(markdown) {
   return match ? parseInt(match[1]) : 3;
 }
 
+function resolveSchedulePlan(programData = {}, markdownFallback = '') {
+  const fromScheduleJson = buildCalendarTemplatesFromSchedule(programData.schedule_json);
+  if (fromScheduleJson.sessions.length > 0) {
+    const safeDaysFromSchedule = clampInt(
+      Math.max(fromScheduleJson.daysPerWeek || fromScheduleJson.sessions.length, fromScheduleJson.sessions.length),
+      1,
+      7
+    );
+    return {
+      safeDaysPerWeek: safeDaysFromSchedule,
+      sessionTemplates: fromScheduleJson.sessions
+    };
+  }
+
+  const markdown = markdownFallback || programData.program_markdown || '';
+  const parsedSessions = parseSessionsFromMarkdown(markdown);
+  const parsedDays = parseDaysPerWeek(markdown);
+  const safeDaysFromMarkdown = clampInt(parsedDays, 1, 7);
+  if (parsedSessions.length > 0) {
+    console.warn('[calendar] Falling back to markdown parser because schedule_json is missing or invalid');
+  }
+  return {
+    safeDaysPerWeek: safeDaysFromMarkdown,
+    sessionTemplates: parsedSessions
+  };
+}
+
+function buildProjectedEvents({ userId, nextMonday, safeDaysPerWeek, sessionTemplates, programData = null }) {
+  const events = [];
+  const templateSequence = [];
+  const safeDays = clampInt(safeDaysPerWeek || 1, 1, 7);
+  const templates = Array.isArray(sessionTemplates) && sessionTemplates.length > 0
+    ? sessionTemplates
+    : [{ name: 'Workout', durationMin: 45, intensity: 'moderate', weekday: null }];
+
+  const weekdayToOffset = WEEKDAY_ORDER.reduce((acc, day, idx) => {
+    acc[day] = idx;
+    return acc;
+  }, {});
+
+  const hasWeekdayMapping = templates.every(template => template.weekday && weekdayToOffset[template.weekday] !== undefined);
+  if (hasWeekdayMapping) {
+    const usedOffsets = new Set();
+    const weekdayTemplates = templates
+      .map(template => ({ template, offset: weekdayToOffset[template.weekday] }))
+      .filter(item => {
+        if (usedOffsets.has(item.offset)) return false;
+        usedOffsets.add(item.offset);
+        return true;
+      })
+      .sort((a, b) => a.offset - b.offset)
+      .slice(0, safeDays);
+
+    for (const item of weekdayTemplates) {
+      const date = addDays(nextMonday, item.offset);
+      const event = {
+        user_id: userId,
+        event_type: 'workout',
+        start_at: date.toISOString(),
+        title: item.template.name || 'Workout',
+        status: 'scheduled',
+        source: 'program_projection',
+        user_modified: false
+      };
+      if (programData && programData.id) {
+        event.linked_program_id = programData.id;
+        event.linked_program_version = programData.version;
+      }
+      events.push(event);
+      templateSequence.push(item.template);
+    }
+    return { events, templateSequence };
+  }
+
+  const interval = Math.max(1, Math.floor(7 / safeDays));
+  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+    if (dayOffset % interval === 0 && events.length < safeDays) {
+      const date = addDays(nextMonday, dayOffset);
+      const template = templates[events.length % templates.length] || {};
+      const event = {
+        user_id: userId,
+        event_type: 'workout',
+        start_at: date.toISOString(),
+        title: template.name || 'Workout',
+        status: 'scheduled',
+        source: 'program_projection',
+        user_modified: false
+      };
+      if (programData && programData.id) {
+        event.linked_program_id = programData.id;
+        event.linked_program_version = programData.version;
+      }
+      events.push(event);
+      templateSequence.push(template);
+    }
+  }
+
+  return { events, templateSequence };
+}
+
 async function syncCalendarFromProgram(userId) {
   const { data: activeProgram, error } = await supabase
     .from('trainer_active_program')
@@ -301,45 +407,32 @@ async function syncCalendarFromProgram(userId) {
 
   if (programError) throw programError;
 
-  const markdown = programData.program_markdown || '';
-  const sessionTemplates = parseSessionsFromMarkdown(markdown);
-  const daysPerWeek = parseDaysPerWeek(markdown);
-  const safeDaysPerWeek = Math.max(1, Math.min(daysPerWeek, 7));
+  const schedulePlan = resolveSchedulePlan(programData);
+  const safeDaysPerWeek = schedulePlan.safeDaysPerWeek;
+  const sessionTemplates = schedulePlan.sessionTemplates;
 
-  const today = startOfDay(new Date());
-  const horizonDays = 28;
-  const events = [];
+  // Generate only next week (Mon-Sun), not a 28-day rolling horizon.
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
+  const nextMonday = startOfDay(addDays(now, daysUntilMonday));
+  const projection = buildProjectedEvents({
+    userId,
+    nextMonday,
+    safeDaysPerWeek,
+    sessionTemplates,
+    programData
+  });
+  const events = projection.events;
 
-  const interval = Math.max(1, Math.floor(7 / safeDaysPerWeek));
-  let sessionIndex = 0;
-
-  for (let dayOffset = 0; dayOffset < horizonDays; dayOffset++) {
-    if (dayOffset % interval === 0) {
-      const date = addDays(today, dayOffset);
-      const template = sessionTemplates[sessionIndex % Math.max(sessionTemplates.length, 1)] || {};
-      events.push({
-        user_id: userId,
-        event_type: 'workout',
-        start_at: date.toISOString(),
-        title: template.name || null,
-        status: 'scheduled',
-        source: 'program_projection',
-        user_modified: false,
-        linked_program_id: programData.id,
-        linked_program_version: programData.version
-      });
-      sessionIndex++;
-    }
-  }
-
-  // Clean up existing future projections
+  // Clean up existing projected events from next week onward.
   const { error: cleanupError } = await supabase
     .from('trainer_calendar_events')
     .delete()
     .eq('user_id', userId)
     .eq('source', 'program_projection')
     .eq('user_modified', false)
-    .gte('start_at', today.toISOString());
+    .gte('start_at', nextMonday.toISOString());
 
   if (cleanupError) throw cleanupError;
 
@@ -353,7 +446,7 @@ async function syncCalendarFromProgram(userId) {
 
     for (let idx = 0; idx < createdEvents.length; idx++) {
       const event = createdEvents[idx];
-      const template = sessionTemplates[idx % Math.max(sessionTemplates.length, 1)] || {};
+      const template = projection.templateSequence[idx % Math.max(projection.templateSequence.length, 1)] || {};
       const intent = {
         focus: template.name || 'Workout',
         duration_min: template.durationMin || 45,
@@ -372,17 +465,18 @@ async function syncCalendarFromProgram(userId) {
  * Deletes future planned/scheduled events and creates new ones.
  */
 async function regenerateWeeklyCalendar(userId, programMarkdown) {
-  const sessionTemplates = parseSessionsFromMarkdown(programMarkdown);
-  const daysPerWeek = parseDaysPerWeek(programMarkdown);
-  const safeDaysPerWeek = Math.max(1, Math.min(daysPerWeek, 7));
+  const programData = programMarkdown && typeof programMarkdown === 'object'
+    ? programMarkdown
+    : { program_markdown: String(programMarkdown || '') };
+  const schedulePlan = resolveSchedulePlan(programData, programData.program_markdown);
+  const sessionTemplates = schedulePlan.sessionTemplates;
+  const safeDaysPerWeek = schedulePlan.safeDaysPerWeek;
 
   // Get next Monday
   const now = new Date();
   const dayOfWeek = now.getDay();
   const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
   const nextMonday = startOfDay(addDays(now, daysUntilMonday));
-  const nextSunday = addDays(nextMonday, 6);
-  nextSunday.setHours(23, 59, 59, 999);
 
   // Delete existing future planned events (not completed/user-modified)
   const { error: deleteError } = await supabase
@@ -396,25 +490,15 @@ async function regenerateWeeklyCalendar(userId, programMarkdown) {
 
   if (deleteError) throw deleteError;
 
-  // Create next week's events from template
-  const events = [];
-  const interval = Math.max(1, Math.floor(7 / safeDaysPerWeek));
-
-  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-    if (dayOffset % interval === 0 && events.length < safeDaysPerWeek) {
-      const date = addDays(nextMonday, dayOffset);
-      const template = sessionTemplates[events.length % Math.max(sessionTemplates.length, 1)] || {};
-      events.push({
-        user_id: userId,
-        event_type: 'workout',
-        start_at: date.toISOString(),
-        title: template.name || 'Workout',
-        status: 'scheduled',
-        source: 'program_projection',
-        user_modified: false
-      });
-    }
-  }
+  // Create next week's events from deterministic schedule data.
+  const projection = buildProjectedEvents({
+    userId,
+    nextMonday,
+    safeDaysPerWeek,
+    sessionTemplates,
+    programData: null
+  });
+  const events = projection.events;
 
   if (!events.length) {
     return { created: 0 };
@@ -430,7 +514,7 @@ async function regenerateWeeklyCalendar(userId, programMarkdown) {
   // Create planned sessions for each event
   for (let idx = 0; idx < createdEvents.length; idx++) {
     const event = createdEvents[idx];
-    const template = sessionTemplates[idx % Math.max(sessionTemplates.length, 1)] || {};
+    const template = projection.templateSequence[idx % Math.max(projection.templateSequence.length, 1)] || {};
     const intent = {
       focus: template.name || 'Workout',
       duration_min: template.durationMin || 45,

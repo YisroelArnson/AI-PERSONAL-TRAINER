@@ -26,8 +26,8 @@ app.use('/agent', agentRouter);
 const userSettingsRouter = require('./routes/userSettings.routes');
 app.use('/user-settings', userSettingsRouter);
 
-const workoutTrackingV2Router = require('./routes/workoutTrackingV2.routes');
-app.use('/trainer', workoutTrackingV2Router);
+const workoutTrackingRouter = require('./routes/workoutTracking.routes');
+app.use('/trainer', workoutTrackingRouter);
 
 const trainerIntakeRouter = require('./routes/trainerIntake.routes');
 app.use('/trainer/intake', trainerIntakeRouter);

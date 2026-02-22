@@ -6,7 +6,11 @@ CREATE TABLE IF NOT EXISTS trainer_programs (
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'approved', 'active', 'archived')),
   version INTEGER NOT NULL DEFAULT 1,
-  program_json JSONB NOT NULL,
+  program_markdown TEXT NOT NULL,
+  schedule_json JSONB,
+  schedule_extracted_at TIMESTAMPTZ,
+  schedule_extractor_model TEXT,
+  schedule_source_markdown_hash TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   approved_at TIMESTAMPTZ,
@@ -29,6 +33,8 @@ CREATE TABLE IF NOT EXISTS trainer_active_program (
 );
 
 CREATE INDEX IF NOT EXISTS idx_trainer_programs_user ON trainer_programs(user_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trainer_programs_one_active_per_user ON trainer_programs(user_id) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_trainer_programs_schedule_hash ON trainer_programs(schedule_source_markdown_hash);
 
 ALTER TABLE trainer_programs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE trainer_program_events ENABLE ROW LEVEL SECURITY;

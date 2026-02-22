@@ -135,8 +135,13 @@ private struct ExerciseRow: View {
 
     private var holdDetail: String {
         let sets = exercise.sets ?? 1
-        if let durations = exercise.hold_duration_sec, let first = durations.first {
-            return "\(sets) x \(first)s hold"
+        if let durations = exercise.hold_duration_sec, !durations.isEmpty {
+            let minDuration = durations.min() ?? durations[0]
+            let maxDuration = durations.max() ?? durations[0]
+            let holdText = minDuration == maxDuration
+                ? "\(minDuration)s"
+                : "\(minDuration)-\(maxDuration)s"
+            return "\(sets) x \(holdText) hold"
         }
         return "\(sets) sets"
     }

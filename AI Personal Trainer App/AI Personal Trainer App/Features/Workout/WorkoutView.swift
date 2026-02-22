@@ -10,6 +10,7 @@ import SwiftUI
 struct WorkoutView: View {
     @State var workoutStore = WorkoutStore.shared
     @Environment(\.dismiss) var dismiss
+    @State private var isProcessingMenuAction = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,15 +33,68 @@ struct WorkoutView: View {
 
                 Spacer()
 
-                Button {
-                    withAnimation(AppTheme.Animation.slow) {
-                        workoutStore.presentationMode = workoutStore.presentationMode == .workout ? .list : .workout
+                HStack(spacing: 2) {
+                    Button {
+                        withAnimation(AppTheme.Animation.slow) {
+                            workoutStore.presentationMode = workoutStore.presentationMode == .workout ? .list : .workout
+                        }
+                    } label: {
+                        Image(systemName: workoutStore.presentationMode == .workout ? "list.bullet" : "square.grid.2x2")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(AppTheme.Colors.primaryText)
+                            .frame(width: 44, height: 44)
                     }
-                } label: {
-                    Image(systemName: workoutStore.presentationMode == .workout ? "list.bullet" : "square.grid.2x2")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundStyle(AppTheme.Colors.primaryText)
-                        .frame(width: 44, height: 44)
+                    .disabled(isProcessingMenuAction)
+
+                    Menu {
+                        Button {
+                            performMenuAction {
+                                await workoutStore.swapExercise()
+                            }
+                        } label: {
+                            Label("Swap Exercise", systemImage: "arrow.triangle.2.circlepath")
+                        }
+
+                        Button {
+                            performMenuAction {
+                                await workoutStore.adjustDifficulty()
+                            }
+                        } label: {
+                            Label("Adjust Difficulty", systemImage: "slider.horizontal.3")
+                        }
+
+                        Button {
+                            performMenuAction {
+                                await workoutStore.timeScale(targetMinutes: workoutStore.timeAvailableMin)
+                            }
+                        } label: {
+                            Label("Time Scale", systemImage: "clock.arrow.2.circlepath")
+                        }
+
+                        Button {
+                            performMenuAction {
+                                await workoutStore.flagPain()
+                            }
+                        } label: {
+                            Label("Flag Pain", systemImage: "exclamationmark.triangle")
+                        }
+
+                        Divider()
+
+                        Button(role: .destructive) {
+                            performMenuAction {
+                                workoutStore.skipExercise()
+                            }
+                        } label: {
+                            Label("Skip Exercise", systemImage: "forward.fill")
+                        }
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundStyle(AppTheme.Colors.primaryText)
+                            .frame(width: 44, height: 44)
+                    }
+                    .disabled(isProcessingMenuAction)
                 }
             }
             .padding(.horizontal, 4)
@@ -78,5 +132,24 @@ struct WorkoutView: View {
             WorkoutBottomBar()
         }
         .background(AppTheme.Colors.background)
+        .overlay {
+            if isProcessingMenuAction {
+                ZStack {
+                    Color.black.opacity(0.25)
+                        .ignoresSafeArea()
+                    ProgressView()
+                        .tint(AppTheme.Colors.primaryText)
+                }
+            }
+        }
+    }
+
+    private func performMenuAction(_ action: @escaping () async -> Void) {
+        guard !isProcessingMenuAction else { return }
+        isProcessingMenuAction = true
+        Task { @MainActor in
+            await action()
+            isProcessingMenuAction = false
+        }
     }
 }

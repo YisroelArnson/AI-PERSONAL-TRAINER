@@ -2,6 +2,7 @@ const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const { getAnthropicClient } = require('./modelProviders.service');
 const { getActiveProgram } = require('./trainerProgram.service');
+const { extractScheduleFromMarkdown } = require('./programSchedule.service');
 const { getLatestProfile, formatProfileForPrompt } = require('./trainerWeightsProfile.service');
 const { calculateWeeklyStats, getCurrentWeekBounds } = require('./statsCalculator.service');
 const { regenerateWeeklyCalendar } = require('./trainerCalendar.service');
@@ -24,8 +25,8 @@ function nowIso() {
  */
 async function getWeekSessionSummaries(userId, weekStart, weekEnd) {
   const { data: sessions, error: sessError } = await supabase
-    .from('workout_sessions')
-    .select('id, started_at, status, summary_json')
+    .from('trainer_workout_sessions')
+    .select('id, started_at, status')
     .eq('user_id', userId)
     .eq('status', 'completed')
     .gte('started_at', weekStart.toISOString())
@@ -35,10 +36,25 @@ async function getWeekSessionSummaries(userId, weekStart, weekEnd) {
   if (sessError) throw sessError;
   if (!sessions?.length) return [];
 
+  const sessionIds = sessions.map(session => session.id);
+  const { data: summaries, error: summaryError } = await supabase
+    .from('trainer_session_summaries')
+    .select('session_id, version, summary_json')
+    .in('session_id', sessionIds)
+    .order('version', { ascending: false });
+  if (summaryError) throw summaryError;
+
+  const latestSummaryBySession = new Map();
+  for (const row of (summaries || [])) {
+    if (!latestSummaryBySession.has(row.session_id)) {
+      latestSummaryBySession.set(row.session_id, row.summary_json || null);
+    }
+  }
+
   return sessions.map(session => ({
     session_id: session.id,
     date: session.started_at,
-    summary: session.summary_json || null
+    summary: latestSummaryBySession.get(session.id) || null
   }));
 }
 
@@ -106,12 +122,14 @@ async function saveNewProgramVersion(userId, newMarkdown) {
   const program = await getActiveProgram(userId);
   if (!program) throw new Error('No active program found');
 
+  const scheduleFields = await extractScheduleFromMarkdown(newMarkdown);
   const nextVersion = (program.version || 0) + 1;
 
   const { data, error } = await supabase
     .from('trainer_programs')
     .update({
       program_markdown: newMarkdown,
+      ...scheduleFields,
       version: nextVersion,
       updated_at: nowIso()
     })
@@ -135,7 +153,11 @@ async function saveNewProgramVersion(userId, newMarkdown) {
   await supabase.from('trainer_program_events').insert({
     program_id: program.id,
     event_type: 'weekly_review',
-    data: { version: nextVersion, markdown_length: newMarkdown.length }
+    data: {
+      version: nextVersion,
+      markdown_length: newMarkdown.length,
+      schedule_extractor_model: scheduleFields.schedule_extractor_model
+    }
   });
 
   return data;
@@ -182,10 +204,10 @@ async function runWeeklyReview(userId) {
   console.log(`[weekly-review] Program rewritten in ${Date.now() - tRewrite}ms`);
 
   // 4. Save new program version
-  await saveNewProgramVersion(userId, newProgramMarkdown);
+  const updatedProgram = await saveNewProgramVersion(userId, newProgramMarkdown);
 
   // 5. Regenerate next week's calendar
-  await regenerateWeeklyCalendar(userId, newProgramMarkdown);
+  await regenerateWeeklyCalendar(userId, updatedProgram);
 
   console.log(`[weekly-review] Complete for user ${userId} in ${Date.now() - t0}ms`);
   return { skipped: false, weeklyStats };
@@ -232,7 +254,7 @@ async function checkAndRunCatchUpReview(userId) {
   }
 
   // Regenerate calendar from current program
-  await regenerateWeeklyCalendar(userId, program.program_markdown);
+  await regenerateWeeklyCalendar(userId, program);
 
   return { regenerated: true };
 }

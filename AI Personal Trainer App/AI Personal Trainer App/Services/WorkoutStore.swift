@@ -91,7 +91,6 @@ class WorkoutStore {
     // MARK: - View State
 
     var presentationMode: WorkoutPresentationMode = .workout
-    var showMidWorkoutActions: Bool = false
     var showPreWorkoutSheet: Bool = false
 
     // MARK: - Pre-Workout Inputs
@@ -108,6 +107,7 @@ class WorkoutStore {
     var intentText: String = ""
     var isLoadingIntentPlan: Bool = false
     var intentPlanError: String?
+    var currentIntentPlanRequestId: UUID?
 
     var preWorkoutPage: PreWorkoutPage = .intent
     var arrivedFromIntentPage: Bool = false
@@ -255,6 +255,11 @@ class WorkoutStore {
 
     /// Start a planned session from a calendar event
     func startPlannedSession(calendarEvent: CalendarEvent) {
+        guard hasUsablePlannedIntent(calendarEvent) else {
+            startNewWorkout()
+            return
+        }
+
         reset()
         sessionStatus = .preWorkout
         currentCalendarEventId = calendarEvent.id
@@ -291,10 +296,28 @@ class WorkoutStore {
         startNewWorkout()
     }
 
+    private func hasUsablePlannedIntent(_ event: CalendarEvent) -> Bool {
+        guard let intent = event.plannedSession?.intentJson else { return false }
+
+        if let focus = intent["focus"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !focus.isEmpty {
+            return true
+        }
+        if let notes = intent["notes"]?.stringValue?.trimmingCharacters(in: .whitespacesAndNewlines), !notes.isEmpty {
+            return true
+        }
+        if intent["duration_min"]?.intValue != nil {
+            return true
+        }
+
+        return false
+    }
+
     func submitIntent() async {
         guard !intentText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         guard !isLoadingIntentPlan else { return }
 
+        let requestId = UUID()
+        currentIntentPlanRequestId = requestId
         arrivedFromIntentPage = true
         isLoadingIntentPlan = true
         intentPlanError = nil
@@ -306,7 +329,10 @@ class WorkoutStore {
         do {
             let planResponse = try await apiService.planIntent(intentText: intentText)
 
+            guard currentIntentPlanRequestId == requestId else { return }
+
             if !showPreWorkoutSheet {
+                currentIntentPlanRequestId = nil
                 isLoadingIntentPlan = false
                 return
             }
@@ -320,13 +346,17 @@ class WorkoutStore {
             originalDescription = preWorkoutDescription
             originalDurationMin = preWorkoutDurationMin
 
+            currentIntentPlanRequestId = nil
             isLoadingIntentPlan = false
             intentPlanError = nil
         } catch {
+            guard currentIntentPlanRequestId == requestId else { return }
             if !showPreWorkoutSheet {
+                currentIntentPlanRequestId = nil
                 isLoadingIntentPlan = false
                 return
             }
+            currentIntentPlanRequestId = nil
             isLoadingIntentPlan = false
             intentPlanError = "Something went wrong. Please try again."
         }
@@ -334,6 +364,11 @@ class WorkoutStore {
 
     func retryIntentPlan() async {
         await submitIntent()
+    }
+
+    func cancelIntentPlanning() {
+        currentIntentPlanRequestId = nil
+        isLoadingIntentPlan = false
     }
 
     private func cleaned(_ value: String, fallback: String = "") -> String {
@@ -470,7 +505,18 @@ class WorkoutStore {
             }
             currentSession = nil
             currentInstance = nil
-            errorMessage = "Failed to generate workout. Please try again."
+            if let apiError = error as? APIError {
+                switch apiError {
+                case .serverError(let message, _):
+                    errorMessage = message
+                case .httpError(let statusCode):
+                    errorMessage = "Failed to generate workout (HTTP \(statusCode)). Please try again."
+                default:
+                    errorMessage = "Failed to generate workout. Please try again."
+                }
+            } else {
+                errorMessage = "Failed to generate workout. Please try again."
+            }
             sessionStatus = .preWorkout
             isWorkoutViewPresented = false
             showPreWorkoutSheet = true
@@ -483,7 +529,6 @@ class WorkoutStore {
         guard currentInstance != nil else { return }
         sessionStatus = .active
         currentExerciseIndex = 0
-        showMidWorkoutActions = false
         accumulatedSeconds = 0
         currentSegmentStart = Date()
         showPreWorkoutSheet = false
@@ -526,13 +571,17 @@ class WorkoutStore {
             if exerciseRpeByIndex[completedExerciseIndex] == nil {
                 pendingRpeExerciseIndex = completedExerciseIndex
             }
-            if !isLastExercise {
-                advanceToNextExercise()
-            }
+            // Keep user on the completed exercise; advancing should happen
+            // only through explicit navigation (swipe or Next Exercise button).
             if allExercisesComplete {
                 sessionStatus = .completing
             }
         }
+    }
+
+    /// Enter completion flow from UI action regardless of unfinished sets/exercises.
+    func completeWorkoutFromCurrentState() {
+        sessionStatus = .completing
     }
 
     func advanceToNextExercise() {
@@ -912,6 +961,26 @@ class WorkoutStore {
         }
     }
 
+    /// Fire-and-forget stop call used for discard flows where UI should transition immediately.
+    /// Captures session + payload snapshot before local reset.
+    func queueStopCurrentWorkout(reason: String = "user_stopped", notes: String? = nil, sessionRpe: Int? = nil) {
+        guard let session = currentSession else { return }
+        let payload = buildCompletionPayload(notes: notes, sessionRpe: sessionRpe)
+
+        Task {
+            do {
+                _ = try await apiService.stopWorkoutSession(
+                    sessionId: session.id,
+                    reason: reason,
+                    reflection: payload.reflection,
+                    log: payload.log
+                )
+            } catch {
+                print("Queued stop workout failed: \(error)")
+            }
+        }
+    }
+
     // MARK: - Agent Integration (temporary stubs for Phase 3 refactor)
 
     /// Get current workout context for agent conversations
@@ -1091,7 +1160,6 @@ class WorkoutStore {
         await flushPendingCommands()
         await waitForInFlightActions()
         pauseTimer()
-        showMidWorkoutActions = false
         persist()
         isWorkoutViewPresented = false
     }
@@ -1120,7 +1188,6 @@ class WorkoutStore {
         pendingRpeExerciseIndex = nil
 
         presentationMode = .workout
-        showMidWorkoutActions = false
         showPreWorkoutSheet = false
 
         selectedLocation = nil
@@ -1133,6 +1200,7 @@ class WorkoutStore {
         intentText = ""
         isLoadingIntentPlan = false
         intentPlanError = nil
+        currentIntentPlanRequestId = nil
         preWorkoutPage = .intent
         arrivedFromIntentPage = false
         currentCalendarEventId = nil

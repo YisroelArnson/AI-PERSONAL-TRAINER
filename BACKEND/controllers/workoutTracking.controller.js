@@ -1,4 +1,4 @@
-const workoutTrackingService = require('../services/workoutTrackingV2.service');
+const workoutTrackingService = require('../services/workoutTracking.service');
 
 function getStatusCode(error) {
   if (Number.isFinite(error?.statusCode)) return error.statusCode;
@@ -29,6 +29,12 @@ async function createWorkoutSession(req, res) {
       ...detail
     });
   } catch (error) {
+    console.error('Create workout session error:', {
+      message: error?.message,
+      code: error?.code,
+      hint: error?.hint,
+      details: error?.details
+    });
     const status = getStatusCode(error);
     const message = error?.issues ? zodErrorToMessage(error) : (error.message || 'Failed to create workout session');
     res.status(status).json({ success: false, error: message });

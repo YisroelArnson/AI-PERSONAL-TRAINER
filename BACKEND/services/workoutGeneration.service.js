@@ -279,25 +279,32 @@ async function generateWorkoutInstance(userId, constraints = {}) {
 
   const prompt = buildWorkoutPrompt(dataSourceResults, constraints, program, weightsProfile);
   const client = getAnthropicClient();
-  const response = await client.messages.create({
-    model: DEFAULT_MODEL,
-    max_tokens: 4096,
-    system: [{
-      type: 'text',
-      text: 'You are a concise JSON-only generator. Return ONLY valid JSON, no markdown, no explanation, no code fences.'
-    }],
-    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
-  });
+  let lastParseError = null;
 
-  const textBlock = response.content.find(block => block.type === 'text');
-  const rawText = textBlock?.text || '';
-  const parsed = extractJson(rawText);
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const response = await client.messages.create({
+      model: DEFAULT_MODEL,
+      max_tokens: 4096,
+      system: [{
+        type: 'text',
+        text: 'You are a concise JSON-only generator. Return ONLY valid JSON, no markdown, no explanation, no code fences.'
+      }],
+      messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+    });
 
-  if (!parsed || !parsed.exercises) {
-    throw new Error('Failed to parse workout instance from model response');
+    const textBlock = response.content.find(block => block.type === 'text');
+    const rawText = textBlock?.text || '';
+    const parsed = extractJson(rawText);
+
+    if (parsed && parsed.exercises) {
+      return normalizeWorkoutInstance(parsed, constraints);
+    }
+
+    lastParseError = new Error('Failed to parse workout instance from model response');
+    console.warn(`[workout-generation] Parse failed for user ${userId}, attempt ${attempt}/2`);
   }
 
-  return normalizeWorkoutInstance(parsed, constraints);
+  throw lastParseError || new Error('Failed to parse workout instance from model response');
 }
 
 module.exports = {

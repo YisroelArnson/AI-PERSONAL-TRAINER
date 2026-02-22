@@ -39,7 +39,6 @@
 		121536882F48B756003D5164 /* LocationMapPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536032F48B756003D5164 /* LocationMapPickerView.swift */; };
 		121536892F48B756003D5164 /* LocationEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536042F48B756003D5164 /* LocationEditorView.swift */; };
 		1215368A2F48B756003D5164 /* LocationsListSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536052F48B756003D5164 /* LocationsListSheet.swift */; };
-		1215368B2F48B756003D5164 /* MidWorkoutActionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536072F48B756003D5164 /* MidWorkoutActionSheet.swift */; };
 		1215368C2F48B756003D5164 /* WorkoutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536082F48B756003D5164 /* WorkoutView.swift */; };
 		1215368D2F48B756003D5164 /* WorkoutBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536092F48B756003D5164 /* WorkoutBottomBar.swift */; };
 		1215368E2F48B756003D5164 /* WorkoutModeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215360A2F48B756003D5164 /* WorkoutModeView.swift */; };
@@ -182,7 +181,6 @@
 		121536032F48B756003D5164 /* LocationMapPickerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocationMapPickerView.swift; sourceTree = "<group>"; };
 		121536042F48B756003D5164 /* LocationEditorView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocationEditorView.swift; sourceTree = "<group>"; };
 		121536052F48B756003D5164 /* LocationsListSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocationsListSheet.swift; sourceTree = "<group>"; };
-		121536072F48B756003D5164 /* MidWorkoutActionSheet.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MidWorkoutActionSheet.swift; sourceTree = "<group>"; };
 		121536082F48B756003D5164 /* WorkoutView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WorkoutView.swift; sourceTree = "<group>"; };
 		121536092F48B756003D5164 /* WorkoutBottomBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WorkoutBottomBar.swift; sourceTree = "<group>"; };
 		1215360A2F48B756003D5164 /* WorkoutModeView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WorkoutModeView.swift; sourceTree = "<group>"; };
@@ -476,7 +474,6 @@
 		121536062F48B756003D5164 /* Workout */ = {
 			isa = PBXGroup;
 			children = (
-				121536072F48B756003D5164 /* MidWorkoutActionSheet.swift */,
 				121536082F48B756003D5164 /* WorkoutView.swift */,
 				121536092F48B756003D5164 /* WorkoutBottomBar.swift */,
 				1215360A2F48B756003D5164 /* WorkoutModeView.swift */,
@@ -934,7 +931,6 @@
 				1215367B2F48B756003D5164 /* InlineStepsView.swift in Sources */,
 				1215368F2F48B756003D5164 /* WorkoutCompletionView.swift in Sources */,
 				121536A02F48B756003D5164 /* TextInputScreenView.swift in Sources */,
-				1215368B2F48B756003D5164 /* MidWorkoutActionSheet.swift in Sources */,
 				1215366C2F48B756003D5164 /* Color+Extensions.swift in Sources */,
 				1215366F2F48B756003D5164 /* ShimmerEffect.swift in Sources */,
 				121536DB2F48B756003D5164 /* GoalContractStore.swift in Sources */,

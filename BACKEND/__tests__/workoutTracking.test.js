@@ -2,9 +2,9 @@ const {
   buildInitialPayload,
   applyCommandReducer,
   normalizePayload
-} = require('../services/workoutTrackingV2.service');
+} = require('../services/workoutTracking.service');
 
-describe('workoutTrackingV2 reducer', () => {
+describe('workoutTracking reducer', () => {
   test('complete_set updates performance and marks status in_progress/completed', () => {
     const payload = buildInitialPayload({
       exercise_name: 'Bench Press',

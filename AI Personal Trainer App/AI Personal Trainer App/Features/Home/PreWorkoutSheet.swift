@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 private enum PreWorkoutNavigationDirection {
     case forward
@@ -15,6 +16,14 @@ struct PreWorkoutSheet: View {
     @State private var showLocationManagementSheet = false
     @State private var locationSheetControl = false
     @State private var navigationDirection: PreWorkoutNavigationDirection = .forward
+    @State private var generatingButtonText = "Building your plan"
+    @State private var generationTextTask: Task<Void, Never>?
+    @State private var generationStartedAt: Date?
+    @State private var generationSwapCount = 0
+    @State private var startPhraseBag: [String] = []
+    @State private var middlePhraseBag: [String] = []
+    @State private var finishPhraseBag: [String] = []
+    @FocusState private var isIntentTextEditorFocused: Bool
 
     var body: some View {
         ZStack {
@@ -40,6 +49,16 @@ struct PreWorkoutSheet: View {
             if workoutStore.selectedLocation == nil {
                 workoutStore.selectedLocation = userDataStore.currentLocation
             }
+        }
+        .onChange(of: isGeneratingWorkout) { _, isGenerating in
+            if isGenerating {
+                startGenerationTextRotation()
+            } else {
+                stopGenerationTextRotation()
+            }
+        }
+        .onDisappear {
+            stopGenerationTextRotation()
         }
         .onChange(of: showLocationManagementSheet) { _, isPresented in
             if !isPresented {
@@ -113,6 +132,7 @@ struct PreWorkoutSheet: View {
         VStack(spacing: 0) {
             HStack {
                 Button {
+                    dismissIntentKeyboard()
                     dismissFlow()
                 } label: {
                     Image(systemName: "chevron.left")
@@ -123,7 +143,7 @@ struct PreWorkoutSheet: View {
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(isGeneratingWorkout || workoutStore.isLoadingIntentPlan)
+                .disabled(isGeneratingWorkout)
 
                 Spacer()
             }
@@ -153,6 +173,7 @@ struct PreWorkoutSheet: View {
                     .padding(.vertical, 8)
                     .frame(minHeight: 200)
                     .scrollContentBackground(.hidden)
+                    .focused($isIntentTextEditorFocused)
                     .background(Color.clear)
             }
             .background(AppTheme.Colors.surface)
@@ -172,6 +193,10 @@ struct PreWorkoutSheet: View {
             .padding(.top, 16)
 
             Spacer()
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    dismissIntentKeyboard()
+                }
 
             Button {
                 Task {
@@ -198,13 +223,25 @@ struct PreWorkoutSheet: View {
             .padding(.bottom, 32)
             .padding(.top, 16)
         }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") {
+                    dismissIntentKeyboard()
+                }
+            }
+        }
     }
 
     private var reviewPage: some View {
         VStack(spacing: 0) {
             HStack {
                 Button {
+                    dismissIntentKeyboard()
                     if workoutStore.arrivedFromIntentPage {
+                        if workoutStore.isLoadingIntentPlan {
+                            workoutStore.cancelIntentPlanning()
+                        }
                         navigate(to: .intent, direction: .backward)
                     } else {
                         dismissFlow()
@@ -218,7 +255,7 @@ struct PreWorkoutSheet: View {
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(isGeneratingWorkout || workoutStore.isLoadingIntentPlan)
+                .disabled(isGeneratingWorkout)
 
                 Spacer()
             }
@@ -266,34 +303,49 @@ struct PreWorkoutSheet: View {
                 isGeneratingWorkout = true
                 Task {
                     await workoutStore.generateWorkout()
+                    let didSucceed = workoutStore.currentInstance != nil && workoutStore.errorMessage == nil
                     isGeneratingWorkout = false
-                    if workoutStore.currentInstance != nil && workoutStore.errorMessage == nil {
+                    triggerGenerationCompletionHaptic(success: didSucceed)
+                    if didSucceed {
                         navigate(to: .preview, direction: .forward)
                     }
                 }
             } label: {
-                HStack(spacing: 8) {
+                ZStack {
                     if isGeneratingWorkout {
-                        ProgressView()
-                            .tint(AppTheme.Colors.background)
-                            .scaleEffect(0.8)
+                        HStack {
+                            ProgressView()
+                                .tint(AppTheme.Colors.background)
+                                .scaleEffect(0.8)
+                                .frame(width: 16, height: 16)
+                            Spacer()
+                        }
+                        .padding(.leading, 20)
                     } else {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 16))
+                        HStack {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 16))
+                                .frame(width: 16, height: 16)
+                            Spacer()
+                        }
+                        .padding(.leading, 20)
                     }
 
-                    Text(isGeneratingWorkout ? "Generating..." : "Generate Workout")
-                        .font(.system(size: 15, weight: .semibold))
+                    if isGeneratingWorkout {
+                        generatingButtonTextView
+                    } else {
+                        Text("Generate Workout")
+                            .font(.system(size: 15, weight: .semibold))
+                    }
                 }
                 .foregroundStyle(AppTheme.Colors.background)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .padding(.horizontal, 20)
-                .background(isGeneratingWorkout ? AppTheme.Colors.accent.opacity(0.7) : AppTheme.Colors.accent)
+                .background(AppTheme.Colors.accent)
                 .clipShape(Capsule())
             }
             .buttonStyle(.plain)
-            .disabled(isGeneratingWorkout)
             .padding(.horizontal, 20)
             .padding(.bottom, 32)
         }
@@ -657,6 +709,156 @@ struct PreWorkoutSheet: View {
         default:
             return ""
         }
+    }
+
+    private var generationStartPhrases: [String] {
+        [
+            "Building your plan",
+            "Picking core moves",
+            "Setting your focus",
+            "Mapping your session",
+            "Choosing best fit"
+        ]
+    }
+
+    private var generationMiddlePhrases: [String] {
+        [
+            "Balancing workload",
+            "Dialing in intensity",
+            "Pairing strong combos",
+            "Lining up sets",
+            "Timing your rests",
+            "Shaping workout flow",
+            "Adapting to your gear",
+            "Tuning your pace",
+            "Calibrating challenge",
+            "Keeping it efficient"
+        ]
+    }
+
+    private var generationFinishPhrases: [String] {
+        [
+            "Adding final touches",
+            "Almost ready",
+            "Finalizing workout",
+            "Polishing details",
+            "Getting set to train"
+        ]
+    }
+
+    private var generatingButtonTextView: some View {
+        ZStack {
+            Text(generatingButtonText)
+                .id(generatingButtonText)
+                .font(.system(size: 15, weight: .semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.9)
+                .allowsTightening(true)
+                .transition(
+                    .asymmetric(
+                        insertion: .opacity,
+                        removal: .opacity
+                    )
+                )
+        }
+        .animation(.easeInOut(duration: 0.22), value: generatingButtonText)
+    }
+
+    private func startGenerationTextRotation() {
+        stopGenerationTextRotation()
+        generationStartedAt = Date()
+        generationSwapCount = 0
+        startPhraseBag = generationStartPhrases.shuffled()
+        middlePhraseBag = generationMiddlePhrases.shuffled()
+        finishPhraseBag = generationFinishPhrases.shuffled()
+        generatingButtonText = nextGenerationPhrase(elapsed: 0)
+        triggerGenerationStartHaptic()
+
+        generationTextTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                if Task.isCancelled { break }
+
+                await MainActor.run {
+                    guard isGeneratingWorkout else { return }
+                    let elapsed = Date().timeIntervalSince(generationStartedAt ?? Date())
+                    let nextPhrase = nextGenerationPhrase(elapsed: elapsed)
+                    generatingButtonText = nextPhrase
+                    generationSwapCount += 1
+                    if generationSwapCount % 2 == 0 {
+                        triggerGenerationTickHaptic()
+                    }
+                }
+            }
+        }
+    }
+
+    private func stopGenerationTextRotation() {
+        generationTextTask?.cancel()
+        generationTextTask = nil
+        generationStartedAt = nil
+        generationSwapCount = 0
+        startPhraseBag = []
+        middlePhraseBag = []
+        finishPhraseBag = []
+    }
+
+    private func nextGenerationPhrase(elapsed: TimeInterval) -> String {
+        if elapsed < 9 {
+            let result = popPhrase(from: startPhraseBag, source: generationStartPhrases)
+            startPhraseBag = result.remaining
+            return result.phrase
+        }
+        if elapsed < 24 {
+            let result = popPhrase(from: middlePhraseBag, source: generationMiddlePhrases)
+            middlePhraseBag = result.remaining
+            return result.phrase
+        }
+        let result = popPhrase(from: finishPhraseBag, source: generationFinishPhrases)
+        finishPhraseBag = result.remaining
+        return result.phrase
+    }
+
+    private func popPhrase(from bag: [String], source: [String]) -> (phrase: String, remaining: [String]) {
+        var mutableBag = bag
+
+        if mutableBag.isEmpty {
+            mutableBag = source.shuffled()
+        }
+        guard !mutableBag.isEmpty else {
+            return ("Finalizing workout", [])
+        }
+
+        if let index = mutableBag.firstIndex(where: { $0 != generatingButtonText }) {
+            let phrase = mutableBag.remove(at: index)
+            return (phrase, mutableBag)
+        }
+
+        let phrase = mutableBag.removeFirst()
+        return (phrase, mutableBag)
+    }
+
+    private func triggerGenerationStartHaptic() {
+        let generator = UISelectionFeedbackGenerator()
+        generator.prepare()
+        generator.selectionChanged()
+    }
+
+    private func triggerGenerationTickHaptic() {
+        let generator = UIImpactFeedbackGenerator(style: .light)
+        generator.prepare()
+        generator.impactOccurred(intensity: 0.5)
+    }
+
+    private func triggerGenerationCompletionHaptic(success: Bool) {
+        let generator = UINotificationFeedbackGenerator()
+        generator.prepare()
+        generator.notificationOccurred(success ? .success : .error)
+    }
+
+    private func dismissIntentKeyboard() {
+        isIntentTextEditorFocused = false
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private var durationPickerSheet: some View {

@@ -2,7 +2,7 @@
 //  WorkoutBottomBar.swift
 //  AI Personal Trainer App
 //
-//  Bottom bar with edit, set completion with fill progress, and AI orb.
+//  Bottom bar with set completion and AI orb.
 //
 
 import SwiftUI
@@ -20,33 +20,46 @@ struct WorkoutBottomBar: View {
             }
 
             HStack(spacing: 10) {
-                // Edit button
-                Button {
-                    workoutStore.showMidWorkoutActions = true
-                } label: {
-                    Image(systemName: "pencil")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(AppTheme.Colors.primaryText)
-                        .frame(width: 44, height: 44)
-                        .background(AppTheme.Colors.surface)
-                        .clipShape(Circle())
-                }
-
-                // Set completion button
-                Button {
-                    handleDoneTap()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: buttonIcon)
-                            .font(.system(size: 16, weight: .medium))
-                        Text(buttonLabel)
-                            .font(.system(size: 15, weight: .semibold))
+                VStack(spacing: 8) {
+                    // Set completion button
+                    Button {
+                        handleDoneTap()
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: buttonIcon)
+                                .font(.system(size: 16, weight: .medium))
+                            Text(buttonLabel)
+                                .font(.system(size: 15, weight: .semibold))
+                        }
+                        .foregroundStyle(AppTheme.Colors.background)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 16)
+                        .background(AppTheme.Colors.accent)
+                        .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.pill))
                     }
-                    .foregroundStyle(AppTheme.Colors.background)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 16)
-                    .background(AppTheme.Colors.accent)
-                    .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.pill))
+                    .disabled(isSetButtonDisabled)
+
+                    if workoutStore.isLastExercise {
+                        Button {
+                            handleCompleteWorkoutTap()
+                        } label: {
+                            HStack(spacing: 8) {
+                                Image(systemName: "flag.checkered")
+                                    .font(.system(size: 14, weight: .medium))
+                                Text("Complete Workout")
+                                    .font(.system(size: 14, weight: .semibold))
+                            }
+                            .foregroundStyle(AppTheme.Colors.primaryText)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(AppTheme.Colors.surface)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.pill)
+                                    .stroke(AppTheme.Colors.highlight, lineWidth: 1)
+                            )
+                            .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.pill))
+                        }
+                    }
                 }
 
                 // AI orb
@@ -65,9 +78,6 @@ struct WorkoutBottomBar: View {
             if workoutStore.pendingRpeExerciseIndex == pendingIndex {
                 workoutStore.dismissPendingRpePrompt()
             }
-        }
-        .sheet(isPresented: $workoutStore.showMidWorkoutActions) {
-            MidWorkoutActionSheet()
         }
     }
 
@@ -121,15 +131,8 @@ struct WorkoutBottomBar: View {
 
         // Exercise already fully completed
         if completed >= total {
-            if workoutStore.isLastExercise {
-                return "Finish Workout"
-            }
+            if workoutStore.isLastExercise { return "Set Complete" }
             return "Next Exercise"
-        }
-
-        // Last set of last exercise
-        if workoutStore.isLastExercise && completed >= total - 1 {
-            return "Finish Workout"
         }
 
         return "Complete Set \(completed + 1) of \(total)"
@@ -139,16 +142,25 @@ struct WorkoutBottomBar: View {
         let completed = workoutStore.completedSetsForCurrentExercise
         let total = workoutStore.totalSetsForCurrentExercise
 
-        if workoutStore.isLastExercise && completed >= total - 1 {
-            return "flag.checkered"
-        }
+        if workoutStore.isLastExercise && completed >= total { return "checkmark.circle.fill" }
         if completed >= total {
             return "forward.fill"
         }
         return "checkmark"
     }
 
+    private var isSetButtonDisabled: Bool {
+        let completed = workoutStore.completedSetsForCurrentExercise
+        let total = workoutStore.totalSetsForCurrentExercise
+        guard total > 0 else { return true }
+        return workoutStore.isLastExercise && completed >= total && !workoutStore.allExercisesComplete
+    }
+
     private func handleDoneTap() {
         workoutStore.completeCurrentSet()
+    }
+
+    private func handleCompleteWorkoutTap() {
+        workoutStore.completeWorkoutFromCurrentState()
     }
 }

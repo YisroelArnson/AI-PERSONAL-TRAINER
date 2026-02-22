@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
-const controller = require('../controllers/workoutTrackingV2.controller');
+const controller = require('../controllers/workoutTracking.controller');
 
 router.use(authenticateToken);
 

@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const { getAnthropicClient } = require('./modelProviders.service');
+const { extractScheduleFromMarkdown, isFreshProgramSchedule } = require('./programSchedule.service');
 
 dotenv.config();
 
@@ -13,6 +14,12 @@ const DEFAULT_MODEL = process.env.PROGRAM_MODEL || process.env.PRIMARY_MODEL || 
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function buildProgramStateError(message, statusCode = 409) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
 }
 
 async function fetchLatestIntakeSummary(userId) {
@@ -226,6 +233,7 @@ Return ONLY the markdown document. No code fences, no preamble, no explanation â
     throw new Error('Failed to generate program markdown');
   }
 
+  const scheduleFields = await extractScheduleFromMarkdown(markdown);
   console.log(`[program] Markdown OK â€” ${(markdown.match(/^## /gm) || []).length} session days`);
 
   const { data, error } = await supabase
@@ -235,6 +243,7 @@ Return ONLY the markdown document. No code fences, no preamble, no explanation â
       status: 'draft',
       version: 1,
       program_markdown: markdown,
+      ...scheduleFields,
       created_at: nowIso(),
       updated_at: nowIso()
     })
@@ -295,11 +304,13 @@ Return the complete updated program markdown with the edit applied.`;
     throw new Error('Failed to parse edited program');
   }
 
+  const scheduleFields = await extractScheduleFromMarkdown(updatedMarkdown);
   const nextVersion = (existing.version || 0) + 1;
   const { data, error: updateError } = await supabase
     .from('trainer_programs')
     .update({
       program_markdown: updatedMarkdown,
+      ...scheduleFields,
       version: nextVersion,
       updated_at: nowIso()
     })
@@ -318,12 +329,25 @@ Return the complete updated program markdown with the edit applied.`;
 }
 
 async function approveProgram(programId) {
+  const program = await getProgram(programId);
+
+  if (program.status === 'active') {
+    throw buildProgramStateError('Cannot approve an active program. Create or edit a draft instead.');
+  }
+  if (program.status === 'archived') {
+    throw buildProgramStateError('Cannot approve an archived program.');
+  }
+  if (program.status === 'approved' && program.approved_at) {
+    return program;
+  }
+
+  const approvedAt = nowIso();
   const { data, error } = await supabase
     .from('trainer_programs')
     .update({
       status: 'approved',
-      approved_at: nowIso(),
-      updated_at: nowIso()
+      approved_at: approvedAt,
+      updated_at: approvedAt
     })
     .eq('id', programId)
     .select()
@@ -333,41 +357,95 @@ async function approveProgram(programId) {
   await supabase.from('trainer_program_events').insert({
     program_id: programId,
     event_type: 'approve',
-    data: { approved_at: nowIso() }
+    data: { approved_at: approvedAt }
   });
   return data;
 }
 
 async function activateProgram(programId) {
-  const { data: program, error } = await supabase
+  let program = await getProgram(programId);
+
+  if (program.status === 'draft') {
+    throw buildProgramStateError('Program must be approved before activation.');
+  }
+  if (program.status === 'archived') {
+    throw buildProgramStateError('Cannot activate an archived program.');
+  }
+
+  if (!isFreshProgramSchedule(program)) {
+    if (!program.program_markdown || !String(program.program_markdown).trim()) {
+      throw buildProgramStateError('Program schedule is missing and program markdown is empty.', 422);
+    }
+    const scheduleFields = await extractScheduleFromMarkdown(program.program_markdown);
+    const refreshedAt = nowIso();
+    const { data: refreshedProgram, error: refreshError } = await supabase
+      .from('trainer_programs')
+      .update({
+        ...scheduleFields,
+        updated_at: refreshedAt
+      })
+      .eq('id', program.id)
+      .eq('user_id', program.user_id)
+      .select()
+      .single();
+    if (refreshError) throw refreshError;
+    program = refreshedProgram;
+  }
+
+  const activatedAt = nowIso();
+
+  // Ensure at most one active program per user at the application layer.
+  const { error: demoteError } = await supabase
+    .from('trainer_programs')
+    .update({
+      status: 'archived',
+      updated_at: activatedAt
+    })
+    .eq('user_id', program.user_id)
+    .eq('status', 'active')
+    .neq('id', program.id);
+
+  if (demoteError) throw demoteError;
+
+  const targetActiveFrom = program.active_from || activatedAt;
+  const { data: activatedProgram, error: activateError } = await supabase
     .from('trainer_programs')
     .update({
       status: 'active',
-      active_from: nowIso(),
-      updated_at: nowIso()
+      active_from: targetActiveFrom,
+      updated_at: activatedAt
     })
-    .eq('id', programId)
+    .eq('id', program.id)
+    .eq('user_id', program.user_id)
     .select()
     .single();
 
-  if (error) throw error;
+  if (activateError) {
+    if (activateError.code === '23505') {
+      throw buildProgramStateError('Failed to activate program due to a concurrent activation. Please try again.');
+    }
+    throw activateError;
+  }
 
-  await supabase
+  const { error: upsertError } = await supabase
     .from('trainer_active_program')
     .upsert({
-      user_id: program.user_id,
-      program_id: program.id,
-      program_version: program.version,
-      updated_at: nowIso()
+      user_id: activatedProgram.user_id,
+      program_id: activatedProgram.id,
+      program_version: activatedProgram.version,
+      updated_at: activatedAt
     });
+  if (upsertError) throw upsertError;
 
-  await supabase.from('trainer_program_events').insert({
-    program_id: programId,
-    event_type: 'activate',
-    data: { activated_at: nowIso() }
-  });
+  if (program.status !== 'active') {
+    await supabase.from('trainer_program_events').insert({
+      program_id: programId,
+      event_type: 'activate',
+      data: { activated_at: activatedAt }
+    });
+  }
 
-  return program;
+  return activatedProgram;
 }
 
 async function getProgram(programId) {
@@ -376,7 +454,12 @@ async function getProgram(programId) {
     .select('*')
     .eq('id', programId)
     .single();
-  if (error) throw error;
+  if (error) {
+    if (error.code === 'PGRST116') {
+      throw buildProgramStateError('Program not found', 404);
+    }
+    throw error;
+  }
   return data;
 }
 

@@ -140,6 +140,7 @@ enum APIError: Error, LocalizedError {
     case invalidURL
     case invalidResponse
     case httpError(statusCode: Int)
+    case serverError(message: String, statusCode: Int?)
     case unauthorized
     case forbidden
     case authenticationRequired
@@ -154,6 +155,11 @@ enum APIError: Error, LocalizedError {
             return "Invalid response"
         case .httpError(let statusCode):
             return "HTTP error: \(statusCode)"
+        case .serverError(let message, let statusCode):
+            if let statusCode {
+                return "\(message) (HTTP \(statusCode))"
+            }
+            return message
         case .unauthorized:
             return "Authentication token is invalid or expired"
         case .forbidden:

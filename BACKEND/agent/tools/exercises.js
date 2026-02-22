@@ -1,6 +1,6 @@
 // BACKEND/agent/tools/exercises.js
-// Exercise and workout management tools backed by workout tracking V2
-const workoutTrackingService = require('../../services/workoutTrackingV2.service');
+// Exercise and workout management tools backed by workout tracking service
+const workoutTrackingService = require('../../services/workoutTracking.service');
 const sessionObs = require('../../services/sessionObservability.service');
 
 // Maps agent chat sessionId -> workout sessionId
@@ -9,7 +9,7 @@ const agentWorkoutSessions = new Map();
 function unsupportedMutationResult(feature) {
   return {
     success: false,
-    error: `${feature} is not available in the V2 command API yet.`
+    error: `${feature} is not available in the command API yet.`
   };
 }
 

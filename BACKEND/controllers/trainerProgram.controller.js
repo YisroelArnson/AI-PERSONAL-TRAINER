@@ -3,6 +3,15 @@ const journeyService = require('../services/trainerJourney.service');
 const calendarService = require('../services/trainerCalendar.service');
 const weightsProfileService = require('../services/trainerWeightsProfile.service');
 
+function getStatusCode(error) {
+  if (error && Number.isFinite(error.statusCode)) return error.statusCode;
+  const message = String((error && error.message) || '').toLowerCase();
+  if (message.includes('forbidden')) return 403;
+  if (message.includes('not found')) return 404;
+  if (message.includes('required') || message.includes('invalid')) return 422;
+  return 500;
+}
+
 async function draftProgram(req, res) {
   try {
     const userId = req.user.id;
@@ -11,7 +20,7 @@ async function draftProgram(req, res) {
     res.json({ success: true, program });
   } catch (error) {
     console.error('Draft program error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
   }
 }
 
@@ -34,7 +43,7 @@ async function editProgram(req, res) {
     res.json({ success: true, program: updated });
   } catch (error) {
     console.error('Edit program error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
   }
 }
 
@@ -53,7 +62,7 @@ async function approveProgram(req, res) {
     res.json({ success: true, program: updated });
   } catch (error) {
     console.error('Approve program error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
   }
 }
 
@@ -79,7 +88,7 @@ async function activateProgram(req, res) {
     res.json({ success: true, program: updated });
   } catch (error) {
     console.error('Activate program error:', error);
-    res.status(500).json({ success: false, error: error.message });
+    res.status(getStatusCode(error)).json({ success: false, error: error.message });
   }
 }
 

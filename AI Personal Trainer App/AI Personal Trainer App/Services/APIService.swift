@@ -322,6 +322,22 @@ class APIService: ObservableObject {
             UserDefaults.standard.removeObject(forKey: "APIBaseURL")
         }
     }
+
+    private struct APIErrorPayload: Decodable {
+        let success: Bool?
+        let error: String?
+        let message: String?
+    }
+
+    private func extractServerErrorMessage(from data: Data) -> String? {
+        guard !data.isEmpty else { return nil }
+        if let payload = try? JSONDecoder().decode(APIErrorPayload.self, from: data) {
+            return payload.error ?? payload.message
+        }
+        return String(data: data, encoding: .utf8)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+    }
     
     /// Clear the cached working URL to force re-discovery
     /// Useful when switching networks or if the cached URL is no longer valid
@@ -352,14 +368,41 @@ class APIService: ObservableObject {
 
     private func makeISO8601Decoder() -> JSONDecoder {
         let decoder = JSONDecoder()
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let formatterWithFractional = ISO8601DateFormatter()
+        formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+        let formatterWithoutFractional = ISO8601DateFormatter()
+        formatterWithoutFractional.formatOptions = [.withInternetDateTime]
+
+        let fallbackFormatter = DateFormatter()
+        fallbackFormatter.locale = Locale(identifier: "en_US_POSIX")
+        fallbackFormatter.timeZone = TimeZone(secondsFromGMT: 0)
+
+        let fallbackFormats = [
+            "yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXXXX",
+            "yyyy-MM-dd'T'HH:mm:ssXXXXX",
+            "yyyy-MM-dd"
+        ]
+
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
             let dateString = try container.decode(String.self)
-            if let date = formatter.date(from: dateString) {
+
+            if let date = formatterWithFractional.date(from: dateString) {
                 return date
             }
+
+            if let date = formatterWithoutFractional.date(from: dateString) {
+                return date
+            }
+
+            for format in fallbackFormats {
+                fallbackFormatter.dateFormat = format
+                if let date = fallbackFormatter.date(from: dateString) {
+                    return date
+                }
+            }
+
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format")
         }
         return decoder
@@ -440,7 +483,7 @@ class APIService: ObservableObject {
         return try JSONDecoder().decode(WorkoutCompletionResponse.self, from: data)
     }
 
-    // MARK: - Workout Tracking V2
+    // MARK: - Workout Tracking
 
     func createWorkoutTrackingSession(_ body: WorkoutTrackingSessionCreateRequest) async throws -> WorkoutTrackingSessionResponse {
         guard let url = URL(string: "\(baseURL)/trainer/workout-sessions") else {
@@ -453,6 +496,9 @@ class APIService: ObservableObject {
 
         let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 60)
         guard httpResponse.statusCode == 200 else {
+            if let message = extractServerErrorMessage(from: data) {
+                throw APIError.serverError(message: message, statusCode: httpResponse.statusCode)
+            }
             throw APIError.httpError(statusCode: httpResponse.statusCode)
         }
 

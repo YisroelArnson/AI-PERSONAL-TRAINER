@@ -41,9 +41,9 @@ describe('calculateSessionStats', () => {
           payload_json: { performance: { sets: [] } }
         }
       ],
-      actions: [],
-      session: { session_rpe: 7 },
-      workout: { actual_duration_min: 42 }
+      events: [],
+      session: {},
+      log: { reflection: { rpe: 7 }, actual_duration_min: 42 }
     });
 
     expect(result.total_exercises).toBe(2);
@@ -60,12 +60,12 @@ describe('calculateSessionStats', () => {
   it('counts pain flags from note commands', () => {
     const result = calculateSessionStats({
       exercises: [],
-      actions: [
-        { action_type: 'set_exercise_note', action_payload_json: { command: { notes: 'Pain in right knee' } } },
-        { action_type: 'set_exercise_note', action_payload_json: { command: { notes: 'All good' } } }
+      events: [
+        { event_type: 'action', data: { command: { notes: 'Pain in right knee' } } },
+        { event_type: 'action', data: { command: { notes: 'All good' } } }
       ],
       session: {},
-      workout: null
+      log: {}
     });
 
     expect(result.pain_flags).toBe(1);
@@ -87,7 +87,7 @@ describe('calculateWeeklyStats', () => {
   const weekEnd = new Date('2026-02-15T23:59:59Z');
 
   it('returns zero totals when no completed sessions', async () => {
-    mockChain.mockTable('workout_sessions', []);
+    mockChain.mockTable('trainer_workout_sessions', []);
     mockChain.mockTable('trainer_calendar_events', []);
 
     const result = await calculateWeeklyStats('user-1', weekStart, weekEnd);

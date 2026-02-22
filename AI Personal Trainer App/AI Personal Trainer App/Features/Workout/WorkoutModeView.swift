@@ -94,7 +94,8 @@ private struct ExercisePageView: View {
             s += plain(" between sets.")
         }
 
-        if let desc = exercise.exercise_description, !desc.isEmpty {
+        if let desc = exercise.exercise_description?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !desc.isEmpty {
             s += plain(" \(desc)")
         }
 
@@ -119,7 +120,8 @@ private struct ExercisePageView: View {
             s += plain(" between sets.")
         }
 
-        if let desc = exercise.exercise_description, !desc.isEmpty {
+        if let desc = exercise.exercise_description?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !desc.isEmpty {
             s += plain(" \(desc)")
         }
 
@@ -150,7 +152,8 @@ private struct ExercisePageView: View {
             s += plain(".")
         }
 
-        if let desc = exercise.exercise_description, !desc.isEmpty {
+        if let desc = exercise.exercise_description?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !desc.isEmpty {
             s += plain(" \(desc)")
         }
 
@@ -180,7 +183,8 @@ private struct ExercisePageView: View {
             s += plain(".")
         }
 
-        if let desc = exercise.exercise_description, !desc.isEmpty {
+        if let desc = exercise.exercise_description?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !desc.isEmpty {
             s += plain(" \(desc)")
         }
 

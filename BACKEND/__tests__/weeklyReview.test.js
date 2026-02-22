@@ -16,6 +16,10 @@ jest.mock('../services/trainerWeightsProfile.service', () => ({
   formatProfileForPrompt: jest.fn()
 }));
 
+jest.mock('../services/programSchedule.service', () => ({
+  extractScheduleFromMarkdown: jest.fn()
+}));
+
 jest.mock('../services/statsCalculator.service', () => ({
   calculateWeeklyStats: jest.fn(),
   getCurrentWeekBounds: jest.fn()
@@ -29,6 +33,7 @@ const { __mockChain: mockChain } = require('@supabase/supabase-js');
 const { getAnthropicClient } = require('../services/modelProviders.service');
 const { getActiveProgram } = require('../services/trainerProgram.service');
 const { getLatestProfile, formatProfileForPrompt } = require('../services/trainerWeightsProfile.service');
+const { extractScheduleFromMarkdown } = require('../services/programSchedule.service');
 const { calculateWeeklyStats, getCurrentWeekBounds } = require('../services/statsCalculator.service');
 const { regenerateWeeklyCalendar } = require('../services/trainerCalendar.service');
 
@@ -55,9 +60,23 @@ beforeEach(() => {
   getActiveProgram.mockReset();
   getLatestProfile.mockReset();
   formatProfileForPrompt.mockReset();
+  extractScheduleFromMarkdown.mockReset();
   calculateWeeklyStats.mockReset();
   getCurrentWeekBounds.mockReset();
   regenerateWeeklyCalendar.mockReset();
+  extractScheduleFromMarkdown.mockResolvedValue({
+    schedule_json: {
+      schema_version: 1,
+      days_per_week: 3,
+      sessions: [
+        { day_number: 1, name: 'Session A', duration_min: 45, intensity: 'moderate', weekday: null }
+      ],
+      rest_day_guidance: null
+    },
+    schedule_extracted_at: '2026-02-22T00:00:00.000Z',
+    schedule_extractor_model: 'claude-haiku-4-5',
+    schedule_source_markdown_hash: 'test-hash'
+  });
 });
 
 // ─── rewriteProgram ──────────────────────────────────────────────────
@@ -115,19 +134,19 @@ describe('getWeekSessionSummaries', () => {
   const weekEnd = new Date('2026-02-15T23:59:59Z');
 
   it('returns empty array when no sessions', async () => {
-    mockChain.mockTable('workout_sessions', []);
+    mockChain.mockTable('trainer_workout_sessions', []);
     const result = await getWeekSessionSummaries('user-1', weekStart, weekEnd);
     expect(result).toEqual([]);
   });
 
   it('queries the correct table', async () => {
-    mockChain.mockTable('workout_sessions', []);
+    mockChain.mockTable('trainer_workout_sessions', []);
     await getWeekSessionSummaries('user-1', weekStart, weekEnd);
-    expect(mockChain.from).toHaveBeenCalledWith('workout_sessions');
+    expect(mockChain.from).toHaveBeenCalledWith('trainer_workout_sessions');
   });
 
   it('throws on Supabase error', async () => {
-    mockChain.mockTable('workout_sessions', null, { message: 'DB error' });
+    mockChain.mockTable('trainer_workout_sessions', null, { message: 'DB error' });
     await expect(getWeekSessionSummaries('user-1', weekStart, weekEnd)).rejects.toEqual({ message: 'DB error' });
   });
 });
@@ -157,7 +176,7 @@ describe('runWeeklyReview', () => {
   beforeEach(() => {
     getCurrentWeekBounds.mockReturnValue({ weekStart, weekEnd });
     // Default: no sessions from Supabase
-    mockChain.mockTable('workout_sessions', []);
+    mockChain.mockTable('trainer_workout_sessions', []);
   });
 
   it('skips when no sessions this week', async () => {
@@ -172,9 +191,10 @@ describe('runWeeklyReview', () => {
 
   it('skips when no active program', async () => {
     // Need sessions for it to get past the sessions check
-    mockChain.mockTable('workout_sessions', [
-      { id: 's1', started_at: '2026-02-16T10:00:00Z', status: 'completed', summary_json: {} }
+    mockChain.mockTable('trainer_workout_sessions', [
+      { id: 's1', started_at: '2026-02-16T10:00:00Z', status: 'completed' }
     ]);
+    mockChain.mockTable('trainer_session_summaries', []);
     getActiveProgram.mockResolvedValue(null);
     getLatestProfile.mockResolvedValue(null);
     calculateWeeklyStats.mockResolvedValue({ sessions_completed: 1 });
@@ -205,11 +225,12 @@ describe('checkAndRunCatchUpReview', () => {
 
   it('regenerates calendar when no upcoming events and has program', async () => {
     mockChain.mockResolve([]);
-    getActiveProgram.mockResolvedValue({ id: 'p1', program_markdown: sampleProgramMarkdown });
+    const activeProgram = { id: 'p1', program_markdown: sampleProgramMarkdown };
+    getActiveProgram.mockResolvedValue(activeProgram);
     regenerateWeeklyCalendar.mockResolvedValue({ created: 3 });
 
     const result = await checkAndRunCatchUpReview('user-1');
     expect(result.regenerated).toBe(true);
-    expect(regenerateWeeklyCalendar).toHaveBeenCalledWith('user-1', sampleProgramMarkdown);
+    expect(regenerateWeeklyCalendar).toHaveBeenCalledWith('user-1', activeProgram);
   });
 });
