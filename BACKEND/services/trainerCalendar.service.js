@@ -255,7 +255,8 @@ function parseSessionsFromMarkdown(markdown) {
         dayNumber: parseInt(dayMatch[1]),
         name: dayMatch[2].trim(),
         durationMin: 45,
-        intensity: 'moderate'
+        intensity: 'moderate',
+        notes: null
       };
       continue;
     }
@@ -266,6 +267,12 @@ function parseSessionsFromMarkdown(markdown) {
       if (durMatch) currentSession.durationMin = parseInt(durMatch[1]);
       const intMatch = trimmed.match(/(low|moderate|high)\s*intensity/i);
       if (intMatch) currentSession.intensity = intMatch[1].toLowerCase();
+      continue;
+    }
+
+    // Capture first descriptive line under a day section as lightweight notes.
+    if (currentSession && !currentSession.notes && trimmed && !trimmed.startsWith('#')) {
+      currentSession.notes = trimmed;
     }
   }
 
@@ -452,6 +459,9 @@ async function syncCalendarFromProgram(userId) {
         duration_min: template.durationMin || 45,
         intensity: template.intensity || 'moderate'
       };
+      if (template.notes) {
+        intent.notes = template.notes;
+      }
       await createPlannedSession(userId, event.id, intent);
     }
     createdCount = createdEvents.length;
@@ -520,6 +530,9 @@ async function regenerateWeeklyCalendar(userId, programMarkdown) {
       duration_min: template.durationMin || 45,
       intensity: template.intensity || 'moderate'
     };
+    if (template.notes) {
+      intent.notes = template.notes;
+    }
     await createPlannedSession(userId, event.id, intent);
   }
 

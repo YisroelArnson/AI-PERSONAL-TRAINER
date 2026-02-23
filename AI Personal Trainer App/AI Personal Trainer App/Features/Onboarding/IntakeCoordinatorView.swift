@@ -64,7 +64,7 @@ struct IntakeCoordinatorView: View {
                     OnboardingTopBar(
                         label: currentScreen.label?.rawValue,
                         previousLabel: previousLabel,
-                        showBack: store.state.currentStep > OnboardingScreens.introCount,
+                        showBack: store.state.currentStep >= OnboardingScreens.introCount,
                         onBack: { goBack() }
                     )
                 }

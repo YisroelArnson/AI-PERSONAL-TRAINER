@@ -108,13 +108,18 @@ function normalizeSession(raw, index) {
   const durationMin = clampInt(toInt(input.duration_min || input.duration || input.minutes) || 45, 10, 120);
   const intensity = normalizeIntensity(input.intensity);
   const weekday = normalizeWeekday(input.weekday || input.day_name || input.weekday_name || input.preferred_day);
+  const notes = cleanText(
+    input.notes || input.description || input.summary || input.session_notes,
+    ''
+  ) || null;
 
   return {
     day_number: dayNumber,
     name: sessionName,
     duration_min: durationMin,
     intensity,
-    weekday
+    weekday,
+    notes
   };
 }
 
@@ -176,7 +181,8 @@ Return JSON only in this exact shape:
       "name": "Push Emphasis",
       "duration_min": 40,
       "intensity": "moderate",
-      "weekday": "MON"
+      "weekday": "MON",
+      "notes": "Progressive chest and shoulder development with compound pressing movements."
     }
   ],
   "rest_day_guidance": "optional text"
@@ -188,6 +194,7 @@ Rules:
 - duration_min must be integer minutes
 - intensity must be one of: low, moderate, high
 - weekday must be one of: MON,TUE,WED,THU,FRI,SAT,SUN or null when unspecified
+- notes should be a concise 1 sentence summary for that session (optional when unavailable)
 - If the markdown only implies sequence (Day 1/2/3) without explicit weekdays, set weekday to null
 - Use the session titles from the markdown as "name" values
 
@@ -241,7 +248,8 @@ function buildCalendarTemplatesFromSchedule(scheduleJson) {
         name: session.name,
         durationMin: session.duration_min,
         intensity: session.intensity,
-        weekday: session.weekday || null
+        weekday: session.weekday || null,
+        notes: session.notes || null
       }))
     };
   } catch (error) {

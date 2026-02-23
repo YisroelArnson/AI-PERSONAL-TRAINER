@@ -18,13 +18,8 @@ struct OTPVerificationView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                // Space for the shared orb (rendered by coordinator)
-                Color.clear
-                    .frame(height: 60)
-                    .padding(.top, AppTheme.Spacing.xxxl)
-
                 Spacer()
-                    .frame(height: AppTheme.Spacing.xxxl)
+                    .frame(height: AppTheme.Spacing.xxxl + 60)
 
                 // Instructions
                 instructionText

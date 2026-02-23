@@ -10,7 +10,9 @@ struct VoiceScreenView: View {
     @State private var text: String = ""
     @State private var isRecording = false
     @State private var selectedPill: String? = nil
-    @State private var textBeforeRecording: String = ""
+    @State private var recordingBaseText: String = ""
+    @State private var livePartialText: String = ""
+    @State private var lastCommittedFinalText: String = ""
     @FocusState private var isTextEditorFocused: Bool
 
     var body: some View {
@@ -110,25 +112,36 @@ struct VoiceScreenView: View {
         )
         .onAppear {
             text = value
+            recordingBaseText = value.trimmingCharacters(in: .whitespacesAndNewlines)
         }
         .onChange(of: speechManager.partialTranscript) { _, transcript in
             if isRecording && !transcript.isEmpty {
-                if textBeforeRecording.isEmpty {
-                    text = transcript
+                let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
+
+                if livePartialText.isEmpty {
+                    livePartialText = trimmed
+                } else if trimmed.hasPrefix(livePartialText) || livePartialText.hasPrefix(trimmed) {
+                    // Same evolving segment (expanded or revised)
+                    livePartialText = trimmed
                 } else {
-                    text = textBeforeRecording + " " + transcript
+                    // New hypothesis for current speech; replace the live partial.
+                    livePartialText = trimmed
                 }
+
+                text = mergeAvoidingOverlap(base: recordingBaseText, segment: livePartialText)
             }
         }
         .onChange(of: speechManager.finalTranscript) { _, transcript in
             if !transcript.isEmpty {
-                if textBeforeRecording.isEmpty {
-                    text = transcript
-                } else {
-                    text = textBeforeRecording + " " + transcript
-                }
-                // Save accumulated text so the next segment appends
-                textBeforeRecording = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { return }
+                guard trimmed != lastCommittedFinalText else { return }
+                lastCommittedFinalText = trimmed
+
+                recordingBaseText = mergeAvoidingOverlap(base: recordingBaseText, segment: trimmed)
+                livePartialText = ""
+                text = recordingBaseText
                 // Auto-restart if user hasn't tapped stop
                 if isRecording {
                     speechManager.stopListening()
@@ -142,16 +155,50 @@ struct VoiceScreenView: View {
 
     private func toggleRecording() {
         if isRecording {
+            if !livePartialText.isEmpty {
+                recordingBaseText = mergeAvoidingOverlap(base: recordingBaseText, segment: livePartialText)
+                livePartialText = ""
+            }
             speechManager.stopListening()
             isRecording = false
+            text = recordingBaseText
         } else {
             // Save existing text so new speech appends to it
-            textBeforeRecording = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            recordingBaseText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            livePartialText = ""
+            lastCommittedFinalText = ""
             selectedPill = nil
             isRecording = true
             Task {
                 await speechManager.startListening()
             }
         }
+    }
+
+    private func mergeAvoidingOverlap(base: String, segment: String) -> String {
+        let trimmedBase = base.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedSegment = segment.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedSegment.isEmpty else { return trimmedBase }
+        guard !trimmedBase.isEmpty else { return trimmedSegment }
+        if trimmedBase.contains(trimmedSegment) { return trimmedBase }
+
+        let baseChars = Array(trimmedBase)
+        let segmentChars = Array(trimmedSegment)
+        let maxOverlap = min(baseChars.count, segmentChars.count)
+        var overlap = 0
+
+        for size in stride(from: maxOverlap, through: 1, by: -1) {
+            if Array(baseChars.suffix(size)) == Array(segmentChars.prefix(size)) {
+                overlap = size
+                break
+            }
+        }
+
+        let suffix = String(segmentChars.dropFirst(overlap))
+        if suffix.isEmpty { return trimmedBase }
+        if let last = trimmedBase.last, let first = suffix.first, last.isWhitespace || first.isWhitespace {
+            return trimmedBase + suffix
+        }
+        return "\(trimmedBase) \(suffix)"
     }
 }

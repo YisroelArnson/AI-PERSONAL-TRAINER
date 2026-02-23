@@ -124,7 +124,6 @@ async function saveNewProgramVersion(userId, newMarkdown) {
 
   const scheduleFields = await extractScheduleFromMarkdown(newMarkdown);
   const nextVersion = (program.version || 0) + 1;
-
   const { data, error } = await supabase
     .from('trainer_programs')
     .update({

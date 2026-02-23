@@ -67,19 +67,22 @@ describe('parseSessionsFromMarkdown', () => {
       dayNumber: 1,
       name: 'Upper Body Push',
       durationMin: 45,
-      intensity: 'moderate'
+      intensity: 'moderate',
+      notes: 'Progressive chest and shoulder development with compound pressing movements.'
     });
     expect(sessions[1]).toEqual({
       dayNumber: 2,
       name: 'Lower Body',
       durationMin: 60,
-      intensity: 'high'
+      intensity: 'high',
+      notes: 'Squat and hinge pattern development with accessory work.'
     });
     expect(sessions[2]).toEqual({
       dayNumber: 3,
       name: 'Upper Body Pull',
       durationMin: 45,
-      intensity: 'moderate'
+      intensity: 'moderate',
+      notes: 'Back and bicep development with rowing and pulling movements.'
     });
   });
 
@@ -89,6 +92,7 @@ describe('parseSessionsFromMarkdown', () => {
     expect(sessions[0].name).toBe('Full Body');
     expect(sessions[0].durationMin).toBe(30);
     expect(sessions[0].intensity).toBe('low');
+    expect(sessions[0].notes).toBe('Basic full body workout.');
   });
 
   it('returns empty array for null input', () => {
@@ -110,6 +114,7 @@ describe('parseSessionsFromMarkdown', () => {
     expect(sessions).toHaveLength(1);
     expect(sessions[0].durationMin).toBe(45);
     expect(sessions[0].intensity).toBe('moderate');
+    expect(sessions[0].notes).toBe('Some description text.');
   });
 });
 
