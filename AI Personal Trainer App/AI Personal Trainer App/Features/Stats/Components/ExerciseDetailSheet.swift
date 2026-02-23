@@ -458,28 +458,57 @@ struct FlowLayout: Layout {
 }
 
 struct PreviewWrapper: View {
-    @State private var workoutItems: [WorkoutHistoryItem] = []
-    @State private var isLoading = true
-    
     var body: some View {
-        Group {
-            if isLoading {
-                ProgressView("Loading from database...")
-            } else if let firstItem = workoutItems.first {
-                ExerciseDetailSheet(exercise: firstItem)
-            } else {
-                Text("No workout history found")
-                    .foregroundColor(AppTheme.Colors.secondaryText)
-            }
-        }
-        .task {
-            await loadPreviewData()
-        }
+        ExerciseDetailSheet(exercise: MockExerciseDisplayable.preview)
     }
-    
-    private func loadPreviewData() async {
-        await MainActor.run {
-            isLoading = false
-        }
-    }
+}
+
+private struct MockExerciseDisplayable: ExerciseDisplayable {
+    let exercise_name: String
+    let exercise_type: String
+    let sets: Int?
+    let reps: [Int]?
+    let load_each: [Double]?
+    let hold_duration_sec: [Int]?
+    let duration_min: Int?
+    let distance_km: Double?
+    let target_pace: String?
+    let rounds: Int?
+    let total_duration_min: Int?
+    let rest_seconds: Int?
+    let displayMusclesUtilized: [MuscleUtilization]
+    let goals_addressed: [GoalUtilization]?
+    let reasoning: String?
+    let equipment: [String]?
+    let exercise_description: String?
+    let displayFormattedDate: String?
+    let displayRpe: Int?
+    let displayNotes: String?
+
+    static let preview = MockExerciseDisplayable(
+        exercise_name: "Goblet Squat",
+        exercise_type: "reps",
+        sets: 3,
+        reps: [10, 10, 8],
+        load_each: [35, 35, 40],
+        hold_duration_sec: nil,
+        duration_min: nil,
+        distance_km: nil,
+        target_pace: nil,
+        rounds: nil,
+        total_duration_min: nil,
+        rest_seconds: 90,
+        displayMusclesUtilized: [
+            MuscleUtilization(muscle: "quadriceps", share: 0.45),
+            MuscleUtilization(muscle: "glutes", share: 0.35),
+            MuscleUtilization(muscle: "core", share: 0.20)
+        ],
+        goals_addressed: nil,
+        reasoning: "Build lower-body strength with controlled tempo.",
+        equipment: ["dumbbell"],
+        exercise_description: "Keep chest up and knees tracking over toes.",
+        displayFormattedDate: "Today",
+        displayRpe: 7,
+        displayNotes: "Felt solid in all sets"
+    )
 }

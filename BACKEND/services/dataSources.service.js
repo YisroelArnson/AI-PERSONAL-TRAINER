@@ -4,6 +4,7 @@ const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const formatters = require('./dataFormatters.service');
 const { getLatestByTypes } = require('./trainerMeasurements.service');
+const workoutTrackingService = require('./workoutTracking.service');
 
 dotenv.config();
 
@@ -49,16 +50,11 @@ const DATA_SOURCES = {
   },
 
   workout_history: {
-    description: 'Recent workout history',
+    description: 'Recent workout history from trainer workout sessions',
     fetch: async (userId, params = {}) => {
       const limit = sanitizeLimit(params.limit ?? params.days_back, 10, 50);
-      const { data } = await supabase
-        .from('workout_history')
-        .select('*')
-        .eq('user_id', userId)
-        .order('completed_at', { ascending: false })
-        .limit(limit);
-      return data;
+      const history = await workoutTrackingService.listHistory({ userId, limit, cursor: null });
+      return history.items || [];
     },
     format: formatters.formatWorkoutHistory
   },

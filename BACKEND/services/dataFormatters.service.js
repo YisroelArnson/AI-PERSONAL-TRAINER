@@ -13,14 +13,24 @@ function formatWorkoutHistory(workouts) {
     return 'No workout history available.';
   }
 
-  return workouts.map(w => {
-    const date = new Date(w.completed_at).toLocaleDateString();
-    const exercises = w.exercises?.map(e => 
-      `${e.name}(${e.sets}x${e.reps || e.duration || e.hold_time})`
-    ).join(', ') || 'No exercises logged';
-    return `${date}: ${exercises}`;
+  return workouts.map(workout => {
+    const dateSource = workout.completed_at || workout.started_at;
+    const date = dateSource ? new Date(dateSource).toLocaleDateString() : 'Unknown date';
+    const title = workout.title || 'Workout';
+    const duration = Number.isFinite(Number(workout.actual_duration_min))
+      ? `${Math.round(Number(workout.actual_duration_min))}min`
+      : 'duration n/a';
+    const exercises = Number.isFinite(Number(workout.exercise_count))
+      ? `${Number(workout.exercise_count)} exercises`
+      : 'exercise count n/a';
+    const volume = Number.isFinite(Number(workout.total_volume))
+      ? `volume ${Math.round(Number(workout.total_volume))}`
+      : null;
+
+    return `${date}: ${title} (${duration}, ${exercises}${volume ? `, ${volume}` : ''})`;
   }).join('\n');
 }
+
 
 /**
  * Format user settings for context
