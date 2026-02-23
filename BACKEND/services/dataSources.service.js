@@ -4,7 +4,6 @@ const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const formatters = require('./dataFormatters.service');
 const { getLatestByTypes } = require('./trainerMeasurements.service');
-const workoutTrackingService = require('./workoutTracking.service');
 
 dotenv.config();
 
@@ -12,6 +11,15 @@ const supabase = createClient(
   process.env.SUPABASE_PUBLIC_URL,
   process.env.SUPABASE_SECRET_KEY
 );
+
+let workoutTrackingServiceRef = null;
+
+function getWorkoutTrackingService() {
+  if (!workoutTrackingServiceRef) {
+    workoutTrackingServiceRef = require('./workoutTracking.service');
+  }
+  return workoutTrackingServiceRef;
+}
 
 function sanitizeLimit(value, fallback = 10, max = 50) {
   const parsed = Number.parseInt(value, 10);
@@ -53,6 +61,7 @@ const DATA_SOURCES = {
     description: 'Recent workout history from trainer workout sessions',
     fetch: async (userId, params = {}) => {
       const limit = sanitizeLimit(params.limit ?? params.days_back, 10, 50);
+      const workoutTrackingService = getWorkoutTrackingService();
       const history = await workoutTrackingService.listHistory({ userId, limit, cursor: null });
       return history.items || [];
     },
