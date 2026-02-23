@@ -77,24 +77,24 @@ struct StatsView: View {
 // MARK: - Workout History Card
 
 struct WorkoutHistoryCard: View {
-    let workout: WorkoutHistoryItem
+    let workout: WorkoutHistorySessionItem
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(workout.exercise_name)
+                Text(workout.title)
                     .font(AppTheme.Typography.cardTitle)
                     .foregroundColor(AppTheme.Colors.primaryText)
                     .lineLimit(2)
 
-                Text(workout.relativeDate)
+                Text(workout.startedAt?.formatted(date: .abbreviated, time: .omitted) ?? "Unknown date")
                     .font(AppTheme.Typography.label)
                     .foregroundColor(AppTheme.Colors.tertiaryText)
             }
 
             Spacer()
 
-            Text(workout.exercise_type.replacingOccurrences(of: "_", with: " ").capitalized)
+            Text((workout.workoutType ?? "session").replacingOccurrences(of: "_", with: " ").capitalized)
                 .font(AppTheme.Typography.label)
                 .foregroundColor(AppTheme.Colors.primaryText)
                 .padding(.horizontal, 10)
