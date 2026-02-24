@@ -67,13 +67,19 @@ struct MainAppView: View {
         ZStack(alignment: .top) {
             currentPageView
                 .ignoresSafeArea(.keyboard)
+                .safeAreaInset(edge: .top) {
+                    if shouldReserveTopBarSpace {
+                        Color.clear
+                            .frame(height: topBarReservedHeight)
+                    }
+                }
 
-            if !(currentPage == .home && workoutStore.showPreWorkoutSheet) {
+            if shouldShowTopBar {
                 AssistantOverlayView()
             }
 
             // Top bar
-            if !(currentPage == .home && workoutStore.showPreWorkoutSheet) {
+            if shouldShowTopBar {
                 VStack(spacing: 0) {
                     homeTopBar
                     Spacer()
@@ -88,6 +94,18 @@ struct MainAppView: View {
             Task { await appCoordinator.startAppInitialization() }
             Task { await loadUserEmail() }
         }
+    }
+
+    private var shouldShowTopBar: Bool {
+        !(currentPage == .home && workoutStore.showPreWorkoutSheet)
+    }
+
+    private var shouldReserveTopBarSpace: Bool {
+        shouldShowTopBar && currentPage != .home
+    }
+
+    private var topBarReservedHeight: CGFloat {
+        72
     }
 
     // MARK: - Home Top Bar

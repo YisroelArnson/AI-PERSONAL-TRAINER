@@ -187,6 +187,7 @@ struct WorkoutHistoryResponse: Codable {
 
 struct WorkoutHistorySessionItem: Codable, Identifiable {
     let sessionId: String
+    let calendarEventId: String?
     let status: String
     let startedAt: Date?
     let completedAt: Date?
@@ -204,6 +205,7 @@ struct WorkoutHistorySessionItem: Codable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case sessionId = "session_id"
+        case calendarEventId = "calendar_event_id"
         case status
         case startedAt = "started_at"
         case completedAt = "completed_at"

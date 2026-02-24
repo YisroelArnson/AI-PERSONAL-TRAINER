@@ -1474,6 +1474,7 @@ async function listHistory({ userId, limit = 20, cursor = null }) {
 
     return {
       session_id: session.id,
+      calendar_event_id: session.calendar_event_id || null,
       status: session.status,
       started_at: session.started_at,
       completed_at: session.completed_at,
