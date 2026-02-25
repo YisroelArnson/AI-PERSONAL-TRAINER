@@ -99,7 +99,7 @@ final class WorkoutHistoryViewModel: ObservableObject {
     @Published private(set) var loadingDetailSessionId: String?
     @Published var detailErrorMessage: String?
 
-    private let apiService = APIService()
+    private let dataRepository = AppDataRepository.shared
     private var hasLoadedInitial = false
 
     var filteredWorkouts: [WorkoutHistorySessionItem] {
@@ -238,15 +238,15 @@ final class WorkoutHistoryViewModel: ObservableObject {
 
     func loadInitialIfNeeded() async {
         guard !hasLoadedInitial else { return }
-        await refresh()
+        await refresh(forceRefresh: false)
         hasLoadedInitial = true
     }
 
-    func refresh() async {
+    func refresh(forceRefresh: Bool = true) async {
         isInitialLoading = true
         errorMessage = nil
         do {
-            let response = try await apiService.fetchWorkoutHistory(limit: 20, cursor: nil)
+            let response = try await dataRepository.loadWorkoutHistoryPage(limit: 20, cursor: nil, forceRefresh: forceRefresh)
             workouts = response.items
             nextCursor = response.nextCursor
             await primeExerciseDetails(for: Array(response.items.prefix(8)))
@@ -265,7 +265,7 @@ final class WorkoutHistoryViewModel: ObservableObject {
 
         isLoadingMore = true
         do {
-            let response = try await apiService.fetchWorkoutHistory(limit: 20, cursor: nextCursor)
+            let response = try await dataRepository.loadWorkoutHistoryPage(limit: 20, cursor: nextCursor)
             workouts.append(contentsOf: response.items)
             self.nextCursor = response.nextCursor
             await primeExerciseDetails(for: Array(response.items.prefix(5)))
@@ -290,7 +290,7 @@ final class WorkoutHistoryViewModel: ObservableObject {
 
         loadingDetailSessionId = item.sessionId
         do {
-            let detail = try await apiService.fetchWorkoutTrackingSession(sessionId: item.sessionId)
+            let detail = try await dataRepository.loadWorkoutSessionDetail(sessionId: item.sessionId)
             workoutDetailsBySessionId[item.sessionId] = detail
             selectedWorkoutDetail = detail
             selectedWorkoutExerciseIndex = nil
@@ -328,7 +328,7 @@ final class WorkoutHistoryViewModel: ObservableObject {
     private func primeExerciseDetails(for items: [WorkoutHistorySessionItem]) async {
         for item in items where workoutDetailsBySessionId[item.sessionId] == nil {
             do {
-                let detail = try await apiService.fetchWorkoutTrackingSession(sessionId: item.sessionId)
+                let detail = try await dataRepository.loadWorkoutSessionDetail(sessionId: item.sessionId)
                 workoutDetailsBySessionId[item.sessionId] = detail
             } catch {
                 continue

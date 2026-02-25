@@ -17,7 +17,8 @@ struct TrainerCalendarView: View {
     @State private var detailEvent: CalendarEvent?
     @State private var errorMessage: String?
 
-    private let apiService = APIService()
+    private let apiService = APIService.shared
+    private let dataRepository = AppDataRepository.shared
 
     init(showsSheetChrome: Bool = true) {
         self.showsSheetChrome = showsSheetChrome
@@ -48,10 +49,15 @@ struct TrainerCalendarView: View {
                                     Circle().fill(AppTheme.Colors.surface)
                                 )
                         }
-                        Button("Sync") {
+                        Button {
                             Task { await syncCalendar() }
+                        } label: {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(AppTheme.Colors.primaryText)
+                                .frame(width: 34, height: 34)
+                                .background(Circle().fill(AppTheme.Colors.surface))
                         }
-                        .buttonStyle(SecondaryCapsuleButton())
                     }
                     .padding(.horizontal, AppTheme.Spacing.xl)
                     .padding(.top, AppTheme.Spacing.xs)
@@ -288,7 +294,7 @@ struct TrainerCalendarView: View {
         do {
             let start = Calendar.current.date(byAdding: .month, value: -6, to: Calendar.current.startOfDay(for: Date())) ?? Date()
             let end = Calendar.current.date(byAdding: .month, value: 12, to: Calendar.current.startOfDay(for: Date())) ?? Date()
-            events = try await apiService.listCalendarEvents(start: start, end: end)
+            events = try await dataRepository.loadCalendarEvents(start: start, end: end)
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -296,26 +302,7 @@ struct TrainerCalendarView: View {
 
     private func loadCompletedHistory() async {
         do {
-            var cursor: String?
-            var allItems: [WorkoutHistorySessionItem] = []
-            for _ in 0..<6 {
-                let response = try await apiService.fetchWorkoutHistory(limit: 50, cursor: cursor)
-                allItems.append(contentsOf: response.items)
-                guard let next = response.nextCursor, !next.isEmpty else { break }
-                cursor = next
-            }
-            historyByCalendarEventId = allItems.reduce(into: [:]) { acc, item in
-                guard let eventId = item.calendarEventId else { return }
-                if let existing = acc[eventId] {
-                    let existingDate = existing.completedAt ?? existing.startedAt ?? .distantPast
-                    let candidateDate = item.completedAt ?? item.startedAt ?? .distantPast
-                    if candidateDate > existingDate {
-                        acc[eventId] = item
-                    }
-                } else {
-                    acc[eventId] = item
-                }
-            }
+            historyByCalendarEventId = try await dataRepository.loadCalendarHistoryIndex()
         } catch {
             // History enrichment is best effort; keep calendar usable if this fails.
         }
@@ -326,6 +313,7 @@ struct TrainerCalendarView: View {
         defer { isLoadingEvents = false }
         do {
             try await apiService.syncCalendar()
+            await dataRepository.invalidateCalendar()
             await loadEvents(showSkeleton: false)
         } catch {
             errorMessage = error.localizedDescription
@@ -382,29 +370,34 @@ struct CalendarEventRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(statusColor)
-                        .frame(width: 8, height: 8)
+            HStack(spacing: 0) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(statusColor)
+                    .frame(width: 3)
+                    .frame(maxHeight: .infinity)
+                VStack(alignment: .leading, spacing: 3) {
                     Text(eventTitle)
                         .font(AppTheme.Typography.cardTitle)
                         .foregroundColor(AppTheme.Colors.primaryText)
-                    Spacer()
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                    Text(eventDetail)
+                        .font(AppTheme.Typography.label)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                 }
-                Text(eventDetail)
-                    .font(AppTheme.Typography.cardSubtitle)
-                    .foregroundColor(AppTheme.Colors.secondaryText)
+                .padding(.horizontal, AppTheme.Spacing.md)
+                .padding(.vertical, AppTheme.Spacing.md)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(AppTheme.Colors.tertiaryText)
+                    .padding(.trailing, AppTheme.Spacing.md)
             }
-            .padding(AppTheme.Spacing.md)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
                     .fill(AppTheme.Colors.surface)
             )
+            .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
         }
         .buttonStyle(.plain)
     }
@@ -449,29 +442,39 @@ private struct MonthDayCell: View {
     let hasWorkout: Bool
     let onTap: () -> Void
 
+    private var isToday: Bool {
+        guard let date else { return false }
+        return Calendar.current.isDateInToday(date)
+    }
+
     var body: some View {
         Group {
             if let date {
                 Button(action: onTap) {
-                    VStack(spacing: 4) {
+                    VStack(spacing: 3) {
                         Text("\(Calendar.current.component(.day, from: date))")
-                            .font(AppTheme.Typography.label)
+                            .font(.system(size: 14, weight: isSelected || isToday ? .semibold : .regular))
                             .foregroundColor(isSelected ? AppTheme.Colors.background : AppTheme.Colors.primaryText)
+                            .frame(width: 32, height: 32)
+                            .background(
+                                ZStack {
+                                    if isSelected {
+                                        Circle().fill(AppTheme.Colors.primaryText)
+                                    } else if isToday {
+                                        Circle().strokeBorder(AppTheme.Colors.primaryText.opacity(0.5), lineWidth: 1.5)
+                                    }
+                                }
+                            )
                         Circle()
-                            .fill(hasWorkout ? AppTheme.Colors.accent : .clear)
-                            .frame(width: 5, height: 5)
+                            .fill(hasWorkout && !isSelected ? AppTheme.Colors.secondaryText.opacity(0.4) : .clear)
+                            .frame(width: 4, height: 4)
                     }
-                    .frame(maxWidth: .infinity, minHeight: 34)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(isSelected ? AppTheme.Colors.accent : .clear)
-                    )
+                    .frame(maxWidth: .infinity, minHeight: 44)
                 }
                 .buttonStyle(.plain)
             } else {
                 Color.clear
-                    .frame(maxWidth: .infinity, minHeight: 42)
+                    .frame(maxWidth: .infinity, minHeight: 44)
             }
         }
     }
@@ -491,27 +494,39 @@ private struct CalendarEventDetailSheet: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
-                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+            VStack(alignment: .leading, spacing: 0) {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                    statusBadge
                     Text(eventTitle)
-                        .font(AppTheme.Typography.screenTitle)
+                        .font(.system(size: 22, weight: .semibold))
                         .foregroundColor(AppTheme.Colors.primaryText)
                     Text(eventMeta)
-                        .font(AppTheme.Typography.cardSubtitle)
+                        .font(AppTheme.Typography.label)
                         .foregroundColor(AppTheme.Colors.secondaryText)
                 }
+                .padding(.horizontal, AppTheme.Spacing.xl)
+                .padding(.top, AppTheme.Spacing.xxl)
+                .padding(.bottom, AppTheme.Spacing.lg)
 
-                if isCompletedEvent {
-                    completedContent
-                } else {
-                    plannedContent
+                Rectangle()
+                    .fill(AppTheme.Colors.divider)
+                    .frame(height: 1)
+                    .padding(.horizontal, AppTheme.Spacing.xl)
+
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                    if isCompletedEvent {
+                        completedContent
+                    } else {
+                        plannedContent
+                    }
                 }
+                .padding(.horizontal, AppTheme.Spacing.xl)
+                .padding(.top, AppTheme.Spacing.lg)
+                .padding(.bottom, AppTheme.Spacing.xxxl)
             }
-            .padding(.horizontal, AppTheme.Spacing.xl)
-            .padding(.vertical, AppTheme.Spacing.lg)
         }
         .background(AppTheme.Gradients.background.ignoresSafeArea())
-        .navigationTitle("Workout Detail")
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
@@ -525,14 +540,29 @@ private struct CalendarEventDetailSheet: View {
         }
     }
 
+    private var statusBadge: some View {
+        let color = badgeColor
+        return Text(event.status.capitalized)
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundColor(color)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(color.opacity(0.12)))
+    }
+
+    private var badgeColor: Color {
+        switch event.status.lowercased() {
+        case "completed": return .green
+        case "skipped", "canceled": return .orange
+        default: return AppTheme.Colors.primaryText
+        }
+    }
+
     private var plannedContent: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            Text("Planned Intent")
-                .font(AppTheme.Typography.cardTitle)
-                .foregroundColor(AppTheme.Colors.primaryText)
-            intentRow("Focus", value: plannedFocus ?? "Not set")
-            intentRow("Notes", value: plannedNotes ?? "No notes")
-            intentRow("Duration", value: plannedDurationText ?? "Not set")
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+            intentSection("Focus", value: plannedFocus ?? "Not set")
+            intentSection("Notes", value: plannedNotes ?? "No notes")
+            intentSection("Duration", value: plannedDurationText ?? "Not set")
             Button("Start Workout") {
                 onStartWorkout()
                 dismiss()
@@ -540,59 +570,71 @@ private struct CalendarEventDetailSheet: View {
             .buttonStyle(PrimaryCapsuleButton())
             .padding(.top, AppTheme.Spacing.sm)
         }
-        .padding(AppTheme.Spacing.lg)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
-                .fill(AppTheme.Colors.surface)
-        )
     }
 
     private var completedContent: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
-            Text("Completed Session")
-                .font(AppTheme.Typography.cardTitle)
-                .foregroundColor(AppTheme.Colors.primaryText)
-
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
             if let historySummary {
-                intentRow("Duration", value: "\(historySummary.actualDurationMin ?? 0) min")
-                intentRow("Exercises", value: "\(historySummary.completedExerciseCount)/\(historySummary.exerciseCount)")
-                intentRow("Volume", value: "\(historySummary.totalVolume)")
-                if let rpe = historySummary.sessionRpe {
-                    intentRow("Session RPE", value: "\(rpe)")
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppTheme.Spacing.sm) {
+                    statCell("Duration", value: "\(historySummary.actualDurationMin ?? 0) min")
+                    statCell("Exercises", value: "\(historySummary.completedExerciseCount)/\(historySummary.exerciseCount)")
+                    statCell("Volume", value: "\(historySummary.totalVolume) lbs")
+                    statCell("RPE", value: historySummary.sessionRpe.map { "\($0)/10" } ?? "—")
                 }
 
-                Button(isLoadingDetail ? "Loading..." : "Load Actual Workout Data") {
+                Button(isLoadingDetail ? "Loading..." : "View Exercise Breakdown") {
                     Task { await loadDetail() }
                 }
                 .buttonStyle(SecondaryCapsuleButton())
                 .disabled(isLoadingDetail)
             } else {
-                Text("No linked completed-session data found yet.")
+                Text("No completed session data found.")
                     .font(AppTheme.Typography.cardSubtitle)
                     .foregroundColor(AppTheme.Colors.secondaryText)
             }
 
             if let detail {
-                Divider()
-                Text("Exercises")
-                    .font(AppTheme.Typography.cardTitle)
-                    .foregroundColor(AppTheme.Colors.primaryText)
-                ForEach(detail.instance?.exercises ?? []) { exercise in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(exercise.exercise_name)
-                            .font(AppTheme.Typography.label)
-                            .foregroundColor(AppTheme.Colors.primaryText)
-                        Text(exerciseSummary(exercise))
-                            .font(AppTheme.Typography.cardSubtitle)
-                            .foregroundColor(AppTheme.Colors.secondaryText)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("EXERCISES")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.tertiaryText)
+                        .tracking(0.5)
+                        .padding(.bottom, AppTheme.Spacing.sm)
+                    ForEach(detail.instance?.exercises ?? []) { exercise in
+                        VStack(spacing: 0) {
+                            HStack {
+                                Text(exercise.exercise_name)
+                                    .font(AppTheme.Typography.cardTitle)
+                                    .foregroundColor(AppTheme.Colors.primaryText)
+                                Spacer()
+                                Text(exerciseSummary(exercise))
+                                    .font(AppTheme.Typography.label)
+                                    .foregroundColor(AppTheme.Colors.secondaryText)
+                            }
+                            .padding(.vertical, AppTheme.Spacing.sm)
+                            Rectangle()
+                                .fill(AppTheme.Colors.divider)
+                                .frame(height: 1)
+                        }
                     }
-                    .padding(.vertical, 2)
                 }
             }
         }
-        .padding(AppTheme.Spacing.lg)
+    }
+
+    private func statCell(_ label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(value)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundColor(AppTheme.Colors.primaryText)
+            Text(label)
+                .font(AppTheme.Typography.label)
+                .foregroundColor(AppTheme.Colors.secondaryText)
+        }
+        .padding(AppTheme.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
-            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
+            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
                 .fill(AppTheme.Colors.surface)
         )
     }
@@ -608,11 +650,12 @@ private struct CalendarEventDetailSheet: View {
         }
     }
 
-    private func intentRow(_ label: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(label)
-                .font(AppTheme.Typography.label)
-                .foregroundColor(AppTheme.Colors.secondaryText)
+    private func intentSection(_ label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label.uppercased())
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(AppTheme.Colors.tertiaryText)
+                .tracking(0.5)
             Text(value)
                 .font(AppTheme.Typography.cardSubtitle)
                 .foregroundColor(AppTheme.Colors.primaryText)

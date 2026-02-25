@@ -11,8 +11,9 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject var appCoordinator: AppStateCoordinator
 
-    @StateObject private var apiService = APIService()
     @State private var workoutStore = WorkoutStore.shared
+    private let dataRepository = AppDataRepository.shared
+    private let apiService = APIService.shared
 
     // Sheet states
     @State private var showScheduleSheet = false
@@ -265,7 +266,7 @@ struct HomeView: View {
         await refreshCalendarState()
 
         do {
-            let dailyMessage = try await apiService.fetchDailyMessage()
+            let dailyMessage = try await dataRepository.loadDailyMessage()
             aiMessage = dailyMessage.messageText
         } catch {
             print("Failed to load daily message: \(error)")
@@ -295,15 +296,16 @@ struct HomeView: View {
         do {
             let start = Calendar.current.startOfDay(for: Date())
             let end = Calendar.current.date(byAdding: .day, value: 7, to: start) ?? start
-            upcomingEvents = try await apiService.listCalendarEvents(start: start, end: end)
-            latestReport = try await apiService.listWeeklyReports().first
+            upcomingEvents = try await dataRepository.loadCalendarEvents(start: start, end: end)
+            latestReport = try await dataRepository.loadWeeklyReports().first
 
             // Check if no planned/scheduled events — trigger catch-up review
             let hasPlannedEvents = upcomingEvents.contains { $0.status == "scheduled" || $0.status == "planned" }
             if !hasPlannedEvents {
                 let newEvents = try await apiService.checkAndRegenerateCalendar()
                 if !newEvents.isEmpty {
-                    upcomingEvents = try await apiService.listCalendarEvents(start: start, end: end)
+                    await dataRepository.invalidateCalendar()
+                    upcomingEvents = try await dataRepository.loadCalendarEvents(start: start, end: end, forceRefresh: true)
                 }
             }
         } catch {

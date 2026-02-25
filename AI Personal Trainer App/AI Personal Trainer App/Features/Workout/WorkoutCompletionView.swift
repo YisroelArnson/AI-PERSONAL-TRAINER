@@ -11,6 +11,7 @@ struct WorkoutCompletionView: View {
     @State private var workoutStore = WorkoutStore.shared
     @State private var notes: String = ""
     @State private var sessionRpe: Int?
+    @State private var didTapDone = false
 
     var body: some View {
         ScrollView {
@@ -44,6 +45,7 @@ struct WorkoutCompletionView: View {
                         .foregroundStyle(AppTheme.Colors.primaryText)
                         .frame(width: 44, height: 44)
                 }
+                .disabled(didTapDone)
             }
             ToolbarItem(placement: .principal) {
                 Text("Workout Complete")
@@ -178,6 +180,7 @@ struct WorkoutCompletionView: View {
             HStack(spacing: 8) {
                 ForEach([6, 7, 8, 9, 10], id: \.self) { value in
                     Button {
+                        guard !didTapDone else { return }
                         sessionRpe = value
                     } label: {
                         Text("\(value)")
@@ -193,6 +196,7 @@ struct WorkoutCompletionView: View {
             }
 
             Button("Clear") {
+                guard !didTapDone else { return }
                 sessionRpe = nil
             }
             .font(.system(size: 12, weight: .medium))
@@ -210,28 +214,57 @@ struct WorkoutCompletionView: View {
             .padding(.horizontal, 16)
             .background(AppTheme.Colors.surface)
             .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium))
+            .disabled(didTapDone)
     }
 
     // MARK: - Done Button
 
     private var doneButton: some View {
         Button {
-            Task {
-                await workoutStore.completeWorkout(
-                    notes: notes.isEmpty ? nil : notes,
-                    sessionRpe: sessionRpe
-                )
-                workoutStore.reset()
-            }
+            handleDoneTap()
         } label: {
-            Text("Done")
-                .font(.system(size: 15, weight: .semibold))
+            VStack(spacing: 8) {
+                HStack(spacing: 10) {
+                    if didTapDone {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    Text(didTapDone ? "Completed" : "Done")
+                        .font(.system(size: 15, weight: .semibold))
+                }
                 .foregroundStyle(AppTheme.Colors.background)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
                 .padding(.horizontal, 20)
                 .background(AppTheme.Colors.accent)
                 .clipShape(RoundedRectangle(cornerRadius: AppTheme.CornerRadius.pill))
+            }
+        }
+        .disabled(didTapDone)
+        .buttonStyle(.plain)
+        .animation(AppTheme.Animation.gentle, value: didTapDone)
+    }
+
+    private func handleDoneTap() {
+        guard !didTapDone else { return }
+        Haptic.medium()
+        let resolvedNotes = notes.isEmpty ? nil : notes
+
+        workoutStore.queueCompleteCurrentWorkout(
+            notes: resolvedNotes,
+            sessionRpe: sessionRpe
+        )
+
+        withAnimation(AppTheme.Animation.gentle) {
+            didTapDone = true
+        }
+
+        Task {
+            await Task.yield()
+            Haptic.success()
+            withAnimation(AppTheme.Animation.gentle) {
+                workoutStore.reset()
+            }
         }
     }
 }

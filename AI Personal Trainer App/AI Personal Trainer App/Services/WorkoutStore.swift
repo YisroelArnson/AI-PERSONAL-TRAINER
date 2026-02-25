@@ -944,6 +944,27 @@ class WorkoutStore {
         }
     }
 
+    /// Queue completion in the background so UI can transition immediately.
+    /// Best-effort retries handle temporary network failures after dismiss.
+    func queueCompleteCurrentWorkout(notes: String?, sessionRpe: Int? = nil) {
+        guard let session = currentSession else { return }
+        pendingRpeExerciseIndex = nil
+
+        let payload = buildCompletionPayload(notes: notes, sessionRpe: sessionRpe)
+        let commandSnapshot = pendingCommands
+        let versionSnapshot = exercisePayloadVersions
+        let sessionId = session.id
+
+        Task {
+            await flushCommandSnapshot(commandSnapshot, versions: versionSnapshot, sessionId: sessionId)
+            await completeSessionWithRetry(
+                sessionId: sessionId,
+                reflection: payload.reflection,
+                log: payload.log
+            )
+        }
+    }
+
     func stopWorkout(reason: String = "user_stopped", notes: String? = nil, sessionRpe: Int? = nil) async {
         guard let session = currentSession else { return }
         await flushPendingCommands()
@@ -1214,5 +1235,82 @@ class WorkoutStore {
         isFlushingCommandOutbox = false
         isWorkoutViewPresented = false
         discardPersistedState()
+    }
+
+    private func flushCommandSnapshot(
+        _ snapshot: [PendingExerciseCommand],
+        versions: [UUID: Int],
+        sessionId: String
+    ) async {
+        guard !snapshot.isEmpty else { return }
+
+        var versionByExercise: [String: Int] = [:]
+        for (id, version) in versions {
+            versionByExercise[id.uuidString] = version
+        }
+
+        for command in snapshot where command.sessionId == sessionId {
+            var candidate = command
+            var attempt = 0
+            let maxAttempts = 5
+
+            while attempt < maxAttempts {
+                do {
+                    let request = WorkoutExerciseCommandRequest(
+                        commandId: candidate.id,
+                        expectedVersion: candidate.expectedVersion,
+                        command: candidate.command,
+                        clientMeta: commandClientMeta()
+                    )
+                    let response = try await apiService.sendWorkoutExerciseCommand(
+                        exerciseId: candidate.exerciseId,
+                        requestBody: request
+                    )
+                    if let payloadVersion = response.payloadVersion {
+                        versionByExercise[candidate.exerciseId] = payloadVersion
+                    }
+                    break
+                } catch APIError.conflict(let currentVersion) {
+                    let serverVersion = currentVersion ?? versionByExercise[candidate.exerciseId] ?? candidate.expectedVersion
+                    candidate.expectedVersion = max(serverVersion, 1)
+                    versionByExercise[candidate.exerciseId] = candidate.expectedVersion
+                    attempt += 1
+                } catch {
+                    attempt += 1
+                    if attempt < maxAttempts {
+                        let waitNs = UInt64(pow(2.0, Double(attempt - 1)) * 500_000_000)
+                        try? await Task.sleep(nanoseconds: waitNs)
+                    } else {
+                        print("Queued command send failed permanently: \(error)")
+                    }
+                }
+            }
+        }
+    }
+
+    private func completeSessionWithRetry(
+        sessionId: String,
+        reflection: WorkoutReflection,
+        log: WorkoutLogPayload
+    ) async {
+        let maxAttempts = 5
+
+        for attempt in 1...maxAttempts {
+            do {
+                _ = try await apiService.completeWorkoutSession(
+                    sessionId: sessionId,
+                    reflection: reflection,
+                    log: log
+                )
+                return
+            } catch {
+                if attempt == maxAttempts {
+                    print("Queued completion failed permanently: \(error)")
+                    return
+                }
+                let waitNs = UInt64(pow(2.0, Double(attempt - 1)) * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: waitNs)
+            }
+        }
     }
 }
