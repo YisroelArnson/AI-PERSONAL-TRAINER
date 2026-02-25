@@ -60,7 +60,65 @@ async function listEvents(userId, start, end) {
 
   const { data, error } = await query;
   if (error) throw error;
-  return (data || []).map(normalizeEvent);
+  const events = (data || []).map(normalizeEvent);
+
+  // Self-heal legacy mismatch: if a linked workout session is completed but the
+  // calendar event still says scheduled/planned, mark the event completed.
+  const candidateEventIds = events
+    .filter(event =>
+      event?.event_type === 'workout'
+      && (event?.status === 'scheduled' || event?.status === 'planned')
+    )
+    .map(event => event.id);
+
+  if (candidateEventIds.length > 0) {
+    const { data: completedSessions, error: completedSessionsError } = await supabase
+      .from('trainer_workout_sessions')
+      .select('calendar_event_id')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .in('calendar_event_id', candidateEventIds);
+
+    if (!completedSessionsError) {
+      const completedEventIds = Array.from(new Set(
+        (completedSessions || [])
+          .map(row => row.calendar_event_id)
+          .filter(Boolean)
+      ));
+
+      if (completedEventIds.length > 0) {
+        const { error: calendarPatchError } = await supabase
+          .from('trainer_calendar_events')
+          .update({
+            status: 'completed',
+            updated_at: new Date().toISOString()
+          })
+          .eq('user_id', userId)
+          .in('id', completedEventIds);
+
+        if (!calendarPatchError) {
+          for (const event of events) {
+            if (completedEventIds.includes(event.id)) {
+              event.status = 'completed';
+            }
+          }
+        } else {
+          console.error('[calendar] Failed to self-heal completed event status:', {
+            userId,
+            completedEventIds,
+            message: calendarPatchError?.message
+          });
+        }
+      }
+    } else {
+      console.error('[calendar] Failed to check completed sessions for event status sync:', {
+        userId,
+        message: completedSessionsError?.message
+      });
+    }
+  }
+
+  return events;
 }
 
 async function getPlannedSession(plannedSessionId, userId = null) {
@@ -78,7 +136,8 @@ async function getPlannedSession(plannedSessionId, userId = null) {
   return data;
 }
 
-async function createPlannedSession(userId, calendarEventId, intentJson) {
+async function createPlannedSession(userId, calendarEventId, intentJson, options = {}) {
+  const tolerateMissingEvent = Boolean(options.tolerateMissingEvent);
   const { data, error } = await supabase
     .from('trainer_planned_sessions')
     .insert({
@@ -88,7 +147,16 @@ async function createPlannedSession(userId, calendarEventId, intentJson) {
     })
     .select()
     .single();
-  if (error) throw error;
+  if (error) {
+    if (tolerateMissingEvent && error.code === '23503') {
+      console.warn('[calendar] Skipping planned session creation because calendar event no longer exists', {
+        userId,
+        calendarEventId
+      });
+      return null;
+    }
+    throw error;
+  }
   await supabase
     .from('trainer_calendar_events')
     .update({
@@ -462,7 +530,7 @@ async function syncCalendarFromProgram(userId) {
       if (template.notes) {
         intent.notes = template.notes;
       }
-      await createPlannedSession(userId, event.id, intent);
+      await createPlannedSession(userId, event.id, intent, { tolerateMissingEvent: true });
     }
     createdCount = createdEvents.length;
   }
@@ -533,7 +601,7 @@ async function regenerateWeeklyCalendar(userId, programMarkdown) {
     if (template.notes) {
       intent.notes = template.notes;
     }
-    await createPlannedSession(userId, event.id, intent);
+    await createPlannedSession(userId, event.id, intent, { tolerateMissingEvent: true });
   }
 
   console.log(`[calendar] Regenerated ${createdEvents.length} events for next week`);

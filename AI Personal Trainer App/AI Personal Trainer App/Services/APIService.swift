@@ -494,7 +494,8 @@ class APIService: ObservableObject {
         request.httpMethod = "POST"
         request.httpBody = try JSONEncoder().encode(body)
 
-        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 60)
+        // Workout generation can involve multiple model calls; allow a longer client timeout.
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 120)
         guard httpResponse.statusCode == 200 else {
             if let message = extractServerErrorMessage(from: data) {
                 throw APIError.serverError(message: message, statusCode: httpResponse.statusCode)
@@ -566,6 +567,25 @@ class APIService: ObservableObject {
         }
 
         return try makeISO8601Decoder().decode(WorkoutHistoryResponse.self, from: data)
+    }
+
+    func fetchDailyMessage(timeZone: String = TimeZone.current.identifier) async throws -> DailyMessage {
+        var components = URLComponents(string: "\(baseURL)/trainer/daily-message")!
+        components.queryItems = [URLQueryItem(name: "timezone", value: timeZone)]
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 20)
+        guard httpResponse.statusCode == 200 else {
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        let response = try makeISO8601Decoder().decode(DailyMessageResponse.self, from: data)
+        return response.dailyMessage
     }
 
     // MARK: - Trainer Assessment (Phase B)

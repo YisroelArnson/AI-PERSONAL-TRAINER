@@ -12,6 +12,7 @@ import SwiftUI
 enum DrawerDestination: Equatable {
     case home
     case stats
+    case calendar
     case locations
     case profile
     case coach
@@ -45,6 +46,13 @@ struct SideDrawerView: View {
                     title: "Stats",
                     isSelected: currentPage == .stats,
                     onTap: { onNavigate(.stats) }
+                )
+
+                DrawerNavItem(
+                    icon: "calendar",
+                    title: "Calendar",
+                    isSelected: currentPage == .calendar,
+                    onTap: { onNavigate(.calendar) }
                 )
                 
                 DrawerNavItem(

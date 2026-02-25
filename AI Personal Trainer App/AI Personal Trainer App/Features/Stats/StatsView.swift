@@ -251,7 +251,9 @@ final class WorkoutHistoryViewModel: ObservableObject {
             nextCursor = response.nextCursor
             await primeExerciseDetails(for: Array(response.items.prefix(8)))
         } catch {
-            errorMessage = error.localizedDescription
+            if !isCancellation(error) {
+                errorMessage = error.localizedDescription
+            }
         }
         isInitialLoading = false
     }
@@ -268,7 +270,9 @@ final class WorkoutHistoryViewModel: ObservableObject {
             self.nextCursor = response.nextCursor
             await primeExerciseDetails(for: Array(response.items.prefix(5)))
         } catch {
-            errorMessage = error.localizedDescription
+            if !isCancellation(error) {
+                errorMessage = error.localizedDescription
+            }
         }
         isLoadingMore = false
     }
@@ -396,6 +400,14 @@ final class WorkoutHistoryViewModel: ObservableObject {
         if delta < -0.05 { return .down }
         return .flat
     }
+
+    private func isCancellation(_ error: Error) -> Bool {
+        if error is CancellationError {
+            return true
+        }
+        let nsError = error as NSError
+        return nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled
+    }
 }
 
 struct StatsView: View {
@@ -439,7 +451,7 @@ struct StatsContentView: View {
                         if !viewModel.isInitialLoading && viewModel.errorMessage == nil && viewModel.overviewMetrics.workoutsCompleted > 0 {
                             AIMessageView(historyAISummary)
                                 .padding(.horizontal, AppTheme.Spacing.xl)
-                                .padding(.top, AppTheme.Spacing.lg)
+                                .padding(.top, AppTheme.Spacing.xs)
                                 .padding(.bottom, AppTheme.Spacing.xxl)
                         }
 

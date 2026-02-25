@@ -159,8 +159,35 @@ async function planWorkoutIntent(req, res) {
   }
 }
 
+async function getDailyMessage(req, res) {
+  try {
+    const timeZone = typeof req.query.timezone === 'string' ? req.query.timezone : null;
+    console.log('getDailyMessage: start', {
+      user_id: req.user?.id || null,
+      timezone: timeZone
+    });
+    const dailyMessage = await workoutTrackingService.getOrCreateDailyMessage({
+      userId: req.user.id,
+      timeZone
+    });
+    res.json({ success: true, daily_message: dailyMessage });
+  } catch (error) {
+    console.error('getDailyMessage: error', {
+      message: error?.message,
+      code: error?.code,
+      hint: error?.hint,
+      details: error?.details,
+      statusCode: error?.statusCode
+    });
+    const status = getStatusCode(error);
+    const message = error?.issues ? zodErrorToMessage(error) : (error.message || 'Failed to load daily message');
+    res.status(status).json({ success: false, error: message });
+  }
+}
+
 module.exports = {
   planWorkoutIntent,
+  getDailyMessage,
   createWorkoutSession,
   getWorkoutSession,
   applyExerciseCommand,

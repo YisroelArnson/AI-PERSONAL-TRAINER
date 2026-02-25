@@ -82,6 +82,11 @@ struct HomeView: View {
                     await workoutStore.suspendWorkout()
                 }
             }
+            if !newValue {
+                Task {
+                    await refreshCalendarState()
+                }
+            }
         }
         .alert("Something went wrong", isPresented: Binding(
             get: { workoutStore.errorMessage != nil },
@@ -257,6 +262,36 @@ struct HomeView: View {
         // Attempt to restore a persisted workout
         let _ = workoutStore.loadPersistedState()
 
+        await refreshCalendarState()
+
+        do {
+            let dailyMessage = try await apiService.fetchDailyMessage()
+            aiMessage = dailyMessage.messageText
+        } catch {
+            print("Failed to load daily message: \(error)")
+            buildFallbackAIMessage()
+        }
+
+        try? await Task.sleep(nanoseconds: 400_000_000)
+
+        withAnimation(AppTheme.Animation.slow) {
+            isLoadingAIMessage = false
+        }
+    }
+
+    private func buildFallbackAIMessage() {
+        var messageParts: [String] = []
+
+        let workoutCount = latestReport?.sessionsCompleted ?? 3
+        messageParts.append("You've completed **\(workoutCount) workouts** this week.")
+        messageParts.append("Your push strength is up **12%** from last month.")
+        messageParts.append("Day **12** of your streak.")
+        messageParts.append("Let's keep building.")
+
+        aiMessage = messageParts.joined(separator: " ")
+    }
+
+    private func refreshCalendarState() async {
         do {
             let start = Calendar.current.startOfDay(for: Date())
             let end = Calendar.current.date(byAdding: .day, value: 7, to: start) ?? start
@@ -274,26 +309,6 @@ struct HomeView: View {
         } catch {
             print("Failed to load home data: \(error)")
         }
-
-        buildAIMessage()
-
-        try? await Task.sleep(nanoseconds: 400_000_000)
-
-        withAnimation(AppTheme.Animation.slow) {
-            isLoadingAIMessage = false
-        }
-    }
-
-    private func buildAIMessage() {
-        var messageParts: [String] = []
-
-        let workoutCount = latestReport?.sessionsCompleted ?? 3
-        messageParts.append("You've completed **\(workoutCount) workouts** this week.")
-        messageParts.append("Your push strength is up **12%** from last month.")
-        messageParts.append("Day **12** of your streak.")
-        messageParts.append("Let's keep building.")
-
-        aiMessage = messageParts.joined(separator: " ")
     }
 }
 

@@ -105,7 +105,7 @@ struct MainAppView: View {
     }
 
     private var topBarReservedHeight: CGFloat {
-        72
+        60
     }
 
     // MARK: - Home Top Bar
@@ -117,6 +117,9 @@ struct MainAppView: View {
                 Menu {
                     Button(action: { currentPage = .stats }) {
                         Label("History", systemImage: "clock")
+                    }
+                    Button(action: { currentPage = .calendar }) {
+                        Label("Calendar", systemImage: "calendar")
                     }
                     Button(action: { currentPage = .locations }) {
                         Label("Locations", systemImage: "mappin.and.ellipse")
@@ -207,6 +210,9 @@ struct MainAppView: View {
         case .stats:
             StatsPageView()
                 .id("stats")
+        case .calendar:
+            CalendarPageView()
+                .id("calendar")
         case .locations:
             LocationsPageView()
                 .environmentObject(userDataStore)
@@ -223,6 +229,8 @@ struct MainAppView: View {
         switch currentPage {
         case .stats:
             return "History"
+        case .calendar:
+            return "Calendar"
         case .locations:
             return "Locations"
         case .coach:
@@ -273,6 +281,18 @@ struct LocationsPageView: View {
                 shouldShowEditor: $shouldShowEditor
             )
             .environmentObject(userDataStore)
+        }
+    }
+}
+
+// MARK: - Calendar Page View (Full Page Wrapper)
+
+struct CalendarPageView: View {
+    var body: some View {
+        ZStack {
+            AppTheme.Colors.background
+                .ignoresSafeArea()
+            TrainerCalendarView(showsSheetChrome: false)
         }
     }
 }

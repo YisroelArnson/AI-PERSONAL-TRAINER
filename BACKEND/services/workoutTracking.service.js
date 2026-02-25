@@ -3,6 +3,12 @@ const dotenv = require('dotenv');
 const { z } = require('zod');
 const { v4: uuidv4, validate: isUuid } = require('uuid');
 const workoutGenerationService = require('./workoutGeneration.service');
+const { getAnthropicClient } = require('./modelProviders.service');
+const {
+  dailyMessageLlmContextSchema,
+  buildDailyMessageLlmRequest,
+  parseDailyMessageResponseText
+} = require('./dailyMessageLLM.service');
 
 dotenv.config();
 
@@ -150,6 +156,8 @@ const createSessionRequestSchema = z.object({
   planned_session_id: z.string().uuid().nullable().optional(),
   metadata: z.record(z.string(), z.any()).optional()
 }).strict();
+
+const DAILY_MESSAGE_FALLBACK_TIMEZONE = 'UTC';
 
 function nowIso() {
   return new Date().toISOString();
@@ -1236,6 +1244,18 @@ async function getNextSummaryVersion(sessionId) {
 }
 
 async function finalizeSession({ userId, sessionId, reflection = {}, mode = 'complete', reason = null }) {
+  const sessionRow = await getSessionRow(sessionId);
+  if (!sessionRow) {
+    const err = new Error('Session not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (sessionRow.user_id !== userId) {
+    const err = new Error('Forbidden');
+    err.statusCode = 403;
+    throw err;
+  }
+
   let detail = await getSessionDetail({ sessionId, userId });
   let workout = detail.workout;
   let exercises = detail.exercises;
@@ -1310,6 +1330,27 @@ async function finalizeSession({ userId, sessionId, reflection = {}, mode = 'com
     .eq('id', sessionId)
     .eq('user_id', userId);
   throwIfSupabaseError(sessionUpdateError, 'trainer_workout_sessions');
+
+  if (mode === 'complete' && sessionRow.calendar_event_id) {
+    const { error: calendarUpdateError } = await supabase
+      .from('trainer_calendar_events')
+      .update({
+        status: 'completed',
+        updated_at: now
+      })
+      .eq('id', sessionRow.calendar_event_id)
+      .eq('user_id', userId);
+
+    if (calendarUpdateError) {
+      // Calendar status sync should not block workout completion.
+      console.error('Failed to mark calendar event completed during session finalize:', {
+        sessionId,
+        calendarEventId: sessionRow.calendar_event_id,
+        message: calendarUpdateError?.message,
+        code: calendarUpdateError?.code
+      });
+    }
+  }
 
   const logJson = {
     reflection: reflection || {},
@@ -1501,6 +1542,746 @@ async function listHistory({ userId, limit = 20, cursor = null }) {
   };
 }
 
+function normalizeTimeZone(timeZone) {
+  if (typeof timeZone !== 'string' || !timeZone.trim()) return DAILY_MESSAGE_FALLBACK_TIMEZONE;
+  const trimmed = timeZone.trim();
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: trimmed }).format(new Date());
+    return trimmed;
+  } catch {
+    return DAILY_MESSAGE_FALLBACK_TIMEZONE;
+  }
+}
+
+function dateKeyFromDate(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(date);
+  const year = parts.find(part => part.type === 'year')?.value;
+  const month = parts.find(part => part.type === 'month')?.value;
+  const day = parts.find(part => part.type === 'day')?.value;
+  return `${year}-${month}-${day}`;
+}
+
+function shiftDateKey(dateKey, deltaDays) {
+  const [year, month, day] = String(dateKey).split('-').map(Number);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return dateKey;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + deltaDays);
+  return date.toISOString().slice(0, 10);
+}
+
+function getWeekStartDateKey(dateKey) {
+  const [year, month, day] = String(dateKey).split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const dayOfWeek = date.getUTCDay();
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  date.setUTCDate(date.getUTCDate() + diffToMonday);
+  return date.toISOString().slice(0, 10);
+}
+
+function parsePushVolumeFromExercise(exercise = {}) {
+  const tracking = exercise?._tracking && typeof exercise._tracking === 'object'
+    ? exercise._tracking
+    : {};
+  const name = String(exercise.exercise_name || exercise.name || tracking.exercise_name || '').toLowerCase();
+  const isPush = /(push|press|bench|dip|tricep|chest)/i.test(name);
+  if (!isPush) return null;
+
+  const fromTracking = Number(tracking.volume);
+  if (Number.isFinite(fromTracking) && fromTracking > 0) return fromTracking;
+
+  const perfSets = Array.isArray(tracking?.payload_json?.performance?.sets)
+    ? tracking.payload_json.performance.sets
+    : [];
+  let volume = 0;
+  for (const set of perfSets) {
+    const reps = Number(set?.actual_reps);
+    const load = Number(set?.actual_load);
+    if (Number.isFinite(reps) && Number.isFinite(load) && reps > 0 && load > 0) {
+      volume += reps * load;
+    }
+  }
+  return volume > 0 ? volume : null;
+}
+
+function parsePullVolumeFromExercise(exercise = {}) {
+  const tracking = exercise?._tracking && typeof exercise._tracking === 'object'
+    ? exercise._tracking
+    : {};
+  const name = String(exercise.exercise_name || exercise.name || tracking.exercise_name || '').toLowerCase();
+  const isPull = /(row|pull|lat|chin|curl|rear delt|face pull|bicep)/i.test(name);
+  if (!isPull) return null;
+
+  const fromTracking = Number(tracking.volume);
+  if (Number.isFinite(fromTracking) && fromTracking > 0) return fromTracking;
+  return null;
+}
+
+function parseLowerVolumeFromExercise(exercise = {}) {
+  const tracking = exercise?._tracking && typeof exercise._tracking === 'object'
+    ? exercise._tracking
+    : {};
+  const name = String(exercise.exercise_name || exercise.name || tracking.exercise_name || '').toLowerCase();
+  const isLower = /(squat|deadlift|lunge|split squat|hip thrust|hamstring|quad|calf|glute|leg press)/i.test(name);
+  if (!isLower) return null;
+
+  const fromTracking = Number(tracking.volume);
+  if (Number.isFinite(fromTracking) && fromTracking > 0) return fromTracking;
+  return null;
+}
+
+function parseSessionDurationMin(session = {}) {
+  const startedAt = session?.started_at;
+  const completedAt = session?.completed_at;
+  if (!startedAt || !completedAt) return null;
+  const startMs = new Date(startedAt).getTime();
+  const endMs = new Date(completedAt).getTime();
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
+  return Math.round((endMs - startMs) / 60000);
+}
+
+function toDayOfWeek(dateKey) {
+  const [year, month, day] = String(dateKey).split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  const names = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  return names[date.getUTCDay()] || 'monday';
+}
+
+function safeString(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text.length ? text : null;
+}
+
+function safeNumber(value) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : null;
+}
+
+function getMemoryFacts(rows = []) {
+  const facts = [];
+  for (const row of rows) {
+    const key = safeString(row?.key);
+    const value = row?.value_json;
+    if (!key || !value || typeof value !== 'object') continue;
+    const firstEntry = Object.entries(value).find(([, v]) => v !== null && v !== undefined);
+    if (!firstEntry) continue;
+    const rawValue = firstEntry[1];
+    let printable;
+    if (typeof rawValue === 'string' || typeof rawValue === 'number' || typeof rawValue === 'boolean') {
+      printable = String(rawValue);
+    } else {
+      continue;
+    }
+    const clean = printable.trim();
+    if (!clean) continue;
+    facts.push(`${key}: ${clean}`);
+    if (facts.length >= 5) break;
+  }
+  return facts;
+}
+
+function getLocationEquipmentSummary(locationRow) {
+  if (!locationRow) return [];
+  const equipment = Array.isArray(locationRow.equipment) ? locationRow.equipment : [];
+  const names = [];
+  for (const item of equipment) {
+    if (typeof item === 'string') {
+      const clean = safeString(item);
+      if (clean) names.push(clean);
+      continue;
+    }
+    if (item && typeof item === 'object') {
+      const clean = safeString(item.name || item.type);
+      if (clean) names.push(clean);
+    }
+  }
+  return Array.from(new Set(names)).slice(0, 20);
+}
+
+function buildFallbackDailyMessage(context = {}) {
+  const adherence = context.recent_adherence || {};
+  const trends = context.performance_trends || {};
+  const today = context.today_context || {};
+  const parts = [];
+
+  parts.push(`You've completed **${adherence.workouts_completed_week || 0} workouts** this week.`);
+  if ((adherence.streak_days || 0) > 0) {
+    parts.push(`Day **${adherence.streak_days}** of your streak.`);
+  } else {
+    parts.push('Build momentum with a workout today.');
+  }
+
+  const pushDelta = safeNumber(trends?.split_volume_delta_pct?.push);
+  if (pushDelta !== null) {
+    if (pushDelta > 0) parts.push(`Push volume trend is **up ${Math.round(pushDelta)}%** over the previous 30 days.`);
+    else if (pushDelta < 0) parts.push(`Push volume trend is **down ${Math.abs(Math.round(pushDelta))}%** over the previous 30 days.`);
+  }
+
+  const focus = safeString(today?.planned_workout_today?.focus || today?.planned_workout_today?.title);
+  if (focus) {
+    parts.push(`Today's focus: **${focus}**.`);
+  } else {
+    parts.push("Let's keep building.");
+  }
+
+  return parts.join(' ');
+}
+
+async function generateDailyMessageWithLlm(context) {
+  const client = getAnthropicClient();
+  const request = buildDailyMessageLlmRequest(context);
+  const response = await client.messages.create(request);
+  const textBlock = response.content.find(block => block.type === 'text');
+  const parsed = parseDailyMessageResponseText(textBlock?.text || '');
+  return {
+    message_text: parsed.message_text,
+    model: request.model
+  };
+}
+
+async function computeDailyMessageContext({ userId, timeZone, todayKey }) {
+  const weekStartKey = getWeekStartDateKey(todayKey);
+  const last30Start = shiftDateKey(todayKey, -29);
+  const previous30Start = shiftDateKey(todayKey, -59);
+
+  const [
+    sessionsResult,
+    scheduledEventsResult,
+    weekEventsResult,
+    profileResult,
+    goalResult,
+    locationResult,
+    memoryResult,
+    checkinResult
+  ] = await Promise.all([
+    supabase
+      .from('trainer_workout_sessions')
+      .select('id, status, started_at, completed_at')
+      .eq('user_id', userId)
+      .in('status', ['completed', 'stopped'])
+      .order('started_at', { ascending: false })
+      .limit(180),
+    supabase
+      .from('trainer_calendar_events')
+      .select('start_at, title, notes, status')
+      .eq('user_id', userId)
+      .eq('event_type', 'workout')
+      .eq('status', 'scheduled')
+      .order('start_at', { ascending: true })
+      .limit(20),
+    supabase
+      .from('trainer_calendar_events')
+      .select('start_at, status')
+      .eq('user_id', userId)
+      .eq('event_type', 'workout')
+      .in('status', ['scheduled', 'completed', 'skipped'])
+      .order('start_at', { ascending: false })
+      .limit(60),
+    supabase
+      .from('app_user')
+      .select('first_name')
+      .eq('user_id', userId)
+      .maybeSingle(),
+    supabase
+      .from('trainer_goal_contracts')
+      .select('contract_json, status, updated_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(1),
+    supabase
+      .from('user_locations')
+      .select('name, equipment, current_location')
+      .eq('user_id', userId)
+      .order('current_location', { ascending: false })
+      .limit(1),
+    supabase
+      .from('trainer_user_memory_items')
+      .select('key, value_json, updated_at')
+      .eq('user_id', userId)
+      .eq('status', 'active')
+      .order('updated_at', { ascending: false })
+      .limit(8),
+    supabase
+      .from('trainer_checkins')
+      .select('summary_json, responses_json, updated_at')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+  ]);
+
+  throwIfSupabaseError(sessionsResult.error, 'trainer_workout_sessions');
+  throwIfSupabaseError(scheduledEventsResult.error, 'trainer_calendar_events');
+  throwIfSupabaseError(weekEventsResult.error, 'trainer_calendar_events');
+  throwIfSupabaseError(profileResult.error, 'app_user');
+  throwIfSupabaseError(goalResult.error, 'trainer_goal_contracts');
+  throwIfSupabaseError(locationResult.error, 'user_locations');
+  throwIfSupabaseError(memoryResult.error, 'trainer_user_memory_items');
+  throwIfSupabaseError(checkinResult.error, 'trainer_checkins');
+
+  const sessions = sessionsResult.data || [];
+  const scheduledEvents = scheduledEventsResult.data || [];
+  const weekEvents = weekEventsResult.data || [];
+  const latestSession = sessions[0] || null;
+
+  const daySet = new Set();
+  const dayKeys = [];
+  const dayKeyBySession = new Map();
+  let weeklyWorkouts = 0;
+  let currentSessionCount = 0;
+  let previousSessionCount = 0;
+  const recentSessionIds = [];
+  const durationsCurrent = [];
+  const durationsPrevious = [];
+
+  for (const session of sessions) {
+    const timestamp = session.completed_at || session.started_at;
+    if (!timestamp) continue;
+    const dayKey = dateKeyFromDate(new Date(timestamp), timeZone);
+    dayKeyBySession.set(session.id, dayKey);
+    if (dayKey >= weekStartKey && dayKey <= todayKey) weeklyWorkouts += 1;
+    if (!daySet.has(dayKey)) {
+      daySet.add(dayKey);
+      dayKeys.push(dayKey);
+    }
+
+    if (dayKey >= previous30Start) recentSessionIds.push(session.id);
+
+    const duration = parseSessionDurationMin(session);
+    if (dayKey >= last30Start) {
+      currentSessionCount += 1;
+      if (duration !== null) durationsCurrent.push(duration);
+    } else if (dayKey >= previous30Start) {
+      previousSessionCount += 1;
+      if (duration !== null) durationsPrevious.push(duration);
+    }
+  }
+
+  dayKeys.sort((a, b) => (a < b ? 1 : -1));
+  let streakDays = 0;
+  if (dayKeys.length) {
+    let cursor = dayKeys[0];
+    streakDays = 1;
+    while (daySet.has(shiftDateKey(cursor, -1))) {
+      cursor = shiftDateKey(cursor, -1);
+      streakDays += 1;
+    }
+  }
+
+  const plannedWeek = weekEvents.filter(event => {
+    const dayKey = dateKeyFromDate(new Date(event.start_at), timeZone);
+    return dayKey >= weekStartKey && dayKey <= todayKey;
+  }).length;
+
+  const skippedLast7d = weekEvents.filter(event => {
+    if (event.status !== 'skipped') return false;
+    const dayKey = dateKeyFromDate(new Date(event.start_at), timeZone);
+    return dayKey >= shiftDateKey(todayKey, -6) && dayKey <= todayKey;
+  }).length;
+
+  const uniqueRecentSessionIds = Array.from(new Set(recentSessionIds));
+  const [instances, summaryRows, logRows] = await Promise.all([
+    listLatestInstanceRows(uniqueRecentSessionIds),
+    getLatestSummaryRows(latestSession ? [latestSession.id] : []),
+    uniqueRecentSessionIds.length
+      ? supabase
+        .from('trainer_workout_logs')
+        .select('session_id, log_json')
+        .in('session_id', uniqueRecentSessionIds)
+      : Promise.resolve({ data: [], error: null })
+  ]);
+  throwIfSupabaseError(logRows.error, 'trainer_workout_logs');
+
+  const logsBySession = new Map((logRows.data || []).map(row => [row.session_id, row.log_json || {}]));
+  const summaryBySession = new Map((summaryRows || []).map(row => [row.session_id, row.summary_json || {}]));
+
+  let currentTotalVolume = 0;
+  let previousTotalVolume = 0;
+  let currentPushVolume = 0;
+  let previousPushVolume = 0;
+  let currentPullVolume = 0;
+  let previousPullVolume = 0;
+  let currentLowerVolume = 0;
+  let previousLowerVolume = 0;
+  let currentRpeSum = 0;
+  let currentRpeCount = 0;
+  let previousRpeSum = 0;
+  let previousRpeCount = 0;
+
+  for (const row of instances) {
+    const dayKey = dayKeyBySession.get(row.session_id);
+    if (!dayKey || dayKey < previous30Start) continue;
+    const isCurrentWindow = dayKey >= last30Start;
+    const exercises = Array.isArray(row?.instance_json?.exercises) ? row.instance_json.exercises : [];
+
+    let sessionTotal = 0;
+    let sessionPush = 0;
+    let sessionPull = 0;
+    let sessionLower = 0;
+
+    for (const exercise of exercises) {
+      const tracking = exercise?._tracking && typeof exercise._tracking === 'object'
+        ? exercise._tracking
+        : {};
+      const volume = safeNumber(tracking.volume) || 0;
+      sessionTotal += volume;
+      sessionPush += safeNumber(parsePushVolumeFromExercise(exercise)) || 0;
+      sessionPull += safeNumber(parsePullVolumeFromExercise(exercise)) || 0;
+      sessionLower += safeNumber(parseLowerVolumeFromExercise(exercise)) || 0;
+    }
+
+    if (isCurrentWindow) {
+      currentTotalVolume += sessionTotal;
+      currentPushVolume += sessionPush;
+      currentPullVolume += sessionPull;
+      currentLowerVolume += sessionLower;
+    } else {
+      previousTotalVolume += sessionTotal;
+      previousPushVolume += sessionPush;
+      previousPullVolume += sessionPull;
+      previousLowerVolume += sessionLower;
+    }
+
+    const log = logsBySession.get(row.session_id) || {};
+    const rpe = safeNumber(log?.reflection?.rpe);
+    if (rpe !== null) {
+      if (isCurrentWindow) {
+        currentRpeSum += rpe;
+        currentRpeCount += 1;
+      } else {
+        previousRpeSum += rpe;
+        previousRpeCount += 1;
+      }
+    }
+  }
+
+  const pctDelta = (current, previous) => {
+    if (!Number.isFinite(previous) || previous <= 0) return null;
+    return Math.round(((current - previous) / previous) * 100);
+  };
+
+  const avg = values => values.length ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
+  const avgDurationCurrent = avg(durationsCurrent);
+  const avgDurationPrevious = avg(durationsPrevious);
+  const avgRpeCurrent = currentRpeCount > 0 ? currentRpeSum / currentRpeCount : null;
+  const avgRpePrevious = previousRpeCount > 0 ? previousRpeSum / previousRpeCount : null;
+
+  let plannedToday = null;
+  let nextScheduled = null;
+  for (const event of scheduledEvents) {
+    const eventDayKey = dateKeyFromDate(new Date(event.start_at), timeZone);
+    if (!plannedToday && eventDayKey === todayKey) {
+      plannedToday = event;
+    }
+    if (!nextScheduled && eventDayKey >= todayKey) {
+      nextScheduled = event;
+    }
+  }
+
+  const goalRow = goalResult.data?.[0] || null;
+  const goalJson = goalRow?.contract_json || {};
+  const goalsSummary = safeString(goalJson?.primary_goal || goalJson?.goal || goalJson?.summary);
+  const primaryLocation = locationResult.data?.[0] || null;
+  const memoryFacts = getMemoryFacts(memoryResult.data || []);
+
+  const lastSummary = latestSession ? (summaryBySession.get(latestSession.id) || {}) : {};
+  const lastWins = Array.isArray(lastSummary?.wins)
+    ? lastSummary.wins.filter(item => typeof item === 'string' && item.trim()).slice(0, 2)
+    : [];
+  const lastSessionDayKey = latestSession
+    ? dateKeyFromDate(new Date(latestSession.completed_at || latestSession.started_at), timeZone)
+    : null;
+  const daysSinceLastWorkout = lastSessionDayKey
+    ? Math.max(0, Math.round((new Date(`${todayKey}T00:00:00Z`) - new Date(`${lastSessionDayKey}T00:00:00Z`)) / 86400000))
+    : null;
+
+  const latestCheckin = checkinResult.data?.[0] || null;
+  const checkinSummaryText = safeString(latestCheckin?.summary_json?.focus || latestCheckin?.summary_json?.summary || null);
+
+  const rawAdherenceRate = plannedWeek > 0 ? Math.round((weeklyWorkouts / plannedWeek) * 100) : null;
+  const adherenceRate = rawAdherenceRate === null
+    ? null
+    : Math.max(0, Math.min(100, rawAdherenceRate));
+  const context = {
+    profile_snapshot: {
+      first_name: safeString(profileResult.data?.first_name),
+      goals_summary: goalsSummary,
+      coaching_style: null,
+      equipment_summary: getLocationEquipmentSummary(primaryLocation),
+      primary_location_name: safeString(primaryLocation?.name)
+    },
+    today_context: {
+      local_date: todayKey,
+      time_zone: timeZone,
+      day_of_week: toDayOfWeek(todayKey),
+      planned_workout_today: {
+        exists: Boolean(plannedToday),
+        title: safeString(plannedToday?.title),
+        focus: safeString(plannedToday?.title || plannedToday?.notes),
+        duration_min: null,
+        notes: safeString(plannedToday?.notes)
+      },
+      next_scheduled_workout: nextScheduled ? {
+        start_at: nextScheduled.start_at,
+        title: safeString(nextScheduled.title),
+        focus: safeString(nextScheduled.title || nextScheduled.notes),
+        duration_min: null
+      } : null
+    },
+    recent_adherence: {
+      workouts_completed_week: weeklyWorkouts,
+      workouts_planned_week: plannedWeek,
+      adherence_rate_pct: adherenceRate,
+      streak_days: streakDays,
+      skipped_last_7d: skippedLast7d
+    },
+    performance_trends: {
+      volume_30d_delta_pct: pctDelta(currentTotalVolume, previousTotalVolume),
+      session_count_30d_delta_pct: pctDelta(currentSessionCount, previousSessionCount),
+      avg_duration_30d_delta_min: (avgDurationCurrent !== null && avgDurationPrevious !== null)
+        ? Math.round((avgDurationCurrent - avgDurationPrevious) * 10) / 10
+        : null,
+      avg_rpe_30d_delta: (avgRpeCurrent !== null && avgRpePrevious !== null)
+        ? Math.round((avgRpeCurrent - avgRpePrevious) * 10) / 10
+        : null,
+      split_volume_delta_pct: {
+        push: pctDelta(currentPushVolume, previousPushVolume),
+        pull: pctDelta(currentPullVolume, previousPullVolume),
+        lower: pctDelta(currentLowerVolume, previousLowerVolume)
+      }
+    },
+    last_session_summary: {
+      started_at: latestSession?.started_at || null,
+      title: safeString(lastSummary?.title),
+      focus: safeString(lastSummary?.next_session_focus),
+      wins: lastWins,
+      pain_flags_count: safeNumber(lastSummary?.pain_flags),
+      completion_quality: latestSession
+        ? (latestSession.status === 'completed' ? 'completed' : 'stopped_early')
+        : 'unknown',
+      unfinished_sets_total: safeNumber(lastSummary?.unfinished_sets_total)
+    },
+    progress_signals: {
+      measurement_changes: [],
+      prs: []
+    },
+    continuity_memory: {
+      stable_facts: memoryFacts,
+      sentiment_cue: checkinSummaryText
+    },
+    safety_and_recovery: {
+      soreness_trend: 'unknown',
+      pain_trend: 'unknown',
+      days_since_last_workout: daysSinceLastWorkout
+    },
+    engagement_context: {
+      days_since_last_open: null,
+      days_since_last_workout_start: daysSinceLastWorkout,
+      returning_after_gap: daysSinceLastWorkout !== null ? daysSinceLastWorkout >= 7 : false
+    }
+  };
+
+  const parsedContext = dailyMessageLlmContextSchema.parse(context);
+
+  return {
+    context: parsedContext,
+    summary_stats: {
+      weekly_workouts: weeklyWorkouts,
+      streak_days: streakDays,
+      adherence_rate_pct: adherenceRate,
+      planned_workouts_week: plannedWeek,
+      current_push_volume: Math.round(currentPushVolume),
+      previous_push_volume: Math.round(previousPushVolume)
+    }
+  };
+}
+
+function buildDailyMessageText(stats = {}) {
+  const parts = [];
+
+  parts.push(`You've completed **${stats.weekly_workouts || 0} workouts** this week.`);
+
+  if ((stats.streak_days || 0) > 0) {
+    parts.push(`Day **${stats.streak_days}** of your streak.`);
+  } else {
+    parts.push('Build momentum with a workout today.');
+  }
+
+  const pushTrend = Number(stats.push_strength_trend_percent);
+  if (Number.isFinite(pushTrend)) {
+    if (pushTrend > 0) {
+      parts.push(`Push strength trend is **up ${pushTrend}%** over the previous 30 days.`);
+    } else if (pushTrend < 0) {
+      parts.push(`Push strength trend is **down ${Math.abs(pushTrend)}%** over the previous 30 days.`);
+    } else {
+      parts.push('Push strength trend is **steady** over the previous 30 days.');
+    }
+  } else if ((stats.current_push_volume || 0) > 0) {
+    parts.push(`You've logged **${Math.round(stats.current_push_volume)}** push-volume units this month.`);
+  }
+
+  if (stats.today_focus) {
+    parts.push(`Today's focus: **${stats.today_focus}**.`);
+  } else {
+    parts.push("Let's keep building.");
+  }
+
+  return parts.join(' ');
+}
+
+function formatDailyMessageForClient(row) {
+  return {
+    id: row.id,
+    message_date: row.message_date,
+    time_zone: row.time_zone || DAILY_MESSAGE_FALLBACK_TIMEZONE,
+    message_text: row.message_text || 'Welcome back! Let\'s train today.',
+    stats: row.stats_json || {},
+    created_at: row.created_at
+  };
+}
+
+function shouldReuseExistingDailyMessage(row) {
+  const source = row?.stats_json?.generation?.source;
+  return source === 'llm' || source === 'fallback';
+}
+
+async function getOrCreateDailyMessage({ userId, timeZone }) {
+  const normalizedTimeZone = normalizeTimeZone(timeZone);
+  const todayKey = dateKeyFromDate(new Date(), normalizedTimeZone);
+  console.log('[daily-message] service start', {
+    user_id: userId,
+    requested_timezone: timeZone || null,
+    normalized_timezone: normalizedTimeZone,
+    message_date: todayKey
+  });
+
+  const { data: existingRow, error: existingError } = await supabase
+    .from('trainer_daily_messages')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('message_date', todayKey)
+    .maybeSingle();
+  throwIfSupabaseError(existingError, 'trainer_daily_messages');
+
+  if (existingRow && shouldReuseExistingDailyMessage(existingRow)) {
+    console.log('[daily-message] cache hit', {
+      user_id: userId,
+      message_date: todayKey,
+      source: existingRow?.stats_json?.generation?.source || 'unknown',
+      model: existingRow?.stats_json?.generation?.model || null,
+      message_text: existingRow?.message_text || null
+    });
+    return formatDailyMessageForClient(existingRow);
+  }
+
+  const { context, summary_stats: summaryStats } = await computeDailyMessageContext({
+    userId,
+    timeZone: normalizedTimeZone,
+    todayKey
+  });
+
+  let messageText = null;
+  let modelUsed = null;
+  try {
+    const generated = await generateDailyMessageWithLlm(context);
+    messageText = generated.message_text;
+    modelUsed = generated.model;
+    console.log('[daily-message] llm generated', {
+      user_id: userId,
+      message_date: todayKey,
+      model: modelUsed,
+      message_text: messageText
+    });
+  } catch (error) {
+    console.error('Daily message LLM generation failed, using fallback:', {
+      message: error?.message
+    });
+    messageText = buildFallbackDailyMessage(context);
+    console.log('[daily-message] fallback generated', {
+      user_id: userId,
+      message_date: todayKey,
+      message_text: messageText
+    });
+  }
+
+  if (!messageText) {
+    messageText = buildDailyMessageText(summaryStats);
+  }
+
+  const insertPayload = {
+    user_id: userId,
+    message_date: todayKey,
+    time_zone: normalizedTimeZone,
+    message_text: messageText,
+    stats_json: {
+      ...summaryStats,
+      context,
+      generation: {
+        source: modelUsed ? 'llm' : 'fallback',
+        model: modelUsed
+      }
+    }
+  };
+
+  let insertedRow = null;
+  let insertError = null;
+
+  if (existingRow) {
+    const updateResult = await supabase
+      .from('trainer_daily_messages')
+      .update(insertPayload)
+      .eq('id', existingRow.id)
+      .select('*')
+      .maybeSingle();
+    insertedRow = updateResult.data;
+    insertError = updateResult.error;
+  } else {
+    const insertResult = await supabase
+      .from('trainer_daily_messages')
+      .insert(insertPayload)
+      .select('*')
+      .maybeSingle();
+    insertedRow = insertResult.data;
+    insertError = insertResult.error;
+  }
+
+  if (insertError) {
+    const isUniqueViolation = String(insertError.code || '') === '23505';
+    if (!isUniqueViolation) {
+      throwIfSupabaseError(insertError, 'trainer_daily_messages');
+    } else {
+      const { data: raceWinnerRow, error: raceWinnerError } = await supabase
+        .from('trainer_daily_messages')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('message_date', todayKey)
+        .maybeSingle();
+      throwIfSupabaseError(raceWinnerError, 'trainer_daily_messages');
+      if (raceWinnerRow) return formatDailyMessageForClient(raceWinnerRow);
+    }
+  }
+
+  if (!insertedRow) {
+    const fallbackError = new Error('Failed to create daily message');
+    fallbackError.statusCode = 500;
+    throw fallbackError;
+  }
+
+  console.log('[daily-message] persisted', {
+    user_id: userId,
+    message_date: todayKey,
+    source: insertedRow?.stats_json?.generation?.source || (modelUsed ? 'llm' : 'fallback'),
+    model: insertedRow?.stats_json?.generation?.model || modelUsed || null,
+    message_text: insertedRow?.message_text || messageText
+  });
+
+  return formatDailyMessageForClient(insertedRow);
+}
+
 module.exports = {
   CURRENT_PAYLOAD_SCHEMA_VERSION,
   exercisePayloadSchema,
@@ -1514,5 +2295,6 @@ module.exports = {
   getSessionDetail,
   applyExerciseCommand,
   finalizeSession,
-  listHistory
+  listHistory,
+  getOrCreateDailyMessage
 };

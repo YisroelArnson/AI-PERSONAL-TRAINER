@@ -1,14 +1,27 @@
 import SwiftUI
 
+private enum CalendarViewMode {
+    case grid
+    case list
+}
+
 struct TrainerCalendarView: View {
     @Environment(\.dismiss) private var dismiss
+    let showsSheetChrome: Bool
     @State private var events: [CalendarEvent] = []
-    @State private var showRescheduleSheet = false
-    @State private var selectedEvent: CalendarEvent?
-    @State private var rescheduleDate = Date()
+    @State private var isLoadingEvents = false
+    @State private var historyByCalendarEventId: [String: WorkoutHistorySessionItem] = [:]
+    @State private var selectedDate = Calendar.current.startOfDay(for: Date())
+    @State private var visibleMonth = Calendar.current.startOfMonth(for: Date())
+    @State private var viewMode: CalendarViewMode = .grid
+    @State private var detailEvent: CalendarEvent?
     @State private var errorMessage: String?
 
     private let apiService = APIService()
+
+    init(showsSheetChrome: Bool = true) {
+        self.showsSheetChrome = showsSheetChrome
+    }
 
     var body: some View {
         ZStack {
@@ -18,47 +31,32 @@ struct TrainerCalendarView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
                     HStack {
-                        Text("Upcoming Sessions")
+                        Text("Workouts")
                             .font(AppTheme.Typography.screenTitle)
                             .foregroundColor(AppTheme.Colors.primaryText)
                         Spacer()
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                viewMode = (viewMode == .grid) ? .list : .grid
+                            }
+                        } label: {
+                            Image(systemName: viewMode == .grid ? "list.bullet" : "calendar")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(AppTheme.Colors.primaryText)
+                                .frame(width: 36, height: 36)
+                                .background(
+                                    Circle().fill(AppTheme.Colors.surface)
+                                )
+                        }
                         Button("Sync") {
                             Task { await syncCalendar() }
                         }
                         .buttonStyle(SecondaryCapsuleButton())
                     }
                     .padding(.horizontal, AppTheme.Spacing.xl)
-                    .padding(.top, AppTheme.Spacing.lg)
+                    .padding(.top, AppTheme.Spacing.xs)
 
-                    if events.isEmpty {
-                        Text("No sessions scheduled yet.")
-                            .font(AppTheme.Typography.cardSubtitle)
-                            .foregroundColor(AppTheme.Colors.secondaryText)
-                            .padding(.horizontal, AppTheme.Spacing.xl)
-                    } else {
-                        ForEach(groupedEvents.keys.sorted(), id: \.self) { day in
-                            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                                Text(dayLabel(for: day))
-                                    .font(AppTheme.Typography.label)
-                                    .foregroundColor(AppTheme.Colors.secondaryText)
-
-                                ForEach((groupedEvents[day] ?? []).sorted { $0.startAt < $1.startAt }) { event in
-                                    CalendarEventRow(
-                                        event: event,
-                                        onReschedule: {
-                                            selectedEvent = event
-                                            rescheduleDate = event.startAt
-                                            showRescheduleSheet = true
-                                        },
-                                        onSkip: {
-                                            Task { await skipEvent(event) }
-                                        }
-                                    )
-                                }
-                            }
-                            .padding(.horizontal, AppTheme.Spacing.xl)
-                        }
-                    }
+                    contentView
                 }
                 .padding(.bottom, AppTheme.Spacing.xxxl)
             }
@@ -66,30 +64,9 @@ struct TrainerCalendarView: View {
         .navigationTitle("Calendar")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            ToolbarItem(placement: .navigationBarTrailing) {
-                Button("Close") { dismiss() }
-            }
-        }
-        .sheet(isPresented: $showRescheduleSheet) {
-            NavigationView {
-                VStack(spacing: AppTheme.Spacing.lg) {
-                    DatePicker("Reschedule", selection: $rescheduleDate, displayedComponents: [.date, .hourAndMinute])
-                        .datePickerStyle(.graphical)
-                        .padding()
-
-                    Button("Save") {
-                        Task { await rescheduleSelected() }
-                    }
-                    .buttonStyle(PrimaryCapsuleButton())
-
-                    Spacer()
-                }
-                .navigationTitle("Reschedule")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Cancel") { showRescheduleSheet = false }
-                    }
+            if showsSheetChrome {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Close") { dismiss() }
                 }
             }
         }
@@ -98,91 +75,338 @@ struct TrainerCalendarView: View {
         } message: {
             Text(errorMessage ?? "Something went wrong.")
         }
-        .task { await loadEvents() }
+        .sheet(item: $detailEvent) { event in
+            NavigationView {
+                CalendarEventDetailSheet(
+                    event: event,
+                    historySummary: historyByCalendarEventId[event.id],
+                    onStartWorkout: {
+                        WorkoutStore.shared.startPlannedSession(calendarEvent: event)
+                    }
+                )
+            }
+        }
+        .task {
+            await loadEvents()
+            await loadCompletedHistory()
+        }
+    }
+
+    @ViewBuilder
+    private var contentView: some View {
+        if isLoadingEvents {
+            CalendarLoadingSkeleton()
+                .padding(.horizontal, AppTheme.Spacing.xl)
+        } else if events.isEmpty {
+            Text("No sessions scheduled yet.")
+                .font(AppTheme.Typography.cardSubtitle)
+                .foregroundColor(AppTheme.Colors.secondaryText)
+                .padding(.horizontal, AppTheme.Spacing.xl)
+        } else if viewMode == .grid {
+            gridView
+                .padding(.horizontal, AppTheme.Spacing.xl)
+        } else {
+            timelineView
+                .padding(.horizontal, AppTheme.Spacing.xl)
+        }
     }
 
     private var groupedEvents: [Date: [CalendarEvent]] {
         Dictionary(grouping: events) { Calendar.current.startOfDay(for: $0.startAt) }
     }
 
-    private func dayLabel(for date: Date) -> String {
+    private var gridView: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+            HStack {
+                Button {
+                    visibleMonth = Calendar.current.date(byAdding: .month, value: -1, to: visibleMonth) ?? visibleMonth
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .frame(width: 30, height: 30)
+                }
+                Spacer()
+                Text(monthTitle(for: visibleMonth))
+                    .font(AppTheme.Typography.cardTitle)
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                Spacer()
+                Button {
+                    visibleMonth = Calendar.current.date(byAdding: .month, value: 1, to: visibleMonth) ?? visibleMonth
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .frame(width: 30, height: 30)
+                }
+            }
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 8) {
+                ForEach(Calendar.current.veryShortWeekdaySymbols, id: \.self) { symbol in
+                    Text(symbol.uppercased())
+                        .font(AppTheme.Typography.label)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                        .frame(maxWidth: .infinity)
+                }
+
+                ForEach(monthCells(for: visibleMonth).indices, id: \.self) { index in
+                    let cellDate = monthCells(for: visibleMonth)[index]
+                    MonthDayCell(
+                        date: cellDate,
+                        isSelected: cellDate.map { Calendar.current.isDate($0, inSameDayAs: selectedDate) } ?? false,
+                        hasWorkout: cellDate.map { hasWorkout(on: $0) } ?? false,
+                        onTap: {
+                            guard let cellDate else { return }
+                            selectedDate = Calendar.current.startOfDay(for: cellDate)
+                        }
+                    )
+                }
+            }
+            .padding(.vertical, 4)
+            .gesture(
+                DragGesture(minimumDistance: 20)
+                    .onEnded { value in
+                        if value.translation.width < -50 {
+                            visibleMonth = Calendar.current.date(byAdding: .month, value: 1, to: visibleMonth) ?? visibleMonth
+                        } else if value.translation.width > 50 {
+                            visibleMonth = Calendar.current.date(byAdding: .month, value: -1, to: visibleMonth) ?? visibleMonth
+                        }
+                    }
+            )
+
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
+                Text(dayLabel(for: selectedDate))
+                    .font(AppTheme.Typography.label)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+
+                if eventsOnSelectedDate.isEmpty {
+                    Text("No workouts for this day.")
+                        .font(AppTheme.Typography.cardSubtitle)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                        .padding(.vertical, AppTheme.Spacing.sm)
+                } else {
+                    ForEach(eventsOnSelectedDate) { event in
+                        CalendarEventRow(event: event, onTap: { detailEvent = event })
+                    }
+                }
+            }
+        }
+    }
+
+    private var timelineView: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+            if upcomingEvents.isEmpty && pastEvents.isEmpty {
+                Text("No workouts in this timeline.")
+                    .font(AppTheme.Typography.cardSubtitle)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+            }
+
+            if !upcomingEvents.isEmpty {
+                Text("Today + Upcoming")
+                    .font(AppTheme.Typography.label)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+                ForEach(upcomingEvents) { event in
+                    CalendarEventRow(event: event, onTap: { detailEvent = event })
+                }
+            }
+
+            if !pastEvents.isEmpty {
+                Text("Past")
+                    .font(AppTheme.Typography.label)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+                    .padding(.top, AppTheme.Spacing.md)
+                ForEach(pastEvents) { event in
+                    CalendarEventRow(event: event, onTap: { detailEvent = event })
+                }
+            }
+        }
+    }
+
+    private var eventsOnSelectedDate: [CalendarEvent] {
+        (groupedEvents[Calendar.current.startOfDay(for: selectedDate)] ?? [])
+            .sorted(by: { $0.startAt < $1.startAt })
+    }
+
+    private var upcomingEvents: [CalendarEvent] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return events
+            .filter { Calendar.current.startOfDay(for: $0.startAt) >= today }
+            .sorted(by: { $0.startAt < $1.startAt })
+    }
+
+    private var pastEvents: [CalendarEvent] {
+        let today = Calendar.current.startOfDay(for: Date())
+        return events
+            .filter { Calendar.current.startOfDay(for: $0.startAt) < today }
+            .sorted(by: { $0.startAt > $1.startAt })
+    }
+
+    private func monthCells(for monthDate: Date) -> [Date?] {
+        let calendar = Calendar.current
+        guard
+            let monthInterval = calendar.dateInterval(of: .month, for: monthDate),
+            let daysRange = calendar.range(of: .day, in: .month, for: monthDate)
+        else { return [] }
+
+        let firstDay = monthInterval.start
+        let firstWeekday = calendar.component(.weekday, from: firstDay)
+        let leadingBlanks = (firstWeekday - calendar.firstWeekday + 7) % 7
+
+        var cells: [Date?] = Array(repeating: nil, count: leadingBlanks)
+        for day in daysRange {
+            if let date = calendar.date(byAdding: .day, value: day - 1, to: firstDay) {
+                cells.append(date)
+            }
+        }
+        return cells
+    }
+
+    private func hasWorkout(on date: Date) -> Bool {
+        let day = Calendar.current.startOfDay(for: date)
+        return !(groupedEvents[day] ?? []).isEmpty
+    }
+
+    private func monthTitle(for date: Date) -> String {
         let formatter = DateFormatter()
-        formatter.dateStyle = .medium
+        formatter.dateFormat = "MMMM yyyy"
         return formatter.string(from: date)
     }
 
-    private func loadEvents() async {
+    private func dayLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .full
+        return formatter.string(from: date)
+    }
+
+    private func loadEvents(showSkeleton: Bool = true) async {
+        if showSkeleton {
+            isLoadingEvents = true
+        }
+        defer {
+            if showSkeleton {
+                isLoadingEvents = false
+            }
+        }
         do {
-            let start = Calendar.current.startOfDay(for: Date())
-            let end = Calendar.current.date(byAdding: .day, value: 14, to: start) ?? start
+            let start = Calendar.current.date(byAdding: .month, value: -6, to: Calendar.current.startOfDay(for: Date())) ?? Date()
+            let end = Calendar.current.date(byAdding: .month, value: 12, to: Calendar.current.startOfDay(for: Date())) ?? Date()
             events = try await apiService.listCalendarEvents(start: start, end: end)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
+    private func loadCompletedHistory() async {
+        do {
+            var cursor: String?
+            var allItems: [WorkoutHistorySessionItem] = []
+            for _ in 0..<6 {
+                let response = try await apiService.fetchWorkoutHistory(limit: 50, cursor: cursor)
+                allItems.append(contentsOf: response.items)
+                guard let next = response.nextCursor, !next.isEmpty else { break }
+                cursor = next
+            }
+            historyByCalendarEventId = allItems.reduce(into: [:]) { acc, item in
+                guard let eventId = item.calendarEventId else { return }
+                if let existing = acc[eventId] {
+                    let existingDate = existing.completedAt ?? existing.startedAt ?? .distantPast
+                    let candidateDate = item.completedAt ?? item.startedAt ?? .distantPast
+                    if candidateDate > existingDate {
+                        acc[eventId] = item
+                    }
+                } else {
+                    acc[eventId] = item
+                }
+            }
+        } catch {
+            // History enrichment is best effort; keep calendar usable if this fails.
+        }
+    }
+
     private func syncCalendar() async {
+        isLoadingEvents = true
+        defer { isLoadingEvents = false }
         do {
             try await apiService.syncCalendar()
-            await loadEvents()
+            await loadEvents(showSkeleton: false)
         } catch {
             errorMessage = error.localizedDescription
         }
     }
 
-    private func rescheduleSelected() async {
-        guard let event = selectedEvent else { return }
-        do {
-            let updated = try await apiService.rescheduleCalendarEvent(eventId: event.id, startAt: rescheduleDate)
-            if let index = events.firstIndex(where: { $0.id == updated.id }) {
-                events[index] = updated
-            }
-            showRescheduleSheet = false
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
+}
 
-    private func skipEvent(_ event: CalendarEvent) async {
-        do {
-            let updated = try await apiService.skipCalendarEvent(eventId: event.id)
-            if let index = events.firstIndex(where: { $0.id == updated.id }) {
-                events[index] = updated
+private struct CalendarLoadingSkeleton: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                .fill(AppTheme.Colors.surface)
+                .frame(height: 24)
+                .shimmer()
+
+            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                .fill(AppTheme.Colors.surface)
+                .frame(height: 38)
+                .shimmer(delay: 0.08)
+
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 7), spacing: 8) {
+                ForEach(0..<7, id: \.self) { _ in
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(AppTheme.Colors.surface)
+                        .frame(height: 14)
+                        .shimmer(delay: 0.1)
+                }
+                ForEach(0..<35, id: \.self) { idx in
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(AppTheme.Colors.surface)
+                        .frame(height: 34)
+                        .shimmer(delay: Double(idx % 7) * 0.02)
+                }
             }
-        } catch {
-            errorMessage = error.localizedDescription
+
+            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                .fill(AppTheme.Colors.surface)
+                .frame(height: 20)
+                .shimmer(delay: 0.15)
+
+            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
+                .fill(AppTheme.Colors.surface)
+                .frame(height: 72)
+                .shimmer(delay: 0.2)
         }
+        .padding(.top, AppTheme.Spacing.sm)
     }
 }
 
 struct CalendarEventRow: View {
     let event: CalendarEvent
-    let onReschedule: () -> Void
-    let onSkip: () -> Void
+    let onTap: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
-            Text(eventTitle)
-                .font(AppTheme.Typography.cardTitle)
-                .foregroundColor(AppTheme.Colors.primaryText)
-            Text(eventDetail)
-                .font(AppTheme.Typography.cardSubtitle)
-                .foregroundColor(AppTheme.Colors.secondaryText)
-
-            HStack(spacing: AppTheme.Spacing.sm) {
-                Button("Move") { onReschedule() }
-                    .buttonStyle(SecondaryCapsuleButton())
-                Button("Skip") { onSkip() }
-                    .buttonStyle(SecondaryCapsuleButton())
+        Button(action: onTap) {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(statusColor)
+                        .frame(width: 8, height: 8)
+                    Text(eventTitle)
+                        .font(AppTheme.Typography.cardTitle)
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                }
+                Text(eventDetail)
+                    .font(AppTheme.Typography.cardSubtitle)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
             }
-            .padding(.top, AppTheme.Spacing.xs)
+            .padding(AppTheme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                    .fill(AppTheme.Colors.surface)
+            )
         }
-        .padding(AppTheme.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
-                .fill(AppTheme.Colors.surface)
-        )
+        .buttonStyle(.plain)
     }
 
     private var eventTitle: String {
@@ -193,9 +417,10 @@ struct CalendarEventRow: View {
     }
 
     private var eventDetail: String {
+        let dateText = DateFormatter.localizedString(from: event.startAt, dateStyle: .medium, timeStyle: .none)
         let time = DateFormatter.localizedString(from: event.startAt, dateStyle: .none, timeStyle: .short)
         let status = event.status.capitalized
-        return "\(time) • \(status)"
+        return "\(dateText) at \(time) • \(status)"
     }
 
     private var plannedFocus: String? {
@@ -204,6 +429,252 @@ struct CalendarEventRow: View {
             return focus
         }
         return nil
+    }
+
+    private var statusColor: Color {
+        switch event.status.lowercased() {
+        case "completed":
+            return .green
+        case "skipped", "canceled":
+            return .orange
+        default:
+            return AppTheme.Colors.accent
+        }
+    }
+}
+
+private struct MonthDayCell: View {
+    let date: Date?
+    let isSelected: Bool
+    let hasWorkout: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Group {
+            if let date {
+                Button(action: onTap) {
+                    VStack(spacing: 4) {
+                        Text("\(Calendar.current.component(.day, from: date))")
+                            .font(AppTheme.Typography.label)
+                            .foregroundColor(isSelected ? AppTheme.Colors.background : AppTheme.Colors.primaryText)
+                        Circle()
+                            .fill(hasWorkout ? AppTheme.Colors.accent : .clear)
+                            .frame(width: 5, height: 5)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 34)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(isSelected ? AppTheme.Colors.accent : .clear)
+                    )
+                }
+                .buttonStyle(.plain)
+            } else {
+                Color.clear
+                    .frame(maxWidth: .infinity, minHeight: 42)
+            }
+        }
+    }
+}
+
+private struct CalendarEventDetailSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let event: CalendarEvent
+    let historySummary: WorkoutHistorySessionItem?
+    let onStartWorkout: () -> Void
+
+    @StateObject private var apiService = APIService()
+    @State private var detail: WorkoutTrackingSessionResponse?
+    @State private var isLoadingDetail = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: AppTheme.Spacing.lg) {
+                VStack(alignment: .leading, spacing: AppTheme.Spacing.xs) {
+                    Text(eventTitle)
+                        .font(AppTheme.Typography.screenTitle)
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                    Text(eventMeta)
+                        .font(AppTheme.Typography.cardSubtitle)
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                }
+
+                if isCompletedEvent {
+                    completedContent
+                } else {
+                    plannedContent
+                }
+            }
+            .padding(.horizontal, AppTheme.Spacing.xl)
+            .padding(.vertical, AppTheme.Spacing.lg)
+        }
+        .background(AppTheme.Gradients.background.ignoresSafeArea())
+        .navigationTitle("Workout Detail")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button("Done") { dismiss() }
+            }
+        }
+        .alert("Session Error", isPresented: Binding(get: { errorMessage != nil }, set: { _ in errorMessage = nil })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(errorMessage ?? "Something went wrong.")
+        }
+    }
+
+    private var plannedContent: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+            Text("Planned Intent")
+                .font(AppTheme.Typography.cardTitle)
+                .foregroundColor(AppTheme.Colors.primaryText)
+            intentRow("Focus", value: plannedFocus ?? "Not set")
+            intentRow("Notes", value: plannedNotes ?? "No notes")
+            intentRow("Duration", value: plannedDurationText ?? "Not set")
+            Button("Start Workout") {
+                onStartWorkout()
+                dismiss()
+            }
+            .buttonStyle(PrimaryCapsuleButton())
+            .padding(.top, AppTheme.Spacing.sm)
+        }
+        .padding(AppTheme.Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
+                .fill(AppTheme.Colors.surface)
+        )
+    }
+
+    private var completedContent: some View {
+        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+            Text("Completed Session")
+                .font(AppTheme.Typography.cardTitle)
+                .foregroundColor(AppTheme.Colors.primaryText)
+
+            if let historySummary {
+                intentRow("Duration", value: "\(historySummary.actualDurationMin ?? 0) min")
+                intentRow("Exercises", value: "\(historySummary.completedExerciseCount)/\(historySummary.exerciseCount)")
+                intentRow("Volume", value: "\(historySummary.totalVolume)")
+                if let rpe = historySummary.sessionRpe {
+                    intentRow("Session RPE", value: "\(rpe)")
+                }
+
+                Button(isLoadingDetail ? "Loading..." : "Load Actual Workout Data") {
+                    Task { await loadDetail() }
+                }
+                .buttonStyle(SecondaryCapsuleButton())
+                .disabled(isLoadingDetail)
+            } else {
+                Text("No linked completed-session data found yet.")
+                    .font(AppTheme.Typography.cardSubtitle)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+            }
+
+            if let detail {
+                Divider()
+                Text("Exercises")
+                    .font(AppTheme.Typography.cardTitle)
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                ForEach(detail.instance?.exercises ?? []) { exercise in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(exercise.exercise_name)
+                            .font(AppTheme.Typography.label)
+                            .foregroundColor(AppTheme.Colors.primaryText)
+                        Text(exerciseSummary(exercise))
+                            .font(AppTheme.Typography.cardSubtitle)
+                            .foregroundColor(AppTheme.Colors.secondaryText)
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .padding(AppTheme.Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: AppTheme.CornerRadius.large)
+                .fill(AppTheme.Colors.surface)
+        )
+    }
+
+    private func loadDetail() async {
+        guard let historySummary else { return }
+        isLoadingDetail = true
+        defer { isLoadingDetail = false }
+        do {
+            detail = try await apiService.fetchWorkoutTrackingSession(sessionId: historySummary.sessionId)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func intentRow(_ label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(AppTheme.Typography.label)
+                .foregroundColor(AppTheme.Colors.secondaryText)
+            Text(value)
+                .font(AppTheme.Typography.cardSubtitle)
+                .foregroundColor(AppTheme.Colors.primaryText)
+        }
+    }
+
+    private var isCompletedEvent: Bool {
+        ["completed", "stopped", "canceled"].contains(event.status.lowercased())
+    }
+
+    private var eventTitle: String {
+        if let plannedFocus, !plannedFocus.isEmpty {
+            return plannedFocus
+        }
+        return event.title ?? "Workout"
+    }
+
+    private var eventMeta: String {
+        let dateText = DateFormatter.localizedString(from: event.startAt, dateStyle: .full, timeStyle: .short)
+        return "\(dateText) • \(event.status.capitalized)"
+    }
+
+    private var plannedFocus: String? {
+        event.plannedSession?.intentJson["focus"]?.stringValue
+    }
+
+    private var plannedNotes: String? {
+        event.plannedSession?.intentJson["notes"]?.stringValue
+    }
+
+    private var plannedDurationText: String? {
+        guard let duration = event.plannedSession?.intentJson["duration_min"]?.intValue else { return nil }
+        return "\(duration) min"
+    }
+
+    private func exerciseSummary(_ exercise: UIExercise) -> String {
+        switch exercise.type.lowercased() {
+        case "hold":
+            if let hold = exercise.hold_duration_sec?.first {
+                return "\(exercise.sets ?? 1) sets • \(hold)s hold"
+            }
+        case "duration":
+            if let duration = exercise.duration_min {
+                return "\(duration) min"
+            }
+        case "intervals":
+            if let rounds = exercise.rounds, let total = exercise.total_duration_min {
+                return "\(rounds) rounds • \(total) min"
+            }
+        default:
+            if let sets = exercise.sets, let reps = exercise.reps?.first {
+                return "\(sets) sets x \(reps) reps"
+            }
+        }
+        return "Workout block"
+    }
+}
+
+private extension Calendar {
+    func startOfMonth(for date: Date) -> Date {
+        let components = dateComponents([.year, .month], from: date)
+        return self.date(from: components) ?? date
     }
 }
 

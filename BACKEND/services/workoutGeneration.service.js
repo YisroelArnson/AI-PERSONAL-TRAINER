@@ -8,6 +8,8 @@ const { v4: uuidv4, validate: isUuid } = require('uuid');
 dotenv.config();
 
 const DEFAULT_MODEL = process.env.PRIMARY_MODEL || 'claude-haiku-4-5';
+const WORKOUT_GENERATION_TIMEOUT_MS = Number(process.env.WORKOUT_GENERATION_TIMEOUT_MS) || 110000;
+const INTENT_PLAN_TIMEOUT_MS = Number(process.env.INTENT_PLAN_TIMEOUT_MS) || 45000;
 
 function nowIso() {
   return new Date().toISOString();
@@ -35,6 +37,25 @@ function extractJson(text) {
     return JSON.parse(jsonString);
   } catch (error) {
     return null;
+  }
+}
+
+async function withTimeout(promise, timeoutMs, operationName) {
+  let timeoutId;
+  try {
+    return await Promise.race([
+      promise,
+      new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+          const error = new Error(`${operationName} timed out`);
+          error.statusCode = 504;
+          error.code = 'UPSTREAM_TIMEOUT';
+          reject(error);
+        }, timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 
@@ -234,77 +255,81 @@ Rules:
 }
 
 async function generateIntentPlan(userId, intentText) {
-  const [dataSourceResults, program] = await Promise.all([
-    fetchMultipleDataSources(['user_profile', 'user_settings', 'all_locations'], userId),
-    getActiveProgram(userId)
-  ]);
-  const context = buildUserContextSummary(dataSourceResults);
-  const prompt = buildIntentPlanPrompt(intentText, context, program?.program_markdown);
-  const client = getAnthropicClient();
+  return withTimeout((async () => {
+    const [dataSourceResults, program] = await Promise.all([
+      fetchMultipleDataSources(['user_profile', 'user_settings', 'all_locations'], userId),
+      getActiveProgram(userId)
+    ]);
+    const context = buildUserContextSummary(dataSourceResults);
+    const prompt = buildIntentPlanPrompt(intentText, context, program?.program_markdown);
+    const client = getAnthropicClient();
 
-  const response = await client.messages.create({
-    model: DEFAULT_MODEL,
-    max_tokens: 512,
-    system: [{ type: 'text', text: 'Return ONLY valid JSON with focus, notes, and duration_min.' }],
-    messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
-  });
-
-  const textBlock = response.content.find(block => block.type === 'text');
-  const parsed = extractJson(textBlock?.text || '');
-  if (!parsed) {
-    throw new Error('Failed to parse intent plan JSON');
-  }
-
-  const duration = toIntOrNull(parsed.duration_min) ?? 45;
-  return {
-    focus: typeof parsed.focus === 'string' && parsed.focus.trim()
-      ? parsed.focus.trim()
-      : 'Custom Workout',
-    notes: typeof parsed.notes === 'string' && parsed.notes.trim()
-      ? parsed.notes.trim()
-      : 'Custom workout based on your request.',
-    duration_min: clampInt(duration, 10, 120)
-  };
-}
-
-async function generateWorkoutInstance(userId, constraints = {}) {
-  const [dataSourceResults, program, weightsProfile] = await Promise.all([
-    fetchMultipleDataSources(
-      ['user_profile', 'user_settings', 'all_locations', 'workout_history'],
-      userId
-    ),
-    getActiveProgram(userId),
-    getLatestProfile(userId)
-  ]);
-
-  const prompt = buildWorkoutPrompt(dataSourceResults, constraints, program, weightsProfile);
-  const client = getAnthropicClient();
-  let lastParseError = null;
-
-  for (let attempt = 1; attempt <= 2; attempt++) {
     const response = await client.messages.create({
       model: DEFAULT_MODEL,
-      max_tokens: 4096,
-      system: [{
-        type: 'text',
-        text: 'You are a concise JSON-only generator. Return ONLY valid JSON, no markdown, no explanation, no code fences.'
-      }],
+      max_tokens: 512,
+      system: [{ type: 'text', text: 'Return ONLY valid JSON with focus, notes, and duration_min.' }],
       messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
     });
 
     const textBlock = response.content.find(block => block.type === 'text');
-    const rawText = textBlock?.text || '';
-    const parsed = extractJson(rawText);
-
-    if (parsed && parsed.exercises) {
-      return normalizeWorkoutInstance(parsed, constraints);
+    const parsed = extractJson(textBlock?.text || '');
+    if (!parsed) {
+      throw new Error('Failed to parse intent plan JSON');
     }
 
-    lastParseError = new Error('Failed to parse workout instance from model response');
-    console.warn(`[workout-generation] Parse failed for user ${userId}, attempt ${attempt}/2`);
-  }
+    const duration = toIntOrNull(parsed.duration_min) ?? 45;
+    return {
+      focus: typeof parsed.focus === 'string' && parsed.focus.trim()
+        ? parsed.focus.trim()
+        : 'Custom Workout',
+      notes: typeof parsed.notes === 'string' && parsed.notes.trim()
+        ? parsed.notes.trim()
+        : 'Custom workout based on your request.',
+      duration_min: clampInt(duration, 10, 120)
+    };
+  })(), INTENT_PLAN_TIMEOUT_MS, 'Intent planning');
+}
 
-  throw lastParseError || new Error('Failed to parse workout instance from model response');
+async function generateWorkoutInstance(userId, constraints = {}) {
+  return withTimeout((async () => {
+    const [dataSourceResults, program, weightsProfile] = await Promise.all([
+      fetchMultipleDataSources(
+        ['user_profile', 'user_settings', 'all_locations', 'workout_history'],
+        userId
+      ),
+      getActiveProgram(userId),
+      getLatestProfile(userId)
+    ]);
+
+    const prompt = buildWorkoutPrompt(dataSourceResults, constraints, program, weightsProfile);
+    const client = getAnthropicClient();
+    let lastParseError = null;
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const response = await client.messages.create({
+        model: DEFAULT_MODEL,
+        max_tokens: 4096,
+        system: [{
+          type: 'text',
+          text: 'You are a concise JSON-only generator. Return ONLY valid JSON, no markdown, no explanation, no code fences.'
+        }],
+        messages: [{ role: 'user', content: [{ type: 'text', text: prompt }] }]
+      });
+
+      const textBlock = response.content.find(block => block.type === 'text');
+      const rawText = textBlock?.text || '';
+      const parsed = extractJson(rawText);
+
+      if (parsed && parsed.exercises) {
+        return normalizeWorkoutInstance(parsed, constraints);
+      }
+
+      lastParseError = new Error('Failed to parse workout instance from model response');
+      console.warn(`[workout-generation] Parse failed for user ${userId}, attempt ${attempt}/2`);
+    }
+
+    throw lastParseError || new Error('Failed to parse workout instance from model response');
+  })(), WORKOUT_GENERATION_TIMEOUT_MS, 'Workout generation');
 }
 
 module.exports = {

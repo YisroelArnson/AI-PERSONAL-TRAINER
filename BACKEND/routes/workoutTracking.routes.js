@@ -3,8 +3,20 @@ const router = express.Router();
 const { authenticateToken } = require('../middleware/auth');
 const controller = require('../controllers/workoutTracking.controller');
 
+router.use((req, res, next) => {
+  if (req.path === '/daily-message') {
+    console.log('[daily-message] request received', {
+      method: req.method,
+      path: req.originalUrl,
+      has_auth_header: Boolean(req.headers.authorization)
+    });
+  }
+  next();
+});
+
 router.use(authenticateToken);
 
+router.get('/daily-message', controller.getDailyMessage);
 router.post('/workout-intent/plan', controller.planWorkoutIntent);
 router.post('/workout-sessions', controller.createWorkoutSession);
 router.get('/workout-sessions/:sessionId', controller.getWorkoutSession);

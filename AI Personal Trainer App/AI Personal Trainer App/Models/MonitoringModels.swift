@@ -126,3 +126,31 @@ struct WeeklyReport: Codable {
         case focus
     }
 }
+
+struct DailyMessageResponse: Codable {
+    let success: Bool
+    let dailyMessage: DailyMessage
+
+    enum CodingKeys: String, CodingKey {
+        case success
+        case dailyMessage = "daily_message"
+    }
+}
+
+struct DailyMessage: Codable {
+    let id: String
+    let messageDate: String
+    let timeZone: String
+    let messageText: String
+    let stats: [String: CodableValue]
+    let createdAt: Date?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case messageDate = "message_date"
+        case timeZone = "time_zone"
+        case messageText = "message_text"
+        case stats
+        case createdAt = "created_at"
+    }
+}
