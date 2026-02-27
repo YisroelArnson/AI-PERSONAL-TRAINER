@@ -9,27 +9,28 @@ import SwiftUI
 
 struct EquipmentInputView: View {
     @Binding var equipment: [EquipmentItem]
+    @Binding var addRequestID: UUID
     
     @State private var showingAddEquipment = false
     @State private var showingEquipmentDetail: EquipmentItem?
-    @State private var equipmentToEdit: EquipmentItem?
     
     var body: some View {
-        VStack(alignment: .leading, spacing: AppTheme.Spacing.md) {
+        VStack(alignment: .leading, spacing: 10) {
             // Equipment List
             if equipment.isEmpty {
-                VStack(spacing: AppTheme.Spacing.sm) {
+                VStack(spacing: 6) {
                     Text("No equipment added")
-                        .font(.caption)
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundColor(AppTheme.Colors.secondaryText)
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, AppTheme.Spacing.lg)
+                .padding(.vertical, 14)
+                .background(AppTheme.Colors.surfaceHover)
+                .cornerRadius(AppTheme.CornerRadius.medium)
             } else {
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: AppTheme.Spacing.md) {
+                VStack(spacing: 8) {
                     ForEach(equipment) { item in
                         EquipmentChip(item: item) {
-                            equipmentToEdit = item
                             showingEquipmentDetail = item
                         } onDelete: {
                             equipment.removeAll { $0.id == item.id }
@@ -37,28 +38,15 @@ struct EquipmentInputView: View {
                     }
                 }
             }
-            
-            // Add Equipment Button
-            Button(action: {
-                showingAddEquipment = true
-            }) {
-                HStack {
-                    Image(systemName: "plus.circle.fill")
-                    Text("Add Equipment")
-                }
-                .font(AppTheme.Typography.button)
-                .foregroundColor(AppTheme.Colors.background)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, AppTheme.Spacing.sm)
-                .background(AppTheme.Colors.accent)
-                .cornerRadius(AppTheme.CornerRadius.small)
-            }
+        }
+        .onChange(of: addRequestID) { _, _ in
+            showingAddEquipment = true
         }
         .sheet(isPresented: $showingAddEquipment) {
-            EquipmentDetailView(
-                equipment: nil,
-                onSave: { newEquipment in
-                    equipment.append(newEquipment)
+            QuickAddEquipmentView(
+                equipment: equipment,
+                onSave: { updatedEquipment in
+                    equipment = updatedEquipment
                 }
             )
         }
@@ -83,40 +71,46 @@ private struct EquipmentChip: View {
     let onDelete: () -> Void
     
     var body: some View {
-        HStack(spacing: AppTheme.Spacing.xs) {
-            VStack(alignment: .leading, spacing: 2) {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 6) {
                 Text(item.name)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(AppTheme.Colors.primaryText)
                     .lineLimit(1)
-                
-                if let weights = item.weights, !weights.isEmpty {
-                    Text(weights.map { "\(Int($0))\(item.unit ?? "kg")" }.joined(separator: ", "))
-                        .font(.caption2)
-                        .foregroundColor(AppTheme.Colors.secondaryText)
-                        .lineLimit(1)
+
+                HStack(spacing: 6) {
+                    Text(item.type.replacingOccurrences(of: "_", with: " ").capitalized)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(typeColor)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(typeColor.opacity(0.12))
+                        .clipShape(Capsule())
+
+                    if let weights = item.weights, !weights.isEmpty {
+                        Text(weights.map { "\(Int($0))\(item.unit ?? "kg")" }.joined(separator: ", "))
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(AppTheme.Colors.secondaryText)
+                            .lineLimit(1)
+                    }
                 }
-                
-                Text(item.type.replacingOccurrences(of: "_", with: " ").capitalized)
-                    .font(.caption2)
-                    .foregroundColor(typeColor)
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 2)
-                    .background(typeColor.opacity(0.1))
-                    .cornerRadius(4)
             }
             
             Spacer()
             
             Button(action: onDelete) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 16))
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
                     .foregroundColor(AppTheme.Colors.secondaryText)
+                    .frame(width: 24, height: 24)
+                    .background(AppTheme.Colors.surface)
+                    .clipShape(Circle())
             }
+            .buttonStyle(.plain)
         }
-        .padding(AppTheme.Spacing.sm)
-        .background(AppTheme.Colors.surface)
-        .cornerRadius(AppTheme.CornerRadius.small)
+        .padding(14)
+        .background(AppTheme.Colors.surfaceHover)
+        .cornerRadius(AppTheme.CornerRadius.medium)
         .contentShape(Rectangle())
         .onTapGesture {
             onTap()
@@ -125,6 +119,216 @@ private struct EquipmentChip: View {
     
     private var typeColor: Color {
         AppTheme.Colors.primaryText
+    }
+}
+
+// MARK: - Quick Add Equipment View
+
+private struct QuickAddEquipmentView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var items: [EquipmentItem]
+    @State private var query: String = ""
+    @State private var editingItem: EquipmentItem?
+
+    let onSave: ([EquipmentItem]) -> Void
+
+    init(equipment: [EquipmentItem], onSave: @escaping ([EquipmentItem]) -> Void) {
+        _items = State(initialValue: equipment)
+        self.onSave = onSave
+    }
+
+    private struct Template: Identifiable {
+        let id = UUID()
+        let name: String
+        let type: String
+    }
+
+    private let templates: [Template] = [
+        .init(name: "Dumbbells", type: "free_weights"),
+        .init(name: "Barbell", type: "free_weights"),
+        .init(name: "Weight Plates", type: "free_weights"),
+        .init(name: "Kettlebell", type: "free_weights"),
+        .init(name: "Bench", type: "machine"),
+        .init(name: "Squat Rack", type: "machine"),
+        .init(name: "Cable Machine", type: "machine"),
+        .init(name: "Smith Machine", type: "machine"),
+        .init(name: "Pull-up Bar", type: "bodyweight"),
+        .init(name: "Dip Bars", type: "bodyweight"),
+        .init(name: "Resistance Bands", type: "other"),
+        .init(name: "TRX Straps", type: "other"),
+        .init(name: "Exercise Mat", type: "other"),
+        .init(name: "Treadmill", type: "cardio"),
+        .init(name: "Stationary Bike", type: "cardio"),
+        .init(name: "Rowing Machine", type: "cardio"),
+        .init(name: "Elliptical", type: "cardio")
+    ]
+
+    private var filteredTemplates: [Template] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return templates }
+        return templates.filter { template in
+            template.name.localizedCaseInsensitiveContains(trimmed) ||
+            template.type.localizedCaseInsensitiveContains(trimmed.replacingOccurrences(of: " ", with: "_"))
+        }
+    }
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                AppTheme.Colors.background
+                    .ignoresSafeArea()
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        TextField("Type equipment...", text: $query)
+                            .textFieldStyle(CustomTextFieldStyle())
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Suggestions")
+                                .font(.system(size: 11, weight: .semibold))
+                                .tracking(0.6)
+                                .foregroundColor(AppTheme.Colors.secondaryText)
+
+                            VStack(spacing: 8) {
+                                ForEach(filteredTemplates) { template in
+                                    quickAddRow(
+                                        title: template.name,
+                                        subtitle: template.type.replacingOccurrences(of: "_", with: " ").capitalized
+                                    ) {
+                                        addItem(name: template.name, type: template.type)
+                                    }
+                                }
+
+                                if !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                    quickAddRow(title: "Add \"\(query.trimmingCharacters(in: .whitespacesAndNewlines))\"", subtitle: "Custom equipment") {
+                                        addItem(name: query.trimmingCharacters(in: .whitespacesAndNewlines), type: "other")
+                                    }
+                                }
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Added")
+                                .font(.system(size: 11, weight: .semibold))
+                                .tracking(0.6)
+                                .foregroundColor(AppTheme.Colors.secondaryText)
+
+                            if items.isEmpty {
+                                Text("No equipment selected yet")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(AppTheme.Colors.secondaryText)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(12)
+                                    .background(AppTheme.Colors.surface)
+                                    .cornerRadius(AppTheme.CornerRadius.medium)
+                            } else {
+                                VStack(spacing: 8) {
+                                    ForEach(items) { item in
+                                        HStack(spacing: 10) {
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(item.name)
+                                                    .font(.system(size: 14, weight: .semibold))
+                                                    .foregroundColor(AppTheme.Colors.primaryText)
+                                                    .lineLimit(1)
+                                                Text(item.type.replacingOccurrences(of: "_", with: " ").capitalized)
+                                                    .font(.system(size: 12, weight: .medium))
+                                                    .foregroundColor(AppTheme.Colors.secondaryText)
+                                            }
+                                            Spacer()
+                                            Button("Edit") {
+                                                editingItem = item
+                                            }
+                                            .font(.system(size: 12, weight: .semibold))
+                                            .foregroundColor(AppTheme.Colors.primaryText)
+                                            Button(action: {
+                                                items.removeAll { $0.id == item.id }
+                                            }) {
+                                                Image(systemName: "xmark")
+                                                    .font(.system(size: 10, weight: .bold))
+                                                    .foregroundColor(AppTheme.Colors.secondaryText)
+                                                    .frame(width: 22, height: 22)
+                                                    .background(AppTheme.Colors.surfaceHover)
+                                                    .clipShape(Circle())
+                                            }
+                                            .buttonStyle(.plain)
+                                        }
+                                        .padding(12)
+                                        .background(AppTheme.Colors.surface)
+                                        .cornerRadius(AppTheme.CornerRadius.medium)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
+                }
+            }
+            .navigationTitle("Add Equipment")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        onSave(items)
+                        dismiss()
+                    }
+                }
+            }
+            .sheet(item: $editingItem) { item in
+                EquipmentDetailView(
+                    equipment: item,
+                    onSave: { updated in
+                        if let idx = items.firstIndex(where: { $0.id == item.id }) {
+                            items[idx] = updated
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    private func addItem(name: String, type: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard !items.contains(where: { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame && $0.type == type }) else {
+            query = ""
+            return
+        }
+
+        items.append(EquipmentItem(name: trimmed, type: type))
+        query = ""
+    }
+
+    private func quickAddRow(title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: "plus.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(AppTheme.Colors.secondaryText)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+            .padding(12)
+            .background(AppTheme.Colors.surface)
+            .cornerRadius(AppTheme.CornerRadius.medium)
+        }
+        .buttonStyle(.plain)
     }
 }
 
@@ -407,5 +611,5 @@ private struct CustomTextFieldStyle: TextFieldStyle {
 }
 
 #Preview {
-    EquipmentInputView(equipment: .constant([]))
+    EquipmentInputView(equipment: .constant([]), addRequestID: .constant(UUID()))
 }

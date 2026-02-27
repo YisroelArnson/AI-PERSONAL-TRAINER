@@ -86,8 +86,18 @@ struct TrainerCalendarView: View {
                 CalendarEventDetailSheet(
                     event: event,
                     historySummary: historyByCalendarEventId[event.id],
-                    onStartWorkout: {
-                        WorkoutStore.shared.startPlannedSession(calendarEvent: event)
+                    onStartWorkout: { selectedEvent in
+                        WorkoutStore.shared.startPlannedSession(calendarEvent: selectedEvent)
+                    },
+                    onEventUpdated: { updated in
+                        if let index = events.firstIndex(where: { $0.id == updated.id }) {
+                            events[index] = updated
+                        }
+                    },
+                    onEventDeleted: { deletedEventId in
+                        events.removeAll { $0.id == deletedEventId }
+                        historyByCalendarEventId.removeValue(forKey: deletedEventId)
+                        detailEvent = nil
                     }
                 )
             }
@@ -483,14 +493,33 @@ private struct MonthDayCell: View {
 private struct CalendarEventDetailSheet: View {
     @Environment(\.dismiss) private var dismiss
 
-    let event: CalendarEvent
     let historySummary: WorkoutHistorySessionItem?
-    let onStartWorkout: () -> Void
+    let onStartWorkout: (CalendarEvent) -> Void
+    let onEventUpdated: (CalendarEvent) -> Void
+    let onEventDeleted: (String) -> Void
 
     @StateObject private var apiService = APIService()
+    @State private var currentEvent: CalendarEvent
     @State private var detail: WorkoutTrackingSessionResponse?
     @State private var isLoadingDetail = false
+    @State private var isSaving = false
+    @State private var showEditSheet = false
+    @State private var showDeleteConfirm = false
     @State private var errorMessage: String?
+
+    init(
+        event: CalendarEvent,
+        historySummary: WorkoutHistorySessionItem?,
+        onStartWorkout: @escaping (CalendarEvent) -> Void,
+        onEventUpdated: @escaping (CalendarEvent) -> Void,
+        onEventDeleted: @escaping (String) -> Void
+    ) {
+        self.historySummary = historySummary
+        self.onStartWorkout = onStartWorkout
+        self.onEventUpdated = onEventUpdated
+        self.onEventDeleted = onEventDeleted
+        _currentEvent = State(initialValue: event)
+    }
 
     var body: some View {
         ScrollView {
@@ -538,11 +567,40 @@ private struct CalendarEventDetailSheet: View {
         } message: {
             Text(errorMessage ?? "Something went wrong.")
         }
+        .confirmationDialog(
+            "Delete planned session?",
+            isPresented: $showDeleteConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Planned Session", role: .destructive) {
+                Task { await deletePlannedSession() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This removes the session from your calendar.")
+        }
+        .sheet(isPresented: $showEditSheet) {
+            NavigationView {
+                PlannedSessionEditorSheet(
+                    event: currentEvent,
+                    isSaving: isSaving
+                ) { focus, notes, durationMin, startAt in
+                    Task {
+                        await savePlannedSessionEdits(
+                            focus: focus,
+                            notes: notes,
+                            durationMin: durationMin,
+                            startAt: startAt
+                        )
+                    }
+                }
+            }
+        }
     }
 
     private var statusBadge: some View {
         let color = badgeColor
-        return Text(event.status.capitalized)
+        return Text(currentEvent.status.capitalized)
             .font(.system(size: 11, weight: .semibold))
             .foregroundColor(color)
             .padding(.horizontal, 8)
@@ -551,7 +609,7 @@ private struct CalendarEventDetailSheet: View {
     }
 
     private var badgeColor: Color {
-        switch event.status.lowercased() {
+        switch currentEvent.status.lowercased() {
         case "completed": return .green
         case "skipped", "canceled": return .orange
         default: return AppTheme.Colors.primaryText
@@ -564,11 +622,27 @@ private struct CalendarEventDetailSheet: View {
             intentSection("Notes", value: plannedNotes ?? "No notes")
             intentSection("Duration", value: plannedDurationText ?? "Not set")
             Button("Start Workout") {
-                onStartWorkout()
+                onStartWorkout(currentEvent)
                 dismiss()
             }
             .buttonStyle(PrimaryCapsuleButton())
             .padding(.top, AppTheme.Spacing.sm)
+
+            if currentEvent.plannedSession != nil {
+                HStack(spacing: AppTheme.Spacing.sm) {
+                    Button("Edit Planned Session") {
+                        showEditSheet = true
+                    }
+                    .buttonStyle(SecondaryCapsuleButton())
+                    .disabled(isSaving)
+
+                    Button("Delete") {
+                        showDeleteConfirm = true
+                    }
+                    .buttonStyle(SecondaryCapsuleButton())
+                    .disabled(isSaving)
+                }
+            }
         }
     }
 
@@ -650,6 +724,63 @@ private struct CalendarEventDetailSheet: View {
         }
     }
 
+    private func savePlannedSessionEdits(
+        focus: String,
+        notes: String,
+        durationMin: Int,
+        startAt: Date
+    ) async {
+        guard !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+
+        do {
+            var updated = currentEvent
+            if abs(startAt.timeIntervalSince(currentEvent.startAt)) > 1 {
+                updated = try await apiService.rescheduleCalendarEvent(
+                    eventId: currentEvent.id,
+                    startAt: startAt,
+                    endAt: currentEvent.endAt
+                )
+            }
+
+            let safeFocus = focus.trimmingCharacters(in: .whitespacesAndNewlines)
+            let safeNotes = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+            let safeDuration = max(10, min(240, durationMin))
+            let intent: [String: CodableValue] = [
+                "focus": .string(safeFocus.isEmpty ? "Workout" : safeFocus),
+                "notes": .string(safeNotes),
+                "duration_min": .int(safeDuration)
+            ]
+
+            updated = try await apiService.updateCalendarEventIntent(
+                eventId: currentEvent.id,
+                intentJson: intent
+            )
+
+            currentEvent = updated
+            onEventUpdated(updated)
+            showEditSheet = false
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func deletePlannedSession() async {
+        guard !isSaving else { return }
+        isSaving = true
+        defer { isSaving = false }
+
+        do {
+            let eventId = currentEvent.id
+            try await apiService.deleteCalendarEvent(eventId: eventId, cascadePlanned: true)
+            onEventDeleted(eventId)
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
     private func intentSection(_ label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(label.uppercased())
@@ -663,31 +794,31 @@ private struct CalendarEventDetailSheet: View {
     }
 
     private var isCompletedEvent: Bool {
-        ["completed", "stopped", "canceled"].contains(event.status.lowercased())
+        ["completed", "stopped", "canceled"].contains(currentEvent.status.lowercased())
     }
 
     private var eventTitle: String {
         if let plannedFocus, !plannedFocus.isEmpty {
             return plannedFocus
         }
-        return event.title ?? "Workout"
+        return currentEvent.title ?? "Workout"
     }
 
     private var eventMeta: String {
-        let dateText = DateFormatter.localizedString(from: event.startAt, dateStyle: .full, timeStyle: .short)
-        return "\(dateText) • \(event.status.capitalized)"
+        let dateText = DateFormatter.localizedString(from: currentEvent.startAt, dateStyle: .full, timeStyle: .short)
+        return "\(dateText) • \(currentEvent.status.capitalized)"
     }
 
     private var plannedFocus: String? {
-        event.plannedSession?.intentJson["focus"]?.stringValue
+        currentEvent.plannedSession?.intentJson["focus"]?.stringValue
     }
 
     private var plannedNotes: String? {
-        event.plannedSession?.intentJson["notes"]?.stringValue
+        currentEvent.plannedSession?.intentJson["notes"]?.stringValue
     }
 
     private var plannedDurationText: String? {
-        guard let duration = event.plannedSession?.intentJson["duration_min"]?.intValue else { return nil }
+        guard let duration = currentEvent.plannedSession?.intentJson["duration_min"]?.intValue else { return nil }
         return "\(duration) min"
     }
 
@@ -711,6 +842,61 @@ private struct CalendarEventDetailSheet: View {
             }
         }
         return "Workout block"
+    }
+}
+
+private struct PlannedSessionEditorSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let isSaving: Bool
+    let onSave: (String, String, Int, Date) -> Void
+
+    @State private var focus: String
+    @State private var notes: String
+    @State private var durationMin: Int
+    @State private var startAt: Date
+
+    init(
+        event: CalendarEvent,
+        isSaving: Bool,
+        onSave: @escaping (String, String, Int, Date) -> Void
+    ) {
+        self.isSaving = isSaving
+        self.onSave = onSave
+        _focus = State(initialValue: event.plannedSession?.intentJson["focus"]?.stringValue ?? event.title ?? "")
+        _notes = State(initialValue: event.plannedSession?.intentJson["notes"]?.stringValue ?? "")
+        _durationMin = State(initialValue: max(10, min(240, event.plannedSession?.intentJson["duration_min"]?.intValue ?? 45)))
+        _startAt = State(initialValue: event.startAt)
+    }
+
+    var body: some View {
+        Form {
+            Section("Session") {
+                TextField("Focus", text: $focus)
+                TextField("Notes", text: $notes, axis: .vertical)
+                    .lineLimit(3...6)
+                Stepper("Duration: \(durationMin) min", value: $durationMin, in: 10...240, step: 5)
+                DatePicker(
+                    "Start",
+                    selection: $startAt,
+                    displayedComponents: [.date, .hourAndMinute]
+                )
+            }
+        }
+        .navigationTitle("Edit Planned Session")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("Cancel") { dismiss() }
+                    .disabled(isSaving)
+            }
+            ToolbarItem(placement: .navigationBarTrailing) {
+                Button(isSaving ? "Saving..." : "Save") {
+                    onSave(focus, notes, durationMin, startAt)
+                }
+                .disabled(isSaving)
+            }
+        }
     }
 }
 

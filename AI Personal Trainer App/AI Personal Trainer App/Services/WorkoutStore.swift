@@ -124,6 +124,7 @@ class WorkoutStore {
     // MARK: - Dependencies
 
     private let apiService = APIService()
+    private let dataRepository = AppDataRepository.shared
     private var isFlushingCommandOutbox: Bool = false
 
     private init() {}
@@ -442,16 +443,17 @@ class WorkoutStore {
                 currentPlannedSessionId = event.plannedSession?.id
                 latestGeneratedAdHocEventId = event.id
                 adHocEventIdForRollback = event.id
+                await dataRepository.invalidateCalendar()
             }
 
             // 1. Build V2 create session request
-            let equipment = selectedLocation?.equipment.map { $0.name }
             let intent = arrivedFromIntentPage ? "user_specified" : "planned"
             let createRequest = WorkoutTrackingSessionCreateRequest(
                 intent: intent,
                 requestText: arrivedFromIntentPage ? cleaned(intentText) : nil,
                 timeAvailableMin: effectiveDuration,
-                equipment: equipment,
+                locationId: selectedLocation?.id,
+                equipment: nil,
                 plannedSession: nil,
                 plannedIntentOriginal: originalIntentPayload,
                 plannedIntentEdited: editedPayload,
@@ -470,6 +472,7 @@ class WorkoutStore {
             if !showPreWorkoutSheet {
                 if let eventId = adHocEventIdForRollback {
                     try? await apiService.deleteCalendarEvent(eventId: eventId, cascadePlanned: true)
+                    await dataRepository.invalidateCalendar()
                 }
                 return
             }
@@ -499,6 +502,7 @@ class WorkoutStore {
                 currentCalendarEventId = nil
                 currentPlannedSessionId = nil
                 latestGeneratedAdHocEventId = nil
+                await dataRepository.invalidateCalendar()
             }
             if !showPreWorkoutSheet {
                 return
@@ -813,6 +817,7 @@ class WorkoutStore {
                 }
                 pendingCommands.removeFirst()
                 persist()
+                await dataRepository.invalidateAfterWorkoutMutation(calendarChanged: false)
             } catch APIError.conflict(let currentVersion) {
                 let serverVersion = currentVersion ?? exercisePayloadVersions[exerciseUUID] ?? next.expectedVersion
                 next.expectedVersion = max(serverVersion, 1)
@@ -926,6 +931,7 @@ class WorkoutStore {
             )
             summary = response.summary
             sessionStatus = .completed
+            await dataRepository.invalidateAfterWorkoutMutation(calendarChanged: true)
         } catch {
             // Server may have expired the session — still show completion with local data
             print("Complete workout failed: \(error)")
@@ -977,6 +983,7 @@ class WorkoutStore {
                 reflection: payload.reflection,
                 log: payload.log
             )
+            await dataRepository.invalidateAfterWorkoutMutation(calendarChanged: true)
         } catch {
             print("Stop workout failed: \(error)")
         }
@@ -996,6 +1003,7 @@ class WorkoutStore {
                     reflection: payload.reflection,
                     log: payload.log
                 )
+                await dataRepository.invalidateAfterWorkoutMutation(calendarChanged: true)
             } catch {
                 print("Queued stop workout failed: \(error)")
             }
@@ -1302,6 +1310,7 @@ class WorkoutStore {
                     reflection: reflection,
                     log: log
                 )
+                await dataRepository.invalidateAfterWorkoutMutation(calendarChanged: true)
                 return
             } catch {
                 if attempt == maxAttempts {

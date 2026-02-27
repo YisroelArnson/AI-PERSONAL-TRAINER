@@ -22,6 +22,14 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function extractEquipmentList(rawEquipment) {
+  if (typeof rawEquipment !== 'string') return [];
+  return rawEquipment
+    .split(/\r?\n|,/)
+    .map(s => s.replace(/^[-*•]\s*/, '').trim())
+    .filter(Boolean);
+}
+
 function extractJson(text) {
   if (!text) return null;
   const firstBrace = text.indexOf('{');
@@ -84,7 +92,7 @@ async function createInitialProfile(userId) {
 
   const currentLocation = locations.find(loc => loc.current_location) || locations[0];
   const equipment = currentLocation
-    ? (currentLocation.equipment || []).map(eq => typeof eq === 'string' ? eq : eq.name)
+    ? extractEquipmentList(currentLocation.equipment)
     : [];
 
   const prompt = `Based on this user's profile, infer reasonable starting weights for common exercises they might do.

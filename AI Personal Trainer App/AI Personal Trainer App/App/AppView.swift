@@ -7,6 +7,14 @@
 
 import SwiftUI
 
+enum DrawerDestination: Equatable {
+    case home
+    case stats
+    case calendar
+    case locations
+    case profile
+}
+
 struct AppView: View {
     @State var isAuthenticated = false
     @StateObject private var userDataStore = UserDataStore.shared
@@ -112,20 +120,14 @@ struct MainAppView: View {
 
     private var homeTopBar: some View {
         HStack {
-            // Left button - Menu or Back
             if currentPage == .home {
+                // Left button - Menu
                 Menu {
                     Button(action: { currentPage = .stats }) {
                         Label("History", systemImage: "clock")
                     }
                     Button(action: { currentPage = .calendar }) {
                         Label("Calendar", systemImage: "calendar")
-                    }
-                    Button(action: { currentPage = .locations }) {
-                        Label("Locations", systemImage: "mappin.and.ellipse")
-                    }
-                    Button(action: { currentPage = .coach }) {
-                        Label("Trainer", systemImage: "person.text.rectangle")
                     }
                     Button(action: { showingProfile = true }) {
                         Label("Profile", systemImage: "person")
@@ -136,34 +138,36 @@ struct MainAppView: View {
                         .frame(width: 44, height: 44)
                         .contentShape(Rectangle())
                 }
-            } else {
+
+                Spacer(minLength: 10)
+
                 Button(action: {
-                    withAnimation(AppTheme.Animation.gentle) {
-                        currentPage = .home
-                    }
+                    currentPage = .locations
                 }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.primaryText)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
+                    HStack(spacing: 6) {
+                        Image(systemName: "location.fill")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(AppTheme.Colors.primaryText.opacity(0.75))
+
+                        Text(userDataStore.currentLocation?.name ?? "No location")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(AppTheme.Colors.primaryText)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(AppTheme.Colors.secondaryText)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(AppTheme.Colors.surface)
+                    .clipShape(Capsule())
                 }
-                .buttonStyle(.plain)
-            }
 
-            Spacer()
+                Spacer(minLength: 10)
 
-            // Center text (non-home pages)
-            if currentPage != .home {
-                Text(pageTitle)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(AppTheme.Colors.primaryText)
-            }
-
-            Spacer()
-
-            // Right button - Plus menu or spacer
-            if currentPage == .home {
+                // Right button - Plus menu
                 Menu {
                     Button(action: {
                         NotificationCenter.default.post(name: .showQuickWorkoutSheet, object: nil)
@@ -188,6 +192,30 @@ struct MainAppView: View {
                         .contentShape(Rectangle())
                 }
             } else {
+                // Left button - Back
+                Button(action: {
+                    withAnimation(AppTheme.Animation.gentle) {
+                        currentPage = .home
+                    }
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(AppTheme.Colors.primaryText)
+                        .frame(width: 44, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+
+            if currentPage != .home {
+                Spacer()
+
+                Text(pageTitle)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(AppTheme.Colors.primaryText)
+
+                Spacer()
+
                 Color.clear
                     .frame(width: 44, height: 44)
             }
@@ -217,9 +245,6 @@ struct MainAppView: View {
             LocationsPageView()
                 .environmentObject(userDataStore)
                 .id("locations")
-        case .coach:
-            TrainerJourneyView()
-                .id("coach")
         case .profile:
             EmptyView()
         }
@@ -233,8 +258,6 @@ struct MainAppView: View {
             return "Calendar"
         case .locations:
             return "Locations"
-        case .coach:
-            return "Trainer"
         case .profile:
             return "Profile"
         case .home:
@@ -278,7 +301,8 @@ struct LocationsPageView: View {
                 .ignoresSafeArea()
             LocationsListSheet(
                 selectedLocation: $selectedLocation,
-                shouldShowEditor: $shouldShowEditor
+                shouldShowEditor: $shouldShowEditor,
+                showsNavigationChrome: false
             )
             .environmentObject(userDataStore)
         }

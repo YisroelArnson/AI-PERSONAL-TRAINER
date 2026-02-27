@@ -84,7 +84,6 @@
 		121536B62F48B756003D5164 /* FloatingAIButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363A2F48B756003D5164 /* FloatingAIButton.swift */; };
 		121536B72F48B756003D5164 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363B2F48B756003D5164 /* ToastView.swift */; };
 		121536B82F48B756003D5164 /* ThinTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363C2F48B756003D5164 /* ThinTopBar.swift */; };
-		121536B92F48B756003D5164 /* SideDrawerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363D2F48B756003D5164 /* SideDrawerView.swift */; };
 		121536BA2F48B756003D5164 /* OnboardingProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363E2F48B756003D5164 /* OnboardingProgressBar.swift */; };
 		121536BB2F48B756003D5164 /* VoiceBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363F2F48B756003D5164 /* VoiceBottomBar.swift */; };
 		121536BC2F48B756003D5164 /* UnitToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536402F48B756003D5164 /* UnitToggle.swift */; };
@@ -126,6 +125,8 @@
 		121536E02F48B756003D5164 /* AssessmentSessionStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536682F48B756003D5164 /* AssessmentSessionStore.swift */; };
 		121536E12F48B756003D5164 /* UserDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536692F48B756003D5164 /* UserDataStore.swift */; };
 		121536E22F48B756003D5164 /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215366A2F48B756003D5164 /* LocationService.swift */; };
+		B10000032F48B756003D5164 /* AppDataRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000012F48B756003D5164 /* AppDataRepository.swift */; };
+		B10000042F48B756003D5164 /* LocalCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000022F48B756003D5164 /* LocalCacheStore.swift */; };
 		12541A072F2C59B90020EF78 /* AI Personal Trainer AppTests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */; };
 		12541A0B2F2C59D30020EF78 /* AI Personal Trainer AppUITests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */; };
 		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
@@ -226,7 +227,6 @@
 		1215363A2F48B756003D5164 /* FloatingAIButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FloatingAIButton.swift; sourceTree = "<group>"; };
 		1215363B2F48B756003D5164 /* ToastView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
 		1215363C2F48B756003D5164 /* ThinTopBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ThinTopBar.swift; sourceTree = "<group>"; };
-		1215363D2F48B756003D5164 /* SideDrawerView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SideDrawerView.swift; sourceTree = "<group>"; };
 		1215363E2F48B756003D5164 /* OnboardingProgressBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingProgressBar.swift; sourceTree = "<group>"; };
 		1215363F2F48B756003D5164 /* VoiceBottomBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VoiceBottomBar.swift; sourceTree = "<group>"; };
 		121536402F48B756003D5164 /* UnitToggle.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UnitToggle.swift; sourceTree = "<group>"; };
@@ -268,6 +268,8 @@
 		121536682F48B756003D5164 /* AssessmentSessionStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssessmentSessionStore.swift; sourceTree = "<group>"; };
 		121536692F48B756003D5164 /* UserDataStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UserDataStore.swift; sourceTree = "<group>"; };
 		1215366A2F48B756003D5164 /* LocationService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		B10000012F48B756003D5164 /* AppDataRepository.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppDataRepository.swift; sourceTree = "<group>"; };
+		B10000022F48B756003D5164 /* LocalCacheStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocalCacheStore.swift; sourceTree = "<group>"; };
 		12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Personal Trainer AppTests"; sourceTree = "<group>"; };
 		12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Personal Trainer AppUITests"; sourceTree = "<group>"; };
 		12761C412E57953800C4F8FE /* AI Personal Trainer App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Personal Trainer App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -577,7 +579,6 @@
 				1215363A2F48B756003D5164 /* FloatingAIButton.swift */,
 				1215363B2F48B756003D5164 /* ToastView.swift */,
 				1215363C2F48B756003D5164 /* ThinTopBar.swift */,
-				1215363D2F48B756003D5164 /* SideDrawerView.swift */,
 				1215363E2F48B756003D5164 /* OnboardingProgressBar.swift */,
 				1215363F2F48B756003D5164 /* VoiceBottomBar.swift */,
 				121536402F48B756003D5164 /* UnitToggle.swift */,
@@ -639,6 +640,8 @@
 				121536682F48B756003D5164 /* AssessmentSessionStore.swift */,
 				121536692F48B756003D5164 /* UserDataStore.swift */,
 				1215366A2F48B756003D5164 /* LocationService.swift */,
+				B10000012F48B756003D5164 /* AppDataRepository.swift */,
+				B10000022F48B756003D5164 /* LocalCacheStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -838,7 +841,6 @@
 				121536752F48B756003D5164 /* CollapsedStepsSummary.swift in Sources */,
 				121536DE2F48B756003D5164 /* AppStateCoordinator.swift in Sources */,
 				1215368E2F48B756003D5164 /* WorkoutModeView.swift in Sources */,
-				121536B92F48B756003D5164 /* SideDrawerView.swift in Sources */,
 				121536BC2F48B756003D5164 /* UnitToggle.swift in Sources */,
 				121536C32F48B756003D5164 /* LocalIntakeData.swift in Sources */,
 				121536872F48B756003D5164 /* EquipmentInputView.swift in Sources */,
@@ -847,6 +849,8 @@
 				121536B42F48B756003D5164 /* ExpandingFabMenu.swift in Sources */,
 				121536CF2F48B756003D5164 /* MonitoringModels.swift in Sources */,
 				121536DA2F48B756003D5164 /* APIService.swift in Sources */,
+				B10000032F48B756003D5164 /* AppDataRepository.swift in Sources */,
+				B10000042F48B756003D5164 /* LocalCacheStore.swift in Sources */,
 				1215367F2F48B756003D5164 /* WorkoutPill.swift in Sources */,
 				121536B02F48B756003D5164 /* StepProgressBar.swift in Sources */,
 				121536822F48B756003D5164 /* AIMessageSkeleton.swift in Sources */,

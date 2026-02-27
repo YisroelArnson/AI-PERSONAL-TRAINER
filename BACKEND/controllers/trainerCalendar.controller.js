@@ -61,6 +61,18 @@ async function completeEvent(req, res) {
   }
 }
 
+async function updateEventIntent(req, res) {
+  try {
+    const userId = req.user.id;
+    const { id } = req.params;
+    const event = await calendarService.updateEventIntent(userId, id, req.body || {});
+    res.json({ success: true, event });
+  } catch (error) {
+    console.error('Update event intent error:', error);
+    res.status(error.statusCode || 500).json({ success: false, error: error.message });
+  }
+}
+
 async function deleteEvent(req, res) {
   try {
     const userId = req.user.id;
@@ -112,6 +124,7 @@ module.exports = {
   rescheduleEvent,
   skipEvent,
   completeEvent,
+  updateEventIntent,
   deleteEvent,
   syncCalendar,
   checkAndRegenerate

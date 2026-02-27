@@ -285,7 +285,7 @@ Log completed exercises to history.
 
 ### set_current_location
 Switch the user's active workout location. Affects available equipment for workouts.
-{"location_id": "uuid-here"}
+{"location_id": 123}
 Or by name: {"location_name": "Home Gym"}
 Note: location_id is preferred; location_name is case-insensitive fallback.
 
@@ -365,20 +365,16 @@ function formatUserDataXml(dataSourceResults) {
       xml += '<current_location>\n';
       xml += `Location: ${loc.name}\n`;
       if (loc.description) xml += `Description: ${loc.description}\n`;
-      if (loc.equipment && loc.equipment.length > 0) {
+      const equipmentLines = typeof loc.equipment === 'string'
+        ? loc.equipment
+          .split(/\r?\n|,/)
+          .map(s => s.replace(/^[-*•]\s*/, '').trim())
+          .filter(Boolean)
+        : [];
+      if (equipmentLines.length > 0) {
         xml += 'Equipment:\n';
-        for (const eq of loc.equipment) {
-          if (typeof eq === 'string') {
-            xml += `  - ${eq}\n`;
-            continue;
-          }
-          let eqLine = `  - ${eq.name}`;
-          if (eq.type) eqLine += ` (${eq.type})`;
-          if (eq.type === 'free_weights' && eq.weights && eq.weights.length > 0) {
-            const unit = eq.unit || 'kg';
-            eqLine += `: ${eq.weights.join(', ')}${unit}`;
-          }
-          xml += eqLine + '\n';
+        for (const eqLine of equipmentLines) {
+          xml += `  - ${eqLine}\n`;
         }
       } else {
         xml += 'Equipment: none\n';

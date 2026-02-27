@@ -44,7 +44,7 @@ struct Location: Identifiable, Equatable {
     let id: Int64
     var name: String
     var description: String?
-    var equipment: [EquipmentItem]
+    var equipment: String
     var currentLocation: Bool
     var geoData: CLLocationCoordinate2D?
     var createdAt: Date?
@@ -53,7 +53,7 @@ struct Location: Identifiable, Equatable {
         id: Int64,
         name: String,
         description: String? = nil,
-        equipment: [EquipmentItem] = [],
+        equipment: String = "",
         currentLocation: Bool = false,
         geoData: CLLocationCoordinate2D? = nil,
         createdAt: Date? = nil
@@ -106,7 +106,7 @@ extension Location: Codable {
         id = try container.decode(Int64.self, forKey: .id)
         name = try container.decode(String.self, forKey: .name)
         description = try container.decodeIfPresent(String.self, forKey: .description)
-        equipment = try container.decode([EquipmentItem].self, forKey: .equipment)
+        equipment = (try? container.decode(String.self, forKey: .equipment)) ?? ""
         currentLocation = try container.decode(Bool.self, forKey: .currentLocation)
         createdAt = try container.decodeIfPresent(Date.self, forKey: .createdAt)
         
@@ -145,7 +145,7 @@ struct LocationDB: Codable {
     let name: String
     let description: String?
     let geo_data: String? // PostGIS geography stored as WKT string "POINT(lon lat)"
-    let equipment: [EquipmentItem]? // JSONB array
+    let equipment: String?
     let current_location: Bool?
     let created_at: Date?
     
@@ -172,20 +172,51 @@ struct LocationDB: Codable {
         current_location = try container.decodeIfPresent(Bool.self, forKey: .current_location)
         created_at = try container.decodeIfPresent(Date.self, forKey: .created_at)
         
-        // Decode equipment JSONB array - handle both array and null cases
-        if container.contains(.equipment) {
-            do {
-                // Try to decode as array directly
-                equipment = try container.decodeIfPresent([EquipmentItem].self, forKey: .equipment)
-            } catch {
-                // If direct decode fails, try decoding as JSON data and then parsing
-                print("⚠️ Failed to decode equipment directly: \(error)")
-                // Set to empty array if decoding fails
-                equipment = []
-            }
-        } else {
-            equipment = nil
-        }
+        equipment = try container.decodeIfPresent(String.self, forKey: .equipment)
+    }
+}
+
+// MARK: - Location API Models
+
+struct LocationListResponse: Codable {
+    let success: Bool
+    let locations: [LocationDB]
+}
+
+struct LocationItemResponse: Codable {
+    let success: Bool
+    let location: LocationDB
+}
+
+struct LocationDeleteResponse: Codable {
+    let success: Bool
+}
+
+struct LocationResolveNearestResponse: Codable {
+    let success: Bool
+    let location: LocationDB?
+    let distance_m: Double?
+}
+
+struct LocationUpsertPayload: Codable {
+    let name: String
+    let description: String?
+    let equipment: String
+    let current_location: Bool
+    let geo_data: String?
+}
+
+extension LocationDB {
+    func toLocation() -> Location {
+        Location(
+            id: id,
+            name: name,
+            description: description,
+            equipment: equipment ?? "",
+            currentLocation: current_location ?? false,
+            geoData: Location.coordinateFromPostGIS(geo_data),
+            createdAt: created_at
+        )
     }
 }
 
@@ -357,5 +388,3 @@ extension Location {
         return "POINT(\(coordinate.longitude) \(coordinate.latitude))"
     }
 }
-
-

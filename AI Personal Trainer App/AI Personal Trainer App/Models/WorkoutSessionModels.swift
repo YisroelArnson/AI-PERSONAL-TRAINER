@@ -18,6 +18,7 @@ struct WorkoutTrackingSessionCreateRequest: Encodable {
     let intent: String?
     let requestText: String?
     let timeAvailableMin: Int?
+    let locationId: Int64?
     let equipment: [String]?
     let plannedSession: [String: CodableValue]?
     let plannedIntentOriginal: [String: CodableValue]?
@@ -31,6 +32,7 @@ struct WorkoutTrackingSessionCreateRequest: Encodable {
         case intent
         case requestText = "request_text"
         case timeAvailableMin = "time_available_min"
+        case locationId = "location_id"
         case equipment
         case plannedSession = "planned_session"
         case plannedIntentOriginal = "planned_intent_original"

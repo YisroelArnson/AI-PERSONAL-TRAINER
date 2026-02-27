@@ -4,6 +4,7 @@ const { z } = require('zod');
 const { v4: uuidv4, validate: isUuid } = require('uuid');
 const workoutGenerationService = require('./workoutGeneration.service');
 const { getAnthropicClient } = require('./modelProviders.service');
+const locationService = require('./location.service');
 const {
   dailyMessageLlmContextSchema,
   buildDailyMessageLlmRequest,
@@ -148,6 +149,7 @@ const createSessionRequestSchema = z.object({
   request_text: z.string().nullable().optional(),
   time_available_min: z.number().int().min(5).max(240).nullable().optional(),
   equipment: z.array(z.string()).optional(),
+  location_id: z.union([z.number().int().positive(), z.string().regex(/^\d+$/)]).nullable().optional(),
   coach_mode: z.enum(['quiet', 'ringer']).optional(),
   planned_session: z.record(z.string(), z.any()).nullable().optional(),
   planned_intent_original: z.record(z.string(), z.any()).nullable().optional(),
@@ -973,11 +975,40 @@ async function cleanupSessionArtifacts({ sessionId, userId }) {
 
 async function createWorkoutSession({ userId, requestBody = {} }) {
   const parsed = createSessionRequestSchema.parse(requestBody);
+  const parsedLocationId = parsed.location_id === undefined || parsed.location_id === null
+    ? null
+    : locationService.parseLocationId(parsed.location_id);
+  if (parsed.location_id !== undefined && parsed.location_id !== null && !parsedLocationId) {
+    const err = new Error('location_id must be a positive integer');
+    err.statusCode = 422;
+    throw err;
+  }
+
+  let selectedLocation = null;
+  if (parsedLocationId) {
+    const { data: locationRow, error: locationError } = await supabase
+      .from('user_locations')
+      .select('id, name, equipment, current_location')
+      .eq('user_id', userId)
+      .eq('id', parsedLocationId)
+      .maybeSingle();
+    throwIfSupabaseError(locationError, 'user_locations');
+    if (!locationRow) {
+      const err = new Error('Location not found');
+      err.statusCode = 404;
+      throw err;
+    }
+    selectedLocation = locationRow;
+  }
 
   const sessionId = uuidv4();
   const metadata = {
     ...(parsed.metadata || {})
   };
+  if (parsedLocationId) {
+    metadata.location_id = parsedLocationId;
+    metadata.location_name = selectedLocation?.name || null;
+  }
   if (parsed.planned_intent_original) metadata.planned_intent_original = parsed.planned_intent_original;
   if (parsed.planned_intent_edited) metadata.planned_intent_edited = parsed.planned_intent_edited;
 
@@ -1008,11 +1039,17 @@ async function createWorkoutSession({ userId, requestBody = {} }) {
       }
     });
 
+    const locationEquipment = locationService.getLocationEquipmentSummary(selectedLocation);
+    const explicitEquipment = Array.isArray(parsed.equipment) && parsed.equipment.length > 0
+      ? parsed.equipment
+      : null;
     const constraints = {
       intent: parsed.intent || 'planned',
       request_text: parsed.request_text || null,
       time_available_min: parsed.time_available_min || null,
-      equipment: parsed.equipment || [],
+      equipment: explicitEquipment || locationEquipment,
+      location_id: parsedLocationId || null,
+      location_name: selectedLocation?.name || null,
       planned_session: parsed.planned_session || null,
       planned_intent_original: parsed.planned_intent_original || null,
       planned_intent_edited: parsed.planned_intent_edited || null
@@ -1687,20 +1724,13 @@ function getMemoryFacts(rows = []) {
 
 function getLocationEquipmentSummary(locationRow) {
   if (!locationRow) return [];
-  const equipment = Array.isArray(locationRow.equipment) ? locationRow.equipment : [];
-  const names = [];
-  for (const item of equipment) {
-    if (typeof item === 'string') {
-      const clean = safeString(item);
-      if (clean) names.push(clean);
-      continue;
-    }
-    if (item && typeof item === 'object') {
-      const clean = safeString(item.name || item.type);
-      if (clean) names.push(clean);
-    }
-  }
-  return Array.from(new Set(names)).slice(0, 20);
+  if (typeof locationRow.equipment !== 'string') return [];
+  return Array.from(new Set(
+    locationRow.equipment
+      .split(/\r?\n|,/)
+      .map(s => safeString(s.replace(/^[-*•]\s*/, '')))
+      .filter(Boolean)
+  )).slice(0, 20);
 }
 
 function buildFallbackDailyMessage(context = {}) {
@@ -1748,6 +1778,11 @@ async function computeDailyMessageContext({ userId, timeZone, todayKey }) {
   const weekStartKey = getWeekStartDateKey(todayKey);
   const last30Start = shiftDateKey(todayKey, -29);
   const previous30Start = shiftDateKey(todayKey, -59);
+  const scheduledSearchStart = shiftDateKey(todayKey, -2);
+  const weekWindowStart = weekStartKey < shiftDateKey(todayKey, -6)
+    ? weekStartKey
+    : shiftDateKey(todayKey, -6);
+  const tomorrowKey = shiftDateKey(todayKey, 1);
 
   const [
     sessionsResult,
@@ -1771,17 +1806,19 @@ async function computeDailyMessageContext({ userId, timeZone, todayKey }) {
       .select('start_at, title, notes, status')
       .eq('user_id', userId)
       .eq('event_type', 'workout')
-      .eq('status', 'scheduled')
+      .in('status', ['scheduled', 'planned'])
+      .gte('start_at', `${scheduledSearchStart}T00:00:00.000Z`)
       .order('start_at', { ascending: true })
-      .limit(20),
+      .limit(240),
     supabase
       .from('trainer_calendar_events')
       .select('start_at, status')
       .eq('user_id', userId)
       .eq('event_type', 'workout')
-      .in('status', ['scheduled', 'completed', 'skipped'])
-      .order('start_at', { ascending: false })
-      .limit(60),
+      .in('status', ['scheduled', 'planned', 'completed', 'skipped'])
+      .gte('start_at', `${weekWindowStart}T00:00:00.000Z`)
+      .lt('start_at', `${tomorrowKey}T00:00:00.000Z`)
+      .order('start_at', { ascending: true }),
     supabase
       .from('app_user')
       .select('first_name')

@@ -590,6 +590,148 @@ class APIService: ObservableObject {
         return response.dailyMessage
     }
 
+    // MARK: - Locations
+
+    func fetchLocations() async throws -> [Location] {
+        guard let url = URL(string: "\(baseURL)/trainer/locations") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "GET"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 20)
+        guard httpResponse.statusCode == 200 else {
+            if let message = extractServerErrorMessage(from: data) {
+                throw APIError.serverError(message: message, statusCode: httpResponse.statusCode)
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        let response = try makeISO8601Decoder().decode(LocationListResponse.self, from: data)
+        return response.locations.map { $0.toLocation() }
+    }
+
+    func createLocation(_ location: Location) async throws -> Location {
+        guard let url = URL(string: "\(baseURL)/trainer/locations") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        let payload = LocationUpsertPayload(
+            name: location.name,
+            description: location.description,
+            equipment: location.equipment,
+            current_location: location.currentLocation,
+            geo_data: location.geoData.map { Location.postGISFromCoordinate($0) }
+        )
+        request.httpBody = try JSONEncoder().encode(payload)
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 20)
+        guard httpResponse.statusCode == 200 else {
+            if let message = extractServerErrorMessage(from: data) {
+                throw APIError.serverError(message: message, statusCode: httpResponse.statusCode)
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        let response = try makeISO8601Decoder().decode(LocationItemResponse.self, from: data)
+        return response.location.toLocation()
+    }
+
+    func updateLocation(_ location: Location) async throws -> Location {
+        guard let url = URL(string: "\(baseURL)/trainer/locations/\(location.id)") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "PATCH"
+        let payload = LocationUpsertPayload(
+            name: location.name,
+            description: location.description,
+            equipment: location.equipment,
+            current_location: location.currentLocation,
+            geo_data: location.geoData.map { Location.postGISFromCoordinate($0) }
+        )
+        request.httpBody = try JSONEncoder().encode(payload)
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 20)
+        guard httpResponse.statusCode == 200 else {
+            if let message = extractServerErrorMessage(from: data) {
+                throw APIError.serverError(message: message, statusCode: httpResponse.statusCode)
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        let response = try makeISO8601Decoder().decode(LocationItemResponse.self, from: data)
+        return response.location.toLocation()
+    }
+
+    func deleteLocation(id: Int64) async throws {
+        guard let url = URL(string: "\(baseURL)/trainer/locations/\(id)") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "DELETE"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 20)
+        guard httpResponse.statusCode == 200 else {
+            if let message = extractServerErrorMessage(from: data) {
+                throw APIError.serverError(message: message, statusCode: httpResponse.statusCode)
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        _ = try JSONDecoder().decode(LocationDeleteResponse.self, from: data)
+    }
+
+    func setCurrentLocation(id: Int64) async throws -> Location {
+        guard let url = URL(string: "\(baseURL)/trainer/locations/\(id)/set-current") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 20)
+        guard httpResponse.statusCode == 200 else {
+            if let message = extractServerErrorMessage(from: data) {
+                throw APIError.serverError(message: message, statusCode: httpResponse.statusCode)
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        let response = try makeISO8601Decoder().decode(LocationItemResponse.self, from: data)
+        return response.location.toLocation()
+    }
+
+    func resolveNearestLocation(latitude: Double, longitude: Double, radiusMeters: Double = 500) async throws -> Location? {
+        guard let url = URL(string: "\(baseURL)/trainer/locations/resolve-nearest") else {
+            throw APIError.invalidURL
+        }
+
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        request.httpBody = try JSONSerialization.data(withJSONObject: [
+            "latitude": latitude,
+            "longitude": longitude,
+            "radius_m": radiusMeters
+        ])
+
+        let (data, httpResponse) = try await dataWithFallback(for: request, timeout: 20)
+        guard httpResponse.statusCode == 200 else {
+            if let message = extractServerErrorMessage(from: data) {
+                throw APIError.serverError(message: message, statusCode: httpResponse.statusCode)
+            }
+            throw APIError.httpError(statusCode: httpResponse.statusCode)
+        }
+
+        let response = try makeISO8601Decoder().decode(LocationResolveNearestResponse.self, from: data)
+        return response.location?.toLocation()
+    }
+
     // MARK: - Trainer Assessment (Phase B)
 
     func createAssessmentSession() async throws -> AssessmentSessionResponse {
@@ -965,6 +1107,23 @@ class APIService: ObservableObject {
         return response.event
     }
 
+    func updateCalendarEventIntent(
+        eventId: String,
+        intentJson: [String: CodableValue]
+    ) async throws -> CalendarEvent {
+        guard let url = URL(string: "\(baseURL)/trainer/calendar/events/\(eventId)/intent") else { throw APIError.invalidURL }
+        var request = try await createAuthenticatedRequest(url: url)
+        request.httpMethod = "POST"
+        let body: [String: Any] = [
+            "intent_json": intentJson.mapValues { $0.asAny() }
+        ]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, httpResponse) = try await dataWithFallback(for: request)
+        guard httpResponse.statusCode == 200 else { throw APIError.httpError(statusCode: httpResponse.statusCode) }
+        let response = try makeISO8601Decoder().decode(CalendarEventResponse.self, from: data)
+        return response.event
+    }
+
     func skipCalendarEvent(eventId: String, reason: String? = nil) async throws -> CalendarEvent {
         guard let url = URL(string: "\(baseURL)/trainer/calendar/events/\(eventId)/skip") else { throw APIError.invalidURL }
         var request = try await createAuthenticatedRequest(url: url)
@@ -1175,263 +1334,5 @@ class APIService: ObservableObject {
         
         let apiResponse = try JSONDecoder().decode(UserSettingsAPIResponse.self, from: data)
         return apiResponse.data
-    }
-}
-
-private struct LocalCacheRecord<Value: Codable>: Codable {
-    let value: Value
-    let fetchedAt: Date
-}
-
-private struct CalendarEventsCachePayload: Codable {
-    let requestedStart: Date
-    let requestedEnd: Date
-    let events: [CalendarEvent]
-
-    func covers(start: Date, end: Date) -> Bool {
-        requestedStart <= start && requestedEnd >= end
-    }
-
-    func filtered(start: Date, end: Date) -> [CalendarEvent] {
-        events.filter { event in
-            event.startAt >= start && event.startAt <= end
-        }
-    }
-}
-
-private actor LocalCacheStore {
-    static let shared = LocalCacheStore()
-
-    private let defaults = UserDefaults.standard
-    private let encoder = JSONEncoder()
-    private let decoder = JSONDecoder()
-
-    func load<Value: Codable>(_ type: Value.Type, key: String) -> LocalCacheRecord<Value>? {
-        guard let data = defaults.data(forKey: key) else { return nil }
-        return try? decoder.decode(LocalCacheRecord<Value>.self, from: data)
-    }
-
-    func save<Value: Codable>(_ value: Value, key: String, fetchedAt: Date = Date()) {
-        let record = LocalCacheRecord(value: value, fetchedAt: fetchedAt)
-        guard let encoded = try? encoder.encode(record) else { return }
-        defaults.set(encoded, forKey: key)
-    }
-
-    func remove(key: String) {
-        defaults.removeObject(forKey: key)
-    }
-
-    func removeAll(prefix: String) {
-        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(prefix) {
-            defaults.removeObject(forKey: key)
-        }
-    }
-}
-
-actor AppDataRepository {
-    static let shared = AppDataRepository()
-
-    private let apiService = APIService.shared
-    private let cache = LocalCacheStore.shared
-
-    private enum TTL {
-        static let dailyMessage: TimeInterval = 24 * 60 * 60
-        static let calendar: TimeInterval = 15 * 60
-        static let historyRecent: TimeInterval = 10 * 60
-        static let historyOlder: TimeInterval = 24 * 60 * 60
-        static let workoutDetail: TimeInterval = 24 * 60 * 60
-        static let weeklyReports: TimeInterval = 15 * 60
-    }
-
-    private enum CacheKey {
-        static let calendarEvents = "cache.calendar.events"
-        static let calendarHistoryIndex = "cache.calendar.history_index"
-        static let weeklyReports = "cache.weekly.reports"
-        static let historyPagePrefix = "cache.history.page"
-        static let workoutDetailPrefix = "cache.workout.detail"
-    }
-
-    func loadDailyMessage(forceRefresh: Bool = false, timeZone: String = TimeZone.current.identifier) async throws -> DailyMessage {
-        let key = "cache.daily.message.\(sanitizeCacheComponent(timeZone))"
-        let cached: LocalCacheRecord<DailyMessage>? = await cache.load(DailyMessage.self, key: key)
-        let today = messageDateString(for: Date(), timeZone: timeZone)
-
-        if !forceRefresh, let cached {
-            if cached.value.messageDate == today || !isStale(cached.fetchedAt, ttl: TTL.dailyMessage) {
-                return cached.value
-            }
-        }
-
-        do {
-            let fresh = try await apiService.fetchDailyMessage(timeZone: timeZone)
-            await cache.save(fresh, key: key)
-            return fresh
-        } catch {
-            if let cached {
-                return cached.value
-            }
-            throw error
-        }
-    }
-
-    func loadCalendarEvents(start: Date, end: Date, forceRefresh: Bool = false) async throws -> [CalendarEvent] {
-        let cached: LocalCacheRecord<CalendarEventsCachePayload>? = await cache.load(CalendarEventsCachePayload.self, key: CacheKey.calendarEvents)
-
-        if !forceRefresh,
-           let cached,
-           !isStale(cached.fetchedAt, ttl: TTL.calendar),
-           cached.value.covers(start: start, end: end) {
-            return cached.value.filtered(start: start, end: end)
-        }
-
-        do {
-            let events = try await apiService.listCalendarEvents(start: start, end: end)
-            let payload = CalendarEventsCachePayload(requestedStart: start, requestedEnd: end, events: events)
-            await cache.save(payload, key: CacheKey.calendarEvents)
-            return events
-        } catch {
-            if let cached, cached.value.covers(start: start, end: end) {
-                return cached.value.filtered(start: start, end: end)
-            }
-            throw error
-        }
-    }
-
-    func loadWeeklyReports(forceRefresh: Bool = false) async throws -> [WeeklyReport] {
-        let cached: LocalCacheRecord<[WeeklyReport]>? = await cache.load([WeeklyReport].self, key: CacheKey.weeklyReports)
-        if !forceRefresh, let cached, !isStale(cached.fetchedAt, ttl: TTL.weeklyReports) {
-            return cached.value
-        }
-
-        do {
-            let reports = try await apiService.listWeeklyReports()
-            await cache.save(reports, key: CacheKey.weeklyReports)
-            return reports
-        } catch {
-            if let cached {
-                return cached.value
-            }
-            throw error
-        }
-    }
-
-    func loadWorkoutHistoryPage(limit: Int = 20, cursor: String? = nil, forceRefresh: Bool = false) async throws -> WorkoutHistoryResponse {
-        let key = historyPageKey(limit: limit, cursor: cursor)
-        let cached: LocalCacheRecord<WorkoutHistoryResponse>? = await cache.load(WorkoutHistoryResponse.self, key: key)
-        let ttl = (cursor == nil || cursor?.isEmpty == true) ? TTL.historyRecent : TTL.historyOlder
-
-        if !forceRefresh, let cached, !isStale(cached.fetchedAt, ttl: ttl) {
-            return cached.value
-        }
-
-        do {
-            let response = try await apiService.fetchWorkoutHistory(limit: limit, cursor: cursor)
-            await cache.save(response, key: key)
-            return response
-        } catch {
-            if let cached {
-                return cached.value
-            }
-            throw error
-        }
-    }
-
-    func loadWorkoutSessionDetail(sessionId: String, forceRefresh: Bool = false) async throws -> WorkoutTrackingSessionResponse {
-        let key = "\(CacheKey.workoutDetailPrefix).\(sanitizeCacheComponent(sessionId))"
-        let cached: LocalCacheRecord<WorkoutTrackingSessionResponse>? = await cache.load(WorkoutTrackingSessionResponse.self, key: key)
-
-        if !forceRefresh, let cached, !isStale(cached.fetchedAt, ttl: TTL.workoutDetail) {
-            return cached.value
-        }
-
-        do {
-            let detail = try await apiService.fetchWorkoutTrackingSession(sessionId: sessionId)
-            await cache.save(detail, key: key)
-            return detail
-        } catch {
-            if let cached {
-                return cached.value
-            }
-            throw error
-        }
-    }
-
-    func loadCalendarHistoryIndex(forceRefresh: Bool = false, maxPages: Int = 3, pageLimit: Int = 50) async throws -> [String: WorkoutHistorySessionItem] {
-        let cached: LocalCacheRecord<[String: WorkoutHistorySessionItem]>? = await cache.load([String: WorkoutHistorySessionItem].self, key: CacheKey.calendarHistoryIndex)
-        if !forceRefresh, let cached, !isStale(cached.fetchedAt, ttl: TTL.historyRecent) {
-            return cached.value
-        }
-
-        do {
-            var cursor: String?
-            var allItems: [WorkoutHistorySessionItem] = []
-
-            for _ in 0..<maxPages {
-                let page = try await loadWorkoutHistoryPage(limit: pageLimit, cursor: cursor, forceRefresh: forceRefresh)
-                allItems.append(contentsOf: page.items)
-                guard let next = page.nextCursor, !next.isEmpty else { break }
-                cursor = next
-            }
-
-            let index = allItems.reduce(into: [String: WorkoutHistorySessionItem]()) { acc, item in
-                guard let eventId = item.calendarEventId else { return }
-                if let existing = acc[eventId] {
-                    let existingDate = existing.completedAt ?? existing.startedAt ?? .distantPast
-                    let candidateDate = item.completedAt ?? item.startedAt ?? .distantPast
-                    if candidateDate > existingDate {
-                        acc[eventId] = item
-                    }
-                } else {
-                    acc[eventId] = item
-                }
-            }
-
-            await cache.save(index, key: CacheKey.calendarHistoryIndex)
-            return index
-        } catch {
-            if let cached {
-                return cached.value
-            }
-            throw error
-        }
-    }
-
-    func invalidateCalendar() async {
-        await cache.remove(key: CacheKey.calendarEvents)
-    }
-
-    func invalidateHistory() async {
-        await cache.removeAll(prefix: CacheKey.historyPagePrefix)
-        await cache.removeAll(prefix: CacheKey.workoutDetailPrefix)
-        await cache.remove(key: CacheKey.calendarHistoryIndex)
-    }
-
-    private func isStale(_ fetchedAt: Date, ttl: TimeInterval) -> Bool {
-        Date().timeIntervalSince(fetchedAt) > ttl
-    }
-
-    private func messageDateString(for date: Date, timeZone: String) -> String {
-        let formatter = DateFormatter()
-        formatter.calendar = Calendar(identifier: .gregorian)
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(identifier: timeZone) ?? .current
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.string(from: date)
-    }
-
-    private func historyPageKey(limit: Int, cursor: String?) -> String {
-        let rawCursor = cursor.flatMap { $0.isEmpty ? nil : $0 } ?? "first"
-        let cursorPart = sanitizeCacheComponent(rawCursor)
-        return "\(CacheKey.historyPagePrefix).limit_\(limit).cursor_\(cursorPart)"
-    }
-
-    private func sanitizeCacheComponent(_ value: String) -> String {
-        value
-            .replacingOccurrences(of: "/", with: "_")
-            .replacingOccurrences(of: ":", with: "_")
-            .replacingOccurrences(of: "?", with: "_")
-            .replacingOccurrences(of: "&", with: "_")
-            .replacingOccurrences(of: "=", with: "_")
-            .replacingOccurrences(of: ".", with: "_")
     }
 }

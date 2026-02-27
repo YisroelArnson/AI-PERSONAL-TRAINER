@@ -12,6 +12,7 @@ struct WorkoutCompletionView: View {
     @State private var notes: String = ""
     @State private var sessionRpe: Int?
     @State private var didTapDone = false
+    @State private var isTransitioningOut = false
 
     var body: some View {
         ScrollView {
@@ -28,6 +29,8 @@ struct WorkoutCompletionView: View {
             .padding(.top, 8)
             .padding(.bottom, 40)
         }
+        .opacity(isTransitioningOut ? 0 : 1)
+        .scaleEffect(isTransitioningOut ? 0.985 : 1)
         .background(AppTheme.Colors.background)
         .navigationBarBackButtonHidden(true)
         .onAppear {
@@ -260,7 +263,12 @@ struct WorkoutCompletionView: View {
         }
 
         Task {
-            await Task.yield()
+            // UX-timed hold so the checkmark state is actually perceived.
+            try? await Task.sleep(nanoseconds: 360_000_000)
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isTransitioningOut = true
+            }
+            try? await Task.sleep(nanoseconds: 180_000_000)
             Haptic.success()
             withAnimation(AppTheme.Animation.gentle) {
                 workoutStore.reset()

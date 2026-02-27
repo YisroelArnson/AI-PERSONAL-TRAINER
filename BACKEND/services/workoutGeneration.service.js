@@ -98,6 +98,8 @@ function normalizeWorkoutInstance(rawInstance = {}, constraints = {}) {
     metadata: {
       intent: constraints.intent || 'planned',
       request_text: constraints.request_text || null,
+      location_id: constraints.location_id || null,
+      location_name: constraints.location_name || null,
       planned_session: constraints.planned_session || null,
       planned_intent_original: constraints.planned_intent_original || null,
       planned_intent_edited: constraints.planned_intent_edited || null,
@@ -120,7 +122,9 @@ function buildUserContextSummary(dataSourceResults) {
   if (dataMap.all_locations?.length) {
     const current = dataMap.all_locations.find(loc => loc.current_location) || dataMap.all_locations[0];
     if (current) {
-      const equipment = (current.equipment || []).map(eq => (typeof eq === 'string' ? eq : eq.name)).join(', ');
+      const equipment = typeof current.equipment === 'string'
+        ? current.equipment.split(/\r?\n|,/).map(s => s.replace(/^[-*•]\s*/, '').trim()).filter(Boolean).join(', ')
+        : '';
       lines.push(`Current location: ${current.name}. Equipment: ${equipment || 'none listed'}.`);
     }
   }
@@ -142,6 +146,8 @@ function buildWorkoutPrompt(dataSourceResults, constraints, program, weightsProf
 
   const timeAvailable = constraints?.time_available_min || 'unknown';
   const equipment = constraints?.equipment || [];
+  const locationId = constraints?.location_id || null;
+  const locationName = constraints?.location_name || null;
   const intent = constraints?.intent || 'planned';
   const requestText = constraints?.request_text || null;
   const plannedSession = constraints?.planned_session || null;
@@ -173,7 +179,8 @@ ${weightsText}
 Pre-Workout Context:
 - Time Available: ${timeAvailable} minutes
 - Available Equipment: ${equipment.length ? equipment.join(', ') : 'use equipment from user context'}
-- Session Intent: ${intent}`;
+- Session Intent: ${intent}
+- Selected Location: ${locationName || 'current location'}${locationId ? ` (id: ${locationId})` : ''}`;
 
   if (requestText) {
     prompt += `\n- User Request: ${requestText}`;

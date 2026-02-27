@@ -103,30 +103,17 @@ function formatAllLocations(locations) {
       result += `\n    ${loc.description}`;
     }
 
-    // Format equipment with type and weight details
-    if (loc.equipment && loc.equipment.length > 0) {
+    // Format plain-text equipment list
+    const equipmentLines = typeof loc.equipment === 'string'
+      ? loc.equipment
+        .split(/\r?\n|,/)
+        .map(s => s.replace(/^[-*•]\s*/, '').trim())
+        .filter(Boolean)
+      : [];
+    if (equipmentLines.length > 0) {
       result += '\n    Equipment:';
-      for (const eq of loc.equipment) {
-        // Handle both object format and legacy string format
-        if (typeof eq === 'string') {
-          result += `\n      - ${eq}`;
-          continue;
-        }
-
-        let eqLine = `\n      - ${eq.name}`;
-        if (eq.type) eqLine += ` (${eq.type})`;
-
-        // Include weights for free_weights type
-        if (eq.type === 'free_weights' && eq.weights && eq.weights.length > 0) {
-          const unit = eq.unit || 'kg';
-          eqLine += `: ${eq.weights.join(', ')}${unit}`;
-        }
-
-        // Include brand/notes if present
-        if (eq.brand) eqLine += ` [${eq.brand}]`;
-        if (eq.notes) eqLine += ` - ${eq.notes}`;
-
-        result += eqLine;
+      for (const eq of equipmentLines) {
+        result += `\n      - ${eq}`;
       }
     } else {
       result += '\n    Equipment: none';

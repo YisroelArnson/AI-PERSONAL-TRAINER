@@ -11,16 +11,16 @@ import CoreLocation
 struct LocationEditorView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var userDataStore: UserDataStore
-    
+
     let location: Location?
-    
+
     // Editable fields
     @State private var name: String
     @State private var description: String
-    @State private var equipment: [EquipmentItem]
+    @State private var equipment: String
     @State private var currentLocation: Bool
     @State private var geoData: CLLocationCoordinate2D?
-    
+
     // UI State
     @State private var isSaving: Bool = false
     @State private var showError: Bool = false
@@ -29,20 +29,20 @@ struct LocationEditorView: View {
     @State private var isDeleting: Bool = false
     @State private var showingMapPicker: Bool = false
     @State private var isRequestingLocation: Bool = false
-    
+
     // Location service
     @StateObject private var locationService = LocationService.shared
-    
+
     init(location: Location? = nil) {
         self.location = location
-        
+
         if let loc = location {
             _name = State(initialValue: loc.name)
             _description = State(initialValue: loc.description ?? "")
             _equipment = State(initialValue: loc.equipment)
             _currentLocation = State(initialValue: loc.currentLocation)
             _geoData = State(initialValue: loc.geoData)
-            
+
             // Debug: Print geoData to see if it's being initialized
             if let geoData = loc.geoData {
                 print("📍 LocationEditorView init: geoData found - Lat: \(geoData.latitude), Lon: \(geoData.longitude)")
@@ -52,134 +52,119 @@ struct LocationEditorView: View {
         } else {
             _name = State(initialValue: "")
             _description = State(initialValue: "")
-            _equipment = State(initialValue: [])
+            _equipment = State(initialValue: "")
             _currentLocation = State(initialValue: false)
             _geoData = State(initialValue: nil)
         }
     }
-    
+
+    private var canSave: Bool {
+        !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSaving
+    }
+
     var body: some View {
         NavigationView {
             ZStack {
                 AppTheme.Colors.background
                     .ignoresSafeArea()
-                
+
                 ScrollView {
-                    VStack(spacing: AppTheme.Spacing.xl) {
-                        // Name Field
-                        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                            Label("Location Name", systemImage: "location")
-                                .font(.headline)
-                                .foregroundColor(AppTheme.Colors.primaryText)
-                            
+                    VStack(spacing: 16) {
+                        // Name
+                        fieldBlock(title: "Name") {
                             TextField("e.g., Home Gym, Fitness Center", text: $name)
-                                .textFieldStyle(CustomTextFieldStyle())
+                                .textFieldStyle(EditorTextFieldStyle())
                         }
-                        
-                        // Description Field
-                        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                            Label("Description", systemImage: "text.alignleft")
-                                .font(.headline)
-                                .foregroundColor(AppTheme.Colors.primaryText)
-                            
-                            TextEditor(text: $description)
-                                .frame(minHeight: 100)
-                                .padding(AppTheme.Spacing.md)
-                                .background(AppTheme.Colors.surface)
-                                .cornerRadius(AppTheme.CornerRadius.medium)
+
+                        // Description
+                        fieldBlock(title: "Description") {
+                            TextField("Add details about this training spot", text: $description, axis: .vertical)
+                                .lineLimit(2...10)
+                                .font(.system(size: 15, weight: .medium))
+                        }
+
+                        // Equipment
+                        fieldBlock(title: "Equipment") {
+                            TextEditor(text: $equipment)
+                                .font(.system(size: 15, weight: .medium))
+                                .frame(minHeight: 120)
                                 .scrollContentBackground(.hidden)
-                        }
-                        
-                        // GPS Location Section
-                        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                            Label("GPS Location", systemImage: "location.fill")
-                                .font(.headline)
-                                .foregroundColor(AppTheme.Colors.primaryText)
-                            
-                            VStack(spacing: AppTheme.Spacing.md) {
-                                HStack(spacing: AppTheme.Spacing.md) {
-                                    Button(action: {
-                                        requestCurrentLocation()
-                                    }) {
-                                        HStack {
-                                            if isRequestingLocation {
-                                                ProgressView()
-                                                    .scaleEffect(0.8)
-                                                    .frame(width: 14, height: 14)
-                                            } else {
-                                                Image(systemName: "location.fill")
-                                            }
-                                            Text("Use Current Location")
-                                        }
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(AppTheme.Colors.primaryText)
-                                        .padding(.horizontal, AppTheme.Spacing.md)
-                                        .padding(.vertical, AppTheme.Spacing.sm)
-                                        .background(AppTheme.Colors.surface)
-                                        .cornerRadius(AppTheme.CornerRadius.small)
-                                    }
-                                    .disabled(isRequestingLocation)
-                                    
-                                    Button(action: {
-                                        showingMapPicker = true
-                                    }) {
-                                        HStack {
-                                            Image(systemName: "map")
-                                            Text("Set on Map")
-                                        }
-                                        .font(.system(size: 14, weight: .medium))
-                                        .foregroundColor(AppTheme.Colors.primaryText)
-                                        .padding(.horizontal, AppTheme.Spacing.md)
-                                        .padding(.vertical, AppTheme.Spacing.sm)
-                                        .background(AppTheme.Colors.surface)
-                                        .cornerRadius(AppTheme.CornerRadius.small)
+                                .overlay(alignment: .topLeading) {
+                                    if equipment.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        Text("- Dumbbells: 15-30 lb\n- Barbell + plates\n- Adjustable bench\n- Pull-up bar")
+                                            .font(.system(size: 14, weight: .regular))
+                                            .foregroundColor(AppTheme.Colors.tertiaryText)
+                                            .padding(.top, 8)
+                                            .padding(.leading, 5)
+                                            .allowsHitTesting(false)
                                     }
                                 }
-                                
-                                if let geoData = geoData {
-                                    HStack {
-                                        Image(systemName: "checkmark.circle.fill")
+                        }
+
+                        // GPS
+                        fieldBlock(title: "GPS Location") {
+                            Text("Used for automatic location switching and better equipment context.")
+                                .font(.system(size: 12, weight: .regular))
+                                .foregroundColor(AppTheme.Colors.secondaryText)
+
+                            HStack(spacing: 10) {
+                                secondaryActionButton(
+                                    title: "Current Location",
+                                    icon: "location.fill",
+                                    isLoading: isRequestingLocation
+                                ) {
+                                    requestCurrentLocation()
+                                }
+                                .disabled(isRequestingLocation)
+
+                                secondaryActionButton(title: "Set on Map", icon: "map") {
+                                    showingMapPicker = true
+                                }
+                            }
+
+                            geoDataRow
+                        }
+
+                        // Set as current
+                        fieldBlock(title: "Current Location") {
+                            Toggle(isOn: $currentLocation) {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(currentLocation ? AppTheme.Colors.primaryText : AppTheme.Colors.secondaryText)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Set as current location")
+                                            .font(.system(size: 15, weight: .medium))
                                             .foregroundColor(AppTheme.Colors.primaryText)
-                                        Text("Lat: \(geoData.latitude, specifier: "%.6f"), Lon: \(geoData.longitude, specifier: "%.6f")")
-                                            .font(.caption)
+                                        Text("Use this location for today's workouts")
+                                            .font(.system(size: 12))
                                             .foregroundColor(AppTheme.Colors.secondaryText)
-                                        Spacer()
-                                        Button("Clear") {
-                                            self.geoData = nil
-                                        }
-                                        .font(.caption)
-                                        .foregroundColor(AppTheme.Colors.danger)
                                     }
-                                    .padding(.horizontal, AppTheme.Spacing.md)
-                                    .padding(.vertical, AppTheme.Spacing.sm)
-                                    .background(AppTheme.Colors.surface)
-                                    .cornerRadius(AppTheme.CornerRadius.small)
                                 }
                             }
+                            .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.primaryText))
                         }
-                        
-                        // Equipment Section
-                        VStack(alignment: .leading, spacing: AppTheme.Spacing.sm) {
-                            Label("Equipment", systemImage: "dumbbell.fill")
-                                .font(.headline)
-                                .foregroundColor(AppTheme.Colors.primaryText)
-                            
-                            EquipmentInputView(equipment: $equipment)
-                        }
-                        
-                        // Set as Current Location Toggle
-                        Toggle(isOn: $currentLocation) {
-                            HStack {
-                                Image(systemName: "checkmark.circle.fill")
-                                Text("Set as current location")
+
+                        if location != nil {
+                            Button(role: .destructive) {
+                                showDeleteConfirmation = true
+                            } label: {
+                                HStack {
+                                    Image(systemName: "trash")
+                                    Text("Delete Location")
+                                }
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(AppTheme.Colors.danger)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(AppTheme.Colors.surface)
+                                .cornerRadius(AppTheme.CornerRadius.large)
                             }
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(AppTheme.Colors.primaryText)
                         }
-                        .toggleStyle(SwitchToggleStyle(tint: AppTheme.Colors.primaryText))
                     }
-                    .padding(.horizontal, AppTheme.Spacing.xl)
-                    .padding(.vertical, AppTheme.Spacing.lg)
+                    .padding(.horizontal, 20)
+                    .padding(.top, 16)
+                    .padding(.bottom, 24)
                 }
             }
             .navigationTitle(location != nil ? "Edit Location" : "New Location")
@@ -190,13 +175,9 @@ struct LocationEditorView: View {
                         dismiss()
                     }
                 }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        saveLocation()
-                    }
-                    .disabled(isSaving || name.isEmpty)
-                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                bottomSaveButton
             }
             .sheet(isPresented: $showingMapPicker) {
                 LocationMapPickerView(selectedCoordinate: $geoData)
@@ -216,7 +197,133 @@ struct LocationEditorView: View {
             }
         }
     }
-    
+
+    @ViewBuilder
+    private var geoDataRow: some View {
+        if let geoData = geoData {
+            HStack(spacing: 10) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(AppTheme.Colors.primaryText)
+                    .font(.system(size: 14))
+                Text("Lat: \(geoData.latitude, specifier: "%.6f"), Lon: \(geoData.longitude, specifier: "%.6f")")
+                    .font(.caption)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Spacer()
+                Button("Clear") {
+                    self.geoData = nil
+                }
+                .font(.caption)
+                .foregroundColor(AppTheme.Colors.danger)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(AppTheme.Colors.surfaceHover)
+            .cornerRadius(AppTheme.CornerRadius.medium)
+        } else {
+            HStack(spacing: 8) {
+                Image(systemName: "mappin.slash")
+                    .font(.system(size: 13, weight: .semibold))
+                Text("No GPS pin saved")
+                    .font(.system(size: 13, weight: .medium))
+            }
+            .foregroundColor(AppTheme.Colors.secondaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(AppTheme.Colors.surfaceHover)
+            .cornerRadius(AppTheme.CornerRadius.medium)
+        }
+    }
+
+    private var bottomSaveButton: some View {
+        VStack(spacing: 0) {
+            Button(action: saveLocation) {
+                HStack {
+                    if isSaving {
+                        ProgressView()
+                            .tint(AppTheme.Colors.background)
+                            .scaleEffect(0.85)
+                    } else {
+                        Text(location != nil ? "Save Changes" : "Create Location")
+                    }
+                }
+                .font(AppTheme.Typography.button)
+                .foregroundColor(AppTheme.Colors.background)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(canSave ? AppTheme.Colors.accent : AppTheme.Colors.accent.opacity(0.4))
+                .cornerRadius(AppTheme.CornerRadius.pill)
+            }
+            .disabled(!canSave)
+            .padding(.horizontal, 20)
+            .padding(.top, AppTheme.Spacing.md)
+            .padding(.bottom, AppTheme.Spacing.md)
+        }
+        .background(AppTheme.Colors.background)
+    }
+
+    private func fieldBlock<HeaderAccessory: View, Content: View>(
+        title: String,
+        @ViewBuilder headerAccessory: () -> HeaderAccessory = { EmptyView() },
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Text(title.uppercased())
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.6)
+                    .foregroundColor(AppTheme.Colors.secondaryText)
+                Spacer()
+                headerAccessory()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.bottom, 8)
+
+            VStack(alignment: .leading, spacing: 10) {
+                content()
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(14)
+        .background(AppTheme.Colors.surface)
+        .cornerRadius(AppTheme.CornerRadius.large)
+    }
+
+    private func secondaryActionButton(
+        title: String,
+        icon: String,
+        isLoading: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if isLoading {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                        .frame(width: 14, height: 14)
+                } else {
+                    Image(systemName: icon)
+                }
+                Text(title)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+            }
+            .font(.system(size: 14, weight: .medium))
+            .foregroundColor(AppTheme.Colors.primaryText)
+            .frame(maxWidth: .infinity)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 14)
+            .background(AppTheme.Colors.surfaceHover)
+            .cornerRadius(AppTheme.CornerRadius.medium)
+            .overlay(
+                RoundedRectangle(cornerRadius: AppTheme.CornerRadius.medium)
+                    .stroke(AppTheme.Colors.primaryText.opacity(0.08), lineWidth: 1)
+            )
+        }
+    }
+
     /// Request current location with user interaction (shows errors)
     private func requestCurrentLocation() {
         // Prevent multiple simultaneous requests
@@ -224,25 +331,25 @@ struct LocationEditorView: View {
             print("⚠️ requestCurrentLocation: Already requesting, ignoring duplicate request")
             return
         }
-        
+
         isRequestingLocation = true
-        
+
         Task {
             defer {
                 Task { @MainActor in
                     isRequestingLocation = false
                 }
             }
-            
+
             do {
                 // Check current authorization status
                 let status = locationService.authorizationStatus
-                
+
                 // If permission is not determined, request it and wait for response
                 if status == .notDetermined {
                     locationService.requestPermission()
                     let finalStatus = await locationService.waitForAuthorization()
-                    
+
                     // If permission was denied, show error
                     if finalStatus != .authorizedWhenInUse && finalStatus != .authorizedAlways {
                         await MainActor.run {
@@ -256,7 +363,7 @@ struct LocationEditorView: View {
                         return
                     }
                 }
-                
+
                 // If permission was previously denied, show error with option to open settings
                 if status == .denied || status == .restricted {
                     await MainActor.run {
@@ -265,7 +372,7 @@ struct LocationEditorView: View {
                     }
                     return
                 }
-                
+
                 // Now try to get the location
                 if let coordinate = try await locationService.getCurrentLocation() {
                     await MainActor.run {
@@ -304,19 +411,20 @@ struct LocationEditorView: View {
             }
         }
     }
-    
+
     private func saveLocation() {
-        guard !name.isEmpty else { return }
-        
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return }
+
         isSaving = true
-        
+
         Task {
             do {
                 if let existingLocation = location {
                     // Update existing - create new Location with updated values
                     let updatedLocation = Location(
                         id: existingLocation.id,
-                        name: name,
+                        name: trimmedName,
                         description: description.isEmpty ? nil : description,
                         equipment: equipment,
                         currentLocation: currentLocation,
@@ -329,7 +437,7 @@ struct LocationEditorView: View {
                     // The actual id will be assigned by the database
                     let newLocation = Location(
                         id: 0, // Temporary, will be replaced by database
-                        name: name,
+                        name: trimmedName,
                         description: description.isEmpty ? nil : description,
                         equipment: equipment,
                         currentLocation: currentLocation,
@@ -338,7 +446,7 @@ struct LocationEditorView: View {
                     )
                     try await userDataStore.createLocation(newLocation)
                 }
-                
+
                 await MainActor.run {
                     isSaving = false
                     dismiss()
@@ -352,10 +460,10 @@ struct LocationEditorView: View {
             }
         }
     }
-    
+
     private func deleteLocation() {
         guard let location = location else { return }
-        
+
         isDeleting = true
         Task {
             do {
@@ -377,12 +485,10 @@ struct LocationEditorView: View {
 
 // MARK: - Custom Text Field Style
 
-private struct CustomTextFieldStyle: TextFieldStyle {
+private struct EditorTextFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
-            .padding(AppTheme.Spacing.md)
-            .background(AppTheme.Colors.surface)
-            .cornerRadius(AppTheme.CornerRadius.medium)
+            .font(.system(size: 15, weight: .medium))
     }
 }
 

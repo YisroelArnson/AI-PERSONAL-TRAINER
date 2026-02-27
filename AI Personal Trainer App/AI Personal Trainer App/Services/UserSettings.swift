@@ -46,12 +46,6 @@ class UserSettings: ObservableObject {
     @AppStorage("isAutoDetectLocationEnabled")
     var isAutoDetectLocationEnabled: Bool = false
     
-    @AppStorage("isAutoRefreshExercisesEnabled")
-    var isAutoRefreshExercisesEnabled: Bool = false
-    
-    @AppStorage("autoRefreshExercisesHours")
-    var autoRefreshExercisesHours: Int = 12  // Default 12 hours
-    
     // MARK: - Unit Preferences (Synced with Database)
     
     @Published var weightUnit: WeightUnit = .lbs
@@ -171,8 +165,6 @@ class UserSettings: ObservableObject {
     /// Reset all settings to defaults
     func resetToDefaults() {
         isAutoDetectLocationEnabled = false
-        isAutoRefreshExercisesEnabled = false
-        autoRefreshExercisesHours = 12
         weightUnit = .lbs
         distanceUnit = .miles
         cachedWeightUnit = "lbs"

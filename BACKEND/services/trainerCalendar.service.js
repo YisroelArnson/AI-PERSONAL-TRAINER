@@ -1,6 +1,10 @@
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
-const { buildCalendarTemplatesFromSchedule, WEEKDAY_ORDER } = require('./programSchedule.service');
+const {
+  buildCalendarTemplatesFromSchedule,
+  extractScheduleFromMarkdown,
+  WEEKDAY_ORDER
+} = require('./programSchedule.service');
 
 dotenv.config();
 
@@ -250,6 +254,62 @@ async function completeEvent(userId, eventId) {
   return fetchEventWithPlan(userId, data.id);
 }
 
+async function updateEventIntent(userId, eventId, payload = {}) {
+  const event = await fetchEventWithPlan(userId, eventId);
+  if (!event) {
+    const err = new Error('Calendar event not found');
+    err.statusCode = 404;
+    throw err;
+  }
+  if (event.event_type !== 'workout') {
+    const err = new Error('Only workout events support planned intent');
+    err.statusCode = 422;
+    throw err;
+  }
+
+  const rawIntent = payload.intent_json || payload.intentJson || null;
+  if (!rawIntent || typeof rawIntent !== 'object' || Array.isArray(rawIntent)) {
+    const err = new Error('intent_json must be an object');
+    err.statusCode = 422;
+    throw err;
+  }
+
+  const intentJson = { ...rawIntent };
+  const focus = typeof intentJson.focus === 'string'
+    ? intentJson.focus.trim()
+    : '';
+
+  if (event.planned_session?.id) {
+    const { error: updateIntentError } = await supabase
+      .from('trainer_planned_sessions')
+      .update({
+        intent_json: intentJson,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', event.planned_session.id)
+      .eq('user_id', userId);
+    if (updateIntentError) throw updateIntentError;
+  } else {
+    await createPlannedSession(userId, eventId, intentJson);
+  }
+
+  const updatePayload = {
+    user_modified: true,
+    updated_at: new Date().toISOString()
+  };
+  if (focus) {
+    updatePayload.title = focus;
+  }
+  const { error: updateEventError } = await supabase
+    .from('trainer_calendar_events')
+    .update(updatePayload)
+    .eq('id', eventId)
+    .eq('user_id', userId);
+  if (updateEventError) throw updateEventError;
+
+  return fetchEventWithPlan(userId, eventId);
+}
+
 async function deleteEvent(userId, eventId, options = {}) {
   const cascadePlanned = Boolean(options.cascadePlanned);
   let linkedPlannedSessionId = null;
@@ -362,7 +422,7 @@ function parseDaysPerWeek(markdown) {
   return match ? parseInt(match[1]) : 3;
 }
 
-function resolveSchedulePlan(programData = {}, markdownFallback = '') {
+async function resolveSchedulePlan(programData = {}, markdownFallback = '') {
   const fromScheduleJson = buildCalendarTemplatesFromSchedule(programData.schedule_json);
   if (fromScheduleJson.sessions.length > 0) {
     const safeDaysFromSchedule = clampInt(
@@ -377,6 +437,52 @@ function resolveSchedulePlan(programData = {}, markdownFallback = '') {
   }
 
   const markdown = markdownFallback || programData.program_markdown || '';
+
+  // Self-heal stale programs: regenerate deterministic schedule_json when missing/invalid.
+  if (programData.id && String(markdown).trim()) {
+    try {
+      const extractedSchedule = await extractScheduleFromMarkdown(markdown);
+      const regenerated = buildCalendarTemplatesFromSchedule(extractedSchedule.schedule_json);
+      if (regenerated.sessions.length > 0) {
+        const safeDaysFromRegenerated = clampInt(
+          Math.max(regenerated.daysPerWeek || regenerated.sessions.length, regenerated.sessions.length),
+          1,
+          7
+        );
+
+        const { error: refreshError } = await supabase
+          .from('trainer_programs')
+          .update({
+            ...extractedSchedule,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', programData.id)
+          .eq('user_id', programData.user_id);
+
+        if (refreshError) {
+          console.error('[calendar] Failed to persist regenerated schedule_json:', {
+            userId: programData.user_id,
+            programId: programData.id,
+            message: refreshError.message
+          });
+        } else {
+          console.warn('[calendar] Regenerated schedule_json for active program');
+        }
+
+        return {
+          safeDaysPerWeek: safeDaysFromRegenerated,
+          sessionTemplates: regenerated.sessions
+        };
+      }
+    } catch (error) {
+      console.error('[calendar] Failed to regenerate schedule_json from markdown:', {
+        userId: programData.user_id,
+        programId: programData.id,
+        message: error.message
+      });
+    }
+  }
+
   const parsedSessions = parseSessionsFromMarkdown(markdown);
   const parsedDays = parseDaysPerWeek(markdown);
   const safeDaysFromMarkdown = clampInt(parsedDays, 1, 7);
@@ -482,7 +588,7 @@ async function syncCalendarFromProgram(userId) {
 
   if (programError) throw programError;
 
-  const schedulePlan = resolveSchedulePlan(programData);
+  const schedulePlan = await resolveSchedulePlan(programData);
   const safeDaysPerWeek = schedulePlan.safeDaysPerWeek;
   const sessionTemplates = schedulePlan.sessionTemplates;
 
@@ -546,7 +652,7 @@ async function regenerateWeeklyCalendar(userId, programMarkdown) {
   const programData = programMarkdown && typeof programMarkdown === 'object'
     ? programMarkdown
     : { program_markdown: String(programMarkdown || '') };
-  const schedulePlan = resolveSchedulePlan(programData, programData.program_markdown);
+  const schedulePlan = await resolveSchedulePlan(programData, programData.program_markdown);
   const sessionTemplates = schedulePlan.sessionTemplates;
   const safeDaysPerWeek = schedulePlan.safeDaysPerWeek;
 
@@ -617,6 +723,7 @@ module.exports = {
   rescheduleEvent,
   skipEvent,
   completeEvent,
+  updateEventIntent,
   deleteEvent,
   syncCalendarFromProgram,
   regenerateWeeklyCalendar,
