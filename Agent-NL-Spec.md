@@ -88,6 +88,7 @@ The system must support many concurrent users, preserve deterministic per-sessio
 4. Run worker performs heavy logic under per-session lock.
 5. Worker appends result events and schedules follow-on jobs.
 6. Streaming and final delivery inform user.
+7. App-open events and explicit UI actions such as `start workout` are first-class triggers and should go through the same `agent.run_turn` path rather than bypassing the agent.
 
 ### 2.3 Transport Model
 
@@ -141,26 +142,30 @@ FUNCTION admit_request(ctx: RequestContext) -> AdmissionDecision:
 
 ### 2.4 UI and UX Model
 
-1. The product UI is a single-surface coach experience built as a chat feed with backend-driven UI elements and a persistent workout tray.
-2. The primary user interaction methods are voice, text, and lightweight taps on feed items or tray actions.
+1. The product UI is a single-surface coach experience built as a chat feed with backend-driven UI elements and a persistent input dock.
+2. The primary user interaction methods are voice, text, and lightweight taps on feed items or pinned-card actions.
 3. The screen must include a persistent input dock that keeps voice and text entry available at all times.
 4. The persistent input dock should support microphone state, live transcript capture, text entry, send/submit behavior, and context-sensitive quick actions without leaving the main feed.
 5. The persistent input dock should include a compact quick-action affordance, a text field that can expand when the user types, and a microphone control that supports clear on/off interaction states.
 6. Live speech transcription should appear in the dock text field while the user is speaking so that voice and text feel like one input system rather than separate modes.
 7. The frontend must not be organized as many separate product screens for workout logging, planning, and review; these states should appear within one continuous conversation surface.
-8. The backend decides when to return plain assistant messages versus structured feed items such as workout previews, workout summaries, program updates, insight cards, or other non-current-task UI components.
-9. The frontend is primarily a renderer of ordered feed items plus a persistent workout tray, and a dispatcher of user actions back to the backend.
-10. During a workout, the current exercise and rest state should live in the persistent workout tray rather than as the primary actionable object inline in the feed.
-11. Inline feed UI should be used for contextual or reflective information, such as workout previews, summaries, insights, or program updates, not as the main control surface for the current live exercise.
+8. The backend decides when to return plain assistant messages versus structured inline cards such as workout previews, workout cards, progress cards, motivation cards, history cards, stats cards, summaries, insights, or program updates.
+9. All UI cards should exist as feed items in the chat timeline, and some cards may additionally be pinned into a persistent overlay position for quicker access.
+10. During a workout, the current workout card should usually be pinned above the input dock and partly overlay the chat while still remaining part of the underlying feed.
+11. The pinned card may be unpinned by the user; when unpinned, it should continue to live inline in the chat feed.
 12. Workout sessions should be generated as a session structure up front, with remaining exercises updated live as the user completes, skips, swaps, or modifies the workout.
 13. The user should be able to speak naturally in shorthand relative to the active workout context, for example `done`, `add 5 lbs`, `swap this`, or `too hard`, without restating the full exercise context.
-14. The design goal is to make working out feel like following a real trainer: the user sees what matters now, responds naturally, and does not manage software complexity.
+14. Opening the app should trigger an agent run with app-open context so the trainer can welcome the user, check in, and decide what to surface next.
+15. Tapping quick actions such as the plus-button `start workout` action should also trigger an agent run, allowing the trainer to respond conversationally and then call `workout_generate`.
+16. The design goal is to make working out feel like following a real trainer: the user sees what matters now, responds naturally, and does not manage software complexity.
 
-In plain product terms, the application should look like a simple chat screen with a persistent workout tray near the bottom. Most of the screen is the conversation feed, where the trainer talks naturally and prior messages recede upward into history. During a workout, the current exercise or rest state remains persistently accessible in a compact tray above the input dock. That tray shows the current workout state, a short progress line, and one obvious action such as `complete`, `start`, or `continue`.
+In plain product terms, the application should look like a simple chat screen with a persistent bottom dock and a pinned card area just above it. Most of the screen is the conversation feed, where the trainer talks naturally and prior messages recede upward into history. When the user opens the app, the trainer should welcome them and check in. During a workout, the current workout card can stay pinned above the input dock, partially overlaying the chat while still belonging to the same feed.
 
-When the user taps the tray, the tray itself should expand upward in place and fill with more detail and actions. It is not a separate modal or bottom sheet that covers the voice/text dock. The input dock must remain visible and anchored below the tray while the tray grows upward. In its expanded state, the tray reveals more information about the current exercise, such as target reps or weight, a short coaching cue, and a small set of additional actions like `skip`, `swap`, or `make it easier`.
+The pinned card is not a separate modal or bottom sheet. It expands upward in place and fills with more detail and actions, while the input dock remains visible and anchored below it. The user should be able to unpin the card, in which case it remains inline in the feed like any other card.
 
-The overall effect should feel like one calm coaching surface: the chat handles the relationship and guidance, inline feed components handle contextual information, the persistent workout tray handles the current live workout action, and the input dock remains continuously available for natural voice or text interaction.
+For workout use, the pinned card should show the current exercise and a few high-value actions such as `complete set` and `skip`. Other card types, such as progress cards, motivation cards, history cards, and stats cards, should also live inline in the chat and be expandable for more detail when useful.
+
+The overall effect should feel like one calm coaching surface: the chat handles the relationship and guidance, inline cards handle structured information, the pinned workout card handles the current live workout action when relevant, and the input dock remains continuously available for natural voice or text interaction.
 
 ---
 
@@ -181,7 +186,7 @@ The overall effect should feel like one calm coaching surface: the chat handles 
 | `bff_module` | aggregate frontend-ready view models and feed payloads so clients do not orchestrate many backend calls | API view-model services |
 | `memory_module` | MEMORY/PROGRAM/date-keyed episodic docs + versions | memory services |
 | `trainer_tools_module` | typed trainer action catalog and execution handlers | tool registry + handlers |
-| `workout_module` | live workout state, exercise progression, and tray-backed current action state | workout services |
+| `workout_module` | live workout state, exercise progression, and pinned-card current action state | workout services |
 | `indexing_module` | extract/redact/chunk/embed/upsert | worker handlers |
 | `retrieval_module` | hybrid vector + FTS search | retrieval API |
 | `delivery_module` | streaming + durable final delivery | SSE + outbox |
@@ -192,7 +197,7 @@ The overall effect should feel like one calm coaching surface: the chat handles 
 
 1. API gateway may call session, transcript, policy, queue.
 2. API gateway and BFF module may call session, transcript, memory, retrieval, delivery, and policy to assemble client-ready payloads.
-3. Workers may call session, transcript, memory, indexing, retrieval, delivery, safety, policy.
+3. Workers may call session, transcript, memory, indexing, retrieval, delivery, risk, policy.
 4. Lower-level modules must not depend on API transport details.
 
 ### 3.3 Backend-for-Frontend Aggregation Contract
@@ -202,7 +207,8 @@ The overall effect should feel like one calm coaching surface: the chat handles 
 3. Aggregated client payloads must be derived from canonical Postgres state, with Redis used only as an acceleration layer for cacheable reads.
 4. BFF aggregation must not create alternate business truth; it is a read-model layer over canonical state.
 5. The client feed contract should prefer one ordered response payload over many chat-adjacent support requests.
-6. The exact coach-surface payload schema, tray payload schema, and feed item schemas are intentionally deferred and must be defined before frontend implementation begins.
+6. Aggregated payloads should support pinned-card state separately from inline feed state so a card can be shown inline, pinned, or unpinned without changing its underlying identity.
+7. The exact coach-surface payload schema, pinned-card payload schema, and feed item schemas are intentionally deferred and must be defined before frontend implementation begins.
 
 ```pseudocode
 FUNCTION build_coach_surface(user_id: String, session_key: String) -> CoachSurfaceView:
@@ -283,7 +289,7 @@ The core tool registry should include these categories:
 | `get_recent_workout_history` | context | `false` | load recent workout performance/history |
 | `get_user_readiness` | context | `false` | load readiness/recovery signals |
 | `workout_generate` | workout execution | `true` | generate a workout session structure when the user is ready to train |
-| `workout_get_current_state` | workout execution | `false` | load the current live workout/tray state |
+| `workout_get_current_state` | workout execution | `false` | load the current live workout and pinned-card state |
 | `workout_start_session` | workout execution | `true` | mark the workout session active |
 | `workout_complete_set` | workout execution | `true` | complete the current set and update progression state |
 | `workout_complete_exercise` | workout execution | `true` | mark current exercise complete |
@@ -338,10 +344,19 @@ These tools should follow these rules:
 #### 3.5.4 Live Workout Generation
 
 1. The workout session should be generated when the user indicates they are ready to work out.
-2. Natural-language triggers such as "I'm ready", "start workout", or similar tray actions may lead the agent to call `workout_generate`.
+2. Natural-language triggers such as "I'm ready", "start workout", or similar UI actions may lead the agent to call `workout_generate`.
 3. `workout_generate` should accept guidance context such as readiness, time available, pain constraints, equipment, and current program state.
-4. `workout_generate` returns a workout session structure that becomes the source of truth for the persistent workout tray.
+4. `workout_generate` returns a workout session structure that becomes the source of truth for the workout card and any pinned-card presentation.
 5. After generation, the agent should be notified of the generated structure so it can coach the user through the workout conversationally.
+6. Explicit UI actions such as tapping the plus-button `start workout` affordance should be treated as first-class agent turns, not as direct system-side tool invocations.
+
+#### 3.5.5 App-Open and Welcome Behavior
+
+1. Opening the app should emit a first-class inbound event indicating that the user opened the app.
+2. App-open should enqueue `agent.run_turn` just like a normal user message or UI action.
+3. The agent prompt should include app-open context and instruct the trainer to welcome the user and check in with them.
+4. After welcoming the user, the trainer may surface relevant cards, suggest the next workout, or generate a workout when appropriate.
+5. App-open behavior should remain bounded and should not create repetitive greetings when the user repeatedly foregrounds the app in a short window.
 
 ```pseudocode
 FUNCTION handle_user_ready_to_work_out(user_id: String, guidance: Dict) -> WorkoutSessionState:
@@ -576,7 +591,7 @@ The program source of truth is `program_markdown`, stored as versioned Markdown 
 
 `WorkoutSessionState` and `WorkoutExerciseState` represent what is happening right now in the active workout.
 
-This layer is what the persistent workout tray should read from and what live workout tools should modify.
+This layer is what the current workout card should read from and what live workout tools should modify.
 
 It must support:
 
@@ -584,14 +599,14 @@ It must support:
 2. current phase (`exercise`, `rest`, `transition`, `finished`),
 3. performed set state,
 4. live adjustments,
-5. coach cues for the tray.
+5. coach cues for the current workout card.
 
 #### 4.4.4 Tool Interaction Contract
 
 1. `workout_adjust_*` tools should mutate live workout state, not the exercise library.
 2. program-related tools should mutate `program_markdown` and future training prescription, not rewrite completed workout history.
 3. `workout_complete_set` and related tools should update `WorkoutSetState` and advance live workout flow.
-4. The workout tray should be backed by `WorkoutSessionState.current_phase`, the current `WorkoutExerciseState`, and the current `WorkoutSetState`.
+4. The current workout card should be backed by `WorkoutSessionState.current_phase`, the current `WorkoutExerciseState`, and the current `WorkoutSetState`.
 
 ---
 
@@ -672,6 +687,13 @@ Every event type must define:
 | `context_includable` | `Boolean` | `false` | eligible for model context assembly |
 | `indexable` | `Boolean` | `false` | eligible for indexing pipeline |
 | `audit_only` | `Boolean` | `false` | stored for audit only |
+
+The event catalog should also include explicit app-lifecycle and UI-action triggers such as:
+
+1. `app.opened`
+2. `ui.action.start_workout`
+3. `ui.card.pinned`
+4. `ui.card.unpinned`
 
 ---
 
@@ -1164,6 +1186,13 @@ Rules:
 4. `program_markdown` should be lightweight enough to inject directly or cheaply hydrate on every run.
 5. Large evolving memory should be retrieved on demand rather than blindly injected in full.
 
+For app-open triggered runs, the prompt assembly should additionally include app-open context and instruct the trainer to:
+
+1. welcome the user,
+2. check in briefly,
+3. decide whether to surface a workout or another relevant card,
+4. avoid repetitive greetings during short foreground/background churn.
+
 ### 12.6 Update Rules
 
 1. `system_prompt` may only be changed by application deploy/config revision.
@@ -1313,7 +1342,7 @@ The following areas are intentionally deferred and must be specified in later de
 1. queue topology, worker-role assignment, job payload schemas, dead-letter policy, and stalled-job recovery,
 2. exact `program_markdown` structure and parsing model,
 3. exact heartbeat candidate-reason taxonomy,
-4. exact BFF/feed/tray payload schemas and client event contracts.
+4. exact BFF/feed/pinned-card payload schemas and client event contracts.
 
 ---
 
@@ -1326,6 +1355,7 @@ The following areas are intentionally deferred and must be specified in later de
 - [ ]  API resolves canonical `sessionKey` and active `sessionId` for each inbound action.
 - [ ]  API persists inbound event and enqueues worker jobs in one request flow.
 - [ ]  API returns deterministic `202 Accepted` with `sessionKey`, `runId`, `jobId`, and stream URL.
+- [ ]  App-open and explicit UI actions such as `start workout` are accepted as first-class inbound triggers and route through `agent.run_turn`.
 - [ ]  API gateway enforces Redis-backed token bucket rate limits for message submissions.
 - [ ]  API gateway enforces active-run and active-stream concurrency limits per effective user policy.
 - [ ]  `429` responses include structured retry metadata and limit scope.
@@ -1369,7 +1399,7 @@ The following areas are intentionally deferred and must be specified in later de
 - [ ]  The trainer acts through a typed tool registry covering context recall, workout execution, live adjustment, program management, calculations, and memory writes.
 - [ ]  `workout_generate` creates a workout session structure when the user is ready to train.
 - [ ]  Exercise library definition, program prescription, and live workout execution state are represented as separate data layers.
-- [ ]  The persistent workout tray is backed by live `WorkoutSessionState` rather than inline feed cards.
+- [ ]  The current workout card is backed by live `WorkoutSessionState`, and the same card can be shown inline or pinned.
 
 ### 16.7 Delivery and Streaming
 
@@ -1390,8 +1420,9 @@ The following areas are intentionally deferred and must be specified in later de
 - [ ]  The primary coach screen is driven by one aggregated backend payload rather than many client-side orchestration requests.
 - [ ]  Aggregated client payloads combine canonical session/run/workout/feed state without creating alternate business truth.
 - [ ]  The UI contract includes a persistent bottom dock with text entry, microphone control, and live transcript behavior.
-- [ ]  The workout tray expands upward in place above the input dock and does not cover or replace the persistent input dock.
-- [ ]  During workout-active states, the current exercise or rest state is controlled through the persistent workout tray, while inline feed UI remains reserved for contextual and reflective components.
+- [ ]  A pinned card expands upward in place above the input dock and does not cover or replace the persistent input dock.
+- [ ]  Workout, progress, motivation, history, and stats cards exist as inline feed items, and a card may additionally be pinned without changing its underlying identity.
+- [ ]  During workout-active states, the current exercise or rest state is controlled through a pinned workout card when pinned, and through the same card inline when unpinned.
 
 ### 16.9 Prompt Layers and Bootstrap Lifecycle
 
@@ -1401,6 +1432,7 @@ The following areas are intentionally deferred and must be specified in later de
 - [ ]  Bootstrap interview covers goals, training history, injuries/constraints, equipment, schedule, and coaching preferences.
 - [ ]  `system_prompt` and `coach_principles` remain curated and are not freely rewritten during normal operation.
 - [ ]  Evolving personalization is stored in `memory_markdown` and `episodic_notes`, while training structure evolves in `program_markdown`, instead of drifting the trainer identity layer.
+- [ ]  App-open triggered runs include welcome/check-in instructions and can surface the next relevant workout or card.
 
 ### 16.10 Policy, Cost, and Safety Enforcement
 
@@ -1435,6 +1467,7 @@ The following areas are intentionally deferred and must be specified in later de
 | Rate limiting returns structured `429` with retry metadata | [ ] | [ ] | [ ] | [ ] | [ ] |
 | Heartbeat proactive message is added to thread and push-downgraded by server policy when needed | [ ] | [ ] | [ ] | [ ] | [ ] |
 | Bootstrap flow seeds memory, program, and stable coach soul | [ ] | [ ] | [ ] | [ ] | [ ] |
+| App open triggers a welcome/check-in run and may surface a pinned card | [ ] | [ ] | [ ] | [ ] | [ ] |
 | Semantic tool errors recover within run with structured guidance | [ ] | [ ] | [ ] | [ ] | [ ] |
 | Budget limit blocks embedding with graceful degradation | [ ] | [ ] | [ ] | [ ] | [ ] |
 | High-risk escalation path emits risk events | [ ] | [ ] | [ ] | [ ] | [ ] |
@@ -1453,6 +1486,11 @@ bootstrap = run_bootstrap_interview(user_id)
 ASSERT bootstrap.status == "completed"
 ASSERT bootstrap.coach_soul is not NONE
 ASSERT load_memory_markdown(user_id) is not NONE
+
+-- App open trigger
+opened = POST /app-open { user_id }
+ASSERT opened.status == 202
+ASSERT opened.job_id is not NONE
 
 -- Inbound action
 resp = POST /messages { user_id, text="Completed squat set 225x5 RPE 8", idempotency_key="k1" }
@@ -1477,11 +1515,16 @@ surface = GET /coach-surface { user_id }
 ASSERT surface.status == 200
 ASSERT surface.payload.feed is not NONE
 ASSERT surface.payload.workout is not NONE OR surface.payload.run is not NONE
+ASSERT surface.payload.pinned_card is not NONE OR surface.payload.feed is not NONE
 
 -- Workout generation
 generated = workout_generate(user_id, guidance={ ready_now: true })
 ASSERT generated.workout_session_id is not NONE
 ASSERT LENGTH(generated.exercises) > 0
+
+-- Explicit start-workout UI action
+start_workout = POST /messages { user_id, ui_action="start_workout", idempotency_key="k-start" }
+ASSERT start_workout.status == 202
 
 -- Worker run and lock behavior
 job = dequeue("agent.run_turn")
