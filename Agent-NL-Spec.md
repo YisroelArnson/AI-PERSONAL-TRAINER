@@ -393,8 +393,11 @@ FUNCTION handle_user_ready_to_work_out(user_id: String, guidance: Dict) -> Worko
 13. `stream_events`
 14. `delivery_outbox`
 15. `idempotency_keys`
-16. `risk_flags`
-
+16. `exercise_definitions`
+17. `workout_sessions`
+18. `workout_exercises`
+19. `workout_sets`
+20. `workout_adjustments`
 ### 4.1.1 Data Residency and Durability
 
 1. Postgres is canonical source of truth for session state, events, memory docs, provenance, and watermarks.
@@ -433,6 +436,25 @@ FUNCTION handle_user_ready_to_work_out(user_id: String, guidance: Dict) -> Worko
 | `occurred_at` | `Timestamp` | none | logical occurrence time |
 | `recorded_at` | `Timestamp` | `NOW()` | persistence time |
 | `idempotency_key` | `String \| None` | `NONE` | dedupe key for safe retries |
+
+### `workout_exercises` (exercise execution + indexing state)
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `workout_exercise_id` | `String` | generated | exercise-instance identity |
+| `workout_session_id` | `String` | none | parent workout session |
+| `exercise_id` | `String \| None` | `NONE` | canonical library identity if resolved |
+| `exercise_key` | `String \| None` | `NONE` | stable retrieval/normalization key |
+| `exercise_name_raw` | `String \| None` | `NONE` | user/program supplied exercise label |
+| `exercise_name_normalized` | `String \| None` | `NONE` | normalized search form |
+| `status` | `String` | none | pending/active/completed/skipped/canceled |
+| `prescription_json` | `Dict` | `{}` | prescribed work for this exercise |
+| `index_status` | `String` | `pending` | pending/processing/indexed/failed |
+| `index_dirty` | `Boolean` | `true` | whether the exercise doc needs rebuild |
+| `index_dirty_reason` | `String \| None` | `NONE` | why it is dirty |
+| `last_indexed_at` | `Timestamp \| None` | `NONE` | last successful indexing time |
+| `last_indexed_source_hash` | `String \| None` | `NONE` | hash of last indexed source payload |
+| `exercise_instance_doc_id` | `String \| None` | `NONE` | linked `memory_docs.doc_id` for `EXERCISE_INSTANCE` |
 
 ### 4.3 Pseudocode Types
 
@@ -533,7 +555,10 @@ RECORD WorkoutExerciseState:
     workout_exercise_id    : String
     workout_session_id     : String
     program_exercise_id    : String | None
-    exercise_id            : String
+    exercise_id            : String | None
+    exercise_key           : String | None
+    exercise_name_raw      : String | None
+    exercise_name_normalized: String | None
     status                 : String
     order_index            : Integer
     started_at             : Timestamp | None
@@ -544,6 +569,11 @@ RECORD WorkoutExerciseState:
     active_rest            : Dict | None
     adjustments            : List<WorkoutAdjustment>
     coach_message          : String | None
+    index_status           : String
+    index_dirty            : Boolean
+    index_dirty_reason     : String | None
+    last_indexed_at        : Timestamp | None
+    last_indexed_source_hash: String | None
 
 RECORD WorkoutSessionState:
     workout_session_id     : String
@@ -607,6 +637,19 @@ It must support:
 2. program-related tools should mutate `program_markdown` and future training prescription, not rewrite completed workout history.
 3. `workout_complete_set` and related tools should update `WorkoutSetState` and advance live workout flow.
 4. The current workout card should be backed by `WorkoutSessionState.current_phase`, the current `WorkoutExerciseState`, and the current `WorkoutSetState`.
+
+#### 4.4.5 Exercise Instance Retrieval Projection
+
+1. The system must create an `EXERCISE_INSTANCE` memory document for each terminal exercise instance.
+2. Terminal states for indexing eligibility are `completed`, `skipped`, and `canceled`.
+3. The source of truth for the projection is the joined workout graph:
+4. `workout_exercises` for exercise identity, prescription, and final outcome,
+5. `workout_sets` for actual performed work,
+6. `workout_adjustments` for substitutions and adjustments,
+7. `session_events` for chronological behavioral context and audit enrichment.
+8. The canonical `EXERCISE_INSTANCE` document must be stored through `memory_docs` and `memory_doc_versions`, chunked into `memory_chunks`, and retrieved separately from `session_index_chunks`.
+9. `session_index_chunks` remain transcript/session-history search data and must not be repurposed as the primary storage for exercise-instance retrieval.
+10. The stable document key format should be `EXERCISE_INSTANCE:<workout_session_id>:<workout_exercise_id>`.
 
 ---
 
@@ -718,6 +761,8 @@ The event catalog should also include explicit app-lifecycle and UI-action trigg
 7. `delivery.send`
 8. `delivery.retry`
 
+`memory.index_doc` should also be used for `EXERCISE_INSTANCE` projections so workout indexing shares the same async indexing worker path as other durable memory docs.
+
 ### 6.3 Concurrency Guardrails
 
 1. Per-session advisory transaction lock.
@@ -768,7 +813,10 @@ The current architecture intentionally leaves some worker-system details to be d
 1. `MEMORY` doc for semantic user facts/preferences.
 2. `PROGRAM` doc for current training program.
 3. `EPISODIC_DATE` docs keyed by user-local date (`YYYY-MM-DD`).
-4. Session events as episodic searchable source.
+4. `EXERCISE_INSTANCE` doc for one exercise within one workout session.
+5. Session events as episodic searchable source.
+
+`EXERCISE_INSTANCE` docs are derived memory documents, not source-of-truth workout rows. They exist to make exercise-level retrieval clean, searchable, and explainable.
 
 ### 7.2 Durable Document Contract
 
@@ -776,8 +824,8 @@ The current architecture intentionally leaves some worker-system details to be d
 RECORD MemoryDoc:
     doc_id            : String
     user_id           : String
-    doc_type          : String              -- MEMORY | PROGRAM | EPISODIC_DATE
-    doc_key           : String              -- e.g., "EPISODIC_DATE:2026-02-25"
+    doc_type          : String              -- MEMORY | PROGRAM | EPISODIC_DATE | EXERCISE_INSTANCE
+    doc_key           : String              -- e.g., "EPISODIC_DATE:2026-02-25" or "EXERCISE_INSTANCE:<workout_session_id>:<workout_exercise_id>"
     current_version   : Integer
     updated_at        : Timestamp
 
@@ -790,6 +838,21 @@ RECORD MemoryDocVersion:
     updated_by_run_id : String | None
     created_at        : Timestamp
 ```
+
+### 7.2.1 Exercise Instance Document Rules
+
+1. An `EXERCISE_INSTANCE` document should contain all relevant data for one exercise instance:
+2. resolved exercise identity,
+3. raw and normalized exercise naming,
+4. prescribed work,
+5. actual performed work,
+6. substitutions,
+7. adjustments,
+8. final outcome,
+9. concise notes or context that help retrieval.
+10. The document should be rendered in deterministic Markdown-like text so hashing, diffing, chunking, and re-indexing are stable.
+11. The document must be derived from workout tables first, with `session_events` used as supplemental behavioral context.
+12. `EXERCISE_INSTANCE` docs should not be created continuously on every live set mutation; they should be produced by the async indexing pipeline once the exercise is eligible for indexing.
 
 ### 7.3 Date-Keyed Episodic Note Creation Rules
 
@@ -834,6 +897,9 @@ Default posture:
 4. Promote to index when thresholds crossed.
 5. Indexing writes derived chunk/vector/search rows to Redis query indexes.
 6. Postgres keeps durable indexing watermarks and provenance contracts.
+7. Workout indexing must also track per-exercise dirty state on `workout_exercises`.
+8. Dirty exercise rows must record current indexing status, dirty reason, and last indexed source hash.
+9. Exercise-instance indexing should only run when the exercise is in a terminal state or an already-indexed terminal exercise has been materially edited.
 
 ### 8.2 Session Indexing Pipeline
 
@@ -858,6 +924,39 @@ FUNCTION sync_dirty_sessions():
         clear_dirty(session)
 ```
 
+### 8.2.1 Exercise Instance Indexing Pipeline
+
+```
+FUNCTION sync_dirty_exercise_instances():
+    dirty_exercises = load_dirty_workout_exercises()
+
+    FOR EACH exercise IN dirty_exercises:
+        IF exercise.status NOT IN ["completed", "skipped", "canceled"]:
+            CONTINUE
+
+        graph = load_workout_exercise_graph(exercise.workout_exercise_id)
+        event_context = load_related_session_events(graph.workout_session_id, graph.workout_exercise_id)
+        rendered = render_exercise_instance_doc(graph, event_context)
+        canonical_hash = hash(rendered)
+
+        IF canonical_hash == exercise.last_indexed_source_hash:
+            clear_exercise_dirty(exercise)
+            CONTINUE
+
+        doc = upsert_memory_doc(
+            user_id=graph.user_id,
+            doc_type="EXERCISE_INSTANCE",
+            doc_key="EXERCISE_INSTANCE:" + graph.workout_session_id + ":" + graph.workout_exercise_id,
+        )
+        write_memory_doc_version(doc.doc_id, rendered, canonical_hash)
+        chunks = deterministic_chunk(rendered)
+        embeddings = embed_with_cache(chunks, provider_model_key)
+        upsert_memory_chunks(doc, chunks, embeddings)
+        mark_exercise_indexed(exercise, doc.doc_id, canonical_hash)
+```
+
+This pipeline should run through the same async worker and embedding-cache infrastructure as other memory-doc indexing jobs, while keeping exercise-instance chunks separate from transcript/session chunks.
+
 ### 8.3 Markdown Memory Indexing Pipeline
 
 1. On doc version change, mark memory doc dirty.
@@ -865,6 +964,7 @@ FUNCTION sync_dirty_sessions():
 3. Re-chunk deterministically.
 4. Reuse embedding cache on unchanged chunk hashes.
 5. Upsert changed chunks and delete stale chunks.
+6. `EXERCISE_INSTANCE` docs should use this same doc-indexing path after their source projection has been rendered.
 
 ### 8.4 Retrieval Behavior
 
@@ -877,6 +977,8 @@ FUNCTION sync_dirty_sessions():
 7. `redis_hybrid` (default): query Redis-backed cache/index acceleration layers.
 8. `postgres_fallback`: run degraded retrieval against Postgres-backed durable index tables.
 9. Returned results must preserve Postgres provenance IDs/ranges even when ranked in Redis.
+10. Exercise-specific queries should prefer `EXERCISE_INSTANCE` memory chunks over transcript/session chunks when both are available.
+11. Session chunks may still be returned as supporting context, but they should not replace exercise-instance retrieval for workout-history questions.
 
 ### 8.5 Retrieval Provenance Contract
 
@@ -1379,17 +1481,19 @@ The following areas are intentionally deferred and must be specified in later de
 
 ### 16.4 Memory and Document Lifecycle
 
-- [ ]  `MEMORY`, `PROGRAM`, and `EPISODIC_DATE` docs exist as versioned DB records.
+- [ ]  `MEMORY`, `PROGRAM`, `EPISODIC_DATE`, and `EXERCISE_INSTANCE` docs exist as versioned DB records.
 - [ ]  Pre-compaction and session-end flush paths can create/update date-keyed episodic notes.
 - [ ]  New-session memory reads follow configured window policy.
 - [ ]  Memory writes are attributable to actor and run/session provenance.
 - [ ]  `program_markdown` is updated over time as workout progress changes the user's plan.
+- [ ]  `EXERCISE_INSTANCE` docs are rendered deterministically from workout tables with session-event enrichment.
 
 ### 16.5 Indexing and Retrieval
 
 - [ ]  Dirty tracking with delta thresholds gates indexing work.
 - [ ]  Session indexing extracts, redacts, chunks, embeds, and upserts with provenance.
 - [ ]  Memory doc indexing reuses embedding cache via provider/model/config+chunk hash.
+- [ ]  Terminal workout exercises can be projected into `EXERCISE_INSTANCE` docs and indexed through the shared doc-indexing pipeline.
 - [ ]  Redis hybrid retrieval (vector + FTS/BM25) returns ranked results with Postgres provenance.
 - [ ]  Retrieval can be stale only within async sync window, with visible watermark metrics.
 - [ ]  Full Redis index rebuild from Postgres is supported and documented.
@@ -1631,3 +1735,5 @@ ASSERT NOT (worker_a.mutates_head AND worker_b.mutates_head at same time)
 **Why SSE-first delivery with replay + outbox?** SSE gives responsive UX; replay via cursor handles mobile disconnects; outbox guarantees final consistency independent of connection state.
 
 **Why dirty marking plus sync jobs for indexing?** It coalesces burst writes, controls embedding costs, and still guarantees eventual indexing via durable worker processing.
+
+**Why exercise-instance docs instead of only searching transcript chunks?** Exercise-scoped docs preserve exact workout facts from structured tables while still enabling semantic retrieval for non-canonical exercise names, substitutions, and coaching context.
