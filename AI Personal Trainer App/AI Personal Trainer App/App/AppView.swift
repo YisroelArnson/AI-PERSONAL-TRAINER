@@ -1,362 +1,39 @@
-//
-//  AppView.swift
-//  AI Personal Trainer App
-//
-//  Created by ISWA on 8/22/25.
-//
-
 import SwiftUI
 
-enum DrawerDestination: Equatable {
-    case home
-    case stats
-    case calendar
-    case locations
-    case profile
-}
-
 struct AppView: View {
-    @State var isAuthenticated = false
-    @StateObject private var userDataStore = UserDataStore.shared
-    @StateObject private var onboardingStore = OnboardingStore.shared
-
-    var body: some View {
-        Group {
-            if onboardingStore.isOnboardingComplete {
-                // Fully onboarded: show main app with feature tour
-                MainAppView()
-                    .environmentObject(userDataStore)
-                    .withFeatureTour()
-            } else {
-                // All onboarding phases (including welcome) live inside the coordinator
-                OnboardingCoordinatorView()
-            }
-        }
-        .animation(.easeInOut(duration: 0.3), value: onboardingStore.state.hasStartedOnboarding)
-        .animation(.easeInOut(duration: 0.3), value: onboardingStore.isOnboardingComplete)
-        .animation(.easeInOut(duration: 0.3), value: isAuthenticated)
-        .task {
-            for await state in supabase.auth.authStateChanges {
-                if [.initialSession, .signedIn, .signedOut].contains(state.event) {
-                    isAuthenticated = state.session != nil
-
-                    if isAuthenticated {
-                        await userDataStore.loadAllUserData()
-                        print("✅ User data loaded successfully on open from AppView")
-
-                        // Sync onboarding state with backend if authenticated
-                        await onboardingStore.syncWithBackend()
-                    }
-                }
-            }
-        }
-    }
-}
-
-// Main app view with minimal FAB navigation
-struct MainAppView: View {
-    @EnvironmentObject var userDataStore: UserDataStore
-    @StateObject private var appCoordinator = AppStateCoordinator()
-    @State private var workoutStore = WorkoutStore.shared
-
-    // Global AI Assistant overlay manager
-    @State private var assistantManager = AssistantOverlayManager()
-
-    // Navigation state
-    @State private var currentPage: DrawerDestination = .home
-
-    // Sheet states
-    @State private var showingProfile = false
-
-    // User info
-    @State private var userEmail: String = ""
-
-    var body: some View {
-        ZStack(alignment: .top) {
-            currentPageView
-                .ignoresSafeArea(.keyboard)
-                .safeAreaInset(edge: .top) {
-                    if shouldReserveTopBarSpace {
-                        Color.clear
-                            .frame(height: topBarReservedHeight)
-                    }
-                }
-
-            if shouldShowTopBar {
-                AssistantOverlayView()
-            }
-
-            // Top bar
-            if shouldShowTopBar {
-                VStack(spacing: 0) {
-                    homeTopBar
-                    Spacer()
-                }
-            }
-        }
-        .environment(\.assistantManager, assistantManager)
-        .sheet(isPresented: $showingProfile) {
-            ProfileView()
-        }
-        .onAppear {
-            Task { await appCoordinator.startAppInitialization() }
-            Task { await loadUserEmail() }
-        }
-    }
-
-    private var shouldShowTopBar: Bool {
-        !(currentPage == .home && workoutStore.showPreWorkoutSheet)
-    }
-
-    private var shouldReserveTopBarSpace: Bool {
-        shouldShowTopBar && currentPage != .home
-    }
-
-    private var topBarReservedHeight: CGFloat {
-        60
-    }
-
-    // MARK: - Home Top Bar
-
-    private var homeTopBar: some View {
-        HStack {
-            if currentPage == .home {
-                // Left button - Menu
-                Menu {
-                    Button(action: { currentPage = .stats }) {
-                        Label("History", systemImage: "clock")
-                    }
-                    Button(action: { currentPage = .calendar }) {
-                        Label("Calendar", systemImage: "calendar")
-                    }
-                    Button(action: { showingProfile = true }) {
-                        Label("Profile", systemImage: "person")
-                    }
-                } label: {
-                    TwoLineMenuIcon()
-                        .foregroundColor(AppTheme.Colors.primaryText)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-
-                Spacer(minLength: 10)
-
-                Button(action: {
-                    currentPage = .locations
-                }) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "location.fill")
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(AppTheme.Colors.primaryText.opacity(0.75))
-
-                        Text(userDataStore.currentLocation?.name ?? "No location")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(AppTheme.Colors.primaryText)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(AppTheme.Colors.secondaryText)
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 8)
-                    .background(AppTheme.Colors.surface)
-                    .clipShape(Capsule())
-                }
-
-                Spacer(minLength: 10)
-
-                // Right button - Plus menu
-                Menu {
-                    Button(action: {
-                        NotificationCenter.default.post(name: .showQuickWorkoutSheet, object: nil)
-                    }) {
-                        Label("Generate custom workout", systemImage: "sparkles")
-                    }
-                    Button(action: {
-                        NotificationCenter.default.post(name: .showScheduleWorkoutSheet, object: nil)
-                    }) {
-                        Label("Schedule a workout", systemImage: "calendar")
-                    }
-                    Button(action: {
-                        NotificationCenter.default.post(name: .showStartRunSheet, object: nil)
-                    }) {
-                        Label("Start a run", systemImage: "figure.run")
-                    }
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.primaryText)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-            } else {
-                // Left button - Back
-                Button(action: {
-                    withAnimation(AppTheme.Animation.gentle) {
-                        currentPage = .home
-                    }
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.primaryText)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
-
-            if currentPage != .home {
-                Spacer()
-
-                Text(pageTitle)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(AppTheme.Colors.primaryText)
-
-                Spacer()
-
-                Color.clear
-                    .frame(width: 44, height: 44)
-            }
-        }
-        .padding(.horizontal, AppTheme.Spacing.xl)
-        .padding(.top, 4)
-        .padding(.bottom, 12)
-        .frame(height: 60)
-    }
-
-    // MARK: - Current Page View
-
-    @ViewBuilder
-    private var currentPageView: some View {
-        switch currentPage {
-        case .home:
-            HomeView()
-                .environmentObject(appCoordinator)
-                .id("home")
-        case .stats:
-            StatsPageView()
-                .id("stats")
-        case .calendar:
-            CalendarPageView()
-                .id("calendar")
-        case .locations:
-            LocationsPageView()
-                .environmentObject(userDataStore)
-                .id("locations")
-        case .profile:
-            EmptyView()
-        }
-    }
-
-    private var pageTitle: String {
-        switch currentPage {
-        case .stats:
-            return "History"
-        case .calendar:
-            return "Calendar"
-        case .locations:
-            return "Locations"
-        case .profile:
-            return "Profile"
-        case .home:
-            return ""
-        }
-    }
-
-    private func loadUserEmail() async {
-        do {
-            let session = try await supabase.auth.session
-            userEmail = session.user.email ?? ""
-        } catch {
-            print("❌ Failed to load user email: \(error)")
-            userEmail = ""
-        }
-    }
-}
-
-// MARK: - Stats Page View (Full Page Wrapper)
-
-struct StatsPageView: View {
     var body: some View {
         ZStack {
             AppTheme.Colors.background
                 .ignoresSafeArea()
-            StatsContentView()
-        }
-    }
-}
 
-// MARK: - Locations Page View (Full Page Wrapper)
+            VStack(alignment: .leading, spacing: 16) {
+                Text("AI Personal Trainer")
+                    .font(.system(size: 32, weight: .bold))
+                    .foregroundStyle(AppTheme.Colors.primaryText)
 
-struct LocationsPageView: View {
-    @EnvironmentObject var userDataStore: UserDataStore
-    @State private var selectedLocation: Location?
-    @State private var shouldShowEditor: Bool = false
+                Text("Legacy app flows were removed. The new coach surface will be rebuilt from this reset point.")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(AppTheme.Colors.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
 
-    var body: some View {
-        ZStack {
-            AppTheme.Colors.background
-                .ignoresSafeArea()
-            LocationsListSheet(
-                selectedLocation: $selectedLocation,
-                shouldShowEditor: $shouldShowEditor,
-                showsNavigationChrome: false
-            )
-            .environmentObject(userDataStore)
-        }
-    }
-}
-
-// MARK: - Calendar Page View (Full Page Wrapper)
-
-struct CalendarPageView: View {
-    var body: some View {
-        ZStack {
-            AppTheme.Colors.background
-                .ignoresSafeArea()
-            TrainerCalendarView(showsSheetChrome: false)
-        }
-    }
-}
-
-// MARK: - Minimal Back Bar
-
-struct MinimalBackBar: View {
-    let title: String
-    let onBack: () -> Void
-
-    var body: some View {
-        VStack {
-            HStack {
-                Button(action: onBack) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(AppTheme.Colors.primaryText)
-                        .frame(width: 44, height: 44)
-                }
-                Spacer()
-                Text(title)
-                    .font(AppTheme.Typography.screenTitle)
-                    .foregroundColor(AppTheme.Colors.primaryText)
-                Spacer()
-                Color.clear.frame(width: 44, height: 44)
+                RoundedRectangle(cornerRadius: 20)
+                    .fill(AppTheme.Colors.surface)
+                    .frame(height: 180)
+                    .overlay {
+                        VStack(spacing: 10) {
+                            Image(systemName: "sparkles.rectangle.stack")
+                                .font(.system(size: 28, weight: .semibold))
+                                .foregroundStyle(AppTheme.Colors.accent)
+                            Text("Coach surface scaffold coming next")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundStyle(AppTheme.Colors.primaryText)
+                        }
+                    }
             }
-            .padding(.horizontal, AppTheme.Spacing.xl)
-            .padding(.top, AppTheme.Spacing.md)
-            Spacer()
+            .padding(24)
+            .frame(maxWidth: 640, alignment: .leading)
         }
-        .ignoresSafeArea(edges: .top)
     }
-}
-
-// MARK: - Notification Names
-
-extension Notification.Name {
-    static let showQuickWorkoutSheet = Notification.Name("showQuickWorkoutSheet")
-    static let showScheduleWorkoutSheet = Notification.Name("showScheduleWorkoutSheet")
-    static let showStartRunSheet = Notification.Name("showStartRunSheet")
 }
 
 #Preview {
