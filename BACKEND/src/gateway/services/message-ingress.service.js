@@ -1,52 +1,62 @@
-const { requireIdempotencyKey } = require('../../runtime/services/idempotency.service');
-const { resolveSession } = require('../../runtime/services/session.service');
-const { appendInboundEvent } = require('../../runtime/services/transcript.service');
-const { createQueuedRun } = require('../../runtime/services/run.service');
+const { hashRequestPayload } = require('../../shared/hash');
 const { enqueueAgentRunTurn } = require('../../infra/queue/agent.queue');
+const { requireIdempotencyKey } = require('../../runtime/services/idempotency.service');
+const { persistInboundMessage } = require('../../runtime/services/gateway-ingest.service');
+const { getRunById } = require('../../runtime/services/run-state.service');
 
 async function processInboundMessage({ auth, headers, body }) {
   const idempotencyKey = requireIdempotencyKey(headers);
-
-  const session = await resolveSession({
+  const requestHash = hashRequestPayload(body);
+  const persisted = await persistInboundMessage({
     userId: auth.userId,
-    sessionKey: body.sessionKey
-  });
-
-  const event = await appendInboundEvent({
-    userId: auth.userId,
-    sessionKey: session.sessionKey,
-    sessionId: session.sessionId,
+    route: '/v1/messages',
+    idempotencyKey,
+    requestHash,
+    sessionKey: body.sessionKey,
     triggerType: body.triggerType,
     message: body.message,
-    metadata: body.metadata,
-    idempotencyKey
+    metadata: body.metadata
   });
 
-  const run = await createQueuedRun({
-    userId: auth.userId,
-    sessionKey: session.sessionKey,
-    sessionId: session.sessionId,
-    triggerType: body.triggerType
-  });
+  if (persisted.replayed) {
+    const run = await getRunById(persisted.runId);
+    const shouldReEnqueue = run.status === 'queued';
+    const job = shouldReEnqueue
+      ? await enqueueAgentRunTurn({
+          runId: persisted.runId,
+          userId: auth.userId,
+          sessionKey: persisted.sessionKey,
+          sessionId: persisted.sessionId
+        })
+      : null;
+
+    return {
+      ...persisted,
+      jobId: job ? job.jobId : null,
+      streamUrl: `/v1/runs/${persisted.runId}/stream`,
+      debug: {
+        idempotencyKey,
+        requestHash,
+        implementationMode: shouldReEnqueue ? 'db-rpc-replayed-reenqueued' : 'db-rpc-replayed'
+      }
+    };
+  }
 
   const job = await enqueueAgentRunTurn({
-    runId: run.runId,
+    runId: persisted.runId,
     userId: auth.userId,
-    sessionKey: session.sessionKey,
-    sessionId: session.sessionId
+    sessionKey: persisted.sessionKey,
+    sessionId: persisted.sessionId
   });
 
   return {
-    status: 'accepted',
-    sessionKey: session.sessionKey,
-    sessionId: session.sessionId,
-    runId: run.runId,
+    ...persisted,
     jobId: job.jobId,
-    streamUrl: `/v1/runs/${run.runId}/stream`,
+    streamUrl: `/v1/runs/${persisted.runId}/stream`,
     debug: {
       idempotencyKey,
-      eventId: event.eventId,
-      implementationMode: 'scaffold'
+      requestHash,
+      implementationMode: 'db-rpc'
     }
   };
 }

@@ -4,8 +4,12 @@ const { unauthorized } = require('../../shared/errors');
 
 async function authenticateUser(req, res, next) {
   if (env.allowUnauthenticatedDev) {
+    if (!env.devAuthUserId) {
+      return next(unauthorized('DEV_AUTH_USER_ID is required when ALLOW_UNAUTHENTICATED_DEV=true'));
+    }
+
     req.auth = {
-      userId: 'dev-user',
+      userId: env.devAuthUserId,
       email: 'dev@example.com',
       role: 'developer',
       source: 'dev-bypass'
