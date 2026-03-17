@@ -1,4 +1,6 @@
+const { env } = require('../../config/env');
 const { appendStreamEvent } = require('../../runtime/services/stream-events.service');
+const { runAgentTurn } = require('../../runtime/agent-runtime/run-agent-turn');
 const {
   getRunById,
   markRunFailed,
@@ -20,7 +22,11 @@ async function handleAgentRunTurn(job) {
       };
     }
 
-    await markRunRunning(runId);
+    await markRunRunning(runId, {
+      providerKey: env.defaultLlmProvider,
+      modelKey: env.defaultAnthropicModel
+    });
+
     await appendStreamEvent({
       runId,
       eventType: 'run.started',
@@ -30,20 +36,16 @@ async function handleAgentRunTurn(job) {
       }
     });
 
-    await appendStreamEvent({
-      runId,
-      eventType: 'run.output',
-      payload: {
-        message: 'Stub worker completed the run lifecycle.'
-      }
-    });
+    const result = await runAgentTurn(run);
 
     await appendStreamEvent({
       runId,
       eventType: 'run.completed',
       payload: {
         phase: 'worker',
-        jobId: job.id
+        jobId: job.id,
+        provider: result.provider,
+        model: result.model
       }
     });
 

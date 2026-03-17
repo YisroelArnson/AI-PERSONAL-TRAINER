@@ -41,10 +41,12 @@ async function updateRun(runId, patch) {
   return data;
 }
 
-async function markRunRunning(runId) {
+async function markRunRunning(runId, metadata = {}) {
   return updateRun(runId, {
     status: 'running',
     started_at: new Date().toISOString(),
+    provider_key: metadata.providerKey || null,
+    model_key: metadata.modelKey || null,
     error_code: null,
     error_message: null
   });
