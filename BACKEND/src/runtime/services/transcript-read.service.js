@@ -41,14 +41,24 @@ function toRuntimeMessages(events) {
       if (event.actor === 'user') {
         return {
           role: 'user',
-          content
+          content: [
+            {
+              type: 'text',
+              text: content
+            }
+          ]
         };
       }
 
       if (event.actor === 'assistant') {
         return {
           role: 'assistant',
-          content
+          content: [
+            {
+              type: 'text',
+              text: content
+            }
+          ]
         };
       }
 

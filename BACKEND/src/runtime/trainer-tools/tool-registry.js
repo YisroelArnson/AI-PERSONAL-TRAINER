@@ -1,0 +1,61 @@
+const memoryGetTool = require('./handlers/memory-get.tool');
+const programGetTool = require('./handlers/program-get.tool');
+
+const REGISTERED_TOOLS = [memoryGetTool, programGetTool];
+
+const TOOL_HANDLERS = Object.fromEntries(
+  REGISTERED_TOOLS.map(tool => [tool.definition.name, tool])
+);
+
+function listToolDefinitions() {
+  return REGISTERED_TOOLS.map(entry => entry.definition);
+}
+
+function getToolDefinition(toolName) {
+  const tool = TOOL_HANDLERS[toolName];
+
+  if (!tool) {
+    throw new Error(`Unknown tool requested: ${toolName}`);
+  }
+
+  return tool.definition;
+}
+
+async function executeToolCall({ toolName, input, run }) {
+  const tool = TOOL_HANDLERS[toolName];
+
+  if (!tool) {
+    return {
+      status: 'semantic_error',
+      error: {
+        code: 'UNKNOWN_TOOL',
+        explanation: `The tool ${toolName} is not registered.`,
+        agent_guidance: 'Choose one of the canonical registered tools instead of inventing a tool name.',
+        suggested_fix: {
+          available_tools: listToolDefinitions().map(definition => definition.name)
+        },
+        retryable_in_run: true
+      }
+    };
+  }
+
+  const output = await tool.execute({
+    input: input || {},
+    userId: run.user_id,
+    run,
+    toolDefinition: tool.definition
+  });
+
+  return {
+    status: 'ok',
+    toolName,
+    mutating: tool.definition.mutating,
+    output
+  };
+}
+
+module.exports = {
+  listToolDefinitions,
+  getToolDefinition,
+  executeToolCall
+};

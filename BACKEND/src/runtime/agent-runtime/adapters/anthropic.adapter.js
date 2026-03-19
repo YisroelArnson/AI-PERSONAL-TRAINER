@@ -15,21 +15,75 @@ function buildRequest(runtimeInput) {
   const request = {
     model: runtimeInput.model,
     max_tokens: runtimeInput.maxOutputTokens,
-    system: runtimeInput.systemPrompt,
-    messages: runtimeInput.messages.map(message => ({
-      role: message.role,
-      content: message.content
-    })),
+    system: runtimeInput.systemPromptBlocks || runtimeInput.systemPrompt,
+    messages: runtimeInput.messages.map(message => buildProviderMessage(message)),
     metadata: {
       user_id: runtimeInput.userId
     }
   };
+
+  if (runtimeInput.cacheControl) {
+    request.cache_control = runtimeInput.cacheControl;
+  }
+
+  if (runtimeInput.toolChoice) {
+    request.tool_choice = runtimeInput.toolChoice;
+  }
 
   if (runtimeInput.tools && runtimeInput.tools.length > 0) {
     request.tools = runtimeInput.tools;
   }
 
   return request;
+}
+
+function buildProviderContentBlock(block) {
+  if (typeof block === 'string') {
+    return {
+      type: 'text',
+      text: block
+    };
+  }
+
+  if (block.type === 'text') {
+    return {
+      type: 'text',
+      text: block.text
+    };
+  }
+
+  if (block.type === 'tool_use') {
+    return {
+      type: 'tool_use',
+      id: block.id,
+      name: block.name,
+      input: block.input || {}
+    };
+  }
+
+  if (block.type === 'tool_result') {
+    return {
+      type: 'tool_result',
+      tool_use_id: block.toolUseId,
+      content: block.content
+    };
+  }
+
+  throw new Error(`Unsupported message content block: ${block.type}`);
+}
+
+function buildProviderMessage(message) {
+  if (typeof message.content === 'string') {
+    return {
+      role: message.role,
+      content: message.content
+    };
+  }
+
+  return {
+    role: message.role,
+    content: message.content.map(buildProviderContentBlock)
+  };
 }
 
 function createStream(providerRequest) {
