@@ -16,35 +16,13 @@
 		121536712F48B756003D5164 /* supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121535E22F48B756003D5164 /* supabase.swift */; };
 		121536AC2F48B756003D5164 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1215362E2F48B756003D5164 /* Assets.xcassets */; };
 		121536AD2F48B756003D5164 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536312F48B756003D5164 /* WaveformView.swift */; };
-		121536AE2F48B756003D5164 /* OnboardingErrorCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536322F48B756003D5164 /* OnboardingErrorCard.swift */; };
-		121536AF2F48B756003D5164 /* SegmentedProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536332F48B756003D5164 /* SegmentedProgressBar.swift */; };
-		121536B02F48B756003D5164 /* StepProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536342F48B756003D5164 /* StepProgressBar.swift */; };
-		121536B12F48B756003D5164 /* PillsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536352F48B756003D5164 /* PillsRow.swift */; };
-		121536B22F48B756003D5164 /* OnboardingTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536362F48B756003D5164 /* OnboardingTopBar.swift */; };
-		121536B32F48B756003D5164 /* OTPCodeField.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536372F48B756003D5164 /* OTPCodeField.swift */; };
 		121536B42F48B756003D5164 /* ExpandingFabMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536382F48B756003D5164 /* ExpandingFabMenu.swift */; };
-		121536B52F48B756003D5164 /* TypewriterTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536392F48B756003D5164 /* TypewriterTextView.swift */; };
-		121536B62F48B756003D5164 /* FloatingAIButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363A2F48B756003D5164 /* FloatingAIButton.swift */; };
 		121536B72F48B756003D5164 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363B2F48B756003D5164 /* ToastView.swift */; };
-		121536B82F48B756003D5164 /* ThinTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363C2F48B756003D5164 /* ThinTopBar.swift */; };
-		121536BA2F48B756003D5164 /* OnboardingProgressBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363E2F48B756003D5164 /* OnboardingProgressBar.swift */; };
-		121536BB2F48B756003D5164 /* VoiceBottomBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363F2F48B756003D5164 /* VoiceBottomBar.swift */; };
-		121536BC2F48B756003D5164 /* UnitToggle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536402F48B756003D5164 /* UnitToggle.swift */; };
-		121536BD2F48B756003D5164 /* OnboardingOrbView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536412F48B756003D5164 /* OnboardingOrbView.swift */; };
-		121536BE2F48B756003D5164 /* ChevronButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536422F48B756003D5164 /* ChevronButton.swift */; };
-		121536BF2F48B756003D5164 /* LoadingStateView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536432F48B756003D5164 /* LoadingStateView.swift */; };
-		121536C32F48B756003D5164 /* LocalIntakeData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536482F48B756003D5164 /* LocalIntakeData.swift */; };
 		121536C52F48B756003D5164 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215364A2F48B756003D5164 /* APIModels.swift */; };
-		121536C62F48B756003D5164 /* IntakeModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215364B2F48B756003D5164 /* IntakeModels.swift */; };
-		121536C92F48B756003D5164 /* Exercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215364E2F48B756003D5164 /* Exercise.swift */; };
-		121536CC2F48B756003D5164 /* UIExercise.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536512F48B756003D5164 /* UIExercise.swift */; };
-		121536CD2F48B756003D5164 /* CodableValue+Helpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536522F48B756003D5164 /* CodableValue+Helpers.swift */; };
 		121536D32F48B756003D5164 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 121536592F48B756003D5164 /* Preview Assets.xcassets */; };
 		121536D42F48B756003D5164 /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215365A2F48B756003D5164 /* AI_Personal_Trainer_AppApp.swift */; };
 		121536D92F48B756003D5164 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536612F48B756003D5164 /* AuthView.swift */; };
 		121536DA2F48B756003D5164 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536622F48B756003D5164 /* APIService.swift */; };
-		121536DD2F48B756003D5164 /* UserSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536652F48B756003D5164 /* UserSettings.swift */; };
-		B10000042F48B756003D5164 /* LocalCacheStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B10000022F48B756003D5164 /* LocalCacheStore.swift */; };
 		12541A072F2C59B90020EF78 /* AI Personal Trainer AppTests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */; };
 		12541A0B2F2C59D30020EF78 /* AI Personal Trainer AppUITests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */; };
 		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
@@ -77,35 +55,13 @@
 		121535E22F48B756003D5164 /* supabase.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = supabase.swift; sourceTree = "<group>"; };
 		1215362E2F48B756003D5164 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		121536312F48B756003D5164 /* WaveformView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
-		121536322F48B756003D5164 /* OnboardingErrorCard.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingErrorCard.swift; sourceTree = "<group>"; };
-		121536332F48B756003D5164 /* SegmentedProgressBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SegmentedProgressBar.swift; sourceTree = "<group>"; };
-		121536342F48B756003D5164 /* StepProgressBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = StepProgressBar.swift; sourceTree = "<group>"; };
-		121536352F48B756003D5164 /* PillsRow.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PillsRow.swift; sourceTree = "<group>"; };
-		121536362F48B756003D5164 /* OnboardingTopBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingTopBar.swift; sourceTree = "<group>"; };
-		121536372F48B756003D5164 /* OTPCodeField.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OTPCodeField.swift; sourceTree = "<group>"; };
 		121536382F48B756003D5164 /* ExpandingFabMenu.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExpandingFabMenu.swift; sourceTree = "<group>"; };
-		121536392F48B756003D5164 /* TypewriterTextView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = TypewriterTextView.swift; sourceTree = "<group>"; };
-		1215363A2F48B756003D5164 /* FloatingAIButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FloatingAIButton.swift; sourceTree = "<group>"; };
 		1215363B2F48B756003D5164 /* ToastView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
-		1215363C2F48B756003D5164 /* ThinTopBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ThinTopBar.swift; sourceTree = "<group>"; };
-		1215363E2F48B756003D5164 /* OnboardingProgressBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingProgressBar.swift; sourceTree = "<group>"; };
-		1215363F2F48B756003D5164 /* VoiceBottomBar.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VoiceBottomBar.swift; sourceTree = "<group>"; };
-		121536402F48B756003D5164 /* UnitToggle.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UnitToggle.swift; sourceTree = "<group>"; };
-		121536412F48B756003D5164 /* OnboardingOrbView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OnboardingOrbView.swift; sourceTree = "<group>"; };
-		121536422F48B756003D5164 /* ChevronButton.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ChevronButton.swift; sourceTree = "<group>"; };
-		121536432F48B756003D5164 /* LoadingStateView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LoadingStateView.swift; sourceTree = "<group>"; };
-		121536482F48B756003D5164 /* LocalIntakeData.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocalIntakeData.swift; sourceTree = "<group>"; };
 		1215364A2F48B756003D5164 /* APIModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
-		1215364B2F48B756003D5164 /* IntakeModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = IntakeModels.swift; sourceTree = "<group>"; };
-		1215364E2F48B756003D5164 /* Exercise.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Exercise.swift; sourceTree = "<group>"; };
-		121536512F48B756003D5164 /* UIExercise.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIExercise.swift; sourceTree = "<group>"; };
-		121536522F48B756003D5164 /* CodableValue+Helpers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "CodableValue+Helpers.swift"; sourceTree = "<group>"; };
 		121536592F48B756003D5164 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		1215365A2F48B756003D5164 /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
 		121536612F48B756003D5164 /* AuthView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
 		121536622F48B756003D5164 /* APIService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
-		121536652F48B756003D5164 /* UserSettings.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UserSettings.swift; sourceTree = "<group>"; };
-		B10000022F48B756003D5164 /* LocalCacheStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LocalCacheStore.swift; sourceTree = "<group>"; };
 		12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Personal Trainer AppTests"; sourceTree = "<group>"; };
 		12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Personal Trainer AppUITests"; sourceTree = "<group>"; };
 		12761C412E57953800C4F8FE /* AI Personal Trainer App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Personal Trainer App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -347,23 +303,8 @@
 			isa = PBXGroup;
 			children = (
 				121536312F48B756003D5164 /* WaveformView.swift */,
-				121536322F48B756003D5164 /* OnboardingErrorCard.swift */,
-				121536332F48B756003D5164 /* SegmentedProgressBar.swift */,
-				121536342F48B756003D5164 /* StepProgressBar.swift */,
-				121536352F48B756003D5164 /* PillsRow.swift */,
-				121536362F48B756003D5164 /* OnboardingTopBar.swift */,
-				121536372F48B756003D5164 /* OTPCodeField.swift */,
 				121536382F48B756003D5164 /* ExpandingFabMenu.swift */,
-				121536392F48B756003D5164 /* TypewriterTextView.swift */,
-				1215363A2F48B756003D5164 /* FloatingAIButton.swift */,
 				1215363B2F48B756003D5164 /* ToastView.swift */,
-				1215363C2F48B756003D5164 /* ThinTopBar.swift */,
-				1215363E2F48B756003D5164 /* OnboardingProgressBar.swift */,
-				1215363F2F48B756003D5164 /* VoiceBottomBar.swift */,
-				121536402F48B756003D5164 /* UnitToggle.swift */,
-				121536412F48B756003D5164 /* OnboardingOrbView.swift */,
-				121536422F48B756003D5164 /* ChevronButton.swift */,
-				121536432F48B756003D5164 /* LoadingStateView.swift */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -371,12 +312,7 @@
 		121536442F48B756003D5164 /* Models */ = {
 			isa = PBXGroup;
 			children = (
-				121536482F48B756003D5164 /* LocalIntakeData.swift */,
 				1215364A2F48B756003D5164 /* APIModels.swift */,
-				1215364B2F48B756003D5164 /* IntakeModels.swift */,
-				1215364E2F48B756003D5164 /* Exercise.swift */,
-				121536512F48B756003D5164 /* UIExercise.swift */,
-				121536522F48B756003D5164 /* CodableValue+Helpers.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -394,8 +330,6 @@
 			children = (
 				121536602F48B756003D5164 /* Auth */,
 				121536622F48B756003D5164 /* APIService.swift */,
-				121536652F48B756003D5164 /* UserSettings.swift */,
-				B10000022F48B756003D5164 /* LocalCacheStore.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -574,40 +508,18 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				121536BE2F48B756003D5164 /* ChevronButton.swift in Sources */,
 				121536D42F48B756003D5164 /* AI_Personal_Trainer_AppApp.swift in Sources */,
 				1215366B2F48B756003D5164 /* HapticManager.swift in Sources */,
 				121536D92F48B756003D5164 /* AuthView.swift in Sources */,
-				121536B52F48B756003D5164 /* TypewriterTextView.swift in Sources */,
-				121536BC2F48B756003D5164 /* UnitToggle.swift in Sources */,
-				121536C32F48B756003D5164 /* LocalIntakeData.swift in Sources */,
 				121536B42F48B756003D5164 /* ExpandingFabMenu.swift in Sources */,
 				121536DA2F48B756003D5164 /* APIService.swift in Sources */,
-				B10000042F48B756003D5164 /* LocalCacheStore.swift in Sources */,
-				121536B02F48B756003D5164 /* StepProgressBar.swift in Sources */,
-				121536BA2F48B756003D5164 /* OnboardingProgressBar.swift in Sources */,
-				121536C62F48B756003D5164 /* IntakeModels.swift in Sources */,
-				121536C92F48B756003D5164 /* Exercise.swift in Sources */,
 				121536AD2F48B756003D5164 /* WaveformView.swift in Sources */,
-				121536B22F48B756003D5164 /* OnboardingTopBar.swift in Sources */,
 				121536B72F48B756003D5164 /* ToastView.swift in Sources */,
-				121536BB2F48B756003D5164 /* VoiceBottomBar.swift in Sources */,
 				121536C52F48B756003D5164 /* APIModels.swift in Sources */,
-				121536BD2F48B756003D5164 /* OnboardingOrbView.swift in Sources */,
-				121536B82F48B756003D5164 /* ThinTopBar.swift in Sources */,
 				121536712F48B756003D5164 /* supabase.swift in Sources */,
-				121536AF2F48B756003D5164 /* SegmentedProgressBar.swift in Sources */,
-				121536CC2F48B756003D5164 /* UIExercise.swift in Sources */,
-				121536AE2F48B756003D5164 /* OnboardingErrorCard.swift in Sources */,
-				121536CD2F48B756003D5164 /* CodableValue+Helpers.swift in Sources */,
-				121536DD2F48B756003D5164 /* UserSettings.swift in Sources */,
-				121536B62F48B756003D5164 /* FloatingAIButton.swift in Sources */,
 				1215366E2F48B756003D5164 /* AppTheme.swift in Sources */,
-				121536BF2F48B756003D5164 /* LoadingStateView.swift in Sources */,
-				121536B32F48B756003D5164 /* OTPCodeField.swift in Sources */,
 				121536702F48B756003D5164 /* AppView.swift in Sources */,
 				1215366D2F48B756003D5164 /* SpeechManager.swift in Sources */,
-				121536B12F48B756003D5164 /* PillsRow.swift in Sources */,
 				1215366C2F48B756003D5164 /* Color+Extensions.swift in Sources */,
 				1215366F2F48B756003D5164 /* ShimmerEffect.swift in Sources */,
 			);
