@@ -27,8 +27,38 @@ function mapRpcError(error) {
   return error;
 }
 
-async function appendAssistantMessageEvent({ run, text, provider, model, usage, stopReason }) {
+async function appendSessionEvent({
+  userId,
+  sessionKey,
+  sessionId,
+  eventType,
+  actor,
+  runId,
+  payload,
+  occurredAt,
+  idempotencyKey
+}) {
   const supabase = getAdminClientOrThrow();
+  const { data, error } = await supabase.rpc('append_session_event', {
+    p_user_id: userId,
+    p_session_key: sessionKey,
+    p_session_id: sessionId,
+    p_event_type: eventType,
+    p_actor: actor,
+    p_run_id: runId || null,
+    p_payload: payload || {},
+    p_occurred_at: occurredAt || new Date().toISOString(),
+    p_idempotency_key: idempotencyKey || null
+  });
+
+  if (error) {
+    throw mapRpcError(error);
+  }
+
+  return data;
+}
+
+async function appendAssistantMessageEvent({ run, text, provider, model, usage, stopReason }) {
   const payload = {
     text,
     provider,
@@ -36,26 +66,25 @@ async function appendAssistantMessageEvent({ run, text, provider, model, usage, 
     usage: usage || {},
     stopReason: stopReason || null
   };
-  const { data, error } = await supabase.rpc('append_session_event', {
-    p_user_id: run.user_id,
-    p_session_key: run.session_key,
-    p_session_id: run.session_id,
-    p_event_type: 'assistant.message',
-    p_actor: 'assistant',
-    p_run_id: run.run_id,
-    p_payload: payload
-  });
-
-  if (error) {
+  try {
+    return await appendSessionEvent({
+      userId: run.user_id,
+      sessionKey: run.session_key,
+      sessionId: run.session_id,
+      eventType: 'assistant.message',
+      actor: 'assistant',
+      runId: run.run_id,
+      payload
+    });
+  } catch (error) {
     console.warn('append_session_event RPC failed, falling back to app-side transcript append:', error.message);
+    const supabase = getAdminClientOrThrow();
     return appendAssistantMessageEventFallback({
       supabase,
       run,
       payload
     });
   }
-
-  return data;
 }
 
 async function appendAssistantMessageEventFallback({ supabase, run, payload }) {
@@ -135,5 +164,6 @@ async function appendAssistantMessageEventFallback({ supabase, run, payload }) {
 }
 
 module.exports = {
-  appendAssistantMessageEvent
+  appendAssistantMessageEvent,
+  appendSessionEvent
 };

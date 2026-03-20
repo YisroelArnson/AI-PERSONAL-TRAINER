@@ -1,7 +1,16 @@
 const memoryGetTool = require('./handlers/memory-get.tool');
 const programGetTool = require('./handlers/program-get.tool');
+const documentReplaceTextTool = require('./handlers/document-replace-text.tool');
+const documentReplaceEntireTool = require('./handlers/document-replace-entire.tool');
+const episodicNoteAppendTool = require('./handlers/episodic-note-append.tool');
 
-const REGISTERED_TOOLS = [memoryGetTool, programGetTool];
+const REGISTERED_TOOLS = [
+  memoryGetTool,
+  programGetTool,
+  documentReplaceTextTool,
+  documentReplaceEntireTool,
+  episodicNoteAppendTool
+];
 
 const TOOL_HANDLERS = Object.fromEntries(
   REGISTERED_TOOLS.map(tool => [tool.definition.name, tool])
@@ -39,18 +48,31 @@ async function executeToolCall({ toolName, input, run }) {
     };
   }
 
-  const output = await tool.execute({
+  const result = await tool.execute({
     input: input || {},
     userId: run.user_id,
     run,
     toolDefinition: tool.definition
   });
 
+  if (
+    result &&
+    typeof result === 'object' &&
+    typeof result.status === 'string' &&
+    (result.status === 'ok' || result.status === 'semantic_error' || result.status === 'validation_error')
+  ) {
+    return {
+      toolName,
+      mutating: tool.definition.mutating,
+      ...result
+    };
+  }
+
   return {
     status: 'ok',
     toolName,
     mutating: tool.definition.mutating,
-    output
+    output: result
   };
 }
 

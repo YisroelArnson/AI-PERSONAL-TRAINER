@@ -1,7 +1,12 @@
 const { Queue } = require('bullmq');
 
 const { getRedisConnection } = require('../redis/connection');
-const { JOB_NAMES, QUEUE_NAMES, buildAgentRunTurnJobId } = require('./queue.constants');
+const {
+  JOB_NAMES,
+  QUEUE_NAMES,
+  buildAgentRunTurnJobId,
+  buildSessionMemoryFlushJobId
+} = require('./queue.constants');
 
 let agentQueue;
 
@@ -61,7 +66,46 @@ async function enqueueAgentRunTurn({ runId, userId, sessionKey, sessionId }) {
   };
 }
 
+async function enqueueSessionMemoryFlush({
+  userId,
+  sessionKey,
+  previousSessionId,
+  rotationReason,
+  timezone,
+  messageCount
+}) {
+  const queue = getAgentQueue();
+  const jobId = buildSessionMemoryFlushJobId({
+    sessionKey,
+    previousSessionId
+  });
+  const job = await queue.add(
+    JOB_NAMES.memoryFlushSessionEnd,
+    {
+      userId,
+      sessionKey,
+      previousSessionId,
+      rotationReason,
+      timezone,
+      messageCount
+    },
+    {
+      jobId,
+      priority: 1
+    }
+  );
+
+  return {
+    jobId: job.id,
+    queueName: QUEUE_NAMES.agent,
+    jobName: JOB_NAMES.memoryFlushSessionEnd,
+    payload: job.data,
+    mode: 'bullmq'
+  };
+}
+
 module.exports = {
   getAgentQueue,
-  enqueueAgentRunTurn
+  enqueueAgentRunTurn,
+  enqueueSessionMemoryFlush
 };

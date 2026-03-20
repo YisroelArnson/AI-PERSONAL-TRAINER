@@ -1,4 +1,7 @@
-const { buildEffectiveSessionResetPolicy } = require('../../src/runtime/services/session-reset-policy.service');
+const {
+  buildEffectiveSessionContinuityPolicy,
+  buildEffectiveSessionResetPolicy
+} = require('../../src/runtime/services/session-reset-policy.service');
 
 describe('buildEffectiveSessionResetPolicy', () => {
   it('returns spec defaults when no plan or overrides are present', () => {
@@ -49,6 +52,34 @@ describe('buildEffectiveSessionResetPolicy', () => {
       timezone: 'UTC',
       dayBoundaryEnabled: true,
       idleExpiryMinutes: 0
+    });
+  });
+
+  it('resolves session-memory and episodic bootstrap defaults and overrides', () => {
+    const policy = buildEffectiveSessionContinuityPolicy({
+      planTier: 'standard',
+      timezone: 'America/New_York',
+      policyOverrides: {
+        sessionMemory: {
+          enabled: 'true',
+          messageCount: 22
+        },
+        episodicNotes: {
+          readStrategy: 'custom_window_days',
+          customWindowDays: 5
+        }
+      }
+    });
+
+    expect(policy).toEqual({
+      planTier: 'standard',
+      timezone: 'America/New_York',
+      dayBoundaryEnabled: true,
+      idleExpiryMinutes: 180,
+      sessionMemoryEnabled: true,
+      sessionMemoryMessageCount: 22,
+      episodicReadStrategy: 'custom_window_days',
+      episodicCustomWindowDays: 5
     });
   });
 });

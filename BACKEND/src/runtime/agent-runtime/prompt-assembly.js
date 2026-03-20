@@ -1,5 +1,7 @@
 const { getLatestDocVersionByDocKey, getLatestDocVersionByDocType } = require('../services/memory-docs.service');
 const { getPromptContextForRun } = require('../services/prompt-context-cache.service');
+const { listBootstrapEpisodicNotes, formatBootstrapEpisodicNotes } = require('../services/episodic-notes.service');
+const { resolveSessionContinuityPolicy } = require('../services/session-reset-policy.service');
 const { env } = require('../../config/env');
 
 const DEFAULT_COACH_SOUL = [
@@ -33,7 +35,13 @@ function buildCacheControl(ttl) {
   return ttl ? { type: 'ephemeral', ttl } : { type: 'ephemeral' };
 }
 
-function buildSystemBlocks({ coachSoul, programMarkdown, recalledMemoryMarkdown, triggerType }) {
+function buildSystemBlocks({
+  coachSoul,
+  programMarkdown,
+  recalledMemoryMarkdown,
+  episodicBootstrapMarkdown,
+  triggerType
+}) {
   const blocks = [
     {
       type: 'text',
@@ -58,6 +66,13 @@ function buildSystemBlocks({ coachSoul, programMarkdown, recalledMemoryMarkdown,
     }
   ];
 
+  if (episodicBootstrapMarkdown) {
+    blocks.push({
+      type: 'text',
+      text: formatLayer('New Session Episodic Notes', episodicBootstrapMarkdown)
+    });
+  }
+
   if (triggerType === 'app.opened') {
     blocks.push({
       type: 'text',
@@ -78,20 +93,32 @@ function buildSystemBlocks({ coachSoul, programMarkdown, recalledMemoryMarkdown,
 
 async function assemblePrompt(run, options = {}) {
   const messageLimit = options.messageLimit || 12;
-  const [coachSoulDoc, programDoc, memoryDoc, promptContext] = await Promise.all([
+  const [coachSoulDoc, programDoc, memoryDoc, promptContext, continuityPolicy] = await Promise.all([
     getLatestDocVersionByDocKey(run.user_id, 'COACH_SOUL').catch(() => null),
     getLatestDocVersionByDocType(run.user_id, 'PROGRAM').catch(() => null),
     getLatestDocVersionByDocType(run.user_id, 'MEMORY').catch(() => null),
-    getPromptContextForRun(run, { messageLimit })
+    getPromptContextForRun(run, { messageLimit }),
+    resolveSessionContinuityPolicy(run.user_id).catch(() => null)
   ]);
+  const shouldLoadBootstrapEpisodicNotes = promptContext.sourceEventIds.length <= 1;
+  const episodicNotes = shouldLoadBootstrapEpisodicNotes && continuityPolicy
+    ? await listBootstrapEpisodicNotes({
+        userId: run.user_id,
+        timezone: continuityPolicy.timezone,
+        readStrategy: continuityPolicy.episodicReadStrategy,
+        customWindowDays: continuityPolicy.episodicCustomWindowDays
+      }).catch(() => [])
+    : [];
 
   const coachSoul = coachSoulDoc ? coachSoulDoc.version.content : DEFAULT_COACH_SOUL;
   const programMarkdown = programDoc ? programDoc.version.content : '';
   const recalledMemoryMarkdown = memoryDoc ? memoryDoc.version.content : '';
+  const episodicBootstrapMarkdown = formatBootstrapEpisodicNotes(episodicNotes);
   const systemBlocks = buildSystemBlocks({
     coachSoul,
     programMarkdown,
     recalledMemoryMarkdown,
+    episodicBootstrapMarkdown,
     triggerType: run.trigger_type
   });
 
@@ -105,7 +132,8 @@ async function assemblePrompt(run, options = {}) {
       layers: {
         hasCoachSoul: Boolean(coachSoulDoc),
         hasProgramMarkdown: Boolean(programDoc),
-        hasMemoryMarkdown: Boolean(memoryDoc)
+        hasMemoryMarkdown: Boolean(memoryDoc),
+        hasEpisodicBootstrap: episodicNotes.length > 0
       }
     }
   };

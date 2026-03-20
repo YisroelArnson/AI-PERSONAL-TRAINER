@@ -3,12 +3,13 @@ const { enqueueAgentRunTurn } = require('../../infra/queue/agent.queue');
 const { requireIdempotencyKey } = require('../../runtime/services/idempotency.service');
 const { persistInboundMessage } = require('../../runtime/services/gateway-ingest.service');
 const { getRunById } = require('../../runtime/services/run-state.service');
-const { resolveSessionResetPolicy } = require('../../runtime/services/session-reset-policy.service');
+const { resolveSessionContinuityPolicy } = require('../../runtime/services/session-reset-policy.service');
+const { enqueueSessionMemoryFlushIfNeeded } = require('../../runtime/services/session-memory-queue.service');
 
 async function processInboundMessage({ auth, headers, body }) {
   const idempotencyKey = requireIdempotencyKey(headers);
   const requestHash = hashRequestPayload(body);
-  const sessionResetPolicy = await resolveSessionResetPolicy(auth.userId);
+  const continuityPolicy = await resolveSessionContinuityPolicy(auth.userId);
   const persisted = await persistInboundMessage({
     userId: auth.userId,
     route: '/v1/messages',
@@ -18,8 +19,22 @@ async function processInboundMessage({ auth, headers, body }) {
     triggerType: body.triggerType,
     message: body.message,
     metadata: body.metadata,
-    sessionResetPolicy
+    sessionResetPolicy: continuityPolicy
   });
+
+  if (persisted.rotated && persisted.previousSessionId) {
+    try {
+      await enqueueSessionMemoryFlushIfNeeded({
+        userId: auth.userId,
+        sessionKey: persisted.sessionKey,
+        previousSessionId: persisted.previousSessionId,
+        rotationReason: persisted.rotationReason,
+        continuityPolicy
+      });
+    } catch (error) {
+      console.warn('Unable to enqueue session-end memory flush after ingress rotation:', error.message);
+    }
+  }
 
   if (persisted.replayed) {
     const run = await getRunById(persisted.runId);
@@ -41,7 +56,7 @@ async function processInboundMessage({ auth, headers, body }) {
         idempotencyKey,
         requestHash,
         implementationMode: shouldReEnqueue ? 'db-rpc-replayed-reenqueued' : 'db-rpc-replayed',
-        sessionResetPolicyCacheHit: sessionResetPolicy.cacheHit
+        sessionResetPolicyCacheHit: continuityPolicy.cacheHit
       }
     };
   }
@@ -61,7 +76,7 @@ async function processInboundMessage({ auth, headers, body }) {
       idempotencyKey,
       requestHash,
       implementationMode: 'db-rpc',
-      sessionResetPolicyCacheHit: sessionResetPolicy.cacheHit
+      sessionResetPolicyCacheHit: continuityPolicy.cacheHit
     }
   };
 }

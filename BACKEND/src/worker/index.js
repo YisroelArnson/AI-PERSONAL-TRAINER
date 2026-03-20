@@ -4,11 +4,16 @@ const { env } = require('../config/env');
 const { getRedisConnection } = require('../infra/redis/connection');
 const { JOB_NAMES, QUEUE_NAMES } = require('../infra/queue/queue.constants');
 const { handleAgentRunTurn } = require('./handlers/agent-run-turn.handler');
+const { handleMemoryFlushSessionEnd } = require('./handlers/memory-flush-session-end.handler');
 
 function buildProcessor() {
   return async job => {
     if (job.name === JOB_NAMES.agentRunTurn) {
       return handleAgentRunTurn(job);
+    }
+
+    if (job.name === JOB_NAMES.memoryFlushSessionEnd) {
+      return handleMemoryFlushSessionEnd(job);
     }
 
     throw new Error(`Unsupported job name: ${job.name}`);

@@ -2,14 +2,18 @@ const { env } = require('../../config/env');
 const { getRedisConnection } = require('../../infra/redis/connection');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 
-const GLOBAL_SESSION_RESET_DEFAULTS = Object.freeze({
+const GLOBAL_SESSION_CONTINUITY_DEFAULTS = Object.freeze({
   dayBoundaryEnabled: true,
   idleExpiryMinutes: 180,
   planTier: 'standard',
-  timezone: 'UTC'
+  timezone: 'UTC',
+  sessionMemoryEnabled: true,
+  sessionMemoryMessageCount: 15,
+  episodicReadStrategy: 'today_and_yesterday',
+  episodicCustomWindowDays: 2
 });
 
-const PLAN_SESSION_RESET_DEFAULTS = Object.freeze({
+const PLAN_SESSION_CONTINUITY_DEFAULTS = Object.freeze({
   memory_only: {},
   standard: {},
   premium_hybrid: {}
@@ -63,7 +67,7 @@ function firstDefinedValue(source, paths) {
 
 function normalizeTimezone(rawTimezone) {
   if (!rawTimezone || !String(rawTimezone).trim()) {
-    return GLOBAL_SESSION_RESET_DEFAULTS.timezone;
+    return GLOBAL_SESSION_CONTINUITY_DEFAULTS.timezone;
   }
 
   const timezone = String(rawTimezone).trim();
@@ -75,7 +79,7 @@ function normalizeTimezone(rawTimezone) {
 
     return timezone;
   } catch (error) {
-    return GLOBAL_SESSION_RESET_DEFAULTS.timezone;
+    return GLOBAL_SESSION_CONTINUITY_DEFAULTS.timezone;
   }
 }
 
@@ -112,9 +116,27 @@ function normalizeNonNegativeInteger(rawValue, fallback) {
   return Math.max(0, Math.floor(coerced));
 }
 
-function buildEffectiveSessionResetPolicy({ planTier, policyOverrides, timezone }) {
-  const normalizedPlanTier = planTier || GLOBAL_SESSION_RESET_DEFAULTS.planTier;
-  const planDefaults = PLAN_SESSION_RESET_DEFAULTS[normalizedPlanTier] || {};
+function normalizeReadStrategy(rawValue, fallback) {
+  if (typeof rawValue !== 'string') {
+    return fallback;
+  }
+
+  const normalized = rawValue.trim().toLowerCase();
+  if ([
+    'today_only',
+    'today_and_yesterday',
+    'current_week',
+    'custom_window_days'
+  ].includes(normalized)) {
+    return normalized;
+  }
+
+  return fallback;
+}
+
+function buildEffectiveSessionContinuityPolicy({ planTier, policyOverrides, timezone }) {
+  const normalizedPlanTier = planTier || GLOBAL_SESSION_CONTINUITY_DEFAULTS.planTier;
+  const planDefaults = PLAN_SESSION_CONTINUITY_DEFAULTS[normalizedPlanTier] || {};
   const overrides = isPlainObject(policyOverrides) ? policyOverrides : {};
   const dayBoundaryOverride = firstDefinedValue(overrides, [
     ['sessionReset', 'dayBoundaryEnabled'],
@@ -124,6 +146,22 @@ function buildEffectiveSessionResetPolicy({ planTier, policyOverrides, timezone 
     ['sessionReset', 'idleExpiryMinutes'],
     ['session_reset', 'idle_expiry_minutes']
   ]);
+  const sessionMemoryEnabledOverride = firstDefinedValue(overrides, [
+    ['sessionMemory', 'enabled'],
+    ['session_memory', 'enabled']
+  ]);
+  const sessionMemoryMessageCountOverride = firstDefinedValue(overrides, [
+    ['sessionMemory', 'messageCount'],
+    ['session_memory', 'message_count']
+  ]);
+  const episodicReadStrategyOverride = firstDefinedValue(overrides, [
+    ['episodicNotes', 'readStrategy'],
+    ['episodic_notes', 'read_strategy']
+  ]);
+  const episodicCustomWindowDaysOverride = firstDefinedValue(overrides, [
+    ['episodicNotes', 'customWindowDays'],
+    ['episodic_notes', 'custom_window_days']
+  ]);
 
   return {
     planTier: normalizedPlanTier,
@@ -132,16 +170,55 @@ function buildEffectiveSessionResetPolicy({ planTier, policyOverrides, timezone 
       dayBoundaryOverride,
       normalizeBoolean(
         planDefaults.dayBoundaryEnabled,
-        GLOBAL_SESSION_RESET_DEFAULTS.dayBoundaryEnabled
+        GLOBAL_SESSION_CONTINUITY_DEFAULTS.dayBoundaryEnabled
       )
     ),
     idleExpiryMinutes: normalizeNonNegativeInteger(
       idleExpiryOverride,
       normalizeNonNegativeInteger(
         planDefaults.idleExpiryMinutes,
-        GLOBAL_SESSION_RESET_DEFAULTS.idleExpiryMinutes
+        GLOBAL_SESSION_CONTINUITY_DEFAULTS.idleExpiryMinutes
+      )
+    ),
+    sessionMemoryEnabled: normalizeBoolean(
+      sessionMemoryEnabledOverride,
+      normalizeBoolean(
+        planDefaults.sessionMemoryEnabled,
+        GLOBAL_SESSION_CONTINUITY_DEFAULTS.sessionMemoryEnabled
+      )
+    ),
+    sessionMemoryMessageCount: normalizeNonNegativeInteger(
+      sessionMemoryMessageCountOverride,
+      normalizeNonNegativeInteger(
+        planDefaults.sessionMemoryMessageCount,
+        GLOBAL_SESSION_CONTINUITY_DEFAULTS.sessionMemoryMessageCount
+      )
+    ),
+    episodicReadStrategy: normalizeReadStrategy(
+      episodicReadStrategyOverride,
+      normalizeReadStrategy(
+        planDefaults.episodicReadStrategy,
+        GLOBAL_SESSION_CONTINUITY_DEFAULTS.episodicReadStrategy
+      )
+    ),
+    episodicCustomWindowDays: normalizeNonNegativeInteger(
+      episodicCustomWindowDaysOverride,
+      normalizeNonNegativeInteger(
+        planDefaults.episodicCustomWindowDays,
+        GLOBAL_SESSION_CONTINUITY_DEFAULTS.episodicCustomWindowDays
       )
     )
+  };
+}
+
+function buildEffectiveSessionResetPolicy(inputs) {
+  const continuityPolicy = buildEffectiveSessionContinuityPolicy(inputs);
+
+  return {
+    planTier: continuityPolicy.planTier,
+    timezone: continuityPolicy.timezone,
+    dayBoundaryEnabled: continuityPolicy.dayBoundaryEnabled,
+    idleExpiryMinutes: continuityPolicy.idleExpiryMinutes
   };
 }
 
@@ -219,13 +296,13 @@ async function loadPolicyInputs(userId) {
   }
 
   return {
-    planTier: settingsResult.data ? settingsResult.data.plan_tier : GLOBAL_SESSION_RESET_DEFAULTS.planTier,
+    planTier: settingsResult.data ? settingsResult.data.plan_tier : GLOBAL_SESSION_CONTINUITY_DEFAULTS.planTier,
     policyOverrides: settingsResult.data ? settingsResult.data.policy_overrides_json : {},
-    timezone: profileResult.data ? profileResult.data.timezone : GLOBAL_SESSION_RESET_DEFAULTS.timezone
+    timezone: profileResult.data ? profileResult.data.timezone : GLOBAL_SESSION_CONTINUITY_DEFAULTS.timezone
   };
 }
 
-async function resolveSessionResetPolicy(userId, options = {}) {
+async function resolveSessionContinuityPolicy(userId, options = {}) {
   const cacheTtlSec = Math.max(0, env.sessionResetPolicyCacheTtlSec || 0);
   const cacheKey = buildCacheKey(userId);
   const skipCache = options.skipCache === true || cacheTtlSec === 0;
@@ -246,7 +323,7 @@ async function resolveSessionResetPolicy(userId, options = {}) {
   }
 
   const inputs = await loadPolicyInputs(userId);
-  const policy = buildEffectiveSessionResetPolicy(inputs);
+  const policy = buildEffectiveSessionContinuityPolicy(inputs);
 
   if (!skipCache) {
     try {
@@ -262,7 +339,21 @@ async function resolveSessionResetPolicy(userId, options = {}) {
   };
 }
 
+async function resolveSessionResetPolicy(userId, options = {}) {
+  const policy = await resolveSessionContinuityPolicy(userId, options);
+
+  return {
+    planTier: policy.planTier,
+    timezone: policy.timezone,
+    dayBoundaryEnabled: policy.dayBoundaryEnabled,
+    idleExpiryMinutes: policy.idleExpiryMinutes,
+    cacheHit: policy.cacheHit
+  };
+}
+
 module.exports = {
+  buildEffectiveSessionContinuityPolicy,
   buildEffectiveSessionResetPolicy,
+  resolveSessionContinuityPolicy,
   resolveSessionResetPolicy
 };

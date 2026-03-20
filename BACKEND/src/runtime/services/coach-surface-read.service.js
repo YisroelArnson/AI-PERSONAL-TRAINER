@@ -79,7 +79,11 @@ async function resolveCurrentSessionState({
 
   return {
     currentSessionId: data.sessionId,
-    sessionVersion: data.sessionVersion
+    sessionVersion: data.sessionVersion,
+    rotated: data.rotated === true,
+    rotationReason: data.rotationReason || null,
+    previousSessionId: data.previousSessionId || null,
+    sessionKey: data.sessionKey
   };
 }
 
@@ -153,44 +157,52 @@ async function buildCoachSurfaceView({ userId, sessionKey, sessionResetPolicy })
   ]);
 
   return {
-    generatedAt: new Date().toISOString(),
-    sessionKey: resolvedSessionKey,
-    sessionId: currentSessionId,
-    header: {
-      title: 'Coach',
-      subtitle: activeRun ? 'Working on your latest turn' : 'One calm surface for training, planning, and check-ins'
-    },
-    activeRun,
-    pinnedCard: null,
-    feed,
-    composer: {
-      placeholder: 'Message your coach',
-      supportsText: true,
-      supportsVoice: true
-    },
-    quickActions: [
-      {
-        id: 'start_workout',
-        label: 'Start workout',
-        icon: 'figure.strengthtraining.traditional',
-        triggerType: 'ui.action.start_workout',
-        message: 'Start my workout.'
+    view: {
+      generatedAt: new Date().toISOString(),
+      sessionKey: resolvedSessionKey,
+      sessionId: currentSessionId,
+      header: {
+        title: 'Coach',
+        subtitle: activeRun ? 'Working on your latest turn' : 'One calm surface for training, planning, and check-ins'
       },
-      {
-        id: 'check_in',
-        label: 'Check in',
-        icon: 'bubble.left.and.bubble.right',
-        triggerType: 'user.message',
-        message: 'Check in with me about today.'
+      activeRun,
+      pinnedCard: null,
+      feed,
+      composer: {
+        placeholder: 'Message your coach',
+        supportsText: true,
+        supportsVoice: true
       },
-      {
-        id: 'plan_today',
-        label: 'Plan today',
-        icon: 'calendar',
-        triggerType: 'user.message',
-        message: 'Help me plan today.'
-      }
-    ]
+      quickActions: [
+        {
+          id: 'start_workout',
+          label: 'Start workout',
+          icon: 'figure.strengthtraining.traditional',
+          triggerType: 'ui.action.start_workout',
+          message: 'Start my workout.'
+        },
+        {
+          id: 'check_in',
+          label: 'Check in',
+          icon: 'bubble.left.and.bubble.right',
+          triggerType: 'user.message',
+          message: 'Check in with me about today.'
+        },
+        {
+          id: 'plan_today',
+          label: 'Plan today',
+          icon: 'calendar',
+          triggerType: 'user.message',
+          message: 'Help me plan today.'
+        }
+      ]
+    },
+    sessionBoundary: {
+      sessionKey: sessionState ? sessionState.sessionKey : resolvedSessionKey,
+      rotated: sessionState ? sessionState.rotated : false,
+      rotationReason: sessionState ? sessionState.rotationReason : null,
+      previousSessionId: sessionState ? sessionState.previousSessionId : null
+    }
   };
 }
 
