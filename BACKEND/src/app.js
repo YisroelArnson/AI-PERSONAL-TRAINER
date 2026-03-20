@@ -2,6 +2,7 @@ const express = require('express');
 const { randomUUID } = require('node:crypto');
 
 const { messagesRouter } = require('./gateway/routes/messages.route');
+const { coachSurfaceRouter } = require('./gateway/routes/coach-surface.route');
 const { errorHandler, notFoundHandler } = require('./gateway/middleware/error-handler');
 
 const app = express();
@@ -30,6 +31,7 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/v1/messages', messagesRouter);
+app.use('/v1/coach-surface', coachSurfaceRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

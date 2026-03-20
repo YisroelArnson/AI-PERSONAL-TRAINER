@@ -7,25 +7,25 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1215366B2F48B756003D5164 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121535D82F48B756003D5164 /* HapticManager.swift */; };
-		1215366C2F48B756003D5164 /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121535DA2F48B756003D5164 /* Color+Extensions.swift */; };
-		1215366D2F48B756003D5164 /* SpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121535DC2F48B756003D5164 /* SpeechManager.swift */; };
-		1215366E2F48B756003D5164 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121535DE2F48B756003D5164 /* AppTheme.swift */; };
-		1215366F2F48B756003D5164 /* ShimmerEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121535DF2F48B756003D5164 /* ShimmerEffect.swift */; };
-		121536702F48B756003D5164 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121535E12F48B756003D5164 /* AppView.swift */; };
-		121536712F48B756003D5164 /* supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121535E22F48B756003D5164 /* supabase.swift */; };
-		121536AC2F48B756003D5164 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 1215362E2F48B756003D5164 /* Assets.xcassets */; };
-		121536AD2F48B756003D5164 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536312F48B756003D5164 /* WaveformView.swift */; };
-		121536B42F48B756003D5164 /* ExpandingFabMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536382F48B756003D5164 /* ExpandingFabMenu.swift */; };
-		121536B72F48B756003D5164 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215363B2F48B756003D5164 /* ToastView.swift */; };
-		121536C52F48B756003D5164 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215364A2F48B756003D5164 /* APIModels.swift */; };
-		121536D32F48B756003D5164 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 121536592F48B756003D5164 /* Preview Assets.xcassets */; };
-		121536D42F48B756003D5164 /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1215365A2F48B756003D5164 /* AI_Personal_Trainer_AppApp.swift */; };
-		121536D92F48B756003D5164 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536612F48B756003D5164 /* AuthView.swift */; };
-		121536DA2F48B756003D5164 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 121536622F48B756003D5164 /* APIService.swift */; };
 		12541A072F2C59B90020EF78 /* AI Personal Trainer AppTests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */; };
 		12541A0B2F2C59D30020EF78 /* AI Personal Trainer AppUITests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */; };
 		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
+		F3E653762F6C4BB200833FD4 /* ExpandingFabMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6536E2F6C4BB200833FD4 /* ExpandingFabMenu.swift */; };
+		F3E653772F6C4BB200833FD4 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6535A2F6C4BB200833FD4 /* AppView.swift */; };
+		F3E653782F6C4BB200833FD4 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6536C2F6C4BB200833FD4 /* APIService.swift */; };
+		F3E653792F6C4BB200833FD4 /* AppTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6535F2F6C4BB200833FD4 /* AppTheme.swift */; };
+		F3E6537A2F6C4BB200833FD4 /* SpeechManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E653622F6C4BB200833FD4 /* SpeechManager.swift */; };
+		F3E6537B2F6C4BB200833FD4 /* supabase.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6535B2F6C4BB200833FD4 /* supabase.swift */; };
+		F3E6537C2F6C4BB200833FD4 /* ShimmerEffect.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E653602F6C4BB200833FD4 /* ShimmerEffect.swift */; };
+		F3E6537D2F6C4BB200833FD4 /* APIModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E653662F6C4BB200833FD4 /* APIModels.swift */; };
+		F3E6537E2F6C4BB200833FD4 /* AI_Personal_Trainer_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E653732F6C4BB200833FD4 /* AI_Personal_Trainer_AppApp.swift */; };
+		F3E6537F2F6C4BB200833FD4 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6536A2F6C4BB200833FD4 /* AuthView.swift */; };
+		F3E653802F6C4BB200833FD4 /* ToastView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6536F2F6C4BB200833FD4 /* ToastView.swift */; };
+		F3E653812F6C4BB200833FD4 /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E653702F6C4BB200833FD4 /* WaveformView.swift */; };
+		F3E653822F6C4BB200833FD4 /* Color+Extensions.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6535D2F6C4BB200833FD4 /* Color+Extensions.swift */; };
+		F3E653832F6C4BB200833FD4 /* HapticManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E653642F6C4BB200833FD4 /* HapticManager.swift */; };
+		F3E653842F6C4BB200833FD4 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F3E653682F6C4BB200833FD4 /* Preview Assets.xcassets */; };
+		F3E653852F6C4BB200833FD4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F3E653742F6C4BB200833FD4 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,27 +46,27 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		121535D82F48B756003D5164 /* HapticManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
-		121535DA2F48B756003D5164 /* Color+Extensions.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = "Color+Extensions.swift"; sourceTree = "<group>"; };
-		121535DC2F48B756003D5164 /* SpeechManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SpeechManager.swift; sourceTree = "<group>"; };
-		121535DE2F48B756003D5164 /* AppTheme.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
-		121535DF2F48B756003D5164 /* ShimmerEffect.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ShimmerEffect.swift; sourceTree = "<group>"; };
-		121535E12F48B756003D5164 /* AppView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
-		121535E22F48B756003D5164 /* supabase.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = supabase.swift; sourceTree = "<group>"; };
-		1215362E2F48B756003D5164 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		121536312F48B756003D5164 /* WaveformView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
-		121536382F48B756003D5164 /* ExpandingFabMenu.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ExpandingFabMenu.swift; sourceTree = "<group>"; };
-		1215363B2F48B756003D5164 /* ToastView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
-		1215364A2F48B756003D5164 /* APIModels.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
-		121536592F48B756003D5164 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		1215365A2F48B756003D5164 /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
-		121536612F48B756003D5164 /* AuthView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
-		121536622F48B756003D5164 /* APIService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Personal Trainer AppTests"; sourceTree = "<group>"; };
 		12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "AI Personal Trainer AppUITests"; sourceTree = "<group>"; };
 		12761C412E57953800C4F8FE /* AI Personal Trainer App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Personal Trainer App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		12761C512E57953B00C4F8FE /* AI Personal Trainer AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		12761C5B2E57953B00C4F8FE /* AI Personal Trainer AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F3E6535A2F6C4BB200833FD4 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
+		F3E6535B2F6C4BB200833FD4 /* supabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = supabase.swift; sourceTree = "<group>"; };
+		F3E6535D2F6C4BB200833FD4 /* Color+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Extensions.swift"; sourceTree = "<group>"; };
+		F3E6535F2F6C4BB200833FD4 /* AppTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppTheme.swift; sourceTree = "<group>"; };
+		F3E653602F6C4BB200833FD4 /* ShimmerEffect.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShimmerEffect.swift; sourceTree = "<group>"; };
+		F3E653622F6C4BB200833FD4 /* SpeechManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechManager.swift; sourceTree = "<group>"; };
+		F3E653642F6C4BB200833FD4 /* HapticManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticManager.swift; sourceTree = "<group>"; };
+		F3E653662F6C4BB200833FD4 /* APIModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIModels.swift; sourceTree = "<group>"; };
+		F3E653682F6C4BB200833FD4 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		F3E6536A2F6C4BB200833FD4 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		F3E6536C2F6C4BB200833FD4 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
+		F3E6536E2F6C4BB200833FD4 /* ExpandingFabMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExpandingFabMenu.swift; sourceTree = "<group>"; };
+		F3E6536F2F6C4BB200833FD4 /* ToastView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastView.swift; sourceTree = "<group>"; };
+		F3E653702F6C4BB200833FD4 /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
+		F3E653732F6C4BB200833FD4 /* AI_Personal_Trainer_AppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI_Personal_Trainer_AppApp.swift; sourceTree = "<group>"; };
+		F3E653742F6C4BB200833FD4 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,257 +95,10 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		121535D62F48B756003D5164 /* AI Personal Trainer App */ = {
-			isa = PBXGroup;
-			children = (
-				121535D72F48B756003D5164 /* Core */,
-				121535E02F48B756003D5164 /* App */,
-				121535E32F48B756003D5164 /* Features */,
-				1215362E2F48B756003D5164 /* Assets.xcassets */,
-				1215362F2F48B756003D5164 /* Shared */,
-				121536442F48B756003D5164 /* Models */,
-				121536582F48B756003D5164 /* Preview Content */,
-				1215365A2F48B756003D5164 /* AI_Personal_Trainer_AppApp.swift */,
-				1215365B2F48B756003D5164 /* Services */,
-			);
-			path = "AI Personal Trainer App";
-			sourceTree = "<group>";
-		};
-		121535D72F48B756003D5164 /* Core */ = {
-			isa = PBXGroup;
-			children = (
-				121535D82F48B756003D5164 /* HapticManager.swift */,
-				121535D92F48B756003D5164 /* Extensions */,
-				121535DB2F48B756003D5164 /* Voice */,
-				121535DD2F48B756003D5164 /* Theme */,
-			);
-			path = Core;
-			sourceTree = "<group>";
-		};
-		121535D92F48B756003D5164 /* Extensions */ = {
-			isa = PBXGroup;
-			children = (
-				121535DA2F48B756003D5164 /* Color+Extensions.swift */,
-			);
-			path = Extensions;
-			sourceTree = "<group>";
-		};
-		121535DB2F48B756003D5164 /* Voice */ = {
-			isa = PBXGroup;
-			children = (
-				121535DC2F48B756003D5164 /* SpeechManager.swift */,
-			);
-			path = Voice;
-			sourceTree = "<group>";
-		};
-		121535DD2F48B756003D5164 /* Theme */ = {
-			isa = PBXGroup;
-			children = (
-				121535DE2F48B756003D5164 /* AppTheme.swift */,
-				121535DF2F48B756003D5164 /* ShimmerEffect.swift */,
-			);
-			path = Theme;
-			sourceTree = "<group>";
-		};
-		121535E02F48B756003D5164 /* App */ = {
-			isa = PBXGroup;
-			children = (
-				121535E12F48B756003D5164 /* AppView.swift */,
-				121535E22F48B756003D5164 /* supabase.swift */,
-			);
-			path = App;
-			sourceTree = "<group>";
-		};
-		121535E32F48B756003D5164 /* Features */ = {
-			isa = PBXGroup;
-			children = (
-				121535E42F48B756003D5164 /* Assistant */,
-				121535F12F48B756003D5164 /* Home */,
-				121535FA2F48B756003D5164 /* WritingMode */,
-				121535FC2F48B756003D5164 /* Profile */,
-				121535FE2F48B756003D5164 /* Locations */,
-				121536062F48B756003D5164 /* Workout */,
-				1215360D2F48B756003D5164 /* FeatureTour */,
-				1215360F2F48B756003D5164 /* Stats */,
-				121536132F48B756003D5164 /* Trainer */,
-				121536172F48B756003D5164 /* Onboarding */,
-			);
-			path = Features;
-			sourceTree = "<group>";
-		};
-		121535E42F48B756003D5164 /* Assistant */ = {
-			isa = PBXGroup;
-			children = (
-				121535E62F48B756003D5164 /* Components */,
-			);
-			path = Assistant;
-			sourceTree = "<group>";
-		};
-		121535E62F48B756003D5164 /* Components */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Components;
-			sourceTree = "<group>";
-		};
-		121535F12F48B756003D5164 /* Home */ = {
-			isa = PBXGroup;
-			children = (
-				121535F42F48B756003D5164 /* Components */,
-			);
-			path = Home;
-			sourceTree = "<group>";
-		};
-		121535F42F48B756003D5164 /* Components */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Components;
-			sourceTree = "<group>";
-		};
-		121535FA2F48B756003D5164 /* WritingMode */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = WritingMode;
-			sourceTree = "<group>";
-		};
-		121535FC2F48B756003D5164 /* Profile */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Profile;
-			sourceTree = "<group>";
-		};
-		121535FE2F48B756003D5164 /* Locations */ = {
-			isa = PBXGroup;
-			children = (
-				121535FF2F48B756003D5164 /* Components */,
-				121536022F48B756003D5164 /* Views */,
-			);
-			path = Locations;
-			sourceTree = "<group>";
-		};
-		121535FF2F48B756003D5164 /* Components */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Components;
-			sourceTree = "<group>";
-		};
-		121536022F48B756003D5164 /* Views */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Views;
-			sourceTree = "<group>";
-		};
-		121536062F48B756003D5164 /* Workout */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Workout;
-			sourceTree = "<group>";
-		};
-		1215360D2F48B756003D5164 /* FeatureTour */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = FeatureTour;
-			sourceTree = "<group>";
-		};
-		1215360F2F48B756003D5164 /* Stats */ = {
-			isa = PBXGroup;
-			children = (
-				121536102F48B756003D5164 /* Components */,
-			);
-			path = Stats;
-			sourceTree = "<group>";
-		};
-		121536102F48B756003D5164 /* Components */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Components;
-			sourceTree = "<group>";
-		};
-		121536132F48B756003D5164 /* Trainer */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Trainer;
-			sourceTree = "<group>";
-		};
-		121536172F48B756003D5164 /* Onboarding */ = {
-			isa = PBXGroup;
-			children = (
-				121536212F48B756003D5164 /* Screens */,
-			);
-			path = Onboarding;
-			sourceTree = "<group>";
-		};
-		121536212F48B756003D5164 /* Screens */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = Screens;
-			sourceTree = "<group>";
-		};
-		1215362F2F48B756003D5164 /* Shared */ = {
-			isa = PBXGroup;
-			children = (
-				121536302F48B756003D5164 /* Components */,
-			);
-			path = Shared;
-			sourceTree = "<group>";
-		};
-		121536302F48B756003D5164 /* Components */ = {
-			isa = PBXGroup;
-			children = (
-				121536312F48B756003D5164 /* WaveformView.swift */,
-				121536382F48B756003D5164 /* ExpandingFabMenu.swift */,
-				1215363B2F48B756003D5164 /* ToastView.swift */,
-			);
-			path = Components;
-			sourceTree = "<group>";
-		};
-		121536442F48B756003D5164 /* Models */ = {
-			isa = PBXGroup;
-			children = (
-				1215364A2F48B756003D5164 /* APIModels.swift */,
-			);
-			path = Models;
-			sourceTree = "<group>";
-		};
-		121536582F48B756003D5164 /* Preview Content */ = {
-			isa = PBXGroup;
-			children = (
-				121536592F48B756003D5164 /* Preview Assets.xcassets */,
-			);
-			path = "Preview Content";
-			sourceTree = "<group>";
-		};
-		1215365B2F48B756003D5164 /* Services */ = {
-			isa = PBXGroup;
-			children = (
-				121536602F48B756003D5164 /* Auth */,
-				121536622F48B756003D5164 /* APIService.swift */,
-			);
-			path = Services;
-			sourceTree = "<group>";
-		};
-		121536602F48B756003D5164 /* Auth */ = {
-			isa = PBXGroup;
-			children = (
-				121536612F48B756003D5164 /* AuthView.swift */,
-			);
-			path = Auth;
-			sourceTree = "<group>";
-		};
 		12761C382E57953800C4F8FE = {
 			isa = PBXGroup;
 			children = (
-				121535D62F48B756003D5164 /* AI Personal Trainer App */,
+				F3E653752F6C4BB200833FD4 /* AI Personal Trainer App */,
 				12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */,
 				12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */,
 				12761C422E57953800C4F8FE /* Products */,
@@ -368,6 +121,117 @@
 			children = (
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		F3E6535C2F6C4BB200833FD4 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				F3E6535A2F6C4BB200833FD4 /* AppView.swift */,
+				F3E6535B2F6C4BB200833FD4 /* supabase.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		F3E6535E2F6C4BB200833FD4 /* Extensions */ = {
+			isa = PBXGroup;
+			children = (
+				F3E6535D2F6C4BB200833FD4 /* Color+Extensions.swift */,
+			);
+			path = Extensions;
+			sourceTree = "<group>";
+		};
+		F3E653612F6C4BB200833FD4 /* Theme */ = {
+			isa = PBXGroup;
+			children = (
+				F3E6535F2F6C4BB200833FD4 /* AppTheme.swift */,
+				F3E653602F6C4BB200833FD4 /* ShimmerEffect.swift */,
+			);
+			path = Theme;
+			sourceTree = "<group>";
+		};
+		F3E653632F6C4BB200833FD4 /* Voice */ = {
+			isa = PBXGroup;
+			children = (
+				F3E653622F6C4BB200833FD4 /* SpeechManager.swift */,
+			);
+			path = Voice;
+			sourceTree = "<group>";
+		};
+		F3E653652F6C4BB200833FD4 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				F3E6535E2F6C4BB200833FD4 /* Extensions */,
+				F3E653612F6C4BB200833FD4 /* Theme */,
+				F3E653632F6C4BB200833FD4 /* Voice */,
+				F3E653642F6C4BB200833FD4 /* HapticManager.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		F3E653672F6C4BB200833FD4 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F3E653662F6C4BB200833FD4 /* APIModels.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		F3E653692F6C4BB200833FD4 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				F3E653682F6C4BB200833FD4 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		F3E6536B2F6C4BB200833FD4 /* Auth */ = {
+			isa = PBXGroup;
+			children = (
+				F3E6536A2F6C4BB200833FD4 /* AuthView.swift */,
+			);
+			path = Auth;
+			sourceTree = "<group>";
+		};
+		F3E6536D2F6C4BB200833FD4 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				F3E6536B2F6C4BB200833FD4 /* Auth */,
+				F3E6536C2F6C4BB200833FD4 /* APIService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		F3E653712F6C4BB200833FD4 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				F3E6536E2F6C4BB200833FD4 /* ExpandingFabMenu.swift */,
+				F3E6536F2F6C4BB200833FD4 /* ToastView.swift */,
+				F3E653702F6C4BB200833FD4 /* WaveformView.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		F3E653722F6C4BB200833FD4 /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				F3E653712F6C4BB200833FD4 /* Components */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		F3E653752F6C4BB200833FD4 /* AI Personal Trainer App */ = {
+			isa = PBXGroup;
+			children = (
+				F3E6535C2F6C4BB200833FD4 /* App */,
+				F3E653652F6C4BB200833FD4 /* Core */,
+				F3E653672F6C4BB200833FD4 /* Models */,
+				F3E653692F6C4BB200833FD4 /* Preview Content */,
+				F3E6536D2F6C4BB200833FD4 /* Services */,
+				F3E653722F6C4BB200833FD4 /* Shared */,
+				F3E653732F6C4BB200833FD4 /* AI_Personal_Trainer_AppApp.swift */,
+				F3E653742F6C4BB200833FD4 /* Assets.xcassets */,
+			);
+			path = "AI Personal Trainer App";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -480,8 +344,8 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				121536D32F48B756003D5164 /* Preview Assets.xcassets in Resources */,
-				121536AC2F48B756003D5164 /* Assets.xcassets in Resources */,
+				F3E653842F6C4BB200833FD4 /* Preview Assets.xcassets in Resources */,
+				F3E653852F6C4BB200833FD4 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -508,20 +372,20 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				121536D42F48B756003D5164 /* AI_Personal_Trainer_AppApp.swift in Sources */,
-				1215366B2F48B756003D5164 /* HapticManager.swift in Sources */,
-				121536D92F48B756003D5164 /* AuthView.swift in Sources */,
-				121536B42F48B756003D5164 /* ExpandingFabMenu.swift in Sources */,
-				121536DA2F48B756003D5164 /* APIService.swift in Sources */,
-				121536AD2F48B756003D5164 /* WaveformView.swift in Sources */,
-				121536B72F48B756003D5164 /* ToastView.swift in Sources */,
-				121536C52F48B756003D5164 /* APIModels.swift in Sources */,
-				121536712F48B756003D5164 /* supabase.swift in Sources */,
-				1215366E2F48B756003D5164 /* AppTheme.swift in Sources */,
-				121536702F48B756003D5164 /* AppView.swift in Sources */,
-				1215366D2F48B756003D5164 /* SpeechManager.swift in Sources */,
-				1215366C2F48B756003D5164 /* Color+Extensions.swift in Sources */,
-				1215366F2F48B756003D5164 /* ShimmerEffect.swift in Sources */,
+				F3E653762F6C4BB200833FD4 /* ExpandingFabMenu.swift in Sources */,
+				F3E653772F6C4BB200833FD4 /* AppView.swift in Sources */,
+				F3E653782F6C4BB200833FD4 /* APIService.swift in Sources */,
+				F3E653792F6C4BB200833FD4 /* AppTheme.swift in Sources */,
+				F3E6537A2F6C4BB200833FD4 /* SpeechManager.swift in Sources */,
+				F3E6537B2F6C4BB200833FD4 /* supabase.swift in Sources */,
+				F3E6537C2F6C4BB200833FD4 /* ShimmerEffect.swift in Sources */,
+				F3E6537D2F6C4BB200833FD4 /* APIModels.swift in Sources */,
+				F3E6537E2F6C4BB200833FD4 /* AI_Personal_Trainer_AppApp.swift in Sources */,
+				F3E6537F2F6C4BB200833FD4 /* AuthView.swift in Sources */,
+				F3E653802F6C4BB200833FD4 /* ToastView.swift in Sources */,
+				F3E653812F6C4BB200833FD4 /* WaveformView.swift in Sources */,
+				F3E653822F6C4BB200833FD4 /* Color+Extensions.swift in Sources */,
+				F3E653832F6C4BB200833FD4 /* HapticManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -737,7 +601,6 @@
 		12761C692E57953C00C4F8FE /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -757,7 +620,6 @@
 		12761C6A2E57953C00C4F8FE /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
@@ -777,7 +639,6 @@
 		12761C6C2E57953C00C4F8FE /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = HQKNJY9XYD;
@@ -795,7 +656,6 @@
 		12761C6D2E57953C00C4F8FE /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = HQKNJY9XYD;

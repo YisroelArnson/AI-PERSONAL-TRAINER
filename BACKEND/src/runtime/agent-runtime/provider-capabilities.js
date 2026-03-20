@@ -1,5 +1,14 @@
 const PROVIDER_CAPABILITIES = {
   anthropic: {
+    'claude-sonnet-4-20250514': {
+      provider: 'anthropic',
+      model: 'claude-sonnet-4-20250514',
+      supportsTools: true,
+      supportsParallelTools: false,
+      supportsReasoningTokens: false,
+      maxContextTokens: 200000,
+      streamProtocol: 'anthropic_messages'
+    },
     'claude-sonnet-4-6': {
       provider: 'anthropic',
       model: 'claude-sonnet-4-6',

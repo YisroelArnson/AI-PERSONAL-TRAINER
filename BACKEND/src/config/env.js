@@ -15,7 +15,7 @@ const env = {
   anthropicStaticCacheTtl: process.env.ANTHROPIC_STATIC_CACHE_TTL || '5m',
   anthropicDynamicContextCacheTtl: process.env.ANTHROPIC_DYNAMIC_CONTEXT_CACHE_TTL || '5m',
   defaultLlmProvider: process.env.DEFAULT_LLM_PROVIDER || 'anthropic',
-  defaultAnthropicModel: process.env.DEFAULT_ANTHROPIC_MODEL || 'claude-haiku-4-5-20251001',
+  defaultAnthropicModel: process.env.DEFAULT_ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
   agentMaxIterations: Number(process.env.AGENT_MAX_ITERATIONS || 4),
   agentPromptMessageLimit: Number(process.env.AGENT_PROMPT_MESSAGE_LIMIT || 12),
   redisUrl: process.env.REDIS_URL || '',

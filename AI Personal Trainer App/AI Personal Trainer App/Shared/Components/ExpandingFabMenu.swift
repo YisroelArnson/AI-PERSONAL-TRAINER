@@ -60,3 +60,17 @@ struct ExpandingFabMenu: View {
         }
     }
 }
+
+private struct TwoLineMenuIcon: View {
+    var body: some View {
+        VStack(spacing: 4) {
+            Capsule(style: .continuous)
+                .fill(AppTheme.Colors.primaryText)
+                .frame(width: 16, height: 2.5)
+
+            Capsule(style: .continuous)
+                .fill(AppTheme.Colors.primaryText)
+                .frame(width: 11, height: 2.5)
+        }
+    }
+}
