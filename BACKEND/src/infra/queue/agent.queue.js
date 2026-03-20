@@ -5,7 +5,9 @@ const {
   JOB_NAMES,
   QUEUE_NAMES,
   buildAgentRunTurnJobId,
-  buildSessionMemoryFlushJobId
+  buildSessionMemoryFlushJobId,
+  buildSessionIndexSyncJobId,
+  buildMemoryDocIndexSyncJobId
 } = require('./queue.constants');
 
 let agentQueue;
@@ -104,8 +106,77 @@ async function enqueueSessionMemoryFlush({
   };
 }
 
+async function enqueueSessionIndexSync({
+  userId,
+  sessionKey,
+  sessionId,
+  mode = 'default',
+  delayMs = 0
+}) {
+  const queue = getAgentQueue();
+  const jobId = buildSessionIndexSyncJobId({
+    sessionKey,
+    sessionId,
+    mode
+  });
+  const job = await queue.add(
+    JOB_NAMES.indexSyncSession,
+    {
+      userId,
+      sessionKey,
+      sessionId
+    },
+    {
+      jobId,
+      priority: mode === 'immediate' ? 2 : 5,
+      delay: Math.max(0, delayMs || 0)
+    }
+  );
+
+  return {
+    jobId: job.id,
+    queueName: QUEUE_NAMES.agent,
+    jobName: JOB_NAMES.indexSyncSession,
+    payload: job.data,
+    mode: 'bullmq'
+  };
+}
+
+async function enqueueMemoryDocIndexSync({
+  userId,
+  docId,
+  delayMs = 0
+}) {
+  const queue = getAgentQueue();
+  const jobId = buildMemoryDocIndexSyncJobId({
+    docId
+  });
+  const job = await queue.add(
+    JOB_NAMES.indexSyncMemoryDoc,
+    {
+      userId,
+      docId
+    },
+    {
+      jobId,
+      priority: 4,
+      delay: Math.max(0, delayMs || 0)
+    }
+  );
+
+  return {
+    jobId: job.id,
+    queueName: QUEUE_NAMES.agent,
+    jobName: JOB_NAMES.indexSyncMemoryDoc,
+    payload: job.data,
+    mode: 'bullmq'
+  };
+}
+
 module.exports = {
   getAgentQueue,
   enqueueAgentRunTurn,
-  enqueueSessionMemoryFlush
+  enqueueSessionMemoryFlush,
+  enqueueSessionIndexSync,
+  enqueueMemoryDocIndexSync
 };

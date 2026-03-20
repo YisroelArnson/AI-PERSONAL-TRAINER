@@ -28,6 +28,42 @@ async function listRecentTranscriptEventsForRun(run, limit = 12) {
   return [...data].reverse();
 }
 
+async function listTranscriptEventsForSession({ userId, sessionKey, sessionId }) {
+  const supabase = getAdminClientOrThrow();
+  let from = 0;
+  const pageSize = 500;
+  const events = [];
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('session_events')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('session_key', sessionKey)
+      .eq('session_id', sessionId)
+      .order('seq_num', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    if (!data || data.length === 0) {
+      break;
+    }
+
+    events.push(...data);
+
+    if (data.length < pageSize) {
+      break;
+    }
+
+    from += pageSize;
+  }
+
+  return events;
+}
+
 function toRuntimeMessages(events) {
   return events
     .map(event => {
@@ -69,5 +105,6 @@ function toRuntimeMessages(events) {
 
 module.exports = {
   listRecentTranscriptEventsForRun,
+  listTranscriptEventsForSession,
   toRuntimeMessages
 };

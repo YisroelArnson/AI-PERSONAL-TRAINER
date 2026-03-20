@@ -1,4 +1,5 @@
 const memoryGetTool = require('./handlers/memory-get.tool');
+const memorySearchTool = require('./handlers/memory-search.tool');
 const programGetTool = require('./handlers/program-get.tool');
 const documentReplaceTextTool = require('./handlers/document-replace-text.tool');
 const documentReplaceEntireTool = require('./handlers/document-replace-entire.tool');
@@ -6,6 +7,7 @@ const episodicNoteAppendTool = require('./handlers/episodic-note-append.tool');
 
 const REGISTERED_TOOLS = [
   memoryGetTool,
+  memorySearchTool,
   programGetTool,
   documentReplaceTextTool,
   documentReplaceEntireTool,

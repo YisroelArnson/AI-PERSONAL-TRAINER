@@ -1,5 +1,6 @@
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { badRequest } = require('../../shared/errors');
+const { enqueueSessionIndexSyncIfNeeded } = require('./indexing-queue.service');
 
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
@@ -53,6 +54,16 @@ async function appendSessionEvent({
 
   if (error) {
     throw mapRpcError(error);
+  }
+
+  try {
+    await enqueueSessionIndexSyncIfNeeded({
+      userId,
+      sessionKey,
+      sessionId
+    });
+  } catch (queueError) {
+    console.warn('Unable to enqueue session indexing job after append_session_event:', queueError.message);
   }
 
   return data;
@@ -151,6 +162,16 @@ async function appendAssistantMessageEventFallback({ supabase, run, payload }) {
 
   if (updateError) {
     throw updateError;
+  }
+
+  try {
+    await enqueueSessionIndexSyncIfNeeded({
+      userId: run.user_id,
+      sessionKey: run.session_key,
+      sessionId: run.session_id
+    });
+  } catch (queueError) {
+    console.warn('Unable to enqueue session indexing job after fallback transcript append:', queueError.message);
   }
 
   return {

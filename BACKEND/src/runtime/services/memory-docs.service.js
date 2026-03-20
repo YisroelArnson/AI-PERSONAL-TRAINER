@@ -1,5 +1,6 @@
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { sha256Hex } = require('../../shared/hash');
+const { enqueueMemoryDocIndexSyncIfNeeded } = require('./indexing-queue.service');
 const { isValidDateKey } = require('./timezone-date.service');
 
 const MUTABLE_DOCUMENT_DOC_KEYS = new Set(['MEMORY', 'PROGRAM']);
@@ -168,6 +169,44 @@ async function getLatestDocVersionByDocKey(userId, docKey) {
   };
 }
 
+async function getLatestDocVersionByDocId(userId, docId) {
+  const supabase = getAdminClientOrThrow();
+  const { data: doc, error: docError } = await supabase
+    .from('memory_docs')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('doc_id', docId)
+    .maybeSingle();
+
+  if (docError) {
+    throw docError;
+  }
+
+  if (!doc || !doc.current_version) {
+    return null;
+  }
+
+  const { data: version, error: versionError } = await supabase
+    .from('memory_doc_versions')
+    .select('*')
+    .eq('doc_id', doc.doc_id)
+    .eq('version', doc.current_version)
+    .maybeSingle();
+
+  if (versionError) {
+    throw versionError;
+  }
+
+  if (!version) {
+    return null;
+  }
+
+  return {
+    doc,
+    version
+  };
+}
+
 async function getLatestDocVersionsByDocKeys(userId, docKeys) {
   const uniqueDocKeys = [...new Set((docKeys || []).filter(Boolean))];
 
@@ -238,6 +277,17 @@ async function writeMemoryDocVersion({
 
   if (error) {
     throw error;
+  }
+
+  if (data && data.changed !== false && data.docId) {
+    try {
+      await enqueueMemoryDocIndexSyncIfNeeded({
+        userId,
+        docId: data.docId
+      });
+    } catch (queueError) {
+      console.warn('Unable to enqueue memory-doc indexing job:', queueError.message);
+    }
   }
 
   return data;
@@ -380,6 +430,7 @@ module.exports = {
   buildAppendedMarkdown,
   buildEpisodicDateDocKey,
   getLatestDocVersionByDocKey,
+  getLatestDocVersionByDocId,
   getLatestDocVersionByDocType,
   getLatestDocVersionsByDocKeys,
   getMutableDocTypeForDocKey,

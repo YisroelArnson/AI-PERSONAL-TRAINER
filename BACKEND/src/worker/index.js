@@ -4,6 +4,8 @@ const { env } = require('../config/env');
 const { getRedisConnection } = require('../infra/redis/connection');
 const { JOB_NAMES, QUEUE_NAMES } = require('../infra/queue/queue.constants');
 const { handleAgentRunTurn } = require('./handlers/agent-run-turn.handler');
+const { handleIndexSyncMemoryDoc } = require('./handlers/index-sync-memory-doc.handler');
+const { handleIndexSyncSession } = require('./handlers/index-sync-session.handler');
 const { handleMemoryFlushSessionEnd } = require('./handlers/memory-flush-session-end.handler');
 
 function buildProcessor() {
@@ -14,6 +16,14 @@ function buildProcessor() {
 
     if (job.name === JOB_NAMES.memoryFlushSessionEnd) {
       return handleMemoryFlushSessionEnd(job);
+    }
+
+    if (job.name === JOB_NAMES.indexSyncSession) {
+      return handleIndexSyncSession(job);
+    }
+
+    if (job.name === JOB_NAMES.indexSyncMemoryDoc) {
+      return handleIndexSyncMemoryDoc(job);
     }
 
     throw new Error(`Unsupported job name: ${job.name}`);
