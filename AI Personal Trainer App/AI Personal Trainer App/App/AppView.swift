@@ -112,16 +112,40 @@ final class CoachSurfaceViewModel: ObservableObject {
     @Published var composerText = ""
     @Published var isLoading = false
     @Published var isSending = false
+    @Published var isResettingSession = false
     @Published var isQuickActionsExpanded = false
     @Published var errorMessage: String?
     @Published var toast: ToastData?
+    @Published private(set) var liveAssistantText = ""
+    @Published private(set) var liveAssistantRunID: String?
 
     private var activeUserID: UUID?
     private var pollTask: Task<Void, Never>?
+    private var streamTask: Task<Void, Never>?
     private var didTriggerAppOpenThisLaunch = false
+    private var observedRunID: String?
+    private var observedStreamPath: String?
+    private var lastStreamEventID: String?
 
     var feedItems: [CoachFeedItem] {
-        surface?.feed ?? []
+        var items = surface?.feed ?? []
+
+        if let liveAssistantRunID, !liveAssistantText.isEmpty {
+            items.append(
+                CoachFeedItem(
+                    id: "stream:\(liveAssistantRunID)",
+                    kind: "message",
+                    role: "assistant",
+                    text: liveAssistantText,
+                    eventType: "assistant.delta",
+                    runId: liveAssistantRunID,
+                    seqNum: nil,
+                    occurredAt: nil
+                )
+            )
+        }
+
+        return items
     }
 
     var quickActions: [CoachQuickAction] {
@@ -139,7 +163,8 @@ final class CoachSurfaceViewModel: ObservableObject {
     var scrollToken: String {
         let feedToken = feedItems.map(\.id).joined(separator: "|")
         let runToken = [activeRun?.runId ?? "", activeRun?.status ?? ""].joined(separator: "|")
-        return [feedToken, runToken].joined(separator: "::")
+        let liveToken = [liveAssistantRunID ?? "", liveAssistantText].joined(separator: "|")
+        return [feedToken, runToken, liveToken].joined(separator: "::")
     }
 
     func reset() {
@@ -148,12 +173,14 @@ final class CoachSurfaceViewModel: ObservableObject {
         composerText = ""
         isLoading = false
         isSending = false
+        isResettingSession = false
         isQuickActionsExpanded = false
         errorMessage = nil
         toast = nil
         didTriggerAppOpenThisLaunch = false
         pollTask?.cancel()
         pollTask = nil
+        cancelRunObservation(resetStreamState: true)
     }
 
     func activate(session: Session) async {
@@ -162,19 +189,50 @@ final class CoachSurfaceViewModel: ObservableObject {
             surface = nil
             composerText = ""
             errorMessage = nil
+            isResettingSession = false
             didTriggerAppOpenThisLaunch = false
             pollTask?.cancel()
             pollTask = nil
+            cancelRunObservation(resetStreamState: true)
         }
 
         await refreshSurface(allowAppOpenTrigger: true)
-        if activeRun != nil {
-            startPolling()
-        }
     }
 
     func manualRefresh() async {
         await refreshSurface(allowAppOpenTrigger: false)
+    }
+
+    func resetSession() async {
+        guard !isResettingSession else { return }
+
+        do {
+            isResettingSession = true
+            isQuickActionsExpanded = false
+
+            let accessToken = try await freshAccessToken()
+            let resetResult = try await APIService.shared.resetSession(
+                accessToken: accessToken,
+                requestBody: SessionResetRequest(sessionKey: surface?.sessionKey),
+                idempotencyKey: UUID().uuidString.lowercased()
+            )
+
+            cancelRunObservation(resetStreamState: true)
+            composerText = ""
+            errorMessage = nil
+            didTriggerAppOpenThisLaunch = true
+            toast = ToastData(message: "Started a fresh chat.", icon: "square.and.pencil")
+            Haptic.medium()
+
+            await refreshSurface(
+                allowAppOpenTrigger: false,
+                sessionKeyOverride: resetResult.sessionKey
+            )
+        } catch {
+            showError(error.localizedDescription)
+        }
+
+        isResettingSession = false
     }
 
     func submitComposer() async {
@@ -224,7 +282,10 @@ final class CoachSurfaceViewModel: ObservableObject {
         Haptic.error()
     }
 
-    private func refreshSurface(allowAppOpenTrigger: Bool) async {
+    private func refreshSurface(
+        allowAppOpenTrigger: Bool,
+        sessionKeyOverride: String? = nil
+    ) async {
         do {
             if surface == nil {
                 isLoading = true
@@ -233,10 +294,20 @@ final class CoachSurfaceViewModel: ObservableObject {
             let accessToken = try await freshAccessToken()
             let latestSurface = try await APIService.shared.fetchCoachSurface(
                 accessToken: accessToken,
-                sessionKey: surface?.sessionKey
+                sessionKey: sessionKeyOverride ?? surface?.sessionKey
             )
 
             surface = latestSurface
+
+            if let activeRun = latestSurface.activeRun {
+                startRunObservation(
+                    runID: activeRun.runId,
+                    streamPath: "/v1/runs/\(activeRun.runId)/stream"
+                )
+            } else if streamTask == nil {
+                cancelRunObservation(resetStreamState: true)
+            }
+
             errorMessage = nil
             isLoading = false
 
@@ -256,7 +327,7 @@ final class CoachSurfaceViewModel: ObservableObject {
 
     private func shouldTriggerAppOpen(for surface: CoachSurfaceResponse) -> Bool {
         guard !didTriggerAppOpenThisLaunch else { return false }
-        return surface.feed.isEmpty && surface.activeRun == nil
+        return surface.sessionId == nil && surface.feed.isEmpty && surface.activeRun == nil
     }
 
     private func submitMessage(
@@ -288,8 +359,11 @@ final class CoachSurfaceViewModel: ObservableObject {
                 toast = ToastData(message: "Recovered your existing run.", icon: "arrow.clockwise.circle.fill")
             }
 
+            startRunObservation(
+                runID: accepted.runId,
+                streamPath: accepted.streamUrl ?? "/v1/runs/\(accepted.runId)/stream"
+            )
             await refreshSurface(allowAppOpenTrigger: false)
-            startPolling()
             isSending = false
             return true
         } catch {
@@ -311,10 +385,105 @@ final class CoachSurfaceViewModel: ObservableObject {
                 try? await Task.sleep(nanoseconds: 1_250_000_000)
                 await self.refreshSurface(allowAppOpenTrigger: false)
 
-                if self.activeRun == nil {
+                if self.activeRun == nil || self.streamTask != nil {
                     return
                 }
             }
+        }
+    }
+
+    private func startRunObservation(runID: String, streamPath: String) {
+        if observedRunID == runID, observedStreamPath == streamPath, streamTask != nil {
+            return
+        }
+
+        pollTask?.cancel()
+        pollTask = nil
+        cancelRunObservation(resetStreamState: observedRunID != runID)
+
+        observedRunID = runID
+        observedStreamPath = streamPath
+
+        if liveAssistantRunID != runID {
+            liveAssistantRunID = runID
+            liveAssistantText = ""
+            lastStreamEventID = nil
+        }
+
+        streamTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            do {
+                let accessToken = try await self.freshAccessToken()
+                let stream = APIService.shared.streamRun(
+                    accessToken: accessToken,
+                    streamPath: streamPath,
+                    lastEventId: self.lastStreamEventID
+                )
+
+                for try await event in stream {
+                    guard !Task.isCancelled else { return }
+                    self.handleRunStreamEvent(event, expectedRunID: runID)
+                }
+
+                self.streamTask = nil
+                await self.refreshSurface(allowAppOpenTrigger: false)
+            } catch is CancellationError {
+                self.streamTask = nil
+            } catch {
+                self.streamTask = nil
+                await self.refreshSurface(allowAppOpenTrigger: false)
+
+                if self.surface?.activeRun?.runId == runID {
+                    self.startPolling()
+                }
+            }
+        }
+    }
+
+    private func cancelRunObservation(resetStreamState: Bool) {
+        streamTask?.cancel()
+        streamTask = nil
+        observedRunID = nil
+        observedStreamPath = nil
+
+        if resetStreamState {
+            lastStreamEventID = nil
+            liveAssistantText = ""
+            liveAssistantRunID = nil
+        }
+    }
+
+    private func handleRunStreamEvent(_ event: CoachRunStreamEvent, expectedRunID: String) {
+        guard event.runId == expectedRunID else { return }
+
+        if let eventID = event.eventId {
+            lastStreamEventID = String(eventID)
+        }
+
+        switch event.type {
+        case "assistant.delta":
+            if liveAssistantRunID != expectedRunID {
+                liveAssistantRunID = expectedRunID
+                liveAssistantText = ""
+            }
+            liveAssistantText += event.text ?? ""
+        case "run.failed":
+            if let message = event.message, !message.isEmpty {
+                showError(message)
+            }
+
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.refreshSurface(allowAppOpenTrigger: false)
+            }
+        case "run.completed":
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.refreshSurface(allowAppOpenTrigger: false)
+            }
+        default:
+            break
         }
     }
 
@@ -340,6 +509,10 @@ private struct CoachSurfaceScreen: View {
                         subtitle: viewModel.surface?.header.subtitle ?? "One calm surface for training, planning, and check-ins",
                         userEmail: userEmail,
                         hasActiveRun: viewModel.activeRun != nil,
+                        isResettingSession: viewModel.isResettingSession,
+                        onResetSession: {
+                            Task { await viewModel.resetSession() }
+                        },
                         onRefresh: {
                             Task { await viewModel.manualRefresh() }
                         },
@@ -439,6 +612,8 @@ private struct CoachSurfaceTopHeader: View {
     let subtitle: String
     let userEmail: String?
     let hasActiveRun: Bool
+    let isResettingSession: Bool
+    let onResetSession: () -> Void
     let onRefresh: () -> Void
     let onSignOut: () -> Void
 
@@ -469,6 +644,11 @@ private struct CoachSurfaceTopHeader: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 10) {
+                HeaderCircleButton(
+                    icon: "square.and.pencil",
+                    isDisabled: isResettingSession,
+                    action: onResetSession
+                )
                 HeaderCircleButton(icon: "arrow.clockwise", action: onRefresh)
                 HeaderCircleButton(icon: "rectangle.portrait.and.arrow.right", action: onSignOut)
             }
@@ -478,6 +658,7 @@ private struct CoachSurfaceTopHeader: View {
 
 private struct HeaderCircleButton: View {
     let icon: String
+    var isDisabled = false
     let action: () -> Void
 
     var body: some View {
@@ -492,6 +673,8 @@ private struct HeaderCircleButton: View {
                 }
         }
         .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.6 : 1)
     }
 }
 
@@ -664,12 +847,13 @@ private struct CoachFeedRow: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(item.text)
-                .font(.system(size: 17, weight: .medium))
-                .foregroundStyle(isAssistant ? AppTheme.Colors.primaryText : AppTheme.Colors.background)
-                .fixedSize(horizontal: false, vertical: true)
+            CoachMessageText(
+                text: item.text,
+                rendersMarkdown: isAssistant,
+                foregroundColor: isAssistant ? AppTheme.Colors.primaryText : AppTheme.Colors.background
+            )
 
-            Text(isAssistant ? "Coach" : "You")
+            Text(badgeLabel)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(isAssistant ? AppTheme.Colors.tertiaryText : AppTheme.Colors.background.opacity(0.7))
         }
@@ -683,6 +867,46 @@ private struct CoachFeedRow: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .stroke(isAssistant ? AppTheme.Colors.divider : .clear, lineWidth: 1)
         )
+    }
+
+    private var badgeLabel: String {
+        if isAssistant {
+            return item.eventType == "assistant.delta" ? "Coach live" : "Coach"
+        }
+
+        return "You"
+    }
+}
+
+private struct CoachMessageText: View {
+    let text: String
+    let rendersMarkdown: Bool
+    let foregroundColor: Color
+
+    var body: some View {
+        if rendersMarkdown {
+            Text(parsedText)
+                .foregroundStyle(foregroundColor)
+                .tint(foregroundColor)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(text)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(foregroundColor)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var parsedText: AttributedString {
+        if let parsed = try? AttributedString(
+            markdown: text,
+            options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        ) {
+            return parsed
+        }
+
+        return AttributedString(text)
     }
 }
 
@@ -860,7 +1084,7 @@ private struct SignedOutCoachView: View {
 
                     FeatureLine(text: "Authenticated message send through the API gateway.")
                     FeatureLine(text: "A single coach surface backed by one aggregated payload.")
-                    FeatureLine(text: "Polling for run completion until SSE lands.")
+                    FeatureLine(text: "Live SSE run streaming when the coach is responding.")
                 }
                 .padding(22)
                 .background(

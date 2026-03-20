@@ -9,7 +9,7 @@ final class APIService: ObservableObject {
         }
 
         #if targetEnvironment(simulator)
-        return "http://localhost:3000"
+        return "http://127.0.0.1:3000"
         #else
         return "http://192.168.1.3:3000"
         #endif
@@ -58,6 +58,90 @@ final class APIService: ObservableObject {
 
         let (data, response) = try await execute(request)
         return try decode(MessageAcceptedResponse.self, from: data, response: response)
+    }
+
+    func resetSession(
+        accessToken: String,
+        requestBody: SessionResetRequest,
+        idempotencyKey: String
+    ) async throws -> SessionResetResponse {
+        let request = try makeRequest(
+            path: "/v1/sessions/reset",
+            method: "POST",
+            accessToken: accessToken,
+            body: requestBody,
+            additionalHeaders: [
+                "Idempotency-Key": idempotencyKey
+            ]
+        )
+
+        let (data, response) = try await execute(request)
+        return try decode(SessionResetResponse.self, from: data, response: response)
+    }
+
+    func streamRun(
+        accessToken: String,
+        streamPath: String,
+        lastEventId: String? = nil
+    ) -> AsyncThrowingStream<CoachRunStreamEvent, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var request = try makeRequest(
+                        path: streamPath,
+                        method: "GET",
+                        accessToken: accessToken,
+                        additionalHeaders: [
+                            "Accept": "text/event-stream"
+                        ]
+                    )
+
+                    if let lastEventId, !lastEventId.isEmpty {
+                        request.setValue(lastEventId, forHTTPHeaderField: "Last-Event-ID")
+                    }
+
+                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    guard let httpResponse = response as? HTTPURLResponse else {
+                        throw APIError.invalidResponse
+                    }
+
+                    guard (200...299).contains(httpResponse.statusCode) else {
+                        throw APIError.serverError(
+                            message: "Unable to open run stream",
+                            statusCode: httpResponse.statusCode
+                        )
+                    }
+
+                    var parser = ServerSentEventParser()
+
+                    for try await line in bytes.lines {
+                        if Task.isCancelled {
+                            break
+                        }
+
+                        if let event = try parser.consume(line) {
+                            continuation.yield(event)
+                        }
+                    }
+
+                    if let event = try parser.flushAtEOF() {
+                        continuation.yield(event)
+                    }
+
+                    continuation.finish()
+                } catch is CancellationError {
+                    continuation.finish()
+                } catch let error as APIError {
+                    continuation.finish(throwing: error)
+                } catch {
+                    continuation.finish(throwing: APIError.networkError)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
     }
 
     private func execute(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
@@ -153,5 +237,77 @@ final class APIService: ObservableObject {
         default:
             return .serverError(message: message, statusCode: statusCode)
         }
+    }
+}
+
+private struct ServerSentEventParser {
+    private var currentEventID: String?
+    private var currentDataLines: [String] = []
+
+    mutating func consume(_ line: String) throws -> CoachRunStreamEvent? {
+        if line.isEmpty {
+            return try flush()
+        }
+
+        if line.hasPrefix(":") {
+            return nil
+        }
+
+        if line.hasPrefix("id:") {
+            if !currentDataLines.isEmpty {
+                let event = try flush()
+                currentEventID = value(after: "id:", in: line)
+                return event
+            }
+
+            currentEventID = value(after: "id:", in: line)
+            return nil
+        }
+
+        if line.hasPrefix("event:") {
+            if !currentDataLines.isEmpty {
+                return try flush()
+            }
+
+            return nil
+        }
+
+        if line.hasPrefix("data:") {
+            currentDataLines.append(value(after: "data:", in: line))
+        }
+
+        return nil
+    }
+
+    mutating func flushAtEOF() throws -> CoachRunStreamEvent? {
+        try flush()
+    }
+
+    private mutating func flush() throws -> CoachRunStreamEvent? {
+        defer {
+            currentEventID = nil
+            currentDataLines.removeAll(keepingCapacity: true)
+        }
+
+        guard !currentDataLines.isEmpty else {
+            return nil
+        }
+
+        let payload = currentDataLines.joined(separator: "\n")
+        var event = try JSONDecoder().decode(CoachRunStreamEvent.self, from: Data(payload.utf8))
+
+        if event.eventId == nil, let currentEventID, let parsedID = Int(currentEventID) {
+            event.eventId = parsedID
+        }
+
+        return event
+    }
+
+    private func value(after prefix: String, in line: String) -> String {
+        var value = String(line.dropFirst(prefix.count))
+        if value.first == " " {
+            value.removeFirst()
+        }
+        return value
     }
 }

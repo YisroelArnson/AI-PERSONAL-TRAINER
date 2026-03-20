@@ -2,9 +2,12 @@ const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { badRequest, conflict } = require('../../shared/errors');
 
 function mapRpcError(error) {
-  const message = error && error.message ? error.message : 'Gateway ingest failed';
+  const message = error && error.message ? error.message : 'manual_reset_session failed';
 
-  if (message.includes('IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST')) {
+  if (
+    message.includes('IDEMPOTENCY_KEY_SCOPE_MISMATCH') ||
+    message.includes('IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST')
+  ) {
     return conflict('Idempotency key was reused with a different request body');
   }
 
@@ -14,40 +17,30 @@ function mapRpcError(error) {
     message.includes('MISSING_IDEMPOTENCY_KEY') ||
     message.includes('MISSING_REQUEST_HASH')
   ) {
-    return badRequest('Gateway ingest parameters were incomplete');
+    return badRequest('manual_reset_session parameters were incomplete');
   }
 
   return error;
 }
 
-async function persistInboundMessage({
+async function resetSessionHead({
   userId,
   route,
   idempotencyKey,
   requestHash,
-  sessionKey,
-  triggerType,
-  message,
-  metadata,
-  sessionResetPolicy
+  sessionKey
 }) {
   const supabase = getSupabaseAdminClient();
   if (!supabase) {
     throw new Error('Supabase admin client is not configured');
   }
 
-  const { data, error } = await supabase.rpc('gateway_ingest_message', {
+  const { data, error } = await supabase.rpc('manual_reset_session', {
     p_user_id: userId,
     p_route: route,
     p_idempotency_key: idempotencyKey,
     p_request_hash: requestHash,
-    p_session_key: sessionKey || null,
-    p_trigger_type: triggerType,
-    p_message: message,
-    p_metadata: metadata || {},
-    p_user_timezone: sessionResetPolicy ? sessionResetPolicy.timezone : 'UTC',
-    p_day_boundary_enabled: sessionResetPolicy ? sessionResetPolicy.dayBoundaryEnabled : true,
-    p_idle_expiry_minutes: sessionResetPolicy ? sessionResetPolicy.idleExpiryMinutes : 180
+    p_session_key: sessionKey || null
   });
 
   if (error) {
@@ -58,5 +51,5 @@ async function persistInboundMessage({
 }
 
 module.exports = {
-  persistInboundMessage
+  resetSessionHead
 };

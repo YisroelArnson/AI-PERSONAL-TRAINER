@@ -25,6 +25,10 @@ struct MessageIngressRequest: Codable {
     let metadata: MessageMetadata?
 }
 
+struct SessionResetRequest: Codable {
+    let sessionKey: String?
+}
+
 struct MessageAcceptedResponse: Codable {
     let status: String
     let sessionKey: String
@@ -37,9 +41,38 @@ struct MessageAcceptedResponse: Codable {
     let streamUrl: String?
 }
 
+struct CoachRunStreamEvent: Codable {
+    let runId: String
+    var eventId: Int?
+    let seqNum: Int?
+    let createdAt: String?
+    let type: String
+    let text: String?
+    let phase: String?
+    let toolName: String?
+    let status: String?
+    let resultStatus: String?
+    let provider: String?
+    let model: String?
+    let errorCode: String?
+    let message: String?
+}
+
+struct SessionResetResponse: Codable {
+    let status: String
+    let sessionKey: String
+    let sessionId: String
+    let sessionVersion: Int
+    let replayed: Bool
+    let rotated: Bool
+    let rotationReason: String?
+    let previousSessionId: String?
+}
+
 struct CoachSurfaceResponse: Codable {
     let generatedAt: String
     let sessionKey: String
+    let sessionId: String?
     let header: CoachSurfaceHeader
     let activeRun: CoachRunSummary?
     let pinnedCard: CoachPinnedCard?

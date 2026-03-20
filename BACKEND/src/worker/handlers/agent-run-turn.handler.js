@@ -57,6 +57,21 @@ async function handleAgentRunTurn(job) {
     };
   } catch (error) {
     try {
+      await appendStreamEvent({
+        runId,
+        eventType: 'run.failed',
+        payload: {
+          phase: 'worker',
+          jobId: job.id,
+          errorCode: 'worker_error',
+          message: error && error.message ? error.message.slice(0, 1000) : 'Unknown worker error'
+        }
+      });
+    } catch (streamError) {
+      console.error(`Unable to append run.failed stream event for ${runId}:`, streamError);
+    }
+
+    try {
       await markRunFailed(runId, error);
     } catch (markFailedError) {
       console.error(`Unable to mark run ${runId} as failed:`, markFailedError);

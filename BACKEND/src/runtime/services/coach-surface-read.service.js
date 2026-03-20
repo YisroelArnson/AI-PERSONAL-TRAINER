@@ -55,12 +55,45 @@ function mapRunSummary(run) {
   };
 }
 
-async function loadFeed({ supabase, userId, sessionKey }) {
+async function resolveCurrentSessionState({
+  supabase,
+  userId,
+  sessionKey,
+  sessionResetPolicy
+}) {
+  const { data, error } = await supabase.rpc('resolve_session_surface_state', {
+    p_user_id: userId,
+    p_session_key: sessionKey,
+    p_user_timezone: sessionResetPolicy ? sessionResetPolicy.timezone : 'UTC',
+    p_day_boundary_enabled: sessionResetPolicy ? sessionResetPolicy.dayBoundaryEnabled : true,
+    p_idle_expiry_minutes: sessionResetPolicy ? sessionResetPolicy.idleExpiryMinutes : 180
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    currentSessionId: data.sessionId,
+    sessionVersion: data.sessionVersion
+  };
+}
+
+async function loadFeed({ supabase, userId, sessionKey, sessionId }) {
+  if (!sessionId) {
+    return [];
+  }
+
   const { data, error } = await supabase
     .from('session_events')
     .select('*')
     .eq('user_id', userId)
     .eq('session_key', sessionKey)
+    .eq('session_id', sessionId)
     .order('seq_num', { ascending: false })
     .limit(DEFAULT_FEED_LIMIT);
 
@@ -71,12 +104,17 @@ async function loadFeed({ supabase, userId, sessionKey }) {
   return [...data].reverse().map(mapFeedItem).filter(Boolean);
 }
 
-async function loadActiveRun({ supabase, userId, sessionKey }) {
+async function loadActiveRun({ supabase, userId, sessionKey, sessionId }) {
+  if (!sessionId) {
+    return null;
+  }
+
   const { data, error } = await supabase
     .from('runs')
     .select('*')
     .eq('user_id', userId)
     .eq('session_key', sessionKey)
+    .eq('session_id', sessionId)
     .in('status', ['queued', 'running'])
     .order('created_at', { ascending: false })
     .limit(1)
@@ -89,25 +127,35 @@ async function loadActiveRun({ supabase, userId, sessionKey }) {
   return mapRunSummary(data);
 }
 
-async function buildCoachSurfaceView({ userId, sessionKey }) {
+async function buildCoachSurfaceView({ userId, sessionKey, sessionResetPolicy }) {
   const supabase = getAdminClientOrThrow();
   const resolvedSessionKey = canonicalSessionKey(userId, sessionKey);
+  const sessionState = await resolveCurrentSessionState({
+    supabase,
+    userId,
+    sessionKey: resolvedSessionKey,
+    sessionResetPolicy
+  });
+  const currentSessionId = sessionState ? sessionState.currentSessionId : null;
   const [feed, activeRun] = await Promise.all([
     loadFeed({
       supabase,
       userId,
-      sessionKey: resolvedSessionKey
+      sessionKey: resolvedSessionKey,
+      sessionId: currentSessionId
     }),
     loadActiveRun({
       supabase,
       userId,
-      sessionKey: resolvedSessionKey
+      sessionKey: resolvedSessionKey,
+      sessionId: currentSessionId
     })
   ]);
 
   return {
     generatedAt: new Date().toISOString(),
     sessionKey: resolvedSessionKey,
+    sessionId: currentSessionId,
     header: {
       title: 'Coach',
       subtitle: activeRun ? 'Working on your latest turn' : 'One calm surface for training, planning, and check-ins'

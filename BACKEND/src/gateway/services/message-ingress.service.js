@@ -3,10 +3,12 @@ const { enqueueAgentRunTurn } = require('../../infra/queue/agent.queue');
 const { requireIdempotencyKey } = require('../../runtime/services/idempotency.service');
 const { persistInboundMessage } = require('../../runtime/services/gateway-ingest.service');
 const { getRunById } = require('../../runtime/services/run-state.service');
+const { resolveSessionResetPolicy } = require('../../runtime/services/session-reset-policy.service');
 
 async function processInboundMessage({ auth, headers, body }) {
   const idempotencyKey = requireIdempotencyKey(headers);
   const requestHash = hashRequestPayload(body);
+  const sessionResetPolicy = await resolveSessionResetPolicy(auth.userId);
   const persisted = await persistInboundMessage({
     userId: auth.userId,
     route: '/v1/messages',
@@ -15,7 +17,8 @@ async function processInboundMessage({ auth, headers, body }) {
     sessionKey: body.sessionKey,
     triggerType: body.triggerType,
     message: body.message,
-    metadata: body.metadata
+    metadata: body.metadata,
+    sessionResetPolicy
   });
 
   if (persisted.replayed) {
@@ -37,7 +40,8 @@ async function processInboundMessage({ auth, headers, body }) {
       debug: {
         idempotencyKey,
         requestHash,
-        implementationMode: shouldReEnqueue ? 'db-rpc-replayed-reenqueued' : 'db-rpc-replayed'
+        implementationMode: shouldReEnqueue ? 'db-rpc-replayed-reenqueued' : 'db-rpc-replayed',
+        sessionResetPolicyCacheHit: sessionResetPolicy.cacheHit
       }
     };
   }
@@ -56,7 +60,8 @@ async function processInboundMessage({ auth, headers, body }) {
     debug: {
       idempotencyKey,
       requestHash,
-      implementationMode: 'db-rpc'
+      implementationMode: 'db-rpc',
+      sessionResetPolicyCacheHit: sessionResetPolicy.cacheHit
     }
   };
 }

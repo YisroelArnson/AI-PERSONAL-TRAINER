@@ -21,6 +21,7 @@ const env = {
   redisUrl: process.env.REDIS_URL || '',
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY || 5),
   promptContextCacheTtlSec: Number(process.env.PROMPT_CONTEXT_CACHE_TTL_SEC || 60),
+  sessionResetPolicyCacheTtlSec: Number(process.env.SESSION_RESET_POLICY_CACHE_TTL_SEC || 60),
   gatewayMode: process.env.GATEWAY_MODE || 'scaffold'
 };
 
