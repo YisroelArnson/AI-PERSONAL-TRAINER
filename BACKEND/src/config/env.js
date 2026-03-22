@@ -16,7 +16,7 @@ const env = {
   anthropicStaticCacheTtl: process.env.ANTHROPIC_STATIC_CACHE_TTL || '5m',
   anthropicDynamicContextCacheTtl: process.env.ANTHROPIC_DYNAMIC_CONTEXT_CACHE_TTL || '5m',
   defaultLlmProvider: process.env.DEFAULT_LLM_PROVIDER || 'anthropic',
-  defaultAnthropicModel: process.env.DEFAULT_ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+  defaultAnthropicModel: process.env.DEFAULT_ANTHROPIC_MODEL || 'claude-sonnet-4-6',
   defaultEmbeddingProvider: process.env.DEFAULT_EMBEDDING_PROVIDER || 'openai',
   defaultOpenAiEmbeddingModel: process.env.DEFAULT_OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
   embeddingBatchSize: Number(process.env.EMBEDDING_BATCH_SIZE || 32),

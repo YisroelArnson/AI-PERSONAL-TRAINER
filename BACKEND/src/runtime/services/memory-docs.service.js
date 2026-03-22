@@ -4,6 +4,7 @@ const { enqueueMemoryDocIndexSyncIfNeeded } = require('./indexing-queue.service'
 const { isValidDateKey } = require('./timezone-date.service');
 
 const MUTABLE_DOCUMENT_DOC_KEYS = new Set(['MEMORY', 'PROGRAM']);
+const COACH_SOUL_DOC_KEY = 'COACH_SOUL';
 const EPISODIC_DATE_PREFIX = 'EPISODIC_DATE:';
 
 function getAdminClientOrThrow() {
@@ -293,6 +294,28 @@ async function writeMemoryDocVersion({
   return data;
 }
 
+async function getCoachSoulDocument(userId) {
+  return getLatestDocVersionByDocKey(userId, COACH_SOUL_DOC_KEY);
+}
+
+async function replaceCoachSoulDocument({
+  userId,
+  markdown,
+  expectedVersion,
+  updatedByActor,
+  updatedByRunId
+}) {
+  return writeMemoryDocVersion({
+    userId,
+    docType: COACH_SOUL_DOC_KEY,
+    docKey: COACH_SOUL_DOC_KEY,
+    content: String(markdown || ''),
+    expectedVersion,
+    updatedByActor,
+    updatedByRunId
+  });
+}
+
 async function replaceMutableDocument({
   userId,
   docKey,
@@ -429,13 +452,17 @@ async function appendEpisodicNoteBlock({
 module.exports = {
   buildAppendedMarkdown,
   buildEpisodicDateDocKey,
+  COACH_SOUL_DOC_KEY,
   getLatestDocVersionByDocKey,
   getLatestDocVersionByDocId,
   getLatestDocVersionByDocType,
   getLatestDocVersionsByDocKeys,
+  getCoachSoulDocument,
   getMutableDocTypeForDocKey,
+  replaceCoachSoulDocument,
   replaceMutableDocument,
   replaceMutableDocumentText,
   replaceSingleOccurrence,
-  appendEpisodicNoteBlock
+  appendEpisodicNoteBlock,
+  writeMemoryDocVersion
 };

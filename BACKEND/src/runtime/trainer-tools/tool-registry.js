@@ -1,3 +1,5 @@
+const coachSoulGetTool = require('./handlers/coach-soul-get.tool');
+const coachSoulReplaceEntireTool = require('./handlers/coach-soul-replace-entire.tool');
 const memoryGetTool = require('./handlers/memory-get.tool');
 const memorySearchTool = require('./handlers/memory-search.tool');
 const programGetTool = require('./handlers/program-get.tool');
@@ -8,10 +10,12 @@ const episodicNoteAppendTool = require('./handlers/episodic-note-append.tool');
 const REGISTERED_TOOLS = [
   memoryGetTool,
   memorySearchTool,
+  coachSoulGetTool,
   programGetTool,
   documentReplaceTextTool,
   documentReplaceEntireTool,
-  episodicNoteAppendTool
+  episodicNoteAppendTool,
+  coachSoulReplaceEntireTool
 ];
 
 const TOOL_HANDLERS = Object.fromEntries(
