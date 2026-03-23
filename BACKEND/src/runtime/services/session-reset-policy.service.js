@@ -4,7 +4,7 @@ const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 
 const GLOBAL_SESSION_CONTINUITY_DEFAULTS = Object.freeze({
   dayBoundaryEnabled: true,
-  idleExpiryMinutes: 180,
+  idleExpiryMinutes: 240,
   planTier: 'standard',
   timezone: 'UTC',
   sessionMemoryEnabled: true,

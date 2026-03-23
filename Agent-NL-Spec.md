@@ -672,7 +672,7 @@ It must support:
 Default reset posture:
 
 1. `day_boundary_enabled = true`
-2. `idle_expiry_minutes = 180`
+2. `idle_expiry_minutes = 240`
 3. whichever reset boundary is reached first should trigger the next `sessionId` rotation.
 
 ### 5.3 Session Resolve Algorithm
@@ -1425,7 +1425,7 @@ FUNCTION run_agent_turn(run_input: RuntimeInput) -> RunResult:
 ### 15.1 Current Defaults
 
 1. `sessionId` day-boundary rotation is enabled by default.
-2. Idle expiry is enabled by default with `180` minutes, and reset policy remains configurable per user/plan.
+2. Idle expiry is enabled by default with `240` minutes, and reset policy remains configurable per user/plan.
 3. New-session episodic-note reads default to `today_and_yesterday`, with larger read windows allowed by plan/user policy.
 4. Pre-compaction and session-end memory flushes are silent background operations and do not notify the user by default.
 5. Raw `session_events`, versioned documents, and indexed chunks are retained indefinitely by default.

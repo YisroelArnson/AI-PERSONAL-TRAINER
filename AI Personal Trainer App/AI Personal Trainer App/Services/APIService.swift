@@ -3,26 +3,37 @@ import Foundation
 final class APIService: ObservableObject {
     static let shared = APIService()
 
-    @Published private(set) var baseURL: String = {
-        if let overrideURL = UserDefaults.standard.string(forKey: "APIBaseURL"), !overrideURL.isEmpty {
-            return overrideURL
-        }
+    private static let baseURLDefaultsKey = "APIBaseURL"
+    private static let baseURLInfoPlistKey = "APIBaseURL"
 
-        #if targetEnvironment(simulator)
-        return "http://127.0.0.1:3000"
-        #else
-        return "http://192.168.1.3:3000"
-        #endif
-    }()
+    @Published private(set) var baseURL: String
+
+    private let session: URLSession
+
+    private init() {
+        let configuration = URLSessionConfiguration.default
+        configuration.waitsForConnectivity = true
+        configuration.timeoutIntervalForRequest = 30
+        configuration.timeoutIntervalForResource = 120
+
+        session = URLSession(configuration: configuration)
+        baseURL = Self.loadBaseURL()
+    }
 
     func setBaseURL(_ url: String) {
-        baseURL = url
-        UserDefaults.standard.set(url, forKey: "APIBaseURL")
+        guard let normalizedURL = Self.normalizedBaseURL(url) else { return }
+        baseURL = normalizedURL
+        UserDefaults.standard.set(normalizedURL, forKey: Self.baseURLDefaultsKey)
+    }
+
+    func resetBaseURL() {
+        UserDefaults.standard.removeObject(forKey: Self.baseURLDefaultsKey)
+        baseURL = Self.loadBaseURL()
     }
 
     func healthCheck() async throws -> Bool {
         let request = try makeRequest(path: "/health")
-        let (_, response) = try await URLSession.shared.data(for: request)
+        let (_, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse else {
             return false
         }
@@ -100,7 +111,7 @@ final class APIService: ObservableObject {
                         request.setValue(lastEventId, forHTTPHeaderField: "Last-Event-ID")
                     }
 
-                    let (bytes, response) = try await URLSession.shared.bytes(for: request)
+                    let (bytes, response) = try await session.bytes(for: request)
                     guard let httpResponse = response as? HTTPURLResponse else {
                         throw APIError.invalidResponse
                     }
@@ -146,7 +157,7 @@ final class APIService: ObservableObject {
 
     private func execute(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 throw APIError.invalidResponse
             }
@@ -237,6 +248,44 @@ final class APIService: ObservableObject {
         default:
             return .serverError(message: message, statusCode: statusCode)
         }
+    }
+
+    private static func loadBaseURL() -> String {
+        if let overrideURL = normalizedBaseURL(UserDefaults.standard.string(forKey: baseURLDefaultsKey)) {
+            return overrideURL
+        }
+
+        if let configuredURL = normalizedBaseURL(
+            Bundle.main.object(forInfoDictionaryKey: baseURLInfoPlistKey) as? String
+        ) {
+            return configuredURL
+        }
+
+        #if targetEnvironment(simulator)
+        return "http://127.0.0.1:3000"
+        #else
+        return "http://localhost:3000"
+        #endif
+    }
+
+    private static func normalizedBaseURL(_ value: String?) -> String? {
+        guard var candidate = value?.trimmingCharacters(in: .whitespacesAndNewlines), !candidate.isEmpty else {
+            return nil
+        }
+
+        if !candidate.contains("://") {
+            candidate = "http://\(candidate)"
+        }
+
+        while candidate.hasSuffix("/") {
+            candidate.removeLast()
+        }
+
+        guard let url = URL(string: candidate), let host = url.host, !host.isEmpty else {
+            return nil
+        }
+
+        return candidate
     }
 }
 

@@ -11,7 +11,7 @@ describe('buildEffectiveSessionResetPolicy', () => {
       planTier: 'standard',
       timezone: 'UTC',
       dayBoundaryEnabled: true,
-      idleExpiryMinutes: 180
+      idleExpiryMinutes: 240
     });
   });
 
@@ -75,7 +75,7 @@ describe('buildEffectiveSessionResetPolicy', () => {
       planTier: 'standard',
       timezone: 'America/New_York',
       dayBoundaryEnabled: true,
-      idleExpiryMinutes: 180,
+      idleExpiryMinutes: 240,
       sessionMemoryEnabled: true,
       sessionMemoryMessageCount: 22,
       episodicReadStrategy: 'custom_window_days',

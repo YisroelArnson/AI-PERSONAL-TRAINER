@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>APIBaseURL</key>
+    <string>http://Yisroels-MacBook-Pro.local:3000</string>
     <key>CFBundleURLTypes</key>
         <array>
           <dict>
@@ -17,6 +19,8 @@
     <string>This app needs access to your location to automatically detect your workout location and set it for you.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>This app uses the microphone to capture voice input during workouts and check-ins.</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>This app connects to the trainer server running on your Mac while you test on the same local network.</string>
     <key>NSSpeechRecognitionUsageDescription</key>
     <string>This app uses on-device speech recognition to transcribe your voice commands.</string>
     <key>NSAppTransportSecurity</key>
@@ -33,27 +37,6 @@
                 <true/>
             </dict>
             <key>127.0.0.1</key>
-            <dict>
-                <key>NSExceptionAllowsInsecureHTTPLoads</key>
-                <true/>
-                <key>NSIncludesSubdomains</key>
-                <true/>
-            </dict>
-            <key>192.168.0.0</key>
-            <dict>
-                <key>NSExceptionAllowsInsecureHTTPLoads</key>
-                <true/>
-                <key>NSIncludesSubdomains</key>
-                <true/>
-            </dict>
-            <key>10.0.0.0</key>
-            <dict>
-                <key>NSExceptionAllowsInsecureHTTPLoads</key>
-                <true/>
-                <key>NSIncludesSubdomains</key>
-                <true/>
-            </dict>
-            <key>172.16.0.0</key>
             <dict>
                 <key>NSExceptionAllowsInsecureHTTPLoads</key>
                 <true/>

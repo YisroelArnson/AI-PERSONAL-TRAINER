@@ -47,7 +47,7 @@ async function persistInboundMessage({
     p_metadata: metadata || {},
     p_user_timezone: sessionResetPolicy ? sessionResetPolicy.timezone : 'UTC',
     p_day_boundary_enabled: sessionResetPolicy ? sessionResetPolicy.dayBoundaryEnabled : true,
-    p_idle_expiry_minutes: sessionResetPolicy ? sessionResetPolicy.idleExpiryMinutes : 180
+    p_idle_expiry_minutes: sessionResetPolicy ? sessionResetPolicy.idleExpiryMinutes : 240
   });
 
   if (error) {
