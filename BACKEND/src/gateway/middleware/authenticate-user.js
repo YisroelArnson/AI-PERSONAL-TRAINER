@@ -1,6 +1,28 @@
-const { getSupabaseAuthClient } = require('../../infra/supabase/client');
+const { getSupabaseAuthClient, getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { env } = require('../../config/env');
 const { unauthorized } = require('../../shared/errors');
+
+async function ensureDevUserExists(userId) {
+  const supabase = getSupabaseAdminClient();
+
+  if (!supabase) {
+    return true;
+  }
+
+  const { data, error } = await supabase.auth.admin.getUserById(userId);
+
+  if (error) {
+    const message = String(error.message || '').toLowerCase();
+
+    if (message.includes('user not found') || message.includes('not found')) {
+      return false;
+    }
+
+    throw error;
+  }
+
+  return Boolean(data && data.user);
+}
 
 async function authenticateUser(req, res, next) {
   if (env.allowUnauthenticatedDev) {
@@ -8,13 +30,23 @@ async function authenticateUser(req, res, next) {
       return next(unauthorized('DEV_AUTH_USER_ID is required when ALLOW_UNAUTHENTICATED_DEV=true'));
     }
 
-    req.auth = {
-      userId: env.devAuthUserId,
-      email: 'dev@example.com',
-      role: 'developer',
-      source: 'dev-bypass'
-    };
-    return next();
+    try {
+      const userExists = await ensureDevUserExists(env.devAuthUserId);
+
+      if (!userExists) {
+        return next(unauthorized('DEV_AUTH_USER_ID no longer exists in Supabase Auth'));
+      }
+
+      req.auth = {
+        userId: env.devAuthUserId,
+        email: 'dev@example.com',
+        role: 'developer',
+        source: 'dev-bypass'
+      };
+      return next();
+    } catch (error) {
+      return next(error);
+    }
   }
 
   const authHeader = req.header('authorization');
@@ -32,16 +64,16 @@ async function authenticateUser(req, res, next) {
   }
 
   try {
-    const { data, error } = await supabase.auth.getClaims(token);
-    if (error || !data || !data.claims) {
+    const { data, error } = await supabase.auth.getUser(token);
+
+    if (error || !data || !data.user) {
       return next(unauthorized('Invalid or expired token'));
     }
 
     req.auth = {
-      userId: data.claims.sub,
-      email: data.claims.email,
-      role: data.claims.role,
-      sessionId: data.claims.session_id,
+      userId: data.user.id,
+      email: data.user.email,
+      role: data.user.role,
       source: 'supabase'
     };
 

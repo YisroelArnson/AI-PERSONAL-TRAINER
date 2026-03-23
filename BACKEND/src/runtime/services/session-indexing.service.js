@@ -8,6 +8,7 @@ const {
   markSessionIndexFailed,
   markSessionIndexProcessing
 } = require('./indexing-state.service');
+const { replaceSessionChunksInRedis } = require('./redis-retrieval-index.service');
 const { resolveRetrievalPolicy } = require('./retrieval-policy.service');
 const { shouldIncludeSessionMemoryEvent } = require('./session-memory-flush.service');
 const { listTranscriptEventsForSession } = require('./transcript-read.service');
@@ -47,16 +48,19 @@ async function replaceSessionChunks({ userId, sessionKey, sessionId, chunks }) {
   }
 
   if (!chunks || chunks.length === 0) {
-    return;
+    return [];
   }
 
-  const { error: insertError } = await supabase
+  const { data, error: insertError } = await supabase
     .from('session_index_chunks')
-    .insert(chunks);
+    .insert(chunks)
+    .select('*');
 
   if (insertError) {
     throw insertError;
   }
+
+  return data || [];
 }
 
 async function syncSessionIndex({
@@ -143,12 +147,23 @@ async function syncSessionIndex({
       embedding: embeddings[index] ? toVectorLiteral(embeddings[index].embedding) : null
     }));
 
-    await replaceSessionChunks({
+    const insertedChunks = await replaceSessionChunks({
       userId,
       sessionKey,
       sessionId,
       chunks: indexedChunks
     });
+
+    try {
+      await replaceSessionChunksInRedis({
+        userId,
+        sessionKey,
+        sessionId,
+        chunks: insertedChunks
+      });
+    } catch (redisError) {
+      console.warn('Session chunk Redis mirror failed:', redisError.message);
+    }
 
     await markSessionIndexCompleted({
       userId,
@@ -161,9 +176,9 @@ async function syncSessionIndex({
     return {
       status: 'indexed',
       sessionId,
-      chunkCount: indexedChunks.length,
+      chunkCount: insertedChunks.length,
       indexedSeqNum: maxSeqNum,
-      embeddingEnabled: indexedChunks.some(chunk => Boolean(chunk.embedding_model))
+      embeddingEnabled: insertedChunks.some(chunk => Boolean(chunk.embedding_model))
     };
   } catch (error) {
     await markSessionIndexFailed({

@@ -1,6 +1,7 @@
 const { env } = require('../../config/env');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
-const { embedTexts, toVectorLiteral } = require('./embedding-cache.service');
+const { embedTexts, parseVector, toVectorLiteral } = require('./embedding-cache.service');
+const { searchRedisRetrievalIndex } = require('./redis-retrieval-index.service');
 const { resolveRetrievalPolicy } = require('./retrieval-policy.service');
 
 const ALLOWED_SOURCES = new Set(['sessions', 'memory', 'program', 'episodic_date']);
@@ -51,6 +52,48 @@ async function createRetrievalQuery({
   return data;
 }
 
+async function searchPostgresFallback({
+  userId,
+  normalizedQuery,
+  effectiveSources,
+  resolvedMaxResults,
+  candidateLimit,
+  queryEmbedding
+}) {
+  const supabase = getAdminClientOrThrow();
+  const { data, error } = await supabase.rpc('retrieval_search_postgres_fallback', {
+    p_user_id: userId,
+    p_query_text: normalizedQuery,
+    p_sources: effectiveSources,
+    p_max_results: resolvedMaxResults,
+    p_candidate_limit: candidateLimit,
+    p_min_score: env.retrievalMinScore,
+    p_embedding_model: queryEmbedding && queryEmbedding.modelKey ? queryEmbedding.modelKey : null,
+    p_embedding_text: queryEmbedding && queryEmbedding.vectorLiteral ? queryEmbedding.vectorLiteral : null
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return {
+    backend: 'postgres_fallback',
+    mode: queryEmbedding && queryEmbedding.values ? 'hybrid' : 'text_only',
+    warnings: [],
+    results: (data || []).map(row => ({
+      sourceType: row.source_type,
+      sourceId: row.source_id,
+      startSeqOrOffset: row.start_seq_or_offset,
+      endSeqOrOffset: row.end_seq_or_offset,
+      chunkId: row.chunk_id,
+      content: row.content,
+      score: Number(row.score || 0),
+      vectorScore: Number(row.vector_score || 0),
+      ftsScore: Number(row.fts_score || 0)
+    }))
+  };
+}
+
 async function writeRetrievalAuditResults(queryId, results) {
   if (!results || results.length === 0) {
     return;
@@ -97,19 +140,88 @@ async function retrievalSearch({
   ));
   const candidateLimit = resolvedMaxResults * policy.queryCandidateMultiplier;
   const embeddingRows = await embedTexts([normalizedQuery]);
-  const queryEmbedding = embeddingRows[0] && embeddingRows[0].embedding
-    ? toVectorLiteral(embeddingRows[0].embedding)
+  const rawEmbedding = embeddingRows[0] && embeddingRows[0].embedding
+    ? embeddingRows[0].embedding
+    : null;
+  const queryEmbedding = rawEmbedding
+    ? {
+      values: parseVector(rawEmbedding),
+      vectorLiteral: toVectorLiteral(rawEmbedding),
+      modelKey: embeddingRows[0].modelKey
+    }
     : null;
   const requestedBackend = policy.queryBackend;
-  const effectiveBackend = 'postgres_fallback';
+  let effectiveBackend = 'postgres_fallback';
+  let fallbackReason = null;
+  let retrievalResult;
+
+  if (requestedBackend === 'redis_hybrid') {
+    try {
+      const redisResult = await searchRedisRetrievalIndex({
+        userId,
+        queryText: normalizedQuery,
+        sourceTypes: effectiveSources,
+        maxResults: resolvedMaxResults,
+        candidateLimit,
+        queryEmbedding: queryEmbedding && queryEmbedding.values,
+        queryEmbeddingModel: queryEmbedding && queryEmbedding.modelKey
+      });
+
+      if (redisResult && redisResult.results.length > 0) {
+        const filteredRedisResults = redisResult.results
+          .filter(result => Number(result.score || 0) >= env.retrievalMinScore)
+          .map(result => ({
+            sourceType: result.sourceType,
+            sourceId: result.sourceId,
+            startSeqOrOffset: result.startSeqOrOffset,
+            endSeqOrOffset: result.endSeqOrOffset,
+            chunkId: result.chunkId,
+            content: result.content,
+            score: Number(result.score || 0),
+            vectorScore: null,
+            ftsScore: null
+          }));
+
+        if (filteredRedisResults.length > 0) {
+          retrievalResult = {
+          backend: redisResult.backend,
+          mode: redisResult.mode,
+          warnings: redisResult.warnings || [],
+            results: filteredRedisResults
+          };
+          effectiveBackend = 'redis_hybrid';
+        } else {
+          fallbackReason = 'redis_below_min_score';
+        }
+      } else {
+        fallbackReason = redisResult ? 'redis_empty' : 'redis_unconfigured';
+      }
+    } catch (redisError) {
+      fallbackReason = redisError.message ? redisError.message.slice(0, 120) : 'redis_error';
+    }
+  }
+
+  if (!retrievalResult) {
+    retrievalResult = await searchPostgresFallback({
+      userId,
+      normalizedQuery,
+      effectiveSources,
+      resolvedMaxResults,
+      candidateLimit,
+      queryEmbedding
+    });
+    effectiveBackend = 'postgres_fallback';
+  }
+
   const policySnapshot = {
     requestedBackend,
     effectiveBackend,
     maxResults: resolvedMaxResults,
     candidateMultiplier: policy.queryCandidateMultiplier,
     sources: effectiveSources,
-    embeddingEnabled: Boolean(queryEmbedding),
-    minScore: env.retrievalMinScore
+    embeddingEnabled: Boolean(queryEmbedding && queryEmbedding.values),
+    minScore: env.retrievalMinScore,
+    redisFallbackReason: fallbackReason
   };
   const queryRecord = await createRetrievalQuery({
     userId,
@@ -118,33 +230,7 @@ async function retrievalSearch({
     queryText: normalizedQuery,
     policySnapshot
   });
-  const supabase = getAdminClientOrThrow();
-  const { data, error } = await supabase.rpc('retrieval_search_postgres_fallback', {
-    p_user_id: userId,
-    p_query_text: normalizedQuery,
-    p_sources: effectiveSources,
-    p_max_results: resolvedMaxResults,
-    p_candidate_limit: candidateLimit,
-    p_min_score: env.retrievalMinScore,
-    p_embedding_model: queryEmbedding ? embeddingRows[0].modelKey : null,
-    p_embedding_text: queryEmbedding
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  const results = (data || []).map(row => ({
-    sourceType: row.source_type,
-    sourceId: row.source_id,
-    startSeqOrOffset: row.start_seq_or_offset,
-    endSeqOrOffset: row.end_seq_or_offset,
-    chunkId: row.chunk_id,
-    content: row.content,
-    score: Number(row.score || 0),
-    vectorScore: Number(row.vector_score || 0),
-    ftsScore: Number(row.fts_score || 0)
-  }));
+  const results = retrievalResult.results || [];
 
   await writeRetrievalAuditResults(queryRecord.query_id, results);
 
@@ -153,6 +239,7 @@ async function retrievalSearch({
     queryText: normalizedQuery,
     backend: effectiveBackend,
     requestedBackend,
+    fallbackReason,
     maxResults: resolvedMaxResults,
     candidateLimit,
     sources: effectiveSources,

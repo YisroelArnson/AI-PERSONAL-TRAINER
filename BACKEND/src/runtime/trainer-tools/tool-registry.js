@@ -6,6 +6,7 @@ const programGetTool = require('./handlers/program-get.tool');
 const documentReplaceTextTool = require('./handlers/document-replace-text.tool');
 const documentReplaceEntireTool = require('./handlers/document-replace-entire.tool');
 const episodicNoteAppendTool = require('./handlers/episodic-note-append.tool');
+const { validateToolInput, buildToolValidationError } = require('./tool-input-validation');
 
 const REGISTERED_TOOLS = [
   memoryGetTool,
@@ -54,8 +55,19 @@ async function executeToolCall({ toolName, input, run }) {
     };
   }
 
+  const normalizedInput = input || {};
+  const validationIssue = validateToolInput(tool.definition.inputSchema, normalizedInput);
+
+  if (validationIssue) {
+    return {
+      toolName,
+      mutating: tool.definition.mutating,
+      ...buildToolValidationError(tool.definition, validationIssue)
+    };
+  }
+
   const result = await tool.execute({
-    input: input || {},
+    input: normalizedInput,
     userId: run.user_id,
     run,
     toolDefinition: tool.definition

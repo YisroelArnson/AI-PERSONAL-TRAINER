@@ -9,6 +9,7 @@ const {
   markMemoryDocIndexProcessing
 } = require('./indexing-state.service');
 const { getLatestDocVersionByDocId } = require('./memory-docs.service');
+const { replaceMemoryChunksInRedis } = require('./redis-retrieval-index.service');
 
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
@@ -33,16 +34,19 @@ async function replaceMemoryChunks({ userId, docId, chunks }) {
   }
 
   if (!chunks || chunks.length === 0) {
-    return;
+    return [];
   }
 
-  const { error: insertError } = await supabase
+  const { data, error: insertError } = await supabase
     .from('memory_chunks')
-    .insert(chunks);
+    .insert(chunks)
+    .select('*');
 
   if (insertError) {
     throw insertError;
   }
+
+  return data || [];
 }
 
 async function syncMemoryDocIndex({
@@ -78,11 +82,21 @@ async function syncMemoryDocIndex({
     const latestRecord = await getLatestDocVersionByDocId(userId, docId);
 
     if (!latestRecord || !latestRecord.version) {
-      await replaceMemoryChunks({
+      const insertedChunks = await replaceMemoryChunks({
         userId,
         docId,
         chunks: []
       });
+
+      try {
+        await replaceMemoryChunksInRedis({
+          userId,
+          docId,
+          chunks: insertedChunks
+        });
+      } catch (redisError) {
+        console.warn('Memory chunk Redis mirror failed:', redisError.message);
+      }
 
       await markMemoryDocIndexCompleted({
         userId,
@@ -132,11 +146,21 @@ async function syncMemoryDocIndex({
       embedding: embeddings[index] ? toVectorLiteral(embeddings[index].embedding) : null
     }));
 
-    await replaceMemoryChunks({
+    const insertedChunks = await replaceMemoryChunks({
       userId,
       docId,
       chunks: indexedChunks
     });
+
+    try {
+      await replaceMemoryChunksInRedis({
+        userId,
+        docId,
+        chunks: insertedChunks
+      });
+    } catch (redisError) {
+      console.warn('Memory chunk Redis mirror failed:', redisError.message);
+    }
 
     await markMemoryDocIndexCompleted({
       userId,
@@ -149,8 +173,8 @@ async function syncMemoryDocIndex({
       status: 'indexed',
       docId,
       docKey: latestRecord.doc.doc_key,
-      chunkCount: indexedChunks.length,
-      embeddingEnabled: indexedChunks.some(chunk => Boolean(chunk.embedding_model))
+      chunkCount: insertedChunks.length,
+      embeddingEnabled: insertedChunks.some(chunk => Boolean(chunk.embedding_model))
     };
   } catch (error) {
     await markMemoryDocIndexFailed({

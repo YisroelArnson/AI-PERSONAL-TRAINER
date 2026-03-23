@@ -2,6 +2,19 @@ const dotenv = require('dotenv');
 
 dotenv.config();
 
+const DEFAULT_EMBEDDING_MODEL_DIMENSIONS = Object.freeze({
+  'text-embedding-3-small': 1536,
+  'text-embedding-3-large': 3072,
+  'text-embedding-ada-002': 1536
+});
+
+const resolvedDefaultEmbeddingModel = process.env.DEFAULT_OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
+const resolvedDefaultEmbeddingDimensions = Number(
+  process.env.DEFAULT_EMBEDDING_DIMENSIONS
+  || DEFAULT_EMBEDDING_MODEL_DIMENSIONS[resolvedDefaultEmbeddingModel]
+  || 1536
+);
+
 const env = {
   port: Number(process.env.PORT || 3000),
   allowUnauthenticatedDev: process.env.ALLOW_UNAUTHENTICATED_DEV === 'true',
@@ -18,10 +31,12 @@ const env = {
   defaultLlmProvider: process.env.DEFAULT_LLM_PROVIDER || 'anthropic',
   defaultAnthropicModel: process.env.DEFAULT_ANTHROPIC_MODEL || 'claude-sonnet-4-6',
   defaultEmbeddingProvider: process.env.DEFAULT_EMBEDDING_PROVIDER || 'openai',
-  defaultOpenAiEmbeddingModel: process.env.DEFAULT_OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small',
+  defaultOpenAiEmbeddingModel: resolvedDefaultEmbeddingModel,
+  defaultEmbeddingDimensions: Math.max(1, Math.floor(resolvedDefaultEmbeddingDimensions)),
   embeddingBatchSize: Number(process.env.EMBEDDING_BATCH_SIZE || 32),
-  agentMaxIterations: Number(process.env.AGENT_MAX_ITERATIONS || 4),
-  agentPromptMessageLimit: Number(process.env.AGENT_PROMPT_MESSAGE_LIMIT || 12),
+  agentMaxIterations: Number(process.env.AGENT_MAX_ITERATIONS || 10),
+  agentMaxOutputTokens: Number(process.env.AGENT_MAX_OUTPUT_TOKENS || 4000),
+  agentPromptMessageLimit: Number(process.env.AGENT_PROMPT_MESSAGE_LIMIT || 20),
   redisUrl: process.env.REDIS_URL || '',
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY || 5),
   promptContextCacheTtlSec: Number(process.env.PROMPT_CONTEXT_CACHE_TTL_SEC || 60),
@@ -29,6 +44,8 @@ const env = {
   indexingPolicyCacheTtlSec: Number(process.env.INDEXING_POLICY_CACHE_TTL_SEC || 60),
   indexingDebounceMs: Number(process.env.INDEXING_DEBOUNCE_MS || 15000),
   retrievalMinScore: Number(process.env.RETRIEVAL_MIN_SCORE || 0.05),
+  redisRetrievalVectorAlpha: Number(process.env.REDIS_RETRIEVAL_VECTOR_ALPHA || 0.65),
+  redisRetrievalTextBeta: Number(process.env.REDIS_RETRIEVAL_TEXT_BETA || 0.35),
   gatewayMode: process.env.GATEWAY_MODE || 'scaffold'
 };
 

@@ -56,6 +56,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   '- Use the provided tool registry when you need durable memory, program, or retrieval context.',
   '- Prefer read-only tools before mutating tools when more context is needed.',
   '- Use memory_search when targeted historical context would help.',
+  '- When you decide to call a tool, emit the tool call directly with complete arguments and no surrounding prose.',
   '- If you use a tool, incorporate the result and continue the run.',
   '',
   '### Document Lifecycle',
@@ -65,6 +66,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   '- PROGRAM is the current training plan and progression state. It may begin empty. Create it only when enough information exists to make a credible plan.',
   '- EPISODIC_DATE notes are append-only continuity blocks for recent events and session carry-over.',
   '- Do not blur identity, long-term memory, plan state, and day-level continuity together.',
+  '- Never guess expected_version for document mutations. Use the current version from prompt context or load it with memory_get/program_get first.',
   '- Do not claim you updated memory, program, or coach soul unless a mutating tool actually succeeded.',
   '',
   '### Communication',
@@ -72,6 +74,16 @@ const DEFAULT_SYSTEM_PROMPT = [
   '- Prefer actionable coaching, useful next steps, and a grounded human tone.',
   '- Avoid filler praise, hype, or corporate assistant language.'
 ].join('\n');
+
+function buildVersionedDocumentMarkdown(record) {
+  const currentVersion = record && record.doc ? record.doc.current_version : 0;
+  const content = record && record.version ? String(record.version.content || '').trim() : '';
+
+  return [
+    `Current Version: ${currentVersion}`,
+    content || '_not available yet_'
+  ].join('\n');
+}
 const DEFAULT_COACH_PRINCIPLES = [
   '### Safety First',
   '- Bias toward safety, pain-awareness, and clear constraints before performance optimization.',
@@ -239,8 +251,8 @@ async function assemblePrompt(run, options = {}) {
     : [];
 
   const coachSoul = coachSoulDoc ? coachSoulDoc.version.content : defaultCoachSoulMarkdown;
-  const programMarkdown = programDoc ? programDoc.version.content : '';
-  const recalledMemoryMarkdown = memoryDoc ? memoryDoc.version.content : '';
+  const programMarkdown = buildVersionedDocumentMarkdown(programDoc);
+  const recalledMemoryMarkdown = buildVersionedDocumentMarkdown(memoryDoc);
   const shouldLoadBootstrap = shouldLoadBootstrapInstructions(programDoc);
   const episodicBootstrapMarkdown = formatBootstrapEpisodicNotes(episodicNotes);
   const systemBlocks = buildSystemBlocks({
@@ -275,5 +287,6 @@ async function assemblePrompt(run, options = {}) {
 
 module.exports = {
   assemblePrompt,
+  buildVersionedDocumentMarkdown,
   shouldLoadBootstrapInstructions
 };

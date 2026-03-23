@@ -11,6 +11,7 @@
     "dev": "nodemon index.js",
     "worker": "node src/worker/index.js",
     "dev:worker": "nodemon src/worker/index.js",
+    "rebuild:redis-retrieval-index": "node scripts/rebuild-redis-retrieval-index.js",
     "test": "jest",
     "test:watch": "jest --watch"
   },

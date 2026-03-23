@@ -17,6 +17,27 @@ function buildMaxIterationFallback(iteration) {
   ].join(' ');
 }
 
+function shouldRetryTruncatedToolCall(finalOutput, normalizedOutput) {
+  return finalOutput.stopReason === 'max_tokens' && normalizedOutput.toolCalls.length > 0;
+}
+
+function buildTruncatedToolRetryMessage(toolCalls) {
+  const toolNames = [...new Set(
+    (toolCalls || [])
+      .map(toolCall => toolCall.name)
+      .filter(Boolean)
+  )];
+  const toolList = toolNames.length > 0 ? toolNames.join(', ') : 'the previous tool';
+
+  return [
+    `Your previous response was cut off by the output token limit while generating input for ${toolList}.`,
+    'Do not assume the tool executed.',
+    'Retry the tool call with a complete input object.',
+    'Do not include any explanatory prose before or after the tool call.',
+    'For document writes, include the full markdown and use the current version from context or a read tool instead of guessing.'
+  ].join(' ');
+}
+
 async function runAgentTurn(run) {
   const provider = env.defaultLlmProvider;
   const model = env.defaultAnthropicModel;
@@ -57,7 +78,7 @@ async function runAgentTurn(run) {
       systemPromptBlocks: promptAssembly.systemBlocks,
       messages: hydratedMessages,
       tools: providerTools,
-      maxOutputTokens: 800,
+      maxOutputTokens: env.agentMaxOutputTokens,
       cacheControl: env.anthropicPromptCachingEnabled
         ? {
             type: 'ephemeral',
@@ -123,11 +144,6 @@ async function runAgentTurn(run) {
 
       const finalOutput = await adapter.extractFinalOutput(stream, textBuffer);
       const normalizedOutput = normalizeAnthropicOutput(finalOutput);
-      const stopDecision = getStopDecision({
-        iteration,
-        maxIterations,
-        normalizedOutput
-      });
 
       await appendStreamEvent({
         runId: run.run_id,
@@ -140,6 +156,41 @@ async function runAgentTurn(run) {
           usage: finalOutput.usage || {},
           toolCallCount: normalizedOutput.toolCalls.length
         }
+      });
+
+      if (shouldRetryTruncatedToolCall(finalOutput, normalizedOutput)) {
+        await appendStreamEvent({
+          runId: run.run_id,
+          eventType: 'agent.iteration.completed',
+          payload: {
+            iteration,
+            stopReason: 'tool_call_truncated',
+            toolCallCount: normalizedOutput.toolCalls.length,
+            outputTextLength: normalizedOutput.outputText.length
+          }
+        });
+
+        await appendStreamEvent({
+          runId: run.run_id,
+          eventType: 'tool.call.skipped',
+          payload: {
+            iteration,
+            reason: 'provider_max_tokens',
+            toolNames: normalizedOutput.toolCalls.map(toolCall => toolCall.name)
+          }
+        });
+
+        workingMessages.push({
+          role: 'user',
+          content: buildTruncatedToolRetryMessage(normalizedOutput.toolCalls)
+        });
+        continue;
+      }
+
+      const stopDecision = getStopDecision({
+        iteration,
+        maxIterations,
+        normalizedOutput
       });
 
       await appendStreamEvent({

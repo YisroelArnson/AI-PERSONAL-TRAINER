@@ -17,6 +17,10 @@ function getDefaultEmbeddingModelKey() {
   return env.defaultOpenAiEmbeddingModel;
 }
 
+function getDefaultEmbeddingDimensions() {
+  return env.defaultEmbeddingDimensions;
+}
+
 function isEmbeddingEnabled() {
   return Boolean(env.openaiApiKey && getDefaultEmbeddingModelKey());
 }
@@ -39,6 +43,66 @@ function toVectorLiteral(value) {
   }
 
   return String(value);
+}
+
+function parseVector(value) {
+  if (!value) {
+    return null;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map(entry => Number(entry))
+      .filter(Number.isFinite);
+  }
+
+  if (Buffer.isBuffer(value)) {
+    if (value.byteLength === 0 || value.byteLength % 4 !== 0) {
+      return null;
+    }
+
+    const typedArray = new Float32Array(
+      value.buffer,
+      value.byteOffset,
+      value.byteLength / 4
+    );
+
+    return Array.from(typedArray);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+
+    if (!trimmed) {
+      return null;
+    }
+
+    const normalized = trimmed.startsWith('[') && trimmed.endsWith(']')
+      ? trimmed.slice(1, -1)
+      : trimmed;
+
+    if (!normalized.trim()) {
+      return [];
+    }
+
+    return normalized
+      .split(',')
+      .map(entry => Number(entry.trim()))
+      .filter(Number.isFinite);
+  }
+
+  return null;
+}
+
+function toFloat32Buffer(value) {
+  const vector = parseVector(value);
+
+  if (!Array.isArray(vector) || vector.length === 0) {
+    return null;
+  }
+
+  const typedArray = Float32Array.from(vector);
+  return Buffer.from(typedArray.buffer);
 }
 
 async function loadCachedEmbeddings(contentHashes, modelKey) {
@@ -176,7 +240,10 @@ async function embedTexts(texts, options = {}) {
 module.exports = {
   embedTexts,
   formatVectorLiteral,
+  getDefaultEmbeddingDimensions,
   getDefaultEmbeddingModelKey,
   isEmbeddingEnabled,
+  parseVector,
+  toFloat32Buffer,
   toVectorLiteral
 };
