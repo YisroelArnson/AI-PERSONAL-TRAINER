@@ -13,7 +13,8 @@ messagesRouter.post('/', authenticateUser, async (req, res, next) => {
     const accepted = await processInboundMessage({
       auth: req.auth,
       headers: req.headers,
-      body
+      body,
+      ipAddress: req.ip
     });
 
     res.status(202).json(accepted);

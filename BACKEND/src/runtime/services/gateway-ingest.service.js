@@ -4,8 +4,11 @@ const { badRequest, conflict } = require('../../shared/errors');
 function mapRpcError(error) {
   const message = error && error.message ? error.message : 'Gateway ingest failed';
 
-  if (message.includes('IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST')) {
-    return conflict('Idempotency key was reused with a different request body');
+  if (
+    message.includes('IDEMPOTENCY_KEY_SCOPE_MISMATCH')
+    || message.includes('IDEMPOTENCY_KEY_REUSED_WITH_DIFFERENT_REQUEST')
+  ) {
+    return conflict('Idempotency key was reused with a different request');
   }
 
   if (

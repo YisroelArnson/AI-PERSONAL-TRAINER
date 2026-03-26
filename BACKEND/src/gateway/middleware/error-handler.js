@@ -30,6 +30,24 @@ function errorHandler(err, req, res, next) {
   }
 
   if (err instanceof HttpError) {
+    if (err.statusCode === 429) {
+      const retryAfterSeconds = Number(err.details && err.details.retry_after_seconds);
+
+      if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+        res.setHeader('Retry-After', String(Math.max(1, Math.ceil(retryAfterSeconds))));
+      }
+
+      res.status(err.statusCode).json({
+        error: {
+          code: err.code,
+          ...(err.details || {})
+        },
+        message: err.message,
+        requestId: req.requestId
+      });
+      return;
+    }
+
     res.status(err.statusCode).json({
       error: err.code,
       message: err.message,

@@ -17,6 +17,66 @@ function buildMaxIterationFallback(iteration) {
   ].join(' ');
 }
 
+function prettyPrintRawPayload(payload) {
+  try {
+    return JSON.stringify(payload, null, 2);
+  } catch (error) {
+    return JSON.stringify({
+      serializationError: error.message,
+      preview: String(payload)
+    }, null, 2);
+  }
+}
+
+function logRawLlmPayload({ phase, runId, iteration, payload }) {
+  if (!env.llmRawIoLoggingEnabled) {
+    return;
+  }
+
+  const suffix = [`run=${runId}`, iteration ? `iteration=${iteration}` : null]
+    .filter(Boolean)
+    .join(' ');
+
+  console.log(`[LLM RAW ${phase}${suffix ? ` ${suffix}` : ''}]`);
+  console.log(prettyPrintRawPayload(payload));
+}
+
+function maybeLogAnthropicContentBlock({ runId, iteration, providerEvent }) {
+  if (!env.llmRawIoLoggingEnabled || !providerEvent || !providerEvent.type) {
+    return;
+  }
+
+  if (
+    providerEvent.type === 'content_block_start'
+    || providerEvent.type === 'content_block_stop'
+    || (
+      providerEvent.type === 'content_block_delta'
+      && providerEvent.delta
+      && providerEvent.delta.type === 'input_json_delta'
+    )
+  ) {
+    logRawLlmPayload({
+      phase: 'CONTENT BLOCK',
+      runId,
+      iteration,
+      payload: providerEvent
+    });
+  }
+}
+
+function maybeLogFinalMessageContent({ runId, iteration, rawMessage }) {
+  if (!env.llmRawIoLoggingEnabled || !rawMessage || !Array.isArray(rawMessage.content)) {
+    return;
+  }
+
+  logRawLlmPayload({
+    phase: 'FINAL CONTENT',
+    runId,
+    iteration,
+    payload: rawMessage.content
+  });
+}
+
 function shouldRetryTruncatedToolCall(finalOutput, normalizedOutput) {
   return finalOutput.stopReason === 'max_tokens' && normalizedOutput.toolCalls.length > 0;
 }
@@ -36,6 +96,11 @@ function buildTruncatedToolRetryMessage(toolCalls) {
     'Do not include any explanatory prose before or after the tool call.',
     'For document writes, include the full markdown and use the current version from context or a read tool instead of guessing.'
   ].join(' ');
+}
+
+function shouldSuppressAssistantReply(run, outputText) {
+  return run.trigger_type === 'ui.action.complete_set'
+    && String(outputText || '').trim().toLowerCase() === 'no_reply';
 }
 
 async function runAgentTurn(run) {
@@ -64,7 +129,8 @@ async function runAgentTurn(run) {
 
   for (let iteration = 1; iteration <= maxIterations; iteration += 1) {
     const hydratedMessages = applyHygiene(workingMessages, {
-      maxMessages: env.agentPromptMessageLimit
+      maxMessages: env.agentPromptMessageLimit,
+      provider
     });
     const providerTools = toProviderTools(toolDefinitions, caps, {
       enablePromptCaching: env.anthropicPromptCachingEnabled,
@@ -95,10 +161,6 @@ async function runAgentTurn(run) {
 
     adapter.validateCapabilities(runtimeInput, caps);
 
-    const providerRequest = adapter.buildRequest(runtimeInput);
-    const stream = adapter.createStream(providerRequest);
-    let textBuffer = '';
-
     await appendStreamEvent({
       runId: run.run_id,
       eventType: 'agent.iteration.started',
@@ -121,6 +183,16 @@ async function runAgentTurn(run) {
     });
 
     try {
+      const providerRequest = adapter.buildRequest(runtimeInput);
+      const stream = adapter.createStream(providerRequest);
+      let textBuffer = '';
+
+      // Anthropic's MessageStream will surface some request validation failures
+      // as unhandled rejections unless an error listener or promise consumer exists.
+      if (stream && typeof stream.on === 'function') {
+        stream.on('error', () => {});
+      }
+
       for await (const providerEvent of stream) {
         const normalizedEvent = adapter.normalizeStreamEvent(providerEvent);
 
@@ -143,6 +215,17 @@ async function runAgentTurn(run) {
       }
 
       const finalOutput = await adapter.extractFinalOutput(stream, textBuffer);
+      logRawLlmPayload({
+        phase: 'FINAL MESSAGE',
+        runId: run.run_id,
+        iteration,
+        payload: finalOutput.rawMessage
+      });
+      maybeLogFinalMessageContent({
+        runId: run.run_id,
+        iteration,
+        rawMessage: finalOutput.rawMessage
+      });
       const normalizedOutput = normalizeAnthropicOutput(finalOutput);
 
       await appendStreamEvent({
@@ -205,14 +288,27 @@ async function runAgentTurn(run) {
       });
 
       if (stopDecision.shouldStop && stopDecision.reason === 'final_response') {
-        await appendAssistantMessageEvent({
-          run,
-          text: normalizedOutput.outputText,
-          provider,
-          model,
-          usage: normalizedOutput.usage,
-          stopReason: normalizedOutput.stopReason
-        });
+        const suppressAssistantReply = shouldSuppressAssistantReply(run, normalizedOutput.outputText);
+
+        if (!suppressAssistantReply) {
+          await appendAssistantMessageEvent({
+            run,
+            text: normalizedOutput.outputText,
+            provider,
+            model,
+            usage: normalizedOutput.usage,
+            stopReason: normalizedOutput.stopReason
+          });
+        } else {
+          await appendStreamEvent({
+            runId: run.run_id,
+            eventType: 'assistant.reply.suppressed',
+            payload: {
+              reason: 'no_reply',
+              triggerType: run.trigger_type
+            }
+          });
+        }
 
         await appendStreamEvent({
           runId: run.run_id,
@@ -226,7 +322,7 @@ async function runAgentTurn(run) {
         });
 
         return {
-          outputText: normalizedOutput.outputText,
+          outputText: suppressAssistantReply ? '' : normalizedOutput.outputText,
           provider,
           model,
           iterationsUsed: iteration

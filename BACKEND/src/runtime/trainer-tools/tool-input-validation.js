@@ -75,6 +75,46 @@ function validateInteger(value, schema, path) {
   return null;
 }
 
+function validateNumber(value, schema, path) {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return makeIssue(path, 'invalid_type', `${formatField(path)} must be a number.`);
+  }
+
+  if (typeof schema.minimum === 'number' && value < schema.minimum) {
+    return makeIssue(path, 'minimum', `${formatField(path)} must be greater than or equal to ${schema.minimum}.`);
+  }
+
+  if (typeof schema.maximum === 'number' && value > schema.maximum) {
+    return makeIssue(path, 'maximum', `${formatField(path)} must be less than or equal to ${schema.maximum}.`);
+  }
+
+  if (Array.isArray(schema.enum) && !schema.enum.includes(value)) {
+    return makeIssue(
+      path,
+      'enum',
+      `${formatField(path)} must be one of: ${schema.enum.join(', ')}.`
+    );
+  }
+
+  return null;
+}
+
+function validateBoolean(value, path) {
+  if (typeof value !== 'boolean') {
+    return makeIssue(path, 'invalid_type', `${formatField(path)} must be a boolean.`);
+  }
+
+  return null;
+}
+
+function validateNull(value, path) {
+  if (value !== null) {
+    return makeIssue(path, 'invalid_type', `${formatField(path)} must be null.`);
+  }
+
+  return null;
+}
+
 function validateArray(value, schema, path) {
   if (!Array.isArray(value)) {
     return makeIssue(path, 'invalid_type', `${formatField(path)} must be an array.`);
@@ -122,8 +162,10 @@ function validateObject(value, schema, path) {
 
   for (const key of required) {
     if (!hasOwn(value, key) || typeof value[key] === 'undefined') {
-      return makeIssue(key, 'required', `Missing required field "${key}".`, {
-        field: key
+      const nestedPath = path ? `${path}.${key}` : key;
+
+      return makeIssue(nestedPath, 'required', `Missing required field "${nestedPath}".`, {
+        field: nestedPath
       });
     }
   }
@@ -131,8 +173,10 @@ function validateObject(value, schema, path) {
   if (schema.additionalProperties === false) {
     for (const key of Object.keys(value)) {
       if (!hasOwn(properties, key)) {
-        return makeIssue(key, 'additional_properties', `Unexpected field "${key}".`, {
-          field: key
+        const nestedPath = path ? `${path}.${key}` : key;
+
+        return makeIssue(nestedPath, 'additional_properties', `Unexpected field "${nestedPath}".`, {
+          field: nestedPath
         });
       }
     }
@@ -143,7 +187,8 @@ function validateObject(value, schema, path) {
       continue;
     }
 
-    const nestedIssue = validateValue(value[key], propertySchema, key);
+    const nestedPath = path ? `${path}.${key}` : key;
+    const nestedIssue = validateValue(value[key], propertySchema, nestedPath);
 
     if (nestedIssue) {
       return nestedIssue;
@@ -153,9 +198,31 @@ function validateObject(value, schema, path) {
   return null;
 }
 
+function validateAnyOf(value, schemas, path) {
+  let firstIssue = null;
+
+  for (const schema of schemas) {
+    const issue = validateValue(value, schema, path);
+
+    if (!issue) {
+      return null;
+    }
+
+    if (!firstIssue) {
+      firstIssue = issue;
+    }
+  }
+
+  return firstIssue || makeIssue(path, 'any_of', `${formatField(path)} must match one of the allowed shapes.`);
+}
+
 function validateValue(value, schema, path = '') {
   if (!schema || typeof schema !== 'object') {
     return null;
+  }
+
+  if (Array.isArray(schema.anyOf) && schema.anyOf.length > 0) {
+    return validateAnyOf(value, schema.anyOf, path);
   }
 
   if (schema.type === 'object') {
@@ -168,6 +235,18 @@ function validateValue(value, schema, path = '') {
 
   if (schema.type === 'integer') {
     return validateInteger(value, schema, path);
+  }
+
+  if (schema.type === 'number') {
+    return validateNumber(value, schema, path);
+  }
+
+  if (schema.type === 'boolean') {
+    return validateBoolean(value, path);
+  }
+
+  if (schema.type === 'null') {
+    return validateNull(value, path);
   }
 
   if (schema.type === 'array') {

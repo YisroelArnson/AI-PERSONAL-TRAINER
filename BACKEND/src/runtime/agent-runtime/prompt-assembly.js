@@ -209,6 +209,22 @@ function buildSystemBlocks({
     });
   }
 
+  if (triggerType === 'ui.action.complete_set') {
+    blocks.push({
+      type: 'text',
+      text: formatLayer(
+        'Workout UI Action Context',
+        [
+          'A workout card button already recorded the current set as completed in the backend before this run started.',
+          'Do not call workout_record_set_result again for that same set unless you are intentionally correcting history.',
+          'If you need more context, read the current workout state and continue from there.',
+          'If you have a useful brief coaching follow-up, send it.',
+          'If no response is needed, reply exactly: no_reply'
+        ].join('\n')
+      )
+    });
+  }
+
   const lastBlock = blocks[blocks.length - 1];
   if (env.anthropicPromptCachingEnabled && lastBlock) {
     lastBlock.cache_control = buildCacheControl(env.anthropicDynamicContextCacheTtl);

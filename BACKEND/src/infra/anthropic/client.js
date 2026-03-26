@@ -1,5 +1,3 @@
-const Anthropic = require('@anthropic-ai/sdk');
-
 const { env } = require('../../config/env');
 
 let anthropicClient;
@@ -10,6 +8,8 @@ function getAnthropicClient() {
   }
 
   if (!anthropicClient) {
+    const Anthropic = require('@anthropic-ai/sdk');
+
     anthropicClient = new Anthropic({
       apiKey: env.anthropicApiKey
     });

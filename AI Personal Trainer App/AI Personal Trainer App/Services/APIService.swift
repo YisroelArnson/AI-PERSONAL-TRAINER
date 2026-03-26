@@ -90,6 +90,25 @@ final class APIService: ObservableObject {
         return try decode(SessionResetResponse.self, from: data, response: response)
     }
 
+    func completeCurrentSet(
+        accessToken: String,
+        requestBody: CompleteCurrentSetRequest,
+        idempotencyKey: String
+    ) async throws -> CompleteCurrentSetResponse {
+        let request = try makeRequest(
+            path: "/v1/workout-actions/complete-current-set",
+            method: "POST",
+            accessToken: accessToken,
+            body: requestBody,
+            additionalHeaders: [
+                "Idempotency-Key": idempotencyKey
+            ]
+        )
+
+        let (data, response) = try await execute(request)
+        return try decode(CompleteCurrentSetResponse.self, from: data, response: response)
+    }
+
     func streamRun(
         accessToken: String,
         streamPath: String,
@@ -284,6 +303,17 @@ final class APIService: ObservableObject {
         guard let url = URL(string: candidate), let host = url.host, !host.isEmpty else {
             return nil
         }
+
+        #if targetEnvironment(simulator)
+        if host.caseInsensitiveCompare("localhost") == .orderedSame || host == "::1" {
+            guard var components = URLComponents(string: candidate) else {
+                return nil
+            }
+
+            components.host = "127.0.0.1"
+            return components.string
+        }
+        #endif
 
         return candidate
     }

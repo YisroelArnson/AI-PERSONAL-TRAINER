@@ -53,7 +53,9 @@ async function replaceSessionChunks({ userId, sessionKey, sessionId, chunks }) {
 
   const { data, error: insertError } = await supabase
     .from('session_index_chunks')
-    .insert(chunks)
+    .upsert(chunks, {
+      onConflict: 'user_id,session_key,session_id,start_seq_num,end_seq_num'
+    })
     .select('*');
 
   if (insertError) {

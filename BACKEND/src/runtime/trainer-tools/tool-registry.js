@@ -6,11 +6,25 @@ const programGetTool = require('./handlers/program-get.tool');
 const documentReplaceTextTool = require('./handlers/document-replace-text.tool');
 const documentReplaceEntireTool = require('./handlers/document-replace-entire.tool');
 const episodicNoteAppendTool = require('./handlers/episodic-note-append.tool');
+const workoutGenerateTool = require('./handlers/workout-generate.tool');
+const workoutGetCurrentStateTool = require('./handlers/workout-get-current-state.tool');
+const workoutRecordSetResultTool = require('./handlers/workout-record-set-result.tool');
+const workoutRewriteRemainingTool = require('./handlers/workout-rewrite-remaining.tool');
+const workoutReplaceExerciseTool = require('./handlers/workout-replace-exercise.tool');
+const workoutAdjustSetTargetsTool = require('./handlers/workout-adjust-set-targets.tool');
+const workoutFinishSessionTool = require('./handlers/workout-finish-session.tool');
 const { validateToolInput, buildToolValidationError } = require('./tool-input-validation');
 
 const REGISTERED_TOOLS = [
   memoryGetTool,
   memorySearchTool,
+  workoutGetCurrentStateTool,
+  workoutGenerateTool,
+  workoutRewriteRemainingTool,
+  workoutReplaceExerciseTool,
+  workoutAdjustSetTargetsTool,
+  workoutRecordSetResultTool,
+  workoutFinishSessionTool,
   coachSoulGetTool,
   programGetTool,
   documentReplaceTextTool,

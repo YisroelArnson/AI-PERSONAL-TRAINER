@@ -1,8 +1,14 @@
 const { badRequest, conflict, notFound } = require('../../shared/errors');
 const { getRunById } = require('../../runtime/services/run-state.service');
 const { getStreamEventBounds, listStreamEvents } = require('../../runtime/services/stream-events.service');
+const { resolveConcurrencyPolicy } = require('../../runtime/services/concurrency-policy.service');
+const {
+  admitActiveStream,
+  refreshActiveStreamLease,
+  releaseActiveStreamLease
+} = require('./concurrency-admission.service');
 
-const POLL_INTERVAL_MS = 400;
+const POLL_INTERVAL_MS = 120;
 const HEARTBEAT_INTERVAL_MS = 15000;
 const MAX_BATCH_SIZE = 200;
 const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'canceled']);
@@ -62,7 +68,22 @@ function normalizeStreamEvent(row) {
       data: {
         ...base,
         type: 'assistant.delta',
+        iteration: payload.iteration || null,
         text: payload.text || ''
+      }
+    };
+  }
+
+  if (row.event_type === 'llm.message_delta' && payload.stopReason === 'tool_use') {
+    return {
+      id: row.seq_num,
+      event: 'tool.delta',
+      data: {
+        ...base,
+        type: 'tool.delta',
+        iteration: payload.iteration || null,
+        status: 'detected',
+        toolName: null
       }
     };
   }
@@ -74,6 +95,7 @@ function normalizeStreamEvent(row) {
       data: {
         ...base,
         type: 'tool.delta',
+        iteration: payload.iteration || null,
         status: 'requested',
         toolName: payload.toolName || null
       }
@@ -87,6 +109,7 @@ function normalizeStreamEvent(row) {
       data: {
         ...base,
         type: 'tool.delta',
+        iteration: payload.iteration || null,
         status: 'completed',
         toolName: payload.toolName || null,
         resultStatus: payload.resultStatus || null
@@ -169,103 +192,131 @@ async function streamRunEvents({ auth, req, res, params }) {
     });
   }
 
-  res.status(200);
-  res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-
-  if (typeof res.flushHeaders === 'function') {
-    res.flushHeaders();
-  }
-
-  let closed = false;
-  let lastSeenSeqNum = cursor;
-  let lastHeartbeatAt = Date.now();
-  let terminalEventSent = false;
-  let runStatus = initialRun.status;
-
-  req.on('close', () => {
-    closed = true;
+  const concurrencyPolicy = await resolveConcurrencyPolicy(auth.userId);
+  const activeStreamLease = await admitActiveStream({
+    userId: auth.userId,
+    headers: req.headers,
+    concurrencyPolicy
   });
 
-  while (!closed) {
-    const rows = await listStreamEvents({
-      runId,
-      afterSeqNum: lastSeenSeqNum,
-      limit: MAX_BATCH_SIZE
+  try {
+    res.status(200);
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    if (typeof res.flushHeaders === 'function') {
+      res.flushHeaders();
+    }
+
+    let closed = false;
+    let lastSeenSeqNum = cursor;
+    let lastHeartbeatAt = Date.now();
+    let terminalEventSent = false;
+    let runStatus = initialRun.status;
+
+    req.on('close', () => {
+      closed = true;
     });
 
-    for (const row of rows) {
-      lastSeenSeqNum = row.seq_num;
+    while (!closed) {
+      const rows = await listStreamEvents({
+        runId,
+        afterSeqNum: lastSeenSeqNum,
+        limit: MAX_BATCH_SIZE
+      });
 
-      const event = normalizeStreamEvent(row);
-      if (!event) {
-        continue;
+      for (const row of rows) {
+        lastSeenSeqNum = row.seq_num;
+
+        const event = normalizeStreamEvent(row);
+        if (!event) {
+          continue;
+        }
+
+        writeSseEvent(res, event);
+
+        if (event.event === 'run.completed' || event.event === 'run.failed') {
+          terminalEventSent = true;
+        }
       }
 
-      writeSseEvent(res, event);
+      if (closed) {
+        break;
+      }
 
-      if (event.event === 'run.completed' || event.event === 'run.failed') {
+      const currentRun = await loadOwnedRun(runId, auth.userId);
+      runStatus = currentRun.status;
+
+      if (!terminalEventSent && runStatus === 'failed') {
+        writeSseEvent(res, {
+          id: lastSeenSeqNum || 0,
+          event: 'run.failed',
+          data: {
+            runId,
+            eventId: lastSeenSeqNum || 0,
+            seqNum: lastSeenSeqNum || 0,
+            createdAt: new Date().toISOString(),
+            type: 'run.failed',
+            errorCode: currentRun.error_code || 'worker_error',
+            message: currentRun.error_message || 'Run failed'
+          }
+        });
         terminalEventSent = true;
       }
-    }
 
-    if (closed) {
-      break;
-    }
+      if (!terminalEventSent && runStatus === 'succeeded') {
+        writeSseEvent(res, {
+          id: lastSeenSeqNum || 0,
+          event: 'run.completed',
+          data: {
+            runId,
+            eventId: lastSeenSeqNum || 0,
+            seqNum: lastSeenSeqNum || 0,
+            createdAt: new Date().toISOString(),
+            type: 'run.completed',
+            phase: 'worker',
+            provider: currentRun.provider_key || null,
+            model: currentRun.model_key || null
+          }
+        });
+        terminalEventSent = true;
+      }
 
-    const currentRun = await loadOwnedRun(runId, auth.userId);
-    runStatus = currentRun.status;
+      if (TERMINAL_RUN_STATUSES.has(runStatus) && terminalEventSent) {
+        break;
+      }
 
-    if (!terminalEventSent && runStatus === 'failed') {
-      writeSseEvent(res, {
-        id: lastSeenSeqNum || 0,
-        event: 'run.failed',
-        data: {
-          runId,
-          eventId: lastSeenSeqNum || 0,
-          seqNum: lastSeenSeqNum || 0,
-          createdAt: new Date().toISOString(),
-          type: 'run.failed',
-          errorCode: currentRun.error_code || 'worker_error',
-          message: currentRun.error_message || 'Run failed'
+      if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
+        writeHeartbeat(res, runId);
+        lastHeartbeatAt = Date.now();
+
+        try {
+          const refreshed = await refreshActiveStreamLease({
+            lease: activeStreamLease,
+            concurrencyPolicy
+          });
+
+          if (refreshed.enforced && !refreshed.refreshed) {
+            break;
+          }
+        } catch (error) {
+          console.warn('Unable to refresh active-stream lease:', error.message);
         }
-      });
-      terminalEventSent = true;
+      }
+
+      await sleep(POLL_INTERVAL_MS);
+    }
+  } finally {
+    try {
+      await releaseActiveStreamLease(activeStreamLease);
+    } catch (error) {
+      console.warn('Unable to release active-stream lease:', error.message);
     }
 
-    if (!terminalEventSent && runStatus === 'succeeded') {
-      writeSseEvent(res, {
-        id: lastSeenSeqNum || 0,
-        event: 'run.completed',
-        data: {
-          runId,
-          eventId: lastSeenSeqNum || 0,
-          seqNum: lastSeenSeqNum || 0,
-          createdAt: new Date().toISOString(),
-          type: 'run.completed',
-          phase: 'worker',
-          provider: currentRun.provider_key || null,
-          model: currentRun.model_key || null
-        }
-      });
-      terminalEventSent = true;
-    }
-
-    if (TERMINAL_RUN_STATUSES.has(runStatus) && terminalEventSent) {
-      break;
-    }
-
-    if (Date.now() - lastHeartbeatAt >= HEARTBEAT_INTERVAL_MS) {
-      writeHeartbeat(res, runId);
-      lastHeartbeatAt = Date.now();
-    }
-
-    await sleep(POLL_INTERVAL_MS);
+    res.end();
   }
-
-  res.end();
 }
 
 module.exports = {

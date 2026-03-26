@@ -2,6 +2,10 @@ const mockAppendStreamEvent = jest.fn().mockResolvedValue();
 const mockAppendAssistantMessageEvent = jest.fn().mockResolvedValue();
 const mockExecuteToolCall = jest.fn();
 const mockBuildRequest = jest.fn(input => input);
+const mockCreateStream = jest.fn(() => ({
+  on: jest.fn(),
+  [Symbol.asyncIterator]: async function* () {}
+}));
 const mockExtractFinalOutput = jest.fn();
 const mockNormalizeAnthropicOutput = jest.fn();
 const mockGetStopDecision = jest.fn();
@@ -13,6 +17,7 @@ jest.mock('../../src/config/env', () => ({
     agentMaxIterations: 3,
     agentMaxOutputTokens: 4000,
     agentPromptMessageLimit: 12,
+    llmRawIoLoggingEnabled: false,
     anthropicPromptCachingEnabled: false,
     anthropicConversationCacheTtl: '5m',
     anthropicStaticCacheTtl: '5m'
@@ -31,9 +36,7 @@ jest.mock('../../src/runtime/agent-runtime/provider-registry', () => ({
   getProviderAdapter: jest.fn(() => ({
     validateCapabilities: jest.fn(),
     buildRequest: mockBuildRequest,
-    createStream: jest.fn(() => ({
-      [Symbol.asyncIterator]: async function* () {}
-    })),
+    createStream: mockCreateStream,
     normalizeStreamEvent: jest.fn(() => null),
     extractFinalOutput: mockExtractFinalOutput,
     classifyError: jest.fn(() => 'unknown')
@@ -97,10 +100,23 @@ jest.mock('../../src/runtime/trainer-tools/tool-registry', () => ({
 }));
 
 const { runAgentTurn } = require('../../src/runtime/agent-runtime/run-agent-turn');
+const { env } = require('../../src/config/env');
 
 describe('run-agent-turn truncated tool handling', () => {
+  let consoleLogSpy;
+
   beforeEach(() => {
     jest.clearAllMocks();
+    env.llmRawIoLoggingEnabled = false;
+    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    mockCreateStream.mockImplementation(() => ({
+      on: jest.fn(),
+      [Symbol.asyncIterator]: async function* () {}
+    }));
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
   });
 
   it('retries instead of executing a tool call that was truncated by max_tokens', async () => {
@@ -187,5 +203,181 @@ describe('run-agent-turn truncated tool handling', () => {
     expect(mockAppendAssistantMessageEvent).toHaveBeenCalledWith(expect.objectContaining({
       text: 'Saved cleanly.'
     }));
+  });
+
+  it('records request failures when stream creation throws synchronously', async () => {
+    mockCreateStream.mockImplementationOnce(() => {
+      throw new Error('prefill invalid');
+    });
+    mockGetStopDecision.mockReturnValue({
+      shouldStop: true,
+      reason: 'final_response'
+    });
+
+    await expect(runAgentTurn({
+      run_id: 'run-123',
+      user_id: 'user-123',
+      trigger_type: 'user.message'
+    })).rejects.toThrow('prefill invalid');
+
+    expect(mockAppendStreamEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'llm.request.failed',
+      payload: expect.objectContaining({
+        message: 'prefill invalid'
+      })
+    }));
+  });
+
+  it('suppresses assistant transcript writes when a ui complete-set run returns no_reply', async () => {
+    mockExtractFinalOutput.mockResolvedValue({
+      stopReason: 'end_turn',
+      usage: {},
+      rawMessage: {}
+    });
+
+    mockNormalizeAnthropicOutput.mockReturnValue({
+      toolCalls: [],
+      outputText: 'no_reply',
+      assistantMessage: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'no_reply'
+          }
+        ]
+      },
+      stopReason: 'end_turn',
+      usage: {}
+    });
+
+    mockGetStopDecision.mockReturnValue({
+      shouldStop: true,
+      reason: 'final_response'
+    });
+
+    const result = await runAgentTurn({
+      run_id: 'run-123',
+      user_id: 'user-123',
+      trigger_type: 'ui.action.complete_set'
+    });
+
+    expect(result.outputText).toBe('');
+    expect(mockAppendAssistantMessageEvent).not.toHaveBeenCalled();
+    expect(mockAppendStreamEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'assistant.reply.suppressed',
+      payload: expect.objectContaining({
+        reason: 'no_reply',
+        triggerType: 'ui.action.complete_set'
+      })
+    }));
+  });
+
+  it('prints raw provider request, content blocks, and response payloads when raw I/O logging is enabled', async () => {
+    env.llmRawIoLoggingEnabled = true;
+
+    mockCreateStream.mockImplementationOnce(() => ({
+      on: jest.fn(),
+      [Symbol.asyncIterator]: async function* () {
+        yield {
+          type: 'message_start',
+          message: {
+            id: 'msg_123',
+            model: 'claude-sonnet-4-6'
+          }
+        };
+        yield {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'tool_use',
+            id: 'tool_123',
+            name: 'document_replace_entire',
+            input: {}
+          }
+        };
+        yield {
+          type: 'content_block_delta',
+          index: 0,
+          delta: {
+            type: 'input_json_delta',
+            partial_json: '{"doc_key":"PROGRAM"}'
+          }
+        };
+        yield {
+          type: 'content_block_stop',
+          index: 0
+        };
+        yield {
+          type: 'message_stop'
+        };
+      }
+    }));
+
+    mockExtractFinalOutput.mockResolvedValueOnce({
+      stopReason: 'end_turn',
+      usage: {},
+      rawMessage: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'tool_123',
+            name: 'document_replace_entire',
+            input: {
+              doc_key: 'PROGRAM'
+            }
+          }
+        ]
+      }
+    });
+
+    mockNormalizeAnthropicOutput.mockReturnValueOnce({
+      toolCalls: [
+        {
+          type: 'tool_use',
+          id: 'tool_123',
+          name: 'document_replace_entire',
+          input: {
+            doc_key: 'PROGRAM'
+          }
+        }
+      ],
+      outputText: '',
+      assistantMessage: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'tool_use',
+            id: 'tool_123',
+            name: 'document_replace_entire',
+            input: {
+              doc_key: 'PROGRAM'
+            }
+          }
+        ]
+      },
+      stopReason: 'end_turn',
+      usage: {}
+    });
+
+    mockGetStopDecision.mockReturnValueOnce({
+      shouldStop: false,
+      reason: 'tool_calls_requested'
+    });
+    mockExecuteToolCall.mockResolvedValueOnce({
+      status: 'success',
+      result: {}
+    });
+
+    await runAgentTurn({
+      run_id: 'run-raw',
+      user_id: 'user-123',
+      trigger_type: 'user.message'
+    });
+
+    expect(consoleLogSpy).toHaveBeenCalledWith('[LLM RAW FINAL MESSAGE run=run-raw iteration=1]');
+    expect(consoleLogSpy).toHaveBeenCalledWith('[LLM RAW FINAL CONTENT run=run-raw iteration=1]');
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"doc_key": "PROGRAM"'));
   });
 });

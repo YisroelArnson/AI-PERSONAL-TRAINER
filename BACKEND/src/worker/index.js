@@ -9,9 +9,9 @@ const { handleIndexSyncSession } = require('./handlers/index-sync-session.handle
 const { handleMemoryFlushSessionEnd } = require('./handlers/memory-flush-session-end.handler');
 
 function buildProcessor() {
-  return async job => {
+  return async (job, token) => {
     if (job.name === JOB_NAMES.agentRunTurn) {
-      return handleAgentRunTurn(job);
+      return handleAgentRunTurn(job, token);
     }
 
     if (job.name === JOB_NAMES.memoryFlushSessionEnd) {
@@ -51,6 +51,11 @@ function startWorker() {
   });
 
   worker.on('failed', (job, error) => {
+    if (error && error.code === 'SESSION_MUTATION_LOCK_BUSY') {
+      console.warn(`Deferred job ${job ? job.id : 'unknown'} while waiting for session lock`);
+      return;
+    }
+
     console.error(`Failed job ${job ? job.id : 'unknown'}:`, error);
   });
 

@@ -16,6 +16,10 @@ function conflict(message, details) {
   return new HttpError(409, 'conflict', message, details);
 }
 
+function tooManyRequests(message = 'Too many requests', details) {
+  return new HttpError(429, 'too_many_requests', message, details);
+}
+
 function unauthorized(message = 'Authentication required') {
   return new HttpError(401, 'unauthorized', message);
 }
@@ -28,6 +32,7 @@ module.exports = {
   HttpError,
   badRequest,
   conflict,
+  tooManyRequests,
   unauthorized,
   notFound
 };

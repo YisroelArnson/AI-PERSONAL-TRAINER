@@ -12,12 +12,34 @@ function getAdminClientOrThrow() {
 
 async function listRecentTranscriptEventsForRun(run, limit = 12) {
   const supabase = getAdminClientOrThrow();
-  const { data, error } = await supabase
+  const { data: triggerEvent, error: triggerEventError } = await supabase
+    .from('session_events')
+    .select('seq_num')
+    .eq('user_id', run.user_id)
+    .eq('session_key', run.session_key)
+    .eq('session_id', run.session_id)
+    .eq('run_id', run.run_id)
+    .eq('actor', 'user')
+    .order('seq_num', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (triggerEventError) {
+    throw triggerEventError;
+  }
+
+  let query = supabase
     .from('session_events')
     .select('*')
     .eq('user_id', run.user_id)
     .eq('session_key', run.session_key)
-    .eq('session_id', run.session_id)
+    .eq('session_id', run.session_id);
+
+  if (triggerEvent && Number.isFinite(triggerEvent.seq_num)) {
+    query = query.lte('seq_num', triggerEvent.seq_num);
+  }
+
+  const { data, error } = await query
     .order('seq_num', { ascending: false })
     .limit(limit);
 

@@ -1,4 +1,7 @@
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
+const { parseCoachSurfaceResponse } = require('../../gateway/schemas/coach-surface.schema');
+const { buildWorkoutSurfaceDecorations } = require('./coach-surface-card-renderer.service');
+const { getCurrentWorkoutState } = require('./workout-state.service');
 
 const DEFAULT_FEED_LIMIT = 40;
 
@@ -141,7 +144,7 @@ async function buildCoachSurfaceView({ userId, sessionKey, sessionResetPolicy })
     sessionResetPolicy
   });
   const currentSessionId = sessionState ? sessionState.currentSessionId : null;
-  const [feed, activeRun] = await Promise.all([
+  const [feed, activeRun, workout] = await Promise.all([
     loadFeed({
       supabase,
       userId,
@@ -153,11 +156,20 @@ async function buildCoachSurfaceView({ userId, sessionKey, sessionResetPolicy })
       userId,
       sessionKey: resolvedSessionKey,
       sessionId: currentSessionId
+    }),
+    getCurrentWorkoutState({
+      userId,
+      sessionKey: resolvedSessionKey
     })
   ]);
+  const workoutDecorations = buildWorkoutSurfaceDecorations({
+    workout,
+    activeRun
+  });
+  const combinedFeed = [...feed, ...workoutDecorations.feedItems];
 
   return {
-    view: {
+    view: parseCoachSurfaceResponse({
       generatedAt: new Date().toISOString(),
       sessionKey: resolvedSessionKey,
       sessionId: currentSessionId,
@@ -166,8 +178,9 @@ async function buildCoachSurfaceView({ userId, sessionKey, sessionResetPolicy })
         subtitle: activeRun ? 'Working on your latest turn' : 'One calm surface for training, planning, and check-ins'
       },
       activeRun,
-      pinnedCard: null,
-      feed,
+      workout,
+      pinnedCard: workoutDecorations.pinnedCard,
+      feed: combinedFeed,
       composer: {
         placeholder: 'Message your coach',
         supportsText: true,
@@ -196,7 +209,7 @@ async function buildCoachSurfaceView({ userId, sessionKey, sessionResetPolicy })
           message: 'Help me plan today.'
         }
       ]
-    },
+    }),
     sessionBoundary: {
       sessionKey: sessionState ? sessionState.sessionKey : resolvedSessionKey,
       rotated: sessionState ? sessionState.rotated : false,
