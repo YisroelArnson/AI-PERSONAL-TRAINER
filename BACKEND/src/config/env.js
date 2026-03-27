@@ -1,3 +1,5 @@
+const os = require('node:os');
+const path = require('node:path');
 const dotenv = require('dotenv');
 
 dotenv.config();
@@ -13,6 +15,11 @@ const resolvedDefaultEmbeddingDimensions = Number(
   process.env.DEFAULT_EMBEDDING_DIMENSIONS
   || DEFAULT_EMBEDDING_MODEL_DIMENSIONS[resolvedDefaultEmbeddingModel]
   || 1536
+);
+const defaultLlmRawIoLoggingDirectory = path.join(
+  os.homedir(),
+  'Documents',
+  'AI Personal Trainer LLM Logs'
 );
 
 const env = {
@@ -38,6 +45,7 @@ const env = {
   agentMaxOutputTokens: Number(process.env.AGENT_MAX_OUTPUT_TOKENS || 4000),
   agentPromptMessageLimit: Number(process.env.AGENT_PROMPT_MESSAGE_LIMIT || 20),
   llmRawIoLoggingEnabled: process.env.LLM_RAW_IO_LOGGING_ENABLED === 'true',
+  llmRawIoLoggingDirectory: process.env.LLM_RAW_IO_LOGGING_DIRECTORY || defaultLlmRawIoLoggingDirectory,
   redisUrl: process.env.REDIS_URL || '',
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY || 5),
   promptContextCacheTtlSec: Number(process.env.PROMPT_CONTEXT_CACHE_TTL_SEC || 60),

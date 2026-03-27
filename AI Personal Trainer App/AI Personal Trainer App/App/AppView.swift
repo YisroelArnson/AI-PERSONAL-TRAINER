@@ -106,26 +106,14 @@ final class AppSessionController: ObservableObject {
     }
 }
 
-enum CoachRunTraceStepKind {
-    case tool
-    case error
-}
-
-struct CoachRunTraceStep: Identifiable {
-    let id: String
-    let kind: CoachRunTraceStepKind
-    var title: String
-    var detail: String?
-    var status: String?
-}
-
 struct CoachRunTracePresentation {
     let runId: String
     let isStreaming: Bool
     let headline: String
     let detail: String?
     let startedAt: Date?
-    let steps: [CoachRunTraceStep]
+    let commentaryText: String
+    let errorMessage: String?
 }
 
 private struct CoachRunTraceState {
@@ -133,15 +121,14 @@ private struct CoachRunTraceState {
     var isStreaming = true
     var startedAt: Date?
     var currentIteration: Int?
-    var currentToolLabel: String?
-    var currentToolStatus: String?
-    var steps: [CoachRunTraceStep] = []
-    var nextStepIndex = 0
+    var commentaryText = ""
+    var finalText = ""
+    var errorMessage: String?
 
     var hasVisibleContent: Bool {
         isStreaming
-            || currentToolLabel != nil
-            || !steps.isEmpty
+            || !commentaryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || errorMessage != nil
     }
 }
 
@@ -155,6 +142,7 @@ struct CoachRenderedFeedItem: Identifiable {
     let runId: String?
     let badgeLabel: String
     let isAssistant: Bool
+    let isProvisional: Bool
 }
 
 enum WorkoutDirectAction: String {
@@ -202,19 +190,34 @@ final class CoachSurfaceViewModel: ObservableObject {
                 trace: nil,
                 runId: item.runId,
                 badgeLabel: item.role == "assistant" ? "Coach" : "You",
-                isAssistant: item.role == "assistant"
+                isAssistant: item.role == "assistant",
+                isProvisional: false
             )
         }
 
         for runID in runTraceOrder {
+            let assistantRunItemIndex = items.firstIndex {
+                $0.runId == runID && $0.kind != "run_trace" && $0.role == "assistant"
+            }
+            let lastRunItemIndex = items.lastIndex {
+                $0.runId == runID && $0.kind != "run_trace"
+            }
+            let insertIndex = assistantRunItemIndex
+                ?? lastRunItemIndex.map { $0 + 1 }
+                ?? items.count
+
             guard let traceItem = makeRunTraceItem(runID: runID) else {
+                if assistantRunItemIndex == nil, let provisionalMessage = makeProvisionalAssistantMessageItem(runID: runID) {
+                    items.insert(provisionalMessage, at: insertIndex)
+                }
                 continue
             }
 
-            if let existingIndex = items.lastIndex(where: { $0.runId == runID && $0.kind != "run_trace" }) {
-                items.insert(traceItem, at: existingIndex)
-            } else {
-                items.append(traceItem)
+            items.insert(traceItem, at: min(insertIndex, items.count))
+
+            if assistantRunItemIndex == nil, let provisionalMessage = makeProvisionalAssistantMessageItem(runID: runID) {
+                let provisionalIndex = min(insertIndex + 1, items.count)
+                items.insert(provisionalMessage, at: provisionalIndex)
             }
         }
 
@@ -259,17 +262,13 @@ final class CoachSurfaceViewModel: ObservableObject {
         let traceToken = runTraceOrder.compactMap { runID -> String? in
             guard let trace = runTraces[runID] else { return nil }
 
-            let stepToken = trace.steps.map { step in
-                [step.id, step.title, step.detail ?? ""].joined(separator: "~")
-            }.joined(separator: ",")
-
             return [
                 runID,
                 trace.isStreaming ? "1" : "0",
                 trace.startedAt?.ISO8601Format() ?? "",
-                trace.currentToolLabel ?? "",
-                trace.currentToolStatus ?? "",
-                stepToken
+                trace.commentaryText,
+                trace.finalText,
+                trace.errorMessage ?? ""
             ].joined(separator: "|")
         }.joined(separator: "::")
 
@@ -324,75 +323,6 @@ final class CoachSurfaceViewModel: ObservableObject {
         runTraces[runID] = trace
     }
 
-    private func appendTraceStep(
-        runID: String,
-        kind: CoachRunTraceStepKind,
-        title: String,
-        detail: String? = nil,
-        status: String? = nil
-    ) {
-        updateRunTrace(runID) { trace in
-            trace.nextStepIndex += 1
-            trace.steps.append(
-                CoachRunTraceStep(
-                    id: "\(runID):\(trace.nextStepIndex)",
-                    kind: kind,
-                    title: title,
-                    detail: detail,
-                    status: status
-                )
-            )
-        }
-    }
-
-    private func markLatestToolStepCompleted(
-        runID: String,
-        toolName: String?,
-        resultStatus: String?
-    ) {
-        let completedTitle = toolTraceTitle(toolName: toolName, status: "completed")
-
-        updateRunTrace(runID) { trace in
-            guard let matchIndex = trace.steps.indices.reversed().first(where: { index in
-                let step = trace.steps[index]
-                return step.kind == .tool
-                    && step.status != "completed"
-                    && step.title == completedTitle
-            }) else {
-                return
-            }
-
-            trace.steps[matchIndex].status = "completed"
-
-            if let resultStatus, !resultStatus.isEmpty, resultStatus != "success" {
-                trace.steps[matchIndex].detail = resultStatus
-                    .replacingOccurrences(of: "_", with: " ")
-                    .capitalized
-            }
-        }
-    }
-
-    private func toolTraceTitle(toolName: String?, status: String?) -> String {
-        if status == "detected" {
-            return "Thinking"
-        }
-
-        switch toolName {
-        case "memory_search":
-            return "Searching past notes"
-        case "document_replace_text", "document_replace_entire":
-            return "Updating notes"
-        case "episodic_note_append":
-            return "Saving note"
-        case let name?:
-            return name
-                .replacingOccurrences(of: "_", with: " ")
-                .capitalized
-        default:
-            return status == "completed" ? "Tool finished" : "Using a tool"
-        }
-    }
-
     private func makeRunTraceItem(runID: String) -> CoachRenderedFeedItem? {
         guard let trace = tracePresentation(for: runID) else {
             return nil
@@ -407,7 +337,32 @@ final class CoachSurfaceViewModel: ObservableObject {
             trace: trace,
             runId: runID,
             badgeLabel: "Coach",
-            isAssistant: true
+            isAssistant: true,
+            isProvisional: false
+        )
+    }
+
+    private func makeProvisionalAssistantMessageItem(runID: String) -> CoachRenderedFeedItem? {
+        guard let trace = runTraces[runID] else {
+            return nil
+        }
+
+        let finalText = trace.finalText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !finalText.isEmpty else {
+            return nil
+        }
+
+        return CoachRenderedFeedItem(
+            id: "run:\(runID)",
+            kind: "message",
+            role: "assistant",
+            text: finalText,
+            card: nil,
+            trace: nil,
+            runId: runID,
+            badgeLabel: "Coach",
+            isAssistant: true,
+            isProvisional: true
         )
     }
 
@@ -415,30 +370,27 @@ final class CoachSurfaceViewModel: ObservableObject {
         guard let trace = runTraces[runID], trace.hasVisibleContent else {
             return nil
         }
-        let toolSteps = trace.steps.filter { $0.kind == .tool }
 
         if trace.isStreaming {
             return CoachRunTracePresentation(
                 runId: runID,
                 isStreaming: true,
-                headline: trace.currentToolLabel ?? "Thinking",
+                headline: "Thoughts",
                 detail: nil,
                 startedAt: trace.startedAt,
-                steps: trace.steps
+                commentaryText: trace.commentaryText,
+                errorMessage: trace.errorMessage
             )
         }
-        let detail: String? = {
-            guard !toolSteps.isEmpty else { return nil }
-            return toolSteps.count == 1 ? "1 action" : "\(toolSteps.count) actions"
-        }()
 
         return CoachRunTracePresentation(
             runId: runID,
             isStreaming: false,
             headline: "Thoughts",
-            detail: detail,
+            detail: nil,
             startedAt: trace.startedAt,
-            steps: trace.steps
+            commentaryText: trace.commentaryText,
+            errorMessage: trace.errorMessage
         )
     }
 
@@ -952,7 +904,7 @@ final class CoachSurfaceViewModel: ObservableObject {
             if let workout = event.workout {
                 mergeIncomingWorkout(workout)
             }
-        case "assistant.delta":
+        case "assistant.commentary.delta":
             if let iteration = event.iteration, runTraces[expectedRunID]?.currentIteration != iteration {
                 updateRunTrace(expectedRunID) { trace in
                     trace.currentIteration = iteration
@@ -967,8 +919,10 @@ final class CoachSurfaceViewModel: ObservableObject {
                 if trace.startedAt == nil {
                     trace.startedAt = Date()
                 }
+                trace.errorMessage = nil
+                trace.commentaryText += event.text ?? ""
             }
-        case "tool.delta":
+        case "assistant.commentary.completed":
             if let iteration = event.iteration, runTraces[expectedRunID]?.currentIteration != iteration {
                 updateRunTrace(expectedRunID) { trace in
                     trace.currentIteration = iteration
@@ -978,43 +932,51 @@ final class CoachSurfaceViewModel: ObservableObject {
                 }
             }
 
-            if event.status == "requested" {
-                appendTraceStep(
-                    runID: expectedRunID,
-                    kind: .tool,
-                    title: toolTraceTitle(toolName: event.toolName, status: event.status),
-                    status: "requested"
-                )
-            } else if event.status == "completed" {
-                markLatestToolStepCompleted(
-                    runID: expectedRunID,
-                    toolName: event.toolName,
-                    resultStatus: event.resultStatus
-                )
-            }
-
             updateRunTrace(expectedRunID) { trace in
                 trace.isStreaming = true
                 if trace.startedAt == nil {
                     trace.startedAt = Date()
                 }
-                trace.currentToolLabel = toolTraceTitle(toolName: event.toolName, status: event.status)
-                trace.currentToolStatus = event.status
+                trace.errorMessage = nil
+                if let text = event.text, !text.isEmpty, text.count >= trace.commentaryText.count {
+                    trace.commentaryText = text
+                }
+            }
+        case "assistant.final.delta":
+            if let iteration = event.iteration, runTraces[expectedRunID]?.currentIteration != iteration {
+                updateRunTrace(expectedRunID) { trace in
+                    trace.currentIteration = iteration
+                    if trace.startedAt == nil {
+                        trace.startedAt = Date()
+                    }
+                }
+            }
+
+            updateRunTrace(expectedRunID) { trace in
+                if trace.startedAt == nil {
+                    trace.startedAt = Date()
+                }
+                trace.isStreaming = false
+                trace.finalText += event.text ?? ""
+                trace.errorMessage = nil
+            }
+        case "assistant.final.completed":
+            updateRunTrace(expectedRunID) { trace in
+                trace.isStreaming = false
+                trace.currentIteration = nil
+                if let text = event.text, !text.isEmpty, text.count >= trace.finalText.count {
+                    trace.finalText = text
+                }
             }
         case "run.failed":
             if let message = event.message, !message.isEmpty {
-                appendTraceStep(
-                    runID: expectedRunID,
-                    kind: .error,
-                    title: "Run failed",
-                    detail: message
-                )
+                updateRunTrace(expectedRunID) { trace in
+                    trace.errorMessage = message
+                }
             }
 
             updateRunTrace(expectedRunID) { trace in
                 trace.isStreaming = false
-                trace.currentToolLabel = nil
-                trace.currentToolStatus = nil
                 trace.currentIteration = nil
             }
 
@@ -1029,8 +991,6 @@ final class CoachSurfaceViewModel: ObservableObject {
         case "run.completed":
             updateRunTrace(expectedRunID) { trace in
                 trace.isStreaming = false
-                trace.currentToolLabel = nil
-                trace.currentToolStatus = nil
                 trace.currentIteration = nil
             }
 
@@ -1610,45 +1570,50 @@ private struct CoachFeedRow: View {
     }
 
     var body: some View {
-        HStack {
-            if isAssistant {
-                content
-                Spacer(minLength: 42)
+        Group {
+            if item.kind == "run_trace", let trace = item.trace {
+                CoachRunTraceView(trace: trace)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else if item.kind == "card", let card = item.card {
+                CoachStructuredCard(card: card, isPinned: false, onAction: onCardAction)
+            } else if isAssistant {
+                assistantMessageContent
             } else {
-                Spacer(minLength: 42)
-                content
+                userMessageContent
             }
         }
     }
 
-    @ViewBuilder
-    private var content: some View {
-        if item.kind == "run_trace", let trace = item.trace {
-            CoachRunTraceView(trace: trace)
-        } else if item.kind == "card", let card = item.card {
-            CoachStructuredCard(card: card, isPinned: false, onAction: onCardAction)
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                CoachMessageText(
-                    text: item.text,
-                    rendersMarkdown: isAssistant,
-                    foregroundColor: isAssistant ? AppTheme.Colors.primaryText : AppTheme.Colors.background,
-                    isProvisional: false
-                )
+    private var assistantMessageContent: some View {
+        CoachMessageText(
+            text: item.text,
+            rendersMarkdown: true,
+            foregroundColor: AppTheme.Colors.primaryText,
+            isProvisional: item.isProvisional
+        )
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.trailing, 26)
+    }
 
-                Text(item.badgeLabel)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(isAssistant ? AppTheme.Colors.tertiaryText : AppTheme.Colors.background.opacity(0.7))
-            }
+    private var userMessageContent: some View {
+        HStack {
+            Spacer(minLength: 42)
+
+            CoachMessageText(
+                text: item.text,
+                rendersMarkdown: false,
+                foregroundColor: AppTheme.Colors.primaryText,
+                isProvisional: false
+            )
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(isAssistant ? AppTheme.Colors.surface : AppTheme.Colors.primaryText)
+                    .fill(AppTheme.Colors.surface)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(isAssistant ? AppTheme.Colors.divider : .clear, lineWidth: 1)
+                    .stroke(AppTheme.Colors.divider, lineWidth: 1)
             )
         }
     }
@@ -1931,9 +1896,9 @@ private struct CoachRunTraceView: View {
                     .frame(width: 8, height: 8)
                     .shimmer(duration: 1.2)
 
-                Text(trace.headline)
+                Text("Thoughts")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppTheme.Colors.primaryText)
+                    .foregroundStyle(AppTheme.Colors.secondaryText)
 
                 Spacer(minLength: 0)
 
@@ -1945,48 +1910,29 @@ private struct CoachRunTraceView: View {
                 }
             }
 
-            if !recentToolSteps.isEmpty {
+            if commentaryLines.isEmpty {
+                Text("Thinking…")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundStyle(AppTheme.Colors.secondaryText)
+                    .italic()
+            } else {
                 VStack(alignment: .leading, spacing: 6) {
-                    ForEach(recentToolSteps) { step in
-                        HStack(alignment: .center, spacing: 8) {
-                            Circle()
-                                .fill(step.status == "completed"
-                                    ? AppTheme.Colors.tertiaryText.opacity(0.45)
-                                    : AppTheme.Colors.highlight)
-                                .frame(width: 6, height: 6)
-
-                            Text(step.title)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(step.status == "completed"
-                                    ? AppTheme.Colors.tertiaryText
-                                    : AppTheme.Colors.secondaryText)
-
-                            Spacer(minLength: 0)
-
-                            if step.status == "completed" {
-                                Image(systemName: "checkmark")
-                                    .font(.system(size: 10, weight: .bold))
-                                    .foregroundStyle(AppTheme.Colors.tertiaryText)
-                            }
-                        }
-                        .transition(.asymmetric(
-                            insertion: .move(edge: .bottom).combined(with: .opacity),
-                            removal: .move(edge: .top).combined(with: .opacity)
-                        ))
+                    ForEach(Array(commentaryLines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(AppTheme.Colors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
-                .animation(AppTheme.Animation.gentle, value: recentToolSteps.map(\.id).joined(separator: "|"))
+            }
+
+            if let errorMessage = trace.errorMessage, !errorMessage.isEmpty {
+                Text(errorMessage)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(AppTheme.Colors.danger)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(AppTheme.Colors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(AppTheme.Colors.divider, lineWidth: 1)
-        )
     }
 
     private var archivedTraceBody: some View {
@@ -1997,21 +1943,13 @@ private struct CoachRunTraceView: View {
                 }
             }) {
                 HStack(alignment: .center, spacing: 10) {
+                    Text("Thoughts")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(AppTheme.Colors.secondaryText)
+
                     Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(AppTheme.Colors.tertiaryText)
-
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Thoughts")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(AppTheme.Colors.primaryText)
-
-                        if let detail = trace.detail, !detail.isEmpty {
-                            Text(detail)
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(AppTheme.Colors.secondaryText)
-                        }
-                    }
 
                     Spacer(minLength: 0)
                 }
@@ -2020,25 +1958,23 @@ private struct CoachRunTraceView: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 10) {
-                    ForEach(trace.steps) { step in
-                        CoachRunTraceStepRow(step: step)
+                    ForEach(Array(commentaryLines.enumerated()), id: \.offset) { _, line in
+                        Text(line)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(AppTheme.Colors.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if let errorMessage = trace.errorMessage, !errorMessage.isEmpty {
+                        Text(errorMessage)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(AppTheme.Colors.danger)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
         }
-        .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(AppTheme.Colors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(AppTheme.Colors.divider, lineWidth: 1)
-        )
-    }
-
-    private var recentToolSteps: [CoachRunTraceStep] {
-        Array(trace.steps.filter { $0.kind == .tool }.suffix(3))
+        .padding(.top, 2)
     }
 
     private var elapsedLabel: String? {
@@ -2046,53 +1982,12 @@ private struct CoachRunTraceView: View {
         let elapsedSeconds = max(0, Int(now.timeIntervalSince(startedAt)))
         return "\(elapsedSeconds)s"
     }
-}
 
-private struct CoachRunTraceStepRow: View {
-    let step: CoachRunTraceStep
-
-    var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: iconName)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(iconColor)
-                .padding(.top, 2)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(step.title)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppTheme.Colors.primaryText)
-
-                if let detail = step.detail, !detail.isEmpty {
-                    Text(detail)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(AppTheme.Colors.secondaryText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
-    }
-
-    private var iconName: String {
-        switch step.kind {
-        case .tool:
-            return "wrench.adjustable"
-        case .error:
-            return "exclamationmark.triangle"
-        }
-    }
-
-    private var iconColor: Color {
-        switch step.kind {
-        case .error:
-            return AppTheme.Colors.danger
-        case .tool:
-            return step.status == "completed"
-                ? AppTheme.Colors.tertiaryText
-                : AppTheme.Colors.highlight
-        }
+    private var commentaryLines: [String] {
+        trace.commentaryText
+            .split(separator: "\n")
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 }
 
@@ -2327,8 +2222,7 @@ private struct CoachMessageText: View {
                     .foregroundStyle(foregroundColor)
                     .tint(foregroundColor)
                     .lineSpacing(4)
-                    .italic()
-                    .opacity(0.9)
+                    .opacity(0.96)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(parsedText)
@@ -2342,8 +2236,7 @@ private struct CoachMessageText: View {
                 Text(text)
                     .font(.system(size: 17, weight: .medium))
                     .foregroundStyle(foregroundColor)
-                    .italic()
-                    .opacity(0.9)
+                    .opacity(0.96)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
                 Text(text)

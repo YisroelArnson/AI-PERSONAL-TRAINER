@@ -61,58 +61,58 @@ function normalizeStreamEvent(row) {
     };
   }
 
-  if (row.event_type === 'llm.text_delta') {
+  if (row.event_type === 'assistant.commentary.delta') {
     return {
       id: row.seq_num,
-      event: 'assistant.delta',
+      event: 'assistant.commentary.delta',
       data: {
         ...base,
-        type: 'assistant.delta',
+        type: 'assistant.commentary.delta',
         iteration: payload.iteration || null,
+        phase: payload.phase || 'commentary',
         text: payload.text || ''
       }
     };
   }
 
-  if (row.event_type === 'llm.message_delta' && payload.stopReason === 'tool_use') {
+  if (row.event_type === 'assistant.commentary.completed') {
     return {
       id: row.seq_num,
-      event: 'tool.delta',
+      event: 'assistant.commentary.completed',
       data: {
         ...base,
-        type: 'tool.delta',
+        type: 'assistant.commentary.completed',
         iteration: payload.iteration || null,
-        status: 'detected',
-        toolName: null
+        phase: payload.phase || 'commentary',
+        text: payload.text || ''
       }
     };
   }
 
-  if (row.event_type === 'tool.call.requested') {
+  if (row.event_type === 'assistant.final.delta') {
     return {
       id: row.seq_num,
-      event: 'tool.delta',
+      event: 'assistant.final.delta',
       data: {
         ...base,
-        type: 'tool.delta',
+        type: 'assistant.final.delta',
         iteration: payload.iteration || null,
-        status: 'requested',
-        toolName: payload.toolName || null
+        phase: payload.phase || 'final',
+        text: payload.text || ''
       }
     };
   }
 
-  if (row.event_type === 'tool.call.completed') {
+  if (row.event_type === 'assistant.final.completed') {
     return {
       id: row.seq_num,
-      event: 'tool.delta',
+      event: 'assistant.final.completed',
       data: {
         ...base,
-        type: 'tool.delta',
+        type: 'assistant.final.completed',
         iteration: payload.iteration || null,
-        status: 'completed',
-        toolName: payload.toolName || null,
-        resultStatus: payload.resultStatus || null
+        phase: payload.phase || 'final',
+        text: payload.text || ''
       }
     };
   }

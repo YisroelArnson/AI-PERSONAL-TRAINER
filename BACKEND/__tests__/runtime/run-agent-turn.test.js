@@ -6,6 +6,7 @@ const mockCreateStream = jest.fn(() => ({
   on: jest.fn(),
   [Symbol.asyncIterator]: async function* () {}
 }));
+const mockAppendRawLlmPayload = jest.fn().mockResolvedValue(null);
 const mockExtractFinalOutput = jest.fn();
 const mockNormalizeAnthropicOutput = jest.fn();
 const mockGetStopDecision = jest.fn();
@@ -30,6 +31,10 @@ jest.mock('../../src/runtime/services/stream-events.service', () => ({
 
 jest.mock('../../src/runtime/services/transcript-write.service', () => ({
   appendAssistantMessageEvent: mockAppendAssistantMessageEvent
+}));
+
+jest.mock('../../src/runtime/services/raw-llm-io-log.service', () => ({
+  appendRawLlmPayload: mockAppendRawLlmPayload
 }));
 
 jest.mock('../../src/runtime/agent-runtime/provider-registry', () => ({
@@ -62,6 +67,10 @@ jest.mock('../../src/runtime/agent-runtime/tool-schema.adapter', () => ({
 }));
 
 jest.mock('../../src/runtime/agent-runtime/output-normalization.adapter', () => ({
+  createDisplayPhaseParser: jest.fn(() => ({
+    consume: jest.fn(() => []),
+    flush: jest.fn(() => [])
+  })),
   normalizeAnthropicOutput: mockNormalizeAnthropicOutput,
   buildToolResultMessage: jest.fn()
 }));
@@ -103,21 +112,14 @@ const { runAgentTurn } = require('../../src/runtime/agent-runtime/run-agent-turn
 const { env } = require('../../src/config/env');
 
 describe('run-agent-turn truncated tool handling', () => {
-  let consoleLogSpy;
-
   beforeEach(() => {
     jest.clearAllMocks();
     env.llmRawIoLoggingEnabled = false;
     env.anthropicPromptCachingEnabled = false;
-    consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     mockCreateStream.mockImplementation(() => ({
       on: jest.fn(),
       [Symbol.asyncIterator]: async function* () {}
     }));
-  });
-
-  afterEach(() => {
-    consoleLogSpy.mockRestore();
   });
 
   it('retries instead of executing a tool call that was truncated by max_tokens', async () => {
@@ -315,7 +317,89 @@ describe('run-agent-turn truncated tool handling', () => {
     }));
   });
 
-  it('prints raw provider request, content blocks, and response payloads when raw I/O logging is enabled', async () => {
+  it('emits fallback commentary when a tool turn has no visible commentary text', async () => {
+    mockExtractFinalOutput
+      .mockResolvedValueOnce({
+        stopReason: 'tool_use',
+        usage: {},
+        rawMessage: {}
+      })
+      .mockResolvedValueOnce({
+        stopReason: 'end_turn',
+        usage: {},
+        rawMessage: {}
+      });
+
+    mockNormalizeAnthropicOutput
+      .mockReturnValueOnce({
+        toolCalls: [
+          {
+            id: 'tool-1',
+            name: 'memory_search',
+            input: {
+              query: 'push-up goal',
+              sources: ['memory']
+            }
+          }
+        ],
+        commentaryText: '',
+        finalText: '',
+        outputText: '',
+        assistantMessage: {
+          role: 'assistant',
+          content: []
+        },
+        stopReason: 'tool_use',
+        usage: {}
+      })
+      .mockReturnValueOnce({
+        toolCalls: [],
+        commentaryText: '',
+        finalText: 'Saved it.',
+        outputText: 'Saved it.',
+        assistantMessage: {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: 'Saved it.'
+            }
+          ]
+        },
+        stopReason: 'end_turn',
+        usage: {}
+      });
+
+    mockExecuteToolCall.mockResolvedValue({
+      status: 'ok',
+      output: {}
+    });
+
+    mockGetStopDecision.mockImplementation(({ normalizedOutput }) => (
+      normalizedOutput.toolCalls.length === 0
+        ? { shouldStop: true, reason: 'final_response' }
+        : { shouldStop: false, reason: 'tool_calls_requested' }
+    ));
+
+    await runAgentTurn({
+      run_id: 'run-123',
+      user_id: 'user-123',
+      trigger_type: 'user.message'
+    });
+
+    const commentaryEventIndex = mockAppendStreamEvent.mock.calls.findIndex(([payload]) => (
+      payload.eventType === 'assistant.commentary.delta'
+      && payload.payload.text === '• Checking what you already have saved.'
+    ));
+    const toolRequestEventIndex = mockAppendStreamEvent.mock.calls.findIndex(([payload]) => (
+      payload.eventType === 'tool.call.requested'
+    ));
+
+    expect(commentaryEventIndex).toBeGreaterThanOrEqual(0);
+    expect(toolRequestEventIndex).toBeGreaterThan(commentaryEventIndex);
+  });
+
+  it('writes raw provider request and response payloads when raw I/O logging is enabled', async () => {
     env.llmRawIoLoggingEnabled = true;
 
     mockCreateStream.mockImplementationOnce(() => ({
@@ -418,8 +502,22 @@ describe('run-agent-turn truncated tool handling', () => {
       trigger_type: 'user.message'
     });
 
-    expect(consoleLogSpy).toHaveBeenCalledWith('[LLM RAW FINAL MESSAGE run=run-raw iteration=1]');
-    expect(consoleLogSpy).toHaveBeenCalledWith('[LLM RAW FINAL CONTENT run=run-raw iteration=1]');
-    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('"doc_key": "PROGRAM"'));
+    expect(mockAppendRawLlmPayload).toHaveBeenCalledWith(expect.objectContaining({
+      phase: 'REQUEST',
+      runId: 'run-raw',
+      iteration: 1
+    }));
+    expect(mockAppendRawLlmPayload).toHaveBeenCalledWith(expect.objectContaining({
+      phase: 'RESPONSE',
+      runId: 'run-raw',
+      iteration: 1,
+      payload: expect.objectContaining({
+        content: expect.arrayContaining([
+          expect.objectContaining({
+            name: 'document_replace_entire'
+          })
+        ])
+      })
+    }));
   });
 });

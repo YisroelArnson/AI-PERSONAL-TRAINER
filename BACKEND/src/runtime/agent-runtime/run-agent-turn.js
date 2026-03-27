@@ -4,10 +4,15 @@ const { appendAssistantMessageEvent } = require('../services/transcript-write.se
 const { getProviderAdapter, getProviderCapabilities } = require('./provider-registry');
 const { applyHygiene } = require('./transcript-hygiene.adapter');
 const { toProviderTools } = require('./tool-schema.adapter');
-const { normalizeAnthropicOutput, buildToolResultMessage } = require('./output-normalization.adapter');
+const {
+  createDisplayPhaseParser,
+  normalizeAnthropicOutput,
+  buildToolResultMessage
+} = require('./output-normalization.adapter');
 const { getStopDecision } = require('./stop-conditions');
 const { assemblePrompt } = require('./prompt-assembly');
 const { listToolDefinitions, executeToolCall } = require('../trainer-tools/tool-registry');
+const { appendRawLlmPayload } = require('../services/raw-llm-io-log.service');
 
 function buildMaxIterationFallback(iteration) {
   return [
@@ -15,66 +20,6 @@ function buildMaxIterationFallback(iteration) {
     'I can still help, but I need to stop here for this run.',
     'Please try again or ask a more specific follow-up and I will continue from there.'
   ].join(' ');
-}
-
-function prettyPrintRawPayload(payload) {
-  try {
-    return JSON.stringify(payload, null, 2);
-  } catch (error) {
-    return JSON.stringify({
-      serializationError: error.message,
-      preview: String(payload)
-    }, null, 2);
-  }
-}
-
-function logRawLlmPayload({ phase, runId, iteration, payload }) {
-  if (!env.llmRawIoLoggingEnabled) {
-    return;
-  }
-
-  const suffix = [`run=${runId}`, iteration ? `iteration=${iteration}` : null]
-    .filter(Boolean)
-    .join(' ');
-
-  console.log(`[LLM RAW ${phase}${suffix ? ` ${suffix}` : ''}]`);
-  console.log(prettyPrintRawPayload(payload));
-}
-
-function maybeLogAnthropicContentBlock({ runId, iteration, providerEvent }) {
-  if (!env.llmRawIoLoggingEnabled || !providerEvent || !providerEvent.type) {
-    return;
-  }
-
-  if (
-    providerEvent.type === 'content_block_start'
-    || providerEvent.type === 'content_block_stop'
-    || (
-      providerEvent.type === 'content_block_delta'
-      && providerEvent.delta
-      && providerEvent.delta.type === 'input_json_delta'
-    )
-  ) {
-    logRawLlmPayload({
-      phase: 'CONTENT BLOCK',
-      runId,
-      iteration,
-      payload: providerEvent
-    });
-  }
-}
-
-function maybeLogFinalMessageContent({ runId, iteration, rawMessage }) {
-  if (!env.llmRawIoLoggingEnabled || !rawMessage || !Array.isArray(rawMessage.content)) {
-    return;
-  }
-
-  logRawLlmPayload({
-    phase: 'FINAL CONTENT',
-    runId,
-    iteration,
-    payload: rawMessage.content
-  });
 }
 
 function shouldRetryTruncatedToolCall(finalOutput, normalizedOutput) {
@@ -103,6 +48,139 @@ function shouldSuppressAssistantReply(run, outputText) {
     && String(outputText || '').trim().toLowerCase() === 'no_reply';
 }
 
+function hasCommentaryText(events) {
+  return Boolean((events || []).some(event => (
+    event
+    && event.phase === 'commentary'
+    && String(event.text || '').trim().length > 0
+  )));
+}
+
+function ensureTrailingSentencePunctuation(text) {
+  const trimmed = String(text || '').trim();
+
+  if (!trimmed) {
+    return '';
+  }
+
+  return /[.!?]$/.test(trimmed) ? trimmed : `${trimmed}.`;
+}
+
+function buildCommentaryFallbackLine(toolCall) {
+  const toolName = String(toolCall && toolCall.name || '').trim();
+  const input = toolCall && toolCall.input && typeof toolCall.input === 'object'
+    ? toolCall.input
+    : {};
+
+  if (toolName === 'memory_search') {
+    return 'Checking what you already have saved';
+  }
+
+  if (toolName === 'workout_history_fetch') {
+    return 'Checking your recent workout history';
+  }
+
+  if (toolName === 'workout_generate') {
+    return 'Putting together your next workout';
+  }
+
+  if (toolName === 'workout_session_control') {
+    if (input.action === 'start') {
+      return 'Getting your workout started';
+    }
+
+    if (input.action === 'pause') {
+      return 'Pausing your workout';
+    }
+
+    if (input.action === 'resume') {
+      return 'Getting you back into your workout';
+    }
+
+    return 'Updating your workout session';
+  }
+
+  if (toolName === 'workout_rewrite_remaining') {
+    return 'Adjusting the rest of your workout';
+  }
+
+  if (toolName === 'workout_replace_exercise') {
+    return 'Swapping in a better exercise option';
+  }
+
+  if (toolName === 'workout_adjust_set_targets') {
+    return 'Adjusting your set targets';
+  }
+
+  if (toolName === 'workout_record_set_result') {
+    return 'Recording that set and updating what is next';
+  }
+
+  if (toolName === 'workout_skip_exercise') {
+    return 'Skipping that movement and moving you to the next one';
+  }
+
+  if (toolName === 'workout_finish_session') {
+    return 'Wrapping up this workout';
+  }
+
+  if (toolName === 'document_replace_text' || toolName === 'document_replace_entire') {
+    if (input.doc_key === 'MEMORY') {
+      return 'Saving that to your memory';
+    }
+
+    if (input.doc_key === 'PROGRAM') {
+      return 'Updating your training plan';
+    }
+
+    if (input.doc_key === 'COACH_SOUL') {
+      return 'Updating how I coach you';
+    }
+
+    return 'Saving that for later';
+  }
+
+  if (toolName === 'episodic_note_append') {
+    return 'Saving a note so I keep the context';
+  }
+
+  return 'Working through the details before I answer';
+}
+
+function buildFallbackCommentaryEvent(toolCall, options = {}) {
+  const line = ensureTrailingSentencePunctuation(buildCommentaryFallbackLine(toolCall));
+
+  if (!line) {
+    return null;
+  }
+
+  return {
+    kind: 'delta',
+    phase: 'commentary',
+    text: `${options.hasPriorCommentary ? '\n' : ''}• ${line}`
+  };
+}
+
+async function appendDisplayPhaseStreamEvents({ runId, iteration, events }) {
+  for (const event of events || []) {
+    if (!event || !event.phase || !event.kind) {
+      continue;
+    }
+
+    const payload = {
+      iteration,
+      phase: event.phase,
+      text: event.text || ''
+    };
+
+    await appendStreamEvent({
+      runId,
+      eventType: `assistant.${event.phase}.${event.kind}`,
+      payload
+    });
+  }
+}
+
 async function runAgentTurn(run) {
   const provider = env.defaultLlmProvider;
   const model = env.defaultAnthropicModel;
@@ -126,6 +204,8 @@ async function runAgentTurn(run) {
       promptLayers: promptAssembly.metadata.layers
     }
   });
+
+  let hasVisibleCommentary = false;
 
   for (let iteration = 1; iteration <= maxIterations; iteration += 1) {
     const hydratedMessages = applyHygiene(workingMessages, {
@@ -183,8 +263,16 @@ async function runAgentTurn(run) {
 
     try {
       const providerRequest = adapter.buildRequest(runtimeInput);
+      await appendRawLlmPayload({
+        phase: 'REQUEST',
+        runId: run.run_id,
+        iteration,
+        payload: providerRequest
+      });
       const stream = adapter.createStream(providerRequest);
+      const displayPhaseParser = createDisplayPhaseParser();
       let textBuffer = '';
+      let hasVisibleCommentaryThisIteration = false;
 
       // Anthropic's MessageStream will surface some request validation failures
       // as unhandled rejections unless an error listener or promise consumer exists.
@@ -211,19 +299,42 @@ async function runAgentTurn(run) {
             ...normalizedEvent.payload
           }
         });
+
+        if (normalizedEvent.type === 'text_delta') {
+          const displayPhaseEvents = displayPhaseParser.consume(normalizedEvent.payload.text);
+          const emittedCommentary = hasCommentaryText(displayPhaseEvents);
+
+          if (emittedCommentary) {
+            hasVisibleCommentary = true;
+            hasVisibleCommentaryThisIteration = true;
+          }
+
+          await appendDisplayPhaseStreamEvents({
+            runId: run.run_id,
+            iteration,
+            events: displayPhaseEvents
+          });
+        }
       }
 
+      const flushedDisplayPhaseEvents = displayPhaseParser.flush();
+      if (hasCommentaryText(flushedDisplayPhaseEvents)) {
+        hasVisibleCommentary = true;
+        hasVisibleCommentaryThisIteration = true;
+      }
+
+      await appendDisplayPhaseStreamEvents({
+        runId: run.run_id,
+        iteration,
+        events: flushedDisplayPhaseEvents
+      });
+
       const finalOutput = await adapter.extractFinalOutput(stream, textBuffer);
-      logRawLlmPayload({
-        phase: 'FINAL MESSAGE',
+      await appendRawLlmPayload({
+        phase: 'RESPONSE',
         runId: run.run_id,
         iteration,
         payload: finalOutput.rawMessage
-      });
-      maybeLogFinalMessageContent({
-        runId: run.run_id,
-        iteration,
-        rawMessage: finalOutput.rawMessage
       });
       const normalizedOutput = normalizeAnthropicOutput(finalOutput);
 
@@ -287,12 +398,15 @@ async function runAgentTurn(run) {
       });
 
       if (stopDecision.shouldStop && stopDecision.reason === 'final_response') {
-        const suppressAssistantReply = shouldSuppressAssistantReply(run, normalizedOutput.outputText);
+        const suppressAssistantReply = shouldSuppressAssistantReply(
+          run,
+          normalizedOutput.finalText || normalizedOutput.outputText
+        );
 
         if (!suppressAssistantReply) {
           await appendAssistantMessageEvent({
             run,
-            text: normalizedOutput.outputText,
+            text: normalizedOutput.finalText || normalizedOutput.outputText,
             provider,
             model,
             usage: normalizedOutput.usage,
@@ -321,7 +435,7 @@ async function runAgentTurn(run) {
         });
 
         return {
-          outputText: suppressAssistantReply ? '' : normalizedOutput.outputText,
+          outputText: suppressAssistantReply ? '' : (normalizedOutput.finalText || normalizedOutput.outputText),
           provider,
           model,
           iterationsUsed: iteration
@@ -362,6 +476,22 @@ async function runAgentTurn(run) {
       workingMessages.push(normalizedOutput.assistantMessage);
 
       for (const toolCall of normalizedOutput.toolCalls) {
+        if (!hasVisibleCommentaryThisIteration) {
+          const fallbackCommentaryEvent = buildFallbackCommentaryEvent(toolCall, {
+            hasPriorCommentary: hasVisibleCommentary
+          });
+
+          if (fallbackCommentaryEvent) {
+            await appendDisplayPhaseStreamEvents({
+              runId: run.run_id,
+              iteration,
+              events: [fallbackCommentaryEvent]
+            });
+            hasVisibleCommentary = true;
+            hasVisibleCommentaryThisIteration = true;
+          }
+        }
+
         await appendStreamEvent({
           runId: run.run_id,
           eventType: 'tool.call.requested',
