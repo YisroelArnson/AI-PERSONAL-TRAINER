@@ -49,4 +49,35 @@ describe('workout-state service helpers', () => {
     expect(__testUtils.findWorkoutExerciseRow(graph, 'current').workout_exercise_id).toBe('exercise-2');
     expect(__testUtils.findWorkoutExerciseRow(graph, 'db_bent_over_row').workout_exercise_id).toBe('exercise-2');
   });
+
+  it('normalizes a single-date workout history request into an inclusive window', () => {
+    expect(__testUtils.normalizeWorkoutHistoryWindow({
+      date: '2026-03-27'
+    })).toEqual({
+      requestedMode: 'single_date',
+      startDate: '2026-03-27',
+      endDate: '2026-03-27',
+      includeLiveSessions: false,
+      maxSessions: 10
+    });
+  });
+
+  it('builds UTC history bounds from local date keys across a DST boundary', () => {
+    expect(__testUtils.buildUtcRangeForDateKeys({
+      startDateKey: '2026-03-08',
+      endDateKey: '2026-03-08',
+      timezone: 'America/New_York'
+    })).toEqual({
+      startIso: '2026-03-08T05:00:00Z',
+      endExclusiveIso: '2026-03-09T04:00:00Z'
+    });
+  });
+
+  it('prefers completed timestamps when assigning a history date to a session', () => {
+    expect(__testUtils.getWorkoutHistoryReferenceTimestamp({
+      created_at: '2026-03-27T11:00:00Z',
+      started_at: '2026-03-27T12:00:00Z',
+      completed_at: '2026-03-27T13:00:00Z'
+    })).toBe('2026-03-27T13:00:00Z');
+  });
 });

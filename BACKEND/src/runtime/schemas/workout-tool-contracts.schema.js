@@ -11,6 +11,7 @@ const {
 const nonEmptyStringSchema = z.string().trim().min(1);
 const nullableStringSchema = nonEmptyStringSchema.nullable().optional();
 const nullableIntegerSchema = z.number().int().nonnegative().nullable().optional();
+const dateKeySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 const workoutDecisionTypeSchema = z.enum([
   'initial_generation',
@@ -137,6 +138,42 @@ const workoutFinishSessionToolInputSchema = z.object({
   }).default({})
 });
 
+const workoutHistoryFetchToolInputSchema = z.object({
+  date: dateKeySchema.optional(),
+  startDate: dateKeySchema.optional(),
+  endDate: dateKeySchema.optional(),
+  maxSessions: z.number().int().min(1).max(31).optional(),
+  includeLiveSessions: z.boolean().optional()
+}).superRefine((value, ctx) => {
+  const hasDate = typeof value.date === 'string';
+  const hasStartDate = typeof value.startDate === 'string';
+  const hasEndDate = typeof value.endDate === 'string';
+
+  if (hasDate && (hasStartDate || hasEndDate)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['date'],
+      message: 'date cannot be combined with startDate or endDate.'
+    });
+  }
+
+  if (!hasDate && !(hasStartDate && hasEndDate)) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['startDate'],
+      message: 'Provide either date or both startDate and endDate.'
+    });
+  }
+
+  if (hasStartDate && hasEndDate && value.startDate > value.endDate) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['startDate'],
+      message: 'startDate must be on or before endDate.'
+    });
+  }
+});
+
 function stripJsonSchemaMetadata(value) {
   if (Array.isArray(value)) {
     return value.map(stripJsonSchemaMetadata);
@@ -165,6 +202,7 @@ const workoutSkipExerciseToolInputJsonSchema = toProviderInputSchema(workoutSkip
 const workoutAdjustSetTargetsToolInputJsonSchema = toProviderInputSchema(workoutAdjustSetTargetsToolInputSchema);
 const workoutRecordSetResultToolInputJsonSchema = toProviderInputSchema(workoutRecordSetResultToolInputSchema);
 const workoutFinishSessionToolInputJsonSchema = toProviderInputSchema(workoutFinishSessionToolInputSchema);
+const workoutHistoryFetchToolInputJsonSchema = toProviderInputSchema(workoutHistoryFetchToolInputSchema);
 
 function parseWorkoutGenerateToolInput(input) {
   return workoutGenerateToolInputSchema.parse(input);
@@ -184,6 +222,7 @@ module.exports = {
   workoutAdjustSetTargetsToolInputSchema,
   workoutRecordSetResultToolInputSchema,
   workoutFinishSessionToolInputSchema,
+  workoutHistoryFetchToolInputSchema,
   workoutGenerateToolInputJsonSchema,
   workoutRewriteRemainingToolInputJsonSchema,
   workoutReplaceExerciseToolInputJsonSchema,
@@ -192,5 +231,6 @@ module.exports = {
   workoutAdjustSetTargetsToolInputJsonSchema,
   workoutRecordSetResultToolInputJsonSchema,
   workoutFinishSessionToolInputJsonSchema,
+  workoutHistoryFetchToolInputJsonSchema,
   parseWorkoutGenerateToolInput
 };

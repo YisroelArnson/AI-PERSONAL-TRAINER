@@ -15,7 +15,9 @@ jest.mock('../../src/runtime/services/retrieval-search.service', () => ({
 }));
 
 jest.mock('../../src/runtime/services/timezone-date.service', () => ({
-  isValidDateKey: jest.fn(() => true)
+  getDateKeyInTimezone: jest.fn(() => '2026-03-27'),
+  isValidDateKey: jest.fn(() => true),
+  shiftDateKey: jest.fn(value => value)
 }));
 
 const {
@@ -48,6 +50,7 @@ describe('tool-registry', () => {
     expect(toolNames).toContain('workout_adjust_set_targets');
     expect(toolNames).toContain('workout_record_set_result');
     expect(toolNames).toContain('workout_finish_session');
+    expect(toolNames).toContain('workout_history_fetch');
     expect(toolNames).toContain('document_replace_entire');
     expect(toolNames).not.toContain('memory_get');
     expect(toolNames).not.toContain('program_get');
@@ -58,6 +61,7 @@ describe('tool-registry', () => {
 
   it('exposes the nested workout contracts in the provider-facing tool schemas', () => {
     const generateSchema = getToolDefinitionByName('workout_generate').inputSchema;
+    const historySchema = getToolDefinitionByName('workout_history_fetch').inputSchema;
     const replaceSchema = getToolDefinitionByName('workout_replace_exercise').inputSchema;
     const recordSchema = getToolDefinitionByName('workout_record_set_result').inputSchema;
 
@@ -95,6 +99,9 @@ describe('tool-registry', () => {
 
     expect(actualLoadSchema.required).toEqual(['value']);
     expect(actualLoadUnitSchema.enum).toEqual(expect.arrayContaining(['lb', 'kg']));
+    expect(Object.keys(historySchema.properties)).toEqual(
+      expect.arrayContaining(['date', 'startDate', 'endDate', 'maxSessions', 'includeLiveSessions'])
+    );
   });
 
   it('returns a validation error before executing a tool with missing required fields', async () => {

@@ -58,6 +58,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   '- Use the provided tool registry when you need targeted retrieval, durable writes, or live workout mutations.',
   '- Prefer read-only tools before mutating tools when more context is needed.',
   '- Use memory_search when targeted historical context beyond the prompt would help.',
+  '- Use workout_history_fetch when you need structured workout history for one date or an inclusive date range.',
   '- When you decide to call a tool, emit the tool call directly with complete arguments and no surrounding prose.',
   '- If you use a tool, incorporate the result and continue the run.',
   '- If runtime context says there is no active workout, do not behave as though one exists. Generate one first if appropriate.',
@@ -132,6 +133,47 @@ function buildRuntimeContextMarkdown({ currentWorkout, timezone }) {
     formatCurrentDateTime({ timezone })
   ].join('\n');
 }
+
+function buildTurnContextMarkdown({
+  episodicBootstrapMarkdown,
+  triggerType,
+  runtimeContextMarkdown
+}) {
+  const sections = [
+    [
+      '## Turn Context',
+      'Use this turn-only context for the next user turn. Treat it as runtime state, not as a separate user request.'
+    ].join('\n')
+  ];
+
+  if (episodicBootstrapMarkdown) {
+    sections.push(formatLayer('New Session Episodic Notes', episodicBootstrapMarkdown));
+  }
+
+  if (triggerType === 'app.opened') {
+    sections.push(formatLayer(
+      'App Open Context',
+      'The app was just opened. Welcome the user briefly, check in, and avoid repetitive greetings during short foreground/background churn.'
+    ));
+  }
+
+  if (triggerType === 'ui.action.complete_set') {
+    sections.push(formatLayer(
+      'Workout UI Action Context',
+      [
+        'A workout card button already recorded the current set as completed in the backend before this run started.',
+        'Do not call workout_record_set_result again for that same set unless you are intentionally correcting history.',
+        'If you need more context, use the current workout context already included below and continue from there.',
+        'If you have a useful brief coaching follow-up, send it.',
+        'If no response is needed, reply exactly: no_reply'
+      ].join('\n')
+    ));
+  }
+
+  sections.push(formatLayer('Runtime Context', runtimeContextMarkdown));
+
+  return sections.join('\n\n');
+}
 const DEFAULT_COACH_PRINCIPLES = [
   '### Safety First',
   '- Bias toward safety, pain-awareness, and clear constraints before performance optimization.',
@@ -198,6 +240,104 @@ function shouldLoadBootstrapInstructions(programRecord) {
   return !hasNonEmptyMarkdown(programRecord);
 }
 
+function cloneMessage(message) {
+  return {
+    ...message,
+    content: Array.isArray(message.content)
+      ? message.content.map(block => ({ ...block }))
+      : message.content
+  };
+}
+
+function normalizeMessageContentToBlocks(content) {
+  if (typeof content === 'string') {
+    return content.trim()
+      ? [
+          {
+            type: 'text',
+            text: content
+          }
+        ]
+      : [];
+  }
+
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  return content.map(block => ({ ...block }));
+}
+
+function applyCacheControlToLastTextBlock(message, ttl) {
+  const contentBlocks = normalizeMessageContentToBlocks(message && message.content);
+
+  for (let index = contentBlocks.length - 1; index >= 0; index -= 1) {
+    if (contentBlocks[index] && contentBlocks[index].type === 'text') {
+      contentBlocks[index].cache_control = buildCacheControl(ttl);
+      break;
+    }
+  }
+
+  return {
+    ...message,
+    content: contentBlocks
+  };
+}
+
+function findLastUserMessageIndex(messages) {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    if (messages[index] && messages[index].role === 'user') {
+      return index;
+    }
+  }
+
+  return -1;
+}
+
+function buildPromptMessages({ promptMessages, turnContextMarkdown }) {
+  const clonedMessages = Array.isArray(promptMessages)
+    ? promptMessages.map(cloneMessage)
+    : [];
+  const lastUserIndex = findLastUserMessageIndex(clonedMessages);
+  const historicalMessages = lastUserIndex >= 0
+    ? clonedMessages.slice(0, lastUserIndex)
+    : clonedMessages;
+  const currentUserMessage = lastUserIndex >= 0
+    ? cloneMessage(clonedMessages[lastUserIndex])
+    : null;
+
+  if (env.anthropicPromptCachingEnabled && historicalMessages.length > 0) {
+    const lastHistoricalIndex = historicalMessages.length - 1;
+    historicalMessages[lastHistoricalIndex] = applyCacheControlToLastTextBlock(
+      historicalMessages[lastHistoricalIndex],
+      env.anthropicConversationCacheTtl
+    );
+  }
+
+  const assembledMessages = [...historicalMessages];
+  const turnContextBlock = turnContextMarkdown
+    ? {
+        type: 'text',
+        text: turnContextMarkdown
+      }
+    : null;
+
+  if (currentUserMessage) {
+    const currentUserBlocks = normalizeMessageContentToBlocks(currentUserMessage.content);
+    currentUserMessage.content = turnContextBlock
+      ? [turnContextBlock, ...currentUserBlocks]
+      : currentUserBlocks;
+    assembledMessages.push(currentUserMessage);
+  } else if (turnContextBlock) {
+    assembledMessages.push({
+      role: 'user',
+      content: [turnContextBlock]
+    });
+  }
+
+  return assembledMessages;
+}
+
 function buildSystemBlocks({
   systemPromptMarkdown,
   coachPrinciplesMarkdown,
@@ -205,10 +345,7 @@ function buildSystemBlocks({
   programMarkdown,
   recalledMemoryMarkdown,
   bootstrapMarkdown,
-  shouldLoadBootstrap,
-  episodicBootstrapMarkdown,
-  triggerType,
-  runtimeContextMarkdown
+  shouldLoadBootstrap
 }) {
   const blocks = [
     {
@@ -241,49 +378,9 @@ function buildSystemBlocks({
     });
   }
 
-  if (episodicBootstrapMarkdown) {
-    blocks.push({
-      type: 'text',
-      text: formatLayer('New Session Episodic Notes', episodicBootstrapMarkdown)
-    });
-  }
-
-  if (triggerType === 'app.opened') {
-    blocks.push({
-      type: 'text',
-      text: formatLayer(
-        'App Open Context',
-        'The app was just opened. Welcome the user briefly, check in, and avoid repetitive greetings during short foreground/background churn.'
-      )
-    });
-  }
-
-  if (triggerType === 'ui.action.complete_set') {
-    blocks.push({
-      type: 'text',
-      text: formatLayer(
-        'Workout UI Action Context',
-        [
-          'A workout card button already recorded the current set as completed in the backend before this run started.',
-          'Do not call workout_record_set_result again for that same set unless you are intentionally correcting history.',
-          'If you need more context, use the current workout context already included below and continue from there.',
-          'If you have a useful brief coaching follow-up, send it.',
-          'If no response is needed, reply exactly: no_reply'
-        ].join('\n')
-      )
-    });
-  }
-
-  blocks.push({
-    type: 'text',
-    text: formatLayer('Runtime Context', runtimeContextMarkdown)
-  });
-
-  if (env.anthropicPromptCachingEnabled && blocks.length >= 2) {
-    // Runtime Context always includes per-request state such as current time and
-    // live workout data, so caching that block defeats Anthropic prefix reuse.
-    const preRuntimeContextBlock = blocks[blocks.length - 2];
-    preRuntimeContextBlock.cache_control = buildCacheControl(env.anthropicDynamicContextCacheTtl);
+  if (env.anthropicPromptCachingEnabled && blocks.length > 0) {
+    const lastStableSystemBlock = blocks[blocks.length - 1];
+    lastStableSystemBlock.cache_control = buildCacheControl(env.anthropicDynamicContextCacheTtl);
   }
 
   return blocks;
@@ -339,6 +436,11 @@ async function assemblePrompt(run, options = {}) {
     currentWorkout,
     timezone: continuityPolicy ? continuityPolicy.timezone : 'UTC'
   });
+  const turnContextMarkdown = buildTurnContextMarkdown({
+    episodicBootstrapMarkdown,
+    triggerType: run.trigger_type,
+    runtimeContextMarkdown
+  });
   const systemBlocks = buildSystemBlocks({
     systemPromptMarkdown,
     coachPrinciplesMarkdown,
@@ -346,16 +448,17 @@ async function assemblePrompt(run, options = {}) {
     programMarkdown,
     recalledMemoryMarkdown,
     bootstrapMarkdown,
-    shouldLoadBootstrap,
-    episodicBootstrapMarkdown,
-    triggerType: run.trigger_type,
-    runtimeContextMarkdown
+    shouldLoadBootstrap
+  });
+  const messages = buildPromptMessages({
+    promptMessages: promptContext.messages,
+    turnContextMarkdown
   });
 
   return {
     systemPrompt: systemBlocks.map(block => block.text).join('\n\n'),
     systemBlocks,
-    messages: promptContext.messages,
+    messages,
     metadata: {
       cacheHit: promptContext.cacheHit,
       sourceEventIds: promptContext.sourceEventIds,

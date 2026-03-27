@@ -2,6 +2,7 @@ const memorySearchTool = require('./handlers/memory-search.tool');
 const documentReplaceTextTool = require('./handlers/document-replace-text.tool');
 const documentReplaceEntireTool = require('./handlers/document-replace-entire.tool');
 const episodicNoteAppendTool = require('./handlers/episodic-note-append.tool');
+const workoutHistoryFetchTool = require('./handlers/workout-history-fetch.tool');
 const workoutGenerateTool = require('./handlers/workout-generate.tool');
 const workoutRecordSetResultTool = require('./handlers/workout-record-set-result.tool');
 const workoutSessionControlTool = require('./handlers/workout-session-control.tool');
@@ -14,6 +15,7 @@ const { validateToolInput, buildToolValidationError } = require('./tool-input-va
 
 const REGISTERED_TOOLS = [
   memorySearchTool,
+  workoutHistoryFetchTool,
   workoutGenerateTool,
   workoutSessionControlTool,
   workoutRewriteRemainingTool,

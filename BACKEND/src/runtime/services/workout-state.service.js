@@ -1,10 +1,14 @@
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { parseWorkoutSessionState } = require('../schemas/workout.schema');
+const { resolveSessionContinuityPolicy } = require('./session-reset-policy.service');
+const { getDateKeyInTimezone, isValidDateKey, shiftDateKey } = require('./timezone-date.service');
 
 const LIVE_WORKOUT_STATUSES = ['queued', 'in_progress', 'paused'];
 const TERMINAL_EXERCISE_STATUSES = new Set(['completed', 'skipped', 'canceled']);
 const TERMINAL_SET_STATUSES = new Set(['completed', 'skipped']);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DEFAULT_WORKOUT_HISTORY_MAX_SESSIONS = 10;
+const MAX_WORKOUT_HISTORY_MAX_SESSIONS = 31;
 
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
@@ -316,6 +320,302 @@ function buildWorkoutState({ session, exercises, sets, adjustments }) {
   });
 }
 
+function stripIsoMilliseconds(value) {
+  return String(value || '').replace(/\.\d{3}Z$/, 'Z');
+}
+
+function getWorkoutHistoryReferenceTimestamp(session) {
+  return session.completed_at || session.started_at || session.created_at || null;
+}
+
+function getUtcOffsetMsForTimezone(value, timezone) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+    hourCycle: 'h23'
+  });
+  const parts = formatter.formatToParts(value);
+  const mapped = Object.fromEntries(
+    parts
+      .filter(part => part.type !== 'literal')
+      .map(part => [part.type, part.value])
+  );
+  let year = Number(mapped.year);
+  let month = Number(mapped.month);
+  let day = Number(mapped.day);
+  let hour = Number(mapped.hour);
+
+  if (hour === 24) {
+    hour = 0;
+    const normalizedDate = new Date(Date.UTC(year, month - 1, day));
+    normalizedDate.setUTCDate(normalizedDate.getUTCDate() + 1);
+    year = normalizedDate.getUTCFullYear();
+    month = normalizedDate.getUTCMonth() + 1;
+    day = normalizedDate.getUTCDate();
+  }
+
+  const asUtcTime = Date.UTC(
+    year,
+    month - 1,
+    day,
+    hour,
+    Number(mapped.minute),
+    Number(mapped.second)
+  );
+
+  return asUtcTime - value.getTime();
+}
+
+function getUtcInstantForDateKey(dateKey, timezone) {
+  if (!isValidDateKey(dateKey)) {
+    throw buildError('INVALID_WORKOUT_HISTORY_DATE', {
+      dateKey
+    });
+  }
+
+  const [year, month, day] = String(dateKey).split('-').map(Number);
+  const utcGuess = Date.UTC(year, month - 1, day, 0, 0, 0);
+  const initialOffset = getUtcOffsetMsForTimezone(new Date(utcGuess), timezone);
+  let resolvedTime = utcGuess - initialOffset;
+  const correctedOffset = getUtcOffsetMsForTimezone(new Date(resolvedTime), timezone);
+
+  if (correctedOffset !== initialOffset) {
+    resolvedTime = utcGuess - correctedOffset;
+  }
+
+  return new Date(resolvedTime);
+}
+
+function buildUtcRangeForDateKeys({ startDateKey, endDateKey, timezone }) {
+  return {
+    startIso: stripIsoMilliseconds(getUtcInstantForDateKey(startDateKey, timezone).toISOString()),
+    endExclusiveIso: stripIsoMilliseconds(
+      getUtcInstantForDateKey(shiftDateKey(endDateKey, 1), timezone).toISOString()
+    )
+  };
+}
+
+function normalizeWorkoutHistoryWindow(input = {}) {
+  const hasDate = typeof input.date === 'string' && String(input.date).trim().length > 0;
+  const hasStartDate = typeof input.startDate === 'string' && String(input.startDate).trim().length > 0;
+  const hasEndDate = typeof input.endDate === 'string' && String(input.endDate).trim().length > 0;
+
+  if (hasDate && (hasStartDate || hasEndDate)) {
+    throw buildError('INVALID_WORKOUT_HISTORY_WINDOW', {
+      reason: 'Provide either date or startDate/endDate, not both.'
+    });
+  }
+
+  if (!hasDate && !(hasStartDate && hasEndDate)) {
+    throw buildError('INVALID_WORKOUT_HISTORY_WINDOW', {
+      reason: 'Provide either date or both startDate and endDate.'
+    });
+  }
+
+  const startDate = hasDate ? String(input.date).trim() : String(input.startDate).trim();
+  const endDate = hasDate ? String(input.date).trim() : String(input.endDate).trim();
+
+  if (!isValidDateKey(startDate) || !isValidDateKey(endDate)) {
+    throw buildError('INVALID_WORKOUT_HISTORY_DATE', {
+      startDate,
+      endDate
+    });
+  }
+
+  if (startDate > endDate) {
+    throw buildError('INVALID_WORKOUT_HISTORY_WINDOW', {
+      startDate,
+      endDate,
+      reason: 'startDate must be on or before endDate.'
+    });
+  }
+
+  return {
+    requestedMode: hasDate ? 'single_date' : 'date_range',
+    startDate,
+    endDate,
+    includeLiveSessions: input.includeLiveSessions === true,
+    maxSessions: Number.isInteger(input.maxSessions)
+      ? Math.min(Math.max(input.maxSessions, 1), MAX_WORKOUT_HISTORY_MAX_SESSIONS)
+      : DEFAULT_WORKOUT_HISTORY_MAX_SESSIONS
+  };
+}
+
+async function loadWorkoutSessionRowsForHistoryRange({ userId, startIso, endExclusiveIso }) {
+  const supabase = getAdminClientOrThrow();
+  const [
+    completedResult,
+    startedResult,
+    createdResult
+  ] = await Promise.all([
+    supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .not('completed_at', 'is', null)
+      .gte('completed_at', startIso)
+      .lt('completed_at', endExclusiveIso),
+    supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .is('completed_at', null)
+      .not('started_at', 'is', null)
+      .gte('started_at', startIso)
+      .lt('started_at', endExclusiveIso),
+    supabase
+      .from('workout_sessions')
+      .select('*')
+      .eq('user_id', userId)
+      .is('completed_at', null)
+      .is('started_at', null)
+      .gte('created_at', startIso)
+      .lt('created_at', endExclusiveIso)
+  ]);
+
+  if (completedResult.error) {
+    throw completedResult.error;
+  }
+
+  if (startedResult.error) {
+    throw startedResult.error;
+  }
+
+  if (createdResult.error) {
+    throw createdResult.error;
+  }
+
+  const rowsById = new Map();
+
+  for (const row of [
+    ...(completedResult.data || []),
+    ...(startedResult.data || []),
+    ...(createdResult.data || [])
+  ]) {
+    rowsById.set(row.workout_session_id, row);
+  }
+
+  return [...rowsById.values()];
+}
+
+async function loadWorkoutGraphsForSessions(sessionRows) {
+  if (!Array.isArray(sessionRows) || sessionRows.length === 0) {
+    return [];
+  }
+
+  const supabase = getAdminClientOrThrow();
+  const sessionIds = sessionRows.map(row => row.workout_session_id);
+  const { data: exercises, error: exercisesError } = await supabase
+    .from('workout_exercises')
+    .select('*')
+    .in('workout_session_id', sessionIds)
+    .order('order_index', { ascending: true });
+
+  if (exercisesError) {
+    throw exercisesError;
+  }
+
+  const exerciseIds = (exercises || []).map(row => row.workout_exercise_id);
+  let sets = [];
+  let adjustments = [];
+
+  if (exerciseIds.length > 0) {
+    const [{ data: setRows, error: setsError }, { data: adjustmentRows, error: adjustmentsError }] = await Promise.all([
+      supabase
+        .from('workout_sets')
+        .select('*')
+        .in('workout_exercise_id', exerciseIds)
+        .order('set_index', { ascending: true }),
+      supabase
+        .from('workout_adjustments')
+        .select('*')
+        .in('workout_exercise_id', exerciseIds)
+        .order('created_at', { ascending: true })
+    ]);
+
+    if (setsError) {
+      throw setsError;
+    }
+
+    if (adjustmentsError) {
+      throw adjustmentsError;
+    }
+
+    sets = setRows || [];
+    adjustments = adjustmentRows || [];
+  }
+
+  const exercisesBySessionId = new Map();
+  const setsByExerciseId = new Map();
+  const adjustmentsByExerciseId = new Map();
+
+  for (const row of exercises || []) {
+    const list = exercisesBySessionId.get(row.workout_session_id) || [];
+    list.push(row);
+    exercisesBySessionId.set(row.workout_session_id, list);
+  }
+
+  for (const row of sets) {
+    const list = setsByExerciseId.get(row.workout_exercise_id) || [];
+    list.push(row);
+    setsByExerciseId.set(row.workout_exercise_id, list);
+  }
+
+  for (const row of adjustments) {
+    const list = adjustmentsByExerciseId.get(row.workout_exercise_id) || [];
+    list.push(row);
+    adjustmentsByExerciseId.set(row.workout_exercise_id, list);
+  }
+
+  return sessionRows.map(session => {
+    const sessionExercises = (exercisesBySessionId.get(session.workout_session_id) || [])
+      .sort((left, right) => left.order_index - right.order_index);
+    const sessionSets = sessionExercises.flatMap(row => setsByExerciseId.get(row.workout_exercise_id) || []);
+    const sessionAdjustments = sessionExercises.flatMap(
+      row => adjustmentsByExerciseId.get(row.workout_exercise_id) || []
+    );
+
+    return {
+      session,
+      exercises: sessionExercises,
+      sets: sessionSets,
+      adjustments: sessionAdjustments
+    };
+  });
+}
+
+function buildWorkoutHistorySummary(sessions) {
+  const statusCounts = {};
+  let totalExercises = 0;
+  let completedExercises = 0;
+  let totalSets = 0;
+  let completedSets = 0;
+
+  for (const entry of sessions) {
+    const workout = entry.workout;
+    statusCounts[workout.status] = (statusCounts[workout.status] || 0) + 1;
+    totalExercises += workout.progress.totalExercises;
+    completedExercises += workout.progress.completedExercises;
+    totalSets += workout.progress.totalSets;
+    completedSets += workout.progress.completedSets;
+  }
+
+  return {
+    totalSessions: sessions.length,
+    statusCounts,
+    totalExercises,
+    completedExercises,
+    totalSets,
+    completedSets
+  };
+}
+
 async function getWorkoutSessionRow({ userId, workoutSessionId, liveOnly = false }) {
   const supabase = getAdminClientOrThrow();
   let query = supabase
@@ -534,6 +834,90 @@ async function getCurrentWorkoutState({ userId, sessionKey, workoutSessionId }) 
   }
 
   return buildWorkoutState(graph);
+}
+
+async function getWorkoutHistory({ userId, input }) {
+  const normalizedWindow = normalizeWorkoutHistoryWindow(input || {});
+  const continuityPolicy = await resolveSessionContinuityPolicy(userId);
+  const timezone = continuityPolicy ? continuityPolicy.timezone : 'UTC';
+  const { startIso, endExclusiveIso } = buildUtcRangeForDateKeys({
+    startDateKey: normalizedWindow.startDate,
+    endDateKey: normalizedWindow.endDate,
+    timezone
+  });
+  const candidateSessions = await loadWorkoutSessionRowsForHistoryRange({
+    userId,
+    startIso,
+    endExclusiveIso
+  });
+  const matchingSessions = candidateSessions
+    .flatMap(row => {
+      const referenceTimestamp = getWorkoutHistoryReferenceTimestamp(row);
+
+      if (!referenceTimestamp) {
+        return [];
+      }
+
+      if (!normalizedWindow.includeLiveSessions && LIVE_WORKOUT_STATUSES.includes(row.status)) {
+        return [];
+      }
+
+      const sessionDate = getDateKeyInTimezone(referenceTimestamp, timezone);
+
+      if (sessionDate < normalizedWindow.startDate || sessionDate > normalizedWindow.endDate) {
+        return [];
+      }
+
+      return [{
+        row,
+        sessionDate,
+        referenceTimestamp
+      }];
+    })
+    .sort((left, right) => {
+      const timestampDelta = new Date(right.referenceTimestamp).getTime() - new Date(left.referenceTimestamp).getTime();
+
+      if (timestampDelta !== 0) {
+        return timestampDelta;
+      }
+
+      return new Date(right.row.created_at).getTime() - new Date(left.row.created_at).getTime();
+    });
+  const hasMore = matchingSessions.length > normalizedWindow.maxSessions;
+  const selectedSessions = matchingSessions.slice(0, normalizedWindow.maxSessions);
+  const graphs = await loadWorkoutGraphsForSessions(selectedSessions.map(entry => entry.row));
+  const graphsBySessionId = new Map(
+    graphs.map(graph => [graph.session.workout_session_id, graph])
+  );
+  const sessions = selectedSessions.map(entry => {
+    const graph = graphsBySessionId.get(entry.row.workout_session_id) || {
+      session: entry.row,
+      exercises: [],
+      sets: [],
+      adjustments: []
+    };
+
+    return {
+      sessionDate: entry.sessionDate,
+      referenceTimestamp: entry.referenceTimestamp,
+      workout: buildWorkoutState(graph)
+    };
+  });
+
+  return {
+    timezone,
+    window: {
+      requestedMode: normalizedWindow.requestedMode,
+      startDate: normalizedWindow.startDate,
+      endDate: normalizedWindow.endDate,
+      includeLiveSessions: normalizedWindow.includeLiveSessions,
+      maxSessions: normalizedWindow.maxSessions,
+      returnedSessions: sessions.length,
+      hasMore
+    },
+    summary: buildWorkoutHistorySummary(sessions),
+    sessions
+  };
 }
 
 async function createWorkoutSessionFromDraft({ userId, sessionKey, runId, input }) {
@@ -1852,12 +2236,15 @@ async function skipWorkoutExercise({ userId, input }) {
 
 module.exports = {
   __testUtils: {
+    buildUtcRangeForDateKeys,
     buildExerciseKey,
     buildNextStateVersion,
     coerceStateVersion,
     findWorkoutExerciseRow,
     findWorkoutSetRow,
+    getWorkoutHistoryReferenceTimestamp,
     isCurrentReference,
+    normalizeWorkoutHistoryWindow,
     resolveExerciseDefinitionId
   },
   LIVE_WORKOUT_STATUSES,
@@ -1865,6 +2252,7 @@ module.exports = {
   createWorkoutSessionFromDraft,
   finishWorkoutSession,
   getCurrentWorkoutState,
+  getWorkoutHistory,
   pauseWorkoutSession,
   recordWorkoutSetResult,
   resumeWorkoutSession,

@@ -20,6 +20,7 @@
 - Use the provided tool registry whenever durable context would improve the answer.
 - Prefer read-only tools before mutating tools when you need more context.
 - Use `memory_search` when targeted historical recall would be better than guessing.
+- Use `workout_history_fetch` when you need structured workout history for a specific date or inclusive date range.
 - If a tool returns a result, incorporate it and continue the run.
 - If a tool fails semantically, recover and adapt instead of pretending it worked.
 

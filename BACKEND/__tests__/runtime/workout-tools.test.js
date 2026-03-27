@@ -2,6 +2,7 @@ const mockAppendSessionEvent = jest.fn().mockResolvedValue();
 const mockAdjustWorkoutSetTargets = jest.fn();
 const mockCreateWorkoutSessionFromDraft = jest.fn();
 const mockFinishWorkoutSession = jest.fn();
+const mockGetWorkoutHistory = jest.fn();
 const mockRecordWorkoutSetResult = jest.fn();
 const mockReplaceWorkoutExerciseFromDraft = jest.fn();
 const mockRewriteRemainingWorkoutFromDraft = jest.fn();
@@ -14,6 +15,7 @@ jest.mock('../../src/runtime/services/workout-state.service', () => ({
   adjustWorkoutSetTargets: mockAdjustWorkoutSetTargets,
   createWorkoutSessionFromDraft: mockCreateWorkoutSessionFromDraft,
   finishWorkoutSession: mockFinishWorkoutSession,
+  getWorkoutHistory: mockGetWorkoutHistory,
   recordWorkoutSetResult: mockRecordWorkoutSetResult,
   replaceWorkoutExerciseFromDraft: mockReplaceWorkoutExerciseFromDraft,
   rewriteRemainingWorkoutFromDraft: mockRewriteRemainingWorkoutFromDraft
@@ -22,6 +24,7 @@ jest.mock('../../src/runtime/services/workout-state.service', () => ({
 const workoutAdjustSetTargetsTool = require('../../src/runtime/trainer-tools/handlers/workout-adjust-set-targets.tool');
 const workoutFinishSessionTool = require('../../src/runtime/trainer-tools/handlers/workout-finish-session.tool');
 const workoutGenerateTool = require('../../src/runtime/trainer-tools/handlers/workout-generate.tool');
+const workoutHistoryFetchTool = require('../../src/runtime/trainer-tools/handlers/workout-history-fetch.tool');
 const workoutRecordSetResultTool = require('../../src/runtime/trainer-tools/handlers/workout-record-set-result.tool');
 const workoutReplaceExerciseTool = require('../../src/runtime/trainer-tools/handlers/workout-replace-exercise.tool');
 const workoutRewriteRemainingTool = require('../../src/runtime/trainer-tools/handlers/workout-rewrite-remaining.tool');
@@ -153,6 +156,79 @@ describe('workout tool handlers', () => {
     expect(mockAppendSessionEvent).toHaveBeenCalledWith(expect.objectContaining({
       eventType: 'workout.set.completed'
     }));
+  });
+
+  it('fetches structured workout history for an inclusive date range', async () => {
+    mockGetWorkoutHistory.mockResolvedValue({
+      timezone: 'America/New_York',
+      window: {
+        requestedMode: 'date_range',
+        startDate: '2026-03-20',
+        endDate: '2026-03-26',
+        includeLiveSessions: false,
+        maxSessions: 10,
+        returnedSessions: 1,
+        hasMore: false
+      },
+      summary: {
+        totalSessions: 1,
+        statusCounts: {
+          completed: 1
+        },
+        totalExercises: 2,
+        completedExercises: 2,
+        totalSets: 6,
+        completedSets: 6
+      },
+      sessions: [
+        {
+          sessionDate: '2026-03-24',
+          referenceTimestamp: '2026-03-24T13:00:00Z',
+          workout: {
+            workoutSessionId: 'workout-1',
+            status: 'completed',
+            progress: {
+              totalExercises: 2,
+              completedExercises: 2,
+              totalSets: 6,
+              completedSets: 6
+            }
+          }
+        }
+      ]
+    });
+
+    const result = await workoutHistoryFetchTool.execute({
+      input: {
+        startDate: '2026-03-20',
+        endDate: '2026-03-26'
+      },
+      userId: 'user-123'
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.output.history.summary.totalSessions).toBe(1);
+    expect(mockGetWorkoutHistory).toHaveBeenCalledWith({
+      userId: 'user-123',
+      input: {
+        startDate: '2026-03-20',
+        endDate: '2026-03-26'
+      }
+    });
+  });
+
+  it('returns a validation error for an inverted workout history range', async () => {
+    const result = await workoutHistoryFetchTool.execute({
+      input: {
+        startDate: '2026-03-26',
+        endDate: '2026-03-20'
+      },
+      userId: 'user-123'
+    });
+
+    expect(result.status).toBe('validation_error');
+    expect(result.error.explanation).toContain('startDate must be on or before endDate');
+    expect(mockGetWorkoutHistory).not.toHaveBeenCalled();
   });
 
   it('rewrites the remaining workout with a new agent-authored plan', async () => {

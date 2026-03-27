@@ -46,10 +46,16 @@ function buildProviderContentBlock(block) {
   }
 
   if (block.type === 'text') {
-    return {
+    const providerBlock = {
       type: 'text',
       text: block.text
     };
+
+    if (block.cache_control) {
+      providerBlock.cache_control = block.cache_control;
+    }
+
+    return providerBlock;
   }
 
   if (block.type === 'tool_use') {
