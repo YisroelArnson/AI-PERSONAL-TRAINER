@@ -33,6 +33,7 @@ jest.mock('../../src/runtime/services/workout-state.service', () => ({
   getCurrentWorkoutState: mockGetCurrentWorkoutState
 }));
 
+const { env } = require('../../src/config/env');
 const {
   assemblePrompt,
   shouldLoadBootstrapInstructions,
@@ -42,6 +43,9 @@ const {
 describe('prompt-assembly bootstrap behavior', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    env.anthropicPromptCachingEnabled = true;
+    env.anthropicStaticCacheTtl = '5m';
+    env.anthropicDynamicContextCacheTtl = '5m';
     mockLoadStaticPromptLayer.mockImplementation(async (_filename, fallback) => fallback);
     mockGetPromptContextForRun.mockResolvedValue({
       messages: [
@@ -166,5 +170,27 @@ describe('prompt-assembly bootstrap behavior', () => {
     expect(result.systemPrompt).toContain('There is no current workout available for this user and active session context.');
     expect(result.systemPrompt).toContain('Suggested tool: workout_generate');
     expect(result.metadata.layers.hasCurrentWorkout).toBe(false);
+  });
+
+  it('places the explicit Anthropic breakpoint before the dynamic runtime context', async () => {
+    mockGetCurrentWorkoutState.mockResolvedValue({
+      workoutSessionId: 'workout-1'
+    });
+
+    const result = await assemblePrompt({
+      user_id: 'user-123',
+      session_key: 'user:123:main',
+      trigger_type: 'user.message'
+    });
+
+    const runtimeContextBlock = result.systemBlocks[result.systemBlocks.length - 1];
+    const preRuntimeContextBlock = result.systemBlocks[result.systemBlocks.length - 2];
+
+    expect(runtimeContextBlock.text).toContain('## Runtime Context');
+    expect(runtimeContextBlock.cache_control).toBeUndefined();
+    expect(preRuntimeContextBlock.cache_control).toEqual({
+      type: 'ephemeral',
+      ttl: '5m'
+    });
   });
 });

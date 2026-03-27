@@ -279,9 +279,11 @@ function buildSystemBlocks({
     text: formatLayer('Runtime Context', runtimeContextMarkdown)
   });
 
-  const lastBlock = blocks[blocks.length - 1];
-  if (env.anthropicPromptCachingEnabled && lastBlock) {
-    lastBlock.cache_control = buildCacheControl(env.anthropicDynamicContextCacheTtl);
+  if (env.anthropicPromptCachingEnabled && blocks.length >= 2) {
+    // Runtime Context always includes per-request state such as current time and
+    // live workout data, so caching that block defeats Anthropic prefix reuse.
+    const preRuntimeContextBlock = blocks[blocks.length - 2];
+    preRuntimeContextBlock.cache_control = buildCacheControl(env.anthropicDynamicContextCacheTtl);
   }
 
   return blocks;

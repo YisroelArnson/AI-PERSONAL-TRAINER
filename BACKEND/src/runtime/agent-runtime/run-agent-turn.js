@@ -145,12 +145,11 @@ async function runAgentTurn(run) {
       messages: hydratedMessages,
       tools: providerTools,
       maxOutputTokens: env.agentMaxOutputTokens,
-      cacheControl: env.anthropicPromptCachingEnabled
-        ? {
-            type: 'ephemeral',
-            ttl: env.anthropicConversationCacheTtl
-          }
-        : null,
+      // We inject per-request runtime context into the system prompt, including
+      // the current timestamp. Anthropic automatic caching hashes the full
+      // tools+system+messages prefix, so conversation-level auto caching would
+      // miss every turn and just create fresh cache writes.
+      cacheControl: null,
       toolChoice: providerTools.length > 0
         ? {
             type: 'auto',
@@ -391,6 +390,24 @@ async function runAgentTurn(run) {
             outputPreview: JSON.stringify(toolResult).slice(0, 500)
           }
         });
+
+        if (
+          toolResult &&
+          toolResult.status === 'ok' &&
+          toolResult.output &&
+          toolResult.output.workout
+        ) {
+          await appendStreamEvent({
+            runId: run.run_id,
+            eventType: 'workout.state.updated',
+            payload: {
+              iteration,
+              toolName: toolCall.name,
+              workout: toolResult.output.workout,
+              appliedStateVersion: toolResult.output.workout.stateVersion || null
+            }
+          });
+        }
 
         workingMessages.push(buildToolResultMessage(toolCall, toolResult));
       }

@@ -4,6 +4,8 @@ const documentReplaceEntireTool = require('./handlers/document-replace-entire.to
 const episodicNoteAppendTool = require('./handlers/episodic-note-append.tool');
 const workoutGenerateTool = require('./handlers/workout-generate.tool');
 const workoutRecordSetResultTool = require('./handlers/workout-record-set-result.tool');
+const workoutSessionControlTool = require('./handlers/workout-session-control.tool');
+const workoutSkipExerciseTool = require('./handlers/workout-skip-exercise.tool');
 const workoutRewriteRemainingTool = require('./handlers/workout-rewrite-remaining.tool');
 const workoutReplaceExerciseTool = require('./handlers/workout-replace-exercise.tool');
 const workoutAdjustSetTargetsTool = require('./handlers/workout-adjust-set-targets.tool');
@@ -13,10 +15,12 @@ const { validateToolInput, buildToolValidationError } = require('./tool-input-va
 const REGISTERED_TOOLS = [
   memorySearchTool,
   workoutGenerateTool,
+  workoutSessionControlTool,
   workoutRewriteRemainingTool,
   workoutReplaceExerciseTool,
   workoutAdjustSetTargetsTool,
   workoutRecordSetResultTool,
+  workoutSkipExerciseTool,
   workoutFinishSessionTool,
   documentReplaceTextTool,
   documentReplaceEntireTool,

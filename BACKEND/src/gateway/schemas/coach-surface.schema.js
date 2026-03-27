@@ -13,7 +13,17 @@ const coachCardActionSchema = z.object({
   id: nonEmptyStringSchema,
   label: nonEmptyStringSchema,
   icon: nullableStringSchema,
-  actionType: z.enum(['submit_message', 'toggle_pin', 'open_details', 'complete_current_set']),
+  actionType: z.enum([
+    'submit_message',
+    'toggle_pin',
+    'open_details',
+    'start_workout',
+    'complete_current_set',
+    'skip_current_exercise',
+    'pause_workout',
+    'resume_workout',
+    'finish_workout'
+  ]),
   semanticAction: nullableStringSchema,
   triggerType: nullableStringSchema,
   message: nullableStringSchema,

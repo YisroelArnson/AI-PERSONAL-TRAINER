@@ -4,8 +4,6 @@ const mockResolveSessionContinuityPolicy = jest.fn();
 const mockAcquireSessionMutationLock = jest.fn();
 const mockReleaseSessionMutationLock = jest.fn();
 const mockAppendSessionEvent = jest.fn();
-const mockBuildCoachSurfaceView = jest.fn();
-const mockGetCurrentWorkoutState = jest.fn();
 const mockRecordWorkoutSetResult = jest.fn();
 const mockRpc = jest.fn();
 
@@ -31,12 +29,7 @@ jest.mock('../../src/runtime/services/transcript-write.service', () => ({
   appendSessionEvent: mockAppendSessionEvent
 }));
 
-jest.mock('../../src/runtime/services/coach-surface-read.service', () => ({
-  buildCoachSurfaceView: mockBuildCoachSurfaceView
-}));
-
 jest.mock('../../src/runtime/services/workout-state.service', () => ({
-  getCurrentWorkoutState: mockGetCurrentWorkoutState,
   recordWorkoutSetResult: mockRecordWorkoutSetResult
 }));
 
@@ -52,6 +45,7 @@ function buildWorkoutState(overrides = {}) {
   return {
     workoutSessionId: 'workout-1',
     sessionKey: 'user:user-123:main',
+    stateVersion: 7,
     status: 'in_progress',
     currentPhase: 'exercise',
     title: 'Day B — Upper Body',
@@ -140,33 +134,6 @@ function buildWorkoutState(overrides = {}) {
   };
 }
 
-function buildSurface(workout, overrides = {}) {
-  return {
-    generatedAt: '2026-03-25T10:05:00.000Z',
-    sessionKey: workout.sessionKey,
-    sessionId: 'session-123',
-    header: {
-      title: 'Coach',
-      subtitle: 'Ready when you are'
-    },
-    activeRun: null,
-    workout,
-    pinnedCard: {
-      feedItemId: 'workout:workout-1:current',
-      reason: 'active_workout',
-      placement: 'above_composer'
-    },
-    feed: [],
-    composer: {
-      placeholder: 'Message your coach',
-      supportsText: true,
-      supportsVoice: true
-    },
-    quickActions: [],
-    ...overrides
-  };
-}
-
 describe('processCompleteCurrentSetAction', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -200,8 +167,8 @@ describe('processCompleteCurrentSetAction', () => {
   });
 
   it('completes the live set immediately and queues a hidden follow-up run', async () => {
-    const workoutBefore = buildWorkoutState();
     const workoutAfter = buildWorkoutState({
+      stateVersion: 8,
       currentSetIndex: 2,
       progress: {
         completedExercises: 0,
@@ -212,22 +179,9 @@ describe('processCompleteCurrentSetAction', () => {
       }
     });
 
-    mockGetCurrentWorkoutState.mockResolvedValue(workoutBefore);
     mockRecordWorkoutSetResult.mockResolvedValue({
       workout: workoutAfter
     });
-    mockBuildCoachSurfaceView.mockResolvedValue(buildSurface(workoutAfter, {
-      activeRun: {
-        runId: 'run-follow-up-1',
-        status: 'queued',
-        triggerType: 'ui.action.complete_set',
-        createdAt: '2026-03-25T10:05:00.000Z',
-        startedAt: null,
-        finishedAt: null,
-        provider: null,
-        model: null
-      }
-    }));
 
     const result = await processCompleteCurrentSetAction({
       auth: {
@@ -238,7 +192,10 @@ describe('processCompleteCurrentSetAction', () => {
       },
       body: {
         sessionKey: 'user:user-123:main',
-        workoutSessionId: 'workout-1'
+        workoutSessionId: 'workout-1',
+        workoutExerciseId: 'exercise-1',
+        setIndex: 1,
+        expectedStateVersion: 7
       }
     });
 
@@ -248,6 +205,7 @@ describe('processCompleteCurrentSetAction', () => {
         workoutSessionId: 'workout-1',
         workoutExerciseId: 'exercise-1',
         setIndex: 1,
+        expectedStateVersion: 7,
         resultStatus: 'completed'
       })
     });
@@ -268,6 +226,7 @@ describe('processCompleteCurrentSetAction', () => {
         workoutSessionId: 'workout-1',
         currentSetIndex: 2
       }),
+      appliedStateVersion: 8,
       agentFollowUp: {
         status: 'queued',
         runId: 'run-follow-up-1',

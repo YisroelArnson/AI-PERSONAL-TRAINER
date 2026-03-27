@@ -157,6 +157,15 @@ struct CoachRenderedFeedItem: Identifiable {
     let isAssistant: Bool
 }
 
+enum WorkoutDirectAction: String {
+    case startWorkout = "start_workout"
+    case completeCurrentSet = "complete_current_set"
+    case skipCurrentExercise = "skip_current_exercise"
+    case pauseWorkout = "pause_workout"
+    case resumeWorkout = "resume_workout"
+    case finishWorkout = "finish_workout"
+}
+
 @MainActor
 final class CoachSurfaceViewModel: ObservableObject {
     @Published var surface: CoachSurfaceResponse?
@@ -167,11 +176,15 @@ final class CoachSurfaceViewModel: ObservableObject {
     @Published var isQuickActionsExpanded = false
     @Published var errorMessage: String?
     @Published var toast: ToastData?
+    @Published private(set) var serverWorkout: WorkoutSessionState?
+    @Published private(set) var optimisticWorkout: WorkoutSessionState?
+    @Published private(set) var isWorkoutSyncing = false
     @Published private var runTraces: [String: CoachRunTraceState] = [:]
 
     private var activeUserID: UUID?
     private var pollTask: Task<Void, Never>?
     private var streamTask: Task<Void, Never>?
+    private var isWorkoutActionRequestInFlight = false
     private var didTriggerAppOpenThisLaunch = false
     private var observedRunID: String?
     private var observedStreamPath: String?
@@ -224,12 +237,16 @@ final class CoachSurfaceViewModel: ObservableObject {
         surface?.activeRun
     }
 
-    var pinnedFeedItem: CoachRenderedFeedItem? {
-        guard let pinnedFeedItemID = surface?.pinnedCard?.feedItemId else {
+    var effectiveWorkout: WorkoutSessionState? {
+        optimisticWorkout ?? serverWorkout ?? surface?.workout
+    }
+
+    var pinnedWorkout: WorkoutSessionState? {
+        guard let workout = effectiveWorkout else {
             return nil
         }
 
-        return feedItems.first(where: { $0.id == pinnedFeedItemID })
+        return ["queued", "in_progress", "paused"].contains(workout.status) ? workout : nil
     }
 
     var composerPlaceholder: String {
@@ -262,6 +279,9 @@ final class CoachSurfaceViewModel: ObservableObject {
     func reset() {
         activeUserID = nil
         surface = nil
+        serverWorkout = nil
+        optimisticWorkout = nil
+        isWorkoutSyncing = false
         composerText = ""
         isLoading = false
         isSending = false
@@ -269,6 +289,7 @@ final class CoachSurfaceViewModel: ObservableObject {
         isQuickActionsExpanded = false
         errorMessage = nil
         toast = nil
+        isWorkoutActionRequestInFlight = false
         didTriggerAppOpenThisLaunch = false
         runTraces = [:]
         runTraceOrder = []
@@ -425,9 +446,13 @@ final class CoachSurfaceViewModel: ObservableObject {
         if activeUserID != session.user.id {
             activeUserID = session.user.id
             surface = nil
+            serverWorkout = nil
+            optimisticWorkout = nil
+            isWorkoutSyncing = false
             composerText = ""
             errorMessage = nil
             isResettingSession = false
+            isWorkoutActionRequestInFlight = false
             didTriggerAppOpenThisLaunch = false
             runTraces = [:]
             runTraceOrder = []
@@ -460,6 +485,10 @@ final class CoachSurfaceViewModel: ObservableObject {
             cancelRunObservation(resetStreamState: true)
             composerText = ""
             errorMessage = nil
+            serverWorkout = nil
+            optimisticWorkout = nil
+            isWorkoutSyncing = false
+            isWorkoutActionRequestInFlight = false
             didTriggerAppOpenThisLaunch = true
             toast = ToastData(message: "Started a fresh chat.", icon: "square.and.pencil")
             Haptic.medium()
@@ -499,53 +528,46 @@ final class CoachSurfaceViewModel: ObservableObject {
         )
     }
 
-    private func shouldUseDirectCompleteSetAction(_ action: CoachCardAction) -> Bool {
-        action.actionType == "complete_current_set" ||
-        action.semanticAction == "workout_complete_set" ||
-        action.triggerType == CoachTriggerType.completeSet.rawValue ||
-        action.id == "complete_set"
+    private func directWorkoutAction(for action: CoachCardAction) -> WorkoutDirectAction? {
+        switch action.actionType {
+        case WorkoutDirectAction.startWorkout.rawValue:
+            return .startWorkout
+        case WorkoutDirectAction.completeCurrentSet.rawValue:
+            return .completeCurrentSet
+        case WorkoutDirectAction.skipCurrentExercise.rawValue:
+            return .skipCurrentExercise
+        case WorkoutDirectAction.pauseWorkout.rawValue:
+            return .pauseWorkout
+        case WorkoutDirectAction.resumeWorkout.rawValue:
+            return .resumeWorkout
+        case WorkoutDirectAction.finishWorkout.rawValue:
+            return .finishWorkout
+        default:
+            break
+        }
+
+        switch action.id {
+        case "start_workout":
+            return .startWorkout
+        case "complete_set":
+            return .completeCurrentSet
+        case "skip_exercise":
+            return .skipCurrentExercise
+        case "pause_workout":
+            return .pauseWorkout
+        case "resume_workout":
+            return .resumeWorkout
+        case "finish_workout":
+            return .finishWorkout
+        default:
+            return nil
+        }
     }
 
     func runCardAction(_ action: CoachCardAction) async {
-        if shouldUseDirectCompleteSetAction(action) {
-            guard let workoutSessionId = surface?.workout?.workoutSessionId else {
-                toast = ToastData(message: "There is no live workout set to complete right now.", icon: "hand.raised.fill")
-                return
-            }
-
-            do {
-                isSending = true
-                let accessToken = try await freshAccessToken()
-                let response = try await APIService.shared.completeCurrentSet(
-                    accessToken: accessToken,
-                    requestBody: CompleteCurrentSetRequest(
-                        sessionKey: surface?.sessionKey,
-                        workoutSessionId: workoutSessionId,
-                        actual: nil,
-                        userNote: nil
-                    ),
-                    idempotencyKey: UUID().uuidString.lowercased()
-                )
-
-                surface = response.surface
-                errorMessage = nil
-                Haptic.medium()
-
-                if response.agentFollowUp.status == "queued",
-                   let runID = response.agentFollowUp.runId {
-                    startRunObservation(
-                        runID: runID,
-                        streamPath: response.agentFollowUp.streamUrl ?? "/v1/runs/\(runID)/stream"
-                    )
-                }
-
-                isSending = false
-                return
-            } catch {
-                showError(error.localizedDescription)
-                isSending = false
-                return
-            }
+        if let directAction = directWorkoutAction(for: action) {
+            await runWorkoutAction(directAction)
+            return
         }
 
         guard action.actionType == "submit_message", let message = action.message else {
@@ -558,6 +580,58 @@ final class CoachSurfaceViewModel: ObservableObject {
             triggerType: CoachTriggerType(apiValue: action.triggerType),
             metadata: MessageMetadata(source: "ios_card_action", actionId: action.id)
         )
+    }
+
+    func runWorkoutAction(_ action: WorkoutDirectAction) async {
+        guard !isWorkoutActionRequestInFlight else { return }
+        guard let workout = effectiveWorkout else {
+            toast = ToastData(message: "There is no live workout to update right now.", icon: "hand.raised.fill")
+            return
+        }
+        guard let optimistic = applyOptimisticWorkoutAction(action, to: workout) else {
+            toast = ToastData(message: "That workout action is not available right now.", icon: "hand.raised.fill")
+            return
+        }
+
+        let previousOptimisticWorkout = optimisticWorkout
+
+        isWorkoutActionRequestInFlight = true
+        isWorkoutSyncing = true
+        optimisticWorkout = optimistic
+        errorMessage = nil
+
+        await Task.yield()
+
+        do {
+            let accessToken = try await freshAccessToken()
+            let response = try await performWorkoutActionRequest(
+                action,
+                workout: workout,
+                accessToken: accessToken
+            )
+
+            isWorkoutActionRequestInFlight = false
+            mergeIncomingWorkout(response.workout)
+            Haptic.medium()
+
+            if response.agentFollowUp.status == "queued",
+               let runID = response.agentFollowUp.runId {
+                startRunObservation(
+                    runID: runID,
+                    streamPath: response.agentFollowUp.streamUrl ?? "/v1/runs/\(runID)/stream"
+                )
+            }
+
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.refreshSurface(allowAppOpenTrigger: false)
+            }
+        } catch {
+            optimisticWorkout = previousOptimisticWorkout
+            isWorkoutSyncing = false
+            isWorkoutActionRequestInFlight = false
+            showError(error.localizedDescription)
+        }
     }
 
     func mergeTranscript(_ transcript: String) {
@@ -583,6 +657,113 @@ final class CoachSurfaceViewModel: ObservableObject {
         Haptic.error()
     }
 
+    private func mergeIncomingWorkout(_ workout: WorkoutSessionState?) {
+        guard let workout else {
+            if optimisticWorkout == nil {
+                serverWorkout = nil
+                isWorkoutSyncing = false
+                isWorkoutActionRequestInFlight = false
+            }
+            return
+        }
+
+        if (serverWorkout?.stateVersion ?? 0) <= workout.stateVersion {
+            serverWorkout = workout
+        }
+
+        if let optimisticWorkout, optimisticWorkout.stateVersion <= workout.stateVersion {
+            self.optimisticWorkout = nil
+            self.isWorkoutSyncing = false
+            self.isWorkoutActionRequestInFlight = false
+        }
+    }
+
+    private func performWorkoutActionRequest(
+        _ action: WorkoutDirectAction,
+        workout: WorkoutSessionState,
+        accessToken: String
+    ) async throws -> WorkoutExecutionActionResponse {
+        let idempotencyKey = UUID().uuidString.lowercased()
+
+        switch action {
+        case .startWorkout:
+            return try await APIService.shared.startWorkout(
+                accessToken: accessToken,
+                requestBody: WorkoutSessionControlRequest(
+                    sessionKey: surface?.sessionKey,
+                    workoutSessionId: workout.workoutSessionId,
+                    expectedStateVersion: workout.stateVersion
+                ),
+                idempotencyKey: idempotencyKey
+            )
+        case .completeCurrentSet:
+            guard let currentExercise = resolveCurrentExercise(in: workout),
+                  let currentSet = resolveCurrentSet(in: workout, exercise: currentExercise) else {
+                throw APIError.serverError(message: "No live workout set is available.", statusCode: nil)
+            }
+
+            return try await APIService.shared.completeCurrentSet(
+                accessToken: accessToken,
+                requestBody: CompleteCurrentSetRequest(
+                    sessionKey: surface?.sessionKey,
+                    workoutSessionId: workout.workoutSessionId,
+                    workoutExerciseId: currentExercise.workoutExerciseId,
+                    setIndex: currentSet.setIndex,
+                    expectedStateVersion: workout.stateVersion,
+                    workoutSetId: currentSet.workoutSetId,
+                    actual: nil,
+                    userNote: nil
+                ),
+                idempotencyKey: idempotencyKey
+            )
+        case .skipCurrentExercise:
+            guard let currentExercise = resolveCurrentExercise(in: workout) else {
+                throw APIError.serverError(message: "No live workout exercise is available.", statusCode: nil)
+            }
+
+            return try await APIService.shared.skipCurrentExercise(
+                accessToken: accessToken,
+                requestBody: SkipCurrentExerciseRequest(
+                    sessionKey: surface?.sessionKey,
+                    workoutSessionId: workout.workoutSessionId,
+                    workoutExerciseId: currentExercise.workoutExerciseId,
+                    expectedStateVersion: workout.stateVersion
+                ),
+                idempotencyKey: idempotencyKey
+            )
+        case .pauseWorkout:
+            return try await APIService.shared.pauseWorkout(
+                accessToken: accessToken,
+                requestBody: WorkoutSessionControlRequest(
+                    sessionKey: surface?.sessionKey,
+                    workoutSessionId: workout.workoutSessionId,
+                    expectedStateVersion: workout.stateVersion
+                ),
+                idempotencyKey: idempotencyKey
+            )
+        case .resumeWorkout:
+            return try await APIService.shared.resumeWorkout(
+                accessToken: accessToken,
+                requestBody: WorkoutSessionControlRequest(
+                    sessionKey: surface?.sessionKey,
+                    workoutSessionId: workout.workoutSessionId,
+                    expectedStateVersion: workout.stateVersion
+                ),
+                idempotencyKey: idempotencyKey
+            )
+        case .finishWorkout:
+            return try await APIService.shared.finishWorkout(
+                accessToken: accessToken,
+                requestBody: WorkoutSessionControlRequest(
+                    sessionKey: surface?.sessionKey,
+                    workoutSessionId: workout.workoutSessionId,
+                    expectedStateVersion: workout.stateVersion
+                ),
+                idempotencyKey: idempotencyKey
+            )
+        }
+    }
+
     private func refreshSurface(
         allowAppOpenTrigger: Bool,
         sessionKeyOverride: String? = nil
@@ -599,6 +780,7 @@ final class CoachSurfaceViewModel: ObservableObject {
             )
 
             surface = latestSurface
+            mergeIncomingWorkout(latestSurface.workout)
 
             if let activeRun = latestSurface.activeRun {
                 startRunObservation(
@@ -766,6 +948,10 @@ final class CoachSurfaceViewModel: ObservableObject {
         }
 
         switch event.type {
+        case "workout.state.updated":
+            if let workout = event.workout {
+                mergeIncomingWorkout(workout)
+            }
         case "assistant.delta":
             if let iteration = event.iteration, runTraces[expectedRunID]?.currentIteration != iteration {
                 updateRunTrace(expectedRunID) { trace in
@@ -863,6 +1049,218 @@ final class CoachSurfaceViewModel: ObservableObject {
     }
 }
 
+private func isTerminalExerciseStatus(_ status: String) -> Bool {
+    ["completed", "skipped", "canceled"].contains(status)
+}
+
+private func isTerminalSetStatus(_ status: String) -> Bool {
+    ["completed", "skipped"].contains(status)
+}
+
+private func resolveCurrentExercise(in workout: WorkoutSessionState) -> WorkoutExerciseState? {
+    workout.exercises.first(where: { $0.workoutExerciseId == workout.currentExerciseId })
+    ?? workout.exercises.first(where: { $0.orderIndex == workout.currentExerciseIndex })
+    ?? workout.exercises.first(where: { $0.status == "active" })
+    ?? workout.exercises.first(where: { $0.status == "pending" })
+}
+
+private func resolveCurrentSet(
+    in workout: WorkoutSessionState,
+    exercise: WorkoutExerciseState
+) -> WorkoutSetState? {
+    exercise.sets.first(where: { $0.setIndex == workout.currentSetIndex })
+    ?? exercise.sets.first(where: { $0.status == "active" })
+    ?? exercise.sets.first(where: { $0.status == "pending" })
+}
+
+private func recomputeProgress(exercises: [WorkoutExerciseState]) -> WorkoutProgress {
+    let completedExercises = exercises.filter { isTerminalExerciseStatus($0.status) }.count
+    let allSets = exercises.flatMap(\.sets)
+    let completedSets = allSets.filter { isTerminalSetStatus($0.status) }.count
+
+    return WorkoutProgress(
+        completedExercises: completedExercises,
+        totalExercises: exercises.count,
+        completedSets: completedSets,
+        totalSets: allSets.count,
+        remainingExercises: max(exercises.count - completedExercises, 0)
+    )
+}
+
+private func resolveExerciseStatus(for sets: [WorkoutSetState]) -> String {
+    if sets.isEmpty {
+        return "pending"
+    }
+
+    if sets.allSatisfy({ $0.status == "skipped" }) {
+        return "skipped"
+    }
+
+    if sets.allSatisfy({ isTerminalSetStatus($0.status) }) {
+        return "completed"
+    }
+
+    if sets.contains(where: { $0.status == "active" }) {
+        return "active"
+    }
+
+    if sets.contains(where: { isTerminalSetStatus($0.status) }) {
+        return "active"
+    }
+
+    return "pending"
+}
+
+private func firstLiveExercisePosition(in workout: WorkoutSessionState) -> Int? {
+    if let currentExerciseID = workout.currentExerciseId,
+       let index = workout.exercises.firstIndex(where: { $0.workoutExerciseId == currentExerciseID }) {
+        return index
+    }
+
+    if let currentExerciseIndex = workout.currentExerciseIndex,
+       let index = workout.exercises.firstIndex(where: { $0.orderIndex == currentExerciseIndex }) {
+        return index
+    }
+
+    return workout.exercises.firstIndex(where: { !isTerminalExerciseStatus($0.status) })
+}
+
+private func firstPendingSetPosition(in exercise: WorkoutExerciseState) -> Int? {
+    if let index = exercise.sets.firstIndex(where: { $0.status == "active" }) {
+        return index
+    }
+
+    return exercise.sets.firstIndex(where: { !isTerminalSetStatus($0.status) })
+}
+
+private func activateWorkoutPosition(
+    _ workout: inout WorkoutSessionState,
+    exercisePosition: Int?,
+    setPosition: Int?
+) {
+    for exerciseIndex in workout.exercises.indices {
+        if !isTerminalExerciseStatus(workout.exercises[exerciseIndex].status) {
+            workout.exercises[exerciseIndex].status = exerciseIndex == exercisePosition ? "active" : "pending"
+        }
+
+        for setIndex in workout.exercises[exerciseIndex].sets.indices {
+            if !isTerminalSetStatus(workout.exercises[exerciseIndex].sets[setIndex].status) {
+                if exerciseIndex == exercisePosition && setIndex == setPosition {
+                    workout.exercises[exerciseIndex].sets[setIndex].status = "active"
+                } else {
+                    workout.exercises[exerciseIndex].sets[setIndex].status = "pending"
+                }
+            }
+        }
+    }
+
+    if let exercisePosition,
+       workout.exercises.indices.contains(exercisePosition),
+       let setPosition,
+       workout.exercises[exercisePosition].sets.indices.contains(setPosition) {
+        workout.currentExerciseIndex = workout.exercises[exercisePosition].orderIndex
+        workout.currentExerciseId = workout.exercises[exercisePosition].workoutExerciseId
+        workout.currentSetIndex = workout.exercises[exercisePosition].sets[setPosition].setIndex
+        workout.currentPhase = "exercise"
+        workout.status = "in_progress"
+    } else {
+        workout.currentExerciseIndex = nil
+        workout.currentExerciseId = nil
+        workout.currentSetIndex = nil
+        workout.currentPhase = "finished"
+        workout.status = "completed"
+    }
+}
+
+private func applyOptimisticWorkoutAction(
+    _ action: WorkoutDirectAction,
+    to workout: WorkoutSessionState
+) -> WorkoutSessionState? {
+    var updated = workout
+    updated.stateVersion += 1
+
+    switch action {
+    case .startWorkout:
+        let exercisePosition = firstLiveExercisePosition(in: updated)
+        guard let exercisePosition,
+              updated.exercises.indices.contains(exercisePosition),
+              let setPosition = firstPendingSetPosition(in: updated.exercises[exercisePosition]) else {
+            return nil
+        }
+
+        activateWorkoutPosition(&updated, exercisePosition: exercisePosition, setPosition: setPosition)
+    case .completeCurrentSet:
+        guard let exercisePosition = firstLiveExercisePosition(in: updated),
+              updated.exercises.indices.contains(exercisePosition),
+              let setPosition = firstPendingSetPosition(in: updated.exercises[exercisePosition]) else {
+            return nil
+        }
+
+        updated.exercises[exercisePosition].sets[setPosition].status = "completed"
+        updated.exercises[exercisePosition].status = resolveExerciseStatus(for: updated.exercises[exercisePosition].sets)
+
+        if let nextSetPosition = firstPendingSetPosition(in: updated.exercises[exercisePosition]) {
+            activateWorkoutPosition(&updated, exercisePosition: exercisePosition, setPosition: nextSetPosition)
+        } else {
+            let nextExercisePosition = updated.exercises.indices.first(where: { index in
+                updated.exercises[index].orderIndex > updated.exercises[exercisePosition].orderIndex
+                && !isTerminalExerciseStatus(updated.exercises[index].status)
+            })
+            let nextSetPosition = nextExercisePosition.flatMap { firstPendingSetPosition(in: updated.exercises[$0]) }
+            activateWorkoutPosition(&updated, exercisePosition: nextExercisePosition, setPosition: nextSetPosition)
+        }
+    case .skipCurrentExercise:
+        guard let exercisePosition = firstLiveExercisePosition(in: updated),
+              updated.exercises.indices.contains(exercisePosition) else {
+            return nil
+        }
+
+        for setIndex in updated.exercises[exercisePosition].sets.indices where !isTerminalSetStatus(updated.exercises[exercisePosition].sets[setIndex].status) {
+            updated.exercises[exercisePosition].sets[setIndex].status = "skipped"
+        }
+
+        updated.exercises[exercisePosition].status = "skipped"
+
+        let nextExercisePosition = updated.exercises.indices.first(where: { index in
+            updated.exercises[index].orderIndex > updated.exercises[exercisePosition].orderIndex
+            && !isTerminalExerciseStatus(updated.exercises[index].status)
+        })
+        let nextSetPosition = nextExercisePosition.flatMap { firstPendingSetPosition(in: updated.exercises[$0]) }
+        activateWorkoutPosition(&updated, exercisePosition: nextExercisePosition, setPosition: nextSetPosition)
+    case .pauseWorkout:
+        updated.status = "paused"
+    case .resumeWorkout:
+        if updated.status == "paused" {
+            if updated.currentPhase == "finished" {
+                let exercisePosition = firstLiveExercisePosition(in: updated)
+                let setPosition = exercisePosition.flatMap { firstPendingSetPosition(in: updated.exercises[$0]) }
+                activateWorkoutPosition(&updated, exercisePosition: exercisePosition, setPosition: setPosition)
+            } else {
+                updated.status = "in_progress"
+            }
+        }
+    case .finishWorkout:
+        for exerciseIndex in updated.exercises.indices {
+            for setIndex in updated.exercises[exerciseIndex].sets.indices where !isTerminalSetStatus(updated.exercises[exerciseIndex].sets[setIndex].status) {
+                updated.exercises[exerciseIndex].sets[setIndex].status = "skipped"
+            }
+
+            if !isTerminalExerciseStatus(updated.exercises[exerciseIndex].status) {
+                updated.exercises[exerciseIndex].status = "canceled"
+            }
+        }
+
+        updated.currentExerciseIndex = nil
+        updated.currentExerciseId = nil
+        updated.currentSetIndex = nil
+        updated.currentPhase = "finished"
+        updated.status = "completed"
+    }
+
+    updated.progress = recomputeProgress(exercises: updated.exercises)
+    return updated
+}
+
 private struct CoachSurfaceScreen: View {
     @ObservedObject var viewModel: CoachSurfaceViewModel
     @ObservedObject var speechManager: SpeechManager
@@ -924,10 +1322,12 @@ private struct CoachSurfaceScreen: View {
             .scrollIndicators(.hidden)
             .safeAreaInset(edge: .bottom, spacing: 12) {
                 VStack(spacing: 12) {
-                    if let pinnedFeedItem = viewModel.pinnedFeedItem,
-                       let card = pinnedFeedItem.card {
-                        CoachPinnedFeedCard(card: card) { action in
-                            Task { await viewModel.runCardAction(action) }
+                    if let pinnedWorkout = viewModel.pinnedWorkout {
+                        PinnedWorkoutControlCard(
+                            workout: pinnedWorkout,
+                            isSyncing: viewModel.isWorkoutSyncing
+                        ) { action in
+                            Task { await viewModel.runWorkoutAction(action) }
                         }
                     }
 
@@ -1252,6 +1652,244 @@ private struct CoachFeedRow: View {
             )
         }
     }
+}
+
+private struct PinnedWorkoutControlAction: Identifiable {
+    let id: String
+    let action: WorkoutDirectAction
+    let label: String
+    let icon: String
+    let isPrimary: Bool
+}
+
+private func pinnedWorkoutControlActions(for workout: WorkoutSessionState) -> [PinnedWorkoutControlAction] {
+    if workout.currentPhase == "preview" || workout.status == "queued" {
+        return [
+            PinnedWorkoutControlAction(
+                id: WorkoutDirectAction.startWorkout.rawValue,
+                action: .startWorkout,
+                label: "Start",
+                icon: "play.fill",
+                isPrimary: true
+            ),
+            PinnedWorkoutControlAction(
+                id: WorkoutDirectAction.finishWorkout.rawValue,
+                action: .finishWorkout,
+                label: "Finish",
+                icon: "stop.fill",
+                isPrimary: false
+            )
+        ]
+    }
+
+    if workout.status == "paused" {
+        return [
+            PinnedWorkoutControlAction(
+                id: WorkoutDirectAction.resumeWorkout.rawValue,
+                action: .resumeWorkout,
+                label: "Resume",
+                icon: "play.fill",
+                isPrimary: true
+            ),
+            PinnedWorkoutControlAction(
+                id: WorkoutDirectAction.skipCurrentExercise.rawValue,
+                action: .skipCurrentExercise,
+                label: "Skip",
+                icon: "forward.fill",
+                isPrimary: false
+            ),
+            PinnedWorkoutControlAction(
+                id: WorkoutDirectAction.finishWorkout.rawValue,
+                action: .finishWorkout,
+                label: "Finish",
+                icon: "stop.fill",
+                isPrimary: false
+            )
+        ]
+    }
+
+    return [
+        PinnedWorkoutControlAction(
+            id: WorkoutDirectAction.completeCurrentSet.rawValue,
+            action: .completeCurrentSet,
+            label: "Done",
+            icon: "checkmark",
+            isPrimary: true
+        ),
+        PinnedWorkoutControlAction(
+            id: WorkoutDirectAction.skipCurrentExercise.rawValue,
+            action: .skipCurrentExercise,
+            label: "Skip",
+            icon: "forward.fill",
+            isPrimary: false
+        ),
+        PinnedWorkoutControlAction(
+            id: WorkoutDirectAction.pauseWorkout.rawValue,
+            action: .pauseWorkout,
+            label: "Pause",
+            icon: "pause.fill",
+            isPrimary: false
+        ),
+        PinnedWorkoutControlAction(
+            id: WorkoutDirectAction.finishWorkout.rawValue,
+            action: .finishWorkout,
+            label: "Finish",
+            icon: "stop.fill",
+            isPrimary: false
+        )
+    ]
+}
+
+private struct PinnedWorkoutControlCard: View {
+    let workout: WorkoutSessionState
+    let isSyncing: Bool
+    let onAction: (WorkoutDirectAction) -> Void
+
+    private var currentExercise: WorkoutExerciseState? {
+        resolveCurrentExercise(in: workout)
+    }
+
+    private var currentSet: WorkoutSetState? {
+        guard let currentExercise else { return nil }
+        return resolveCurrentSet(in: workout, exercise: currentExercise)
+    }
+
+    private var actions: [PinnedWorkoutControlAction] {
+        pinnedWorkoutControlActions(for: workout)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(workout.title ?? "Current workout")
+                        .font(.system(size: 15, weight: .bold, design: .rounded))
+                        .foregroundStyle(AppTheme.Colors.primaryText)
+
+                    Text(statusLine)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(AppTheme.Colors.secondaryText)
+                }
+
+                Spacer(minLength: 0)
+
+                VStack(alignment: .trailing, spacing: 6) {
+                    if isSyncing {
+                        HStack(spacing: 6) {
+                            ProgressView()
+                                .controlSize(.mini)
+
+                            Text("Syncing")
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(AppTheme.Colors.secondaryText)
+                    }
+
+                    Text(progressText)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(AppTheme.Colors.primaryText)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule(style: .continuous)
+                                .fill(AppTheme.Colors.background)
+                        )
+                }
+            }
+
+            if let currentExerciseName = currentExercise?.displayName ?? currentExercise?.exerciseName {
+                Text(currentExerciseName)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(AppTheme.Colors.primaryText)
+            }
+
+            if let currentSet {
+                Text(setLine(for: currentSet))
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.secondaryText)
+            } else if workout.status == "paused" {
+                Text("Workout paused")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.secondaryText)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(actions) { action in
+                        Button(action: { onAction(action.action) }) {
+                            HStack(spacing: 8) {
+                                Image(systemName: action.icon)
+                                Text(action.label)
+                            }
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(action.isPrimary ? AppTheme.Colors.background : AppTheme.Colors.primaryText)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 11)
+                            .background(
+                                Capsule(style: .continuous)
+                                    .fill(action.isPrimary ? AppTheme.Colors.primaryText : AppTheme.Colors.background)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(AppTheme.Colors.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .stroke(AppTheme.Colors.divider, lineWidth: 1)
+        )
+    }
+
+    private var progressText: String {
+        "\(workout.progress.completedSets)/\(workout.progress.totalSets) sets"
+    }
+
+    private var statusLine: String {
+        switch workout.status {
+        case "queued":
+            return "Ready to start"
+        case "paused":
+            return "Paused"
+        default:
+            let exerciseTotal = max(workout.progress.totalExercises, 1)
+            let exerciseIndex = (workout.currentExerciseIndex ?? 0) + 1
+            return "Exercise \(exerciseIndex) of \(exerciseTotal)"
+        }
+    }
+
+    private func setLine(for set: WorkoutSetState) -> String {
+        let target = formatPinnedSetTarget(set.target)
+        let setOrdinal = "Set \(set.setIndex + 1)"
+        return [setOrdinal, target].filter { !$0.isEmpty }.joined(separator: " • ")
+    }
+}
+
+private func formatPinnedSetTarget(_ target: WorkoutSetTarget) -> String {
+    var parts: [String] = []
+
+    if let reps = target.reps {
+        parts.append("\(reps) reps")
+    }
+
+    if let durationSec = target.durationSec {
+        parts.append("\(durationSec)s")
+    }
+
+    if let load = target.load {
+        if let unit = load.unit {
+            parts.append("@ \(Int(load.value.rounded())) \(unit)")
+        } else {
+            parts.append("@ \(Int(load.value.rounded()))")
+        }
+    }
+
+    return parts.joined(separator: " ")
 }
 
 private struct CoachPinnedFeedCard: View {

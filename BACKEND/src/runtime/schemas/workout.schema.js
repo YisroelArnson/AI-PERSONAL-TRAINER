@@ -204,6 +204,7 @@ const workoutProgressSchema = z.object({
 const workoutSessionStateSchema = z.object({
   workoutSessionId: nonEmptyStringSchema,
   sessionKey: nonEmptyStringSchema,
+  stateVersion: z.number().int().nonnegative(),
   status: workoutStatusSchema,
   currentPhase: workoutPhaseSchema,
   title: nullableStringSchema,

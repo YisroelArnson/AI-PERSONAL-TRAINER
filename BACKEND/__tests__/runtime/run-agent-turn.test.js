@@ -108,6 +108,7 @@ describe('run-agent-turn truncated tool handling', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     env.llmRawIoLoggingEnabled = false;
+    env.anthropicPromptCachingEnabled = false;
     consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
     mockCreateStream.mockImplementation(() => ({
       on: jest.fn(),
@@ -270,6 +271,47 @@ describe('run-agent-turn truncated tool handling', () => {
         reason: 'no_reply',
         triggerType: 'ui.action.complete_set'
       })
+    }));
+  });
+
+  it('does not send Anthropic top-level automatic cache control when prompt caching is enabled', async () => {
+    env.anthropicPromptCachingEnabled = true;
+
+    mockExtractFinalOutput.mockResolvedValue({
+      stopReason: 'end_turn',
+      usage: {},
+      rawMessage: {}
+    });
+
+    mockNormalizeAnthropicOutput.mockReturnValue({
+      toolCalls: [],
+      outputText: 'Saved cleanly.',
+      assistantMessage: {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'Saved cleanly.'
+          }
+        ]
+      },
+      stopReason: 'end_turn',
+      usage: {}
+    });
+
+    mockGetStopDecision.mockReturnValue({
+      shouldStop: true,
+      reason: 'final_response'
+    });
+
+    await runAgentTurn({
+      run_id: 'run-123',
+      user_id: 'user-123',
+      trigger_type: 'user.message'
+    });
+
+    expect(mockBuildRequest).toHaveBeenCalledWith(expect.objectContaining({
+      cacheControl: null
     }));
   });
 

@@ -5,6 +5,7 @@ describe('parseWorkoutSessionState', () => {
     const parsed = parseWorkoutSessionState({
       workoutSessionId: 'workout-1',
       sessionKey: 'user:123:main',
+      stateVersion: 3,
       status: 'in_progress',
       currentPhase: 'exercise',
       title: 'Lower Body Strength',

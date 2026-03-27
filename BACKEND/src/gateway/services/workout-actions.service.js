@@ -7,16 +7,55 @@ const {
   releaseSessionMutationLock
 } = require('../../runtime/services/session-mutation-lock.service');
 const { appendSessionEvent } = require('../../runtime/services/transcript-write.service');
-const { buildCoachSurfaceView } = require('../../runtime/services/coach-surface-read.service');
 const {
-  getCurrentWorkoutState,
-  recordWorkoutSetResult
+  finishWorkoutSession,
+  pauseWorkoutSession,
+  recordWorkoutSetResult,
+  resumeWorkoutSession,
+  skipWorkoutExercise,
+  startWorkoutSession
 } = require('../../runtime/services/workout-state.service');
 const { conflict } = require('../../shared/errors');
-const { parseCompleteCurrentSetResponse } = require('../schemas/workout-actions.schema');
+const { parseWorkoutExecutionActionResponse } = require('../schemas/workout-actions.schema');
 
-const COMPLETE_CURRENT_SET_ROUTE = '/v1/workout-actions/complete-current-set';
-const COMPLETE_CURRENT_SET_FOLLOW_UP_ROUTE = '/internal/workout-actions/complete-current-set/follow-up';
+const ACTION_CONFIG = {
+  start_workout: {
+    route: '/v1/workout-actions/start-workout',
+    followUpRoute: '/internal/workout-actions/start-workout/follow-up',
+    triggerType: 'ui.action.start_workout',
+    eventType: 'workout.session.started.ui_action'
+  },
+  complete_current_set: {
+    route: '/v1/workout-actions/complete-current-set',
+    followUpRoute: '/internal/workout-actions/complete-current-set/follow-up',
+    triggerType: 'ui.action.complete_set',
+    eventType: 'workout.set.completed.ui_action'
+  },
+  skip_current_exercise: {
+    route: '/v1/workout-actions/skip-current-exercise',
+    followUpRoute: '/internal/workout-actions/skip-current-exercise/follow-up',
+    triggerType: 'ui.action.skip_exercise',
+    eventType: 'workout.exercise.skipped.ui_action'
+  },
+  pause_workout: {
+    route: '/v1/workout-actions/pause-workout',
+    followUpRoute: '/internal/workout-actions/pause-workout/follow-up',
+    triggerType: 'ui.action.pause_workout',
+    eventType: 'workout.session.paused.ui_action'
+  },
+  resume_workout: {
+    route: '/v1/workout-actions/resume-workout',
+    followUpRoute: '/internal/workout-actions/resume-workout/follow-up',
+    triggerType: 'ui.action.resume_workout',
+    eventType: 'workout.session.resumed.ui_action'
+  },
+  finish_workout: {
+    route: '/v1/workout-actions/finish-workout',
+    followUpRoute: '/internal/workout-actions/finish-workout/follow-up',
+    triggerType: 'ui.action.finish_workout',
+    eventType: 'workout.session.finished.ui_action'
+  }
+};
 
 function normalizeIdempotencyKey(headers = {}) {
   const value = headers['idempotency-key'] || headers['x-idempotency-key'];
@@ -67,98 +106,95 @@ async function resolveCurrentSessionState({ userId, sessionKey, sessionResetPoli
   };
 }
 
-function findCurrentExercise(workout) {
-  if (!workout || !Array.isArray(workout.exercises)) {
-    return null;
+function buildActionText(actionId, body = {}) {
+  switch (actionId) {
+    case 'start_workout':
+      return 'Started workout via UI.';
+    case 'complete_current_set':
+      return 'Completed current workout set via UI.';
+    case 'skip_current_exercise':
+      return 'Skipped current workout exercise via UI.';
+    case 'pause_workout':
+      return 'Paused workout via UI.';
+    case 'resume_workout':
+      return 'Resumed workout via UI.';
+    case 'finish_workout':
+      return 'Finished workout via UI.';
+    default:
+      return 'Updated workout via UI.';
   }
-
-  return (
-    workout.exercises.find(exercise => exercise.workoutExerciseId === workout.currentExerciseId) ||
-    workout.exercises.find(exercise => exercise.orderIndex === workout.currentExerciseIndex) ||
-    workout.exercises.find(exercise => exercise.status === 'active') ||
-    workout.exercises.find(exercise => exercise.status === 'pending') ||
-    null
-  );
 }
 
-function findCurrentSet(workout, exercise) {
-  if (!workout || !exercise || !Array.isArray(exercise.sets)) {
-    return null;
-  }
-
-  return (
-    exercise.sets.find(set => set.setIndex === workout.currentSetIndex) ||
-    exercise.sets.find(set => set.status === 'active') ||
-    exercise.sets.find(set => set.status === 'pending') ||
-    null
-  );
-}
-
-function buildCompleteSetFollowUpMessage({
-  workout,
-  exercise,
-  set,
-  actual,
-  userNote
-}) {
-  const parts = [
-    'UI action update: the user tapped the Done button and the backend already recorded the current set as completed.',
+function buildFollowUpMessage({ actionId, workout, body = {} }) {
+  const baseParts = [
+    `UI action update: the backend already applied ${actionId}.`,
     `Workout session id: ${workout.workoutSessionId}.`,
-    `Exercise: ${exercise.displayName || exercise.exerciseName}.`,
-    `Workout exercise id: ${exercise.workoutExerciseId}.`,
-    `Completed set index: ${set.setIndex}.`,
-    'Do not call workout_record_set_result for that set again unless you are intentionally correcting history.',
-    'If you have something materially useful to add, reply briefly.',
-    'If no response is needed, reply exactly: no_reply.'
+    `Current status: ${workout.status}.`,
+    `Current phase: ${workout.currentPhase}.`,
+    `State version: ${workout.stateVersion}.`
   ];
 
-  if (actual && Object.keys(actual).length > 0) {
-    parts.push(`Recorded actuals: ${JSON.stringify(actual)}.`);
+  if (actionId === 'complete_current_set') {
+    baseParts.push(`Workout exercise id: ${body.workoutExerciseId}.`);
+    baseParts.push(`Completed set index: ${body.setIndex}.`);
+
+    if (body.actual && Object.keys(body.actual).length > 0) {
+      baseParts.push(`Recorded actuals: ${JSON.stringify(body.actual)}.`);
+    }
+
+    if (body.userNote) {
+      baseParts.push(`User note: ${body.userNote}.`);
+    }
+
+    baseParts.push('Do not call workout_record_set_result for that set again unless you are intentionally correcting history.');
+    baseParts.push('If you have something materially useful to add, reply briefly.');
+    baseParts.push('If no response is needed, reply exactly: no_reply.');
+
+    return baseParts.join(' ');
   }
 
-  if (userNote) {
-    parts.push(`User note: ${userNote}.`);
+  if (actionId === 'skip_current_exercise') {
+    baseParts.push(`Skipped workout exercise id: ${body.workoutExerciseId}.`);
   }
 
-  return parts.join(' ');
+  baseParts.push('If you have something materially useful to add, reply briefly.');
+  return baseParts.join(' ');
 }
 
-async function enqueueCompleteSetFollowUp({
+async function enqueueActionFollowUp({
+  actionId,
   userId,
   sessionKey,
   sessionResetPolicy,
   workout,
-  exercise,
-  set,
-  actual,
-  userNote,
+  body,
   parentIdempotencyKey
 }) {
+  const config = ACTION_CONFIG[actionId];
   const followUpIdempotencyKey = parentIdempotencyKey
     ? `${parentIdempotencyKey}:follow_up`
-    : `complete-set-follow-up:${workout.workoutSessionId}:${exercise.workoutExerciseId}:${set.setIndex}`;
+    : `${actionId}-follow-up:${workout.workoutSessionId}:${workout.stateVersion}`;
 
   const persisted = await persistInboundMessage({
     userId,
-    route: COMPLETE_CURRENT_SET_FOLLOW_UP_ROUTE,
+    route: config.followUpRoute,
     idempotencyKey: followUpIdempotencyKey,
     requestHash: followUpIdempotencyKey,
     sessionKey,
-    triggerType: 'ui.action.complete_set',
-    message: buildCompleteSetFollowUpMessage({
+    triggerType: config.triggerType,
+    message: buildFollowUpMessage({
+      actionId,
       workout,
-      exercise,
-      set,
-      actual,
-      userNote
+      body
     }),
     metadata: {
       hiddenInFeed: true,
-      source: 'workout_action.complete_current_set',
-      actionId: 'complete_current_set',
+      source: `workout_action.${actionId}`,
+      actionId,
       workoutSessionId: workout.workoutSessionId,
-      workoutExerciseId: exercise.workoutExerciseId,
-      setIndex: set.setIndex
+      workoutExerciseId: body.workoutExerciseId || null,
+      setIndex: body.setIndex != null ? body.setIndex : null,
+      stateVersion: workout.stateVersion
     },
     sessionResetPolicy
   });
@@ -178,21 +214,57 @@ async function enqueueCompleteSetFollowUp({
   };
 }
 
-function buildNoActiveWorkoutError(sessionKey) {
-  return conflict('No active workout is available to complete a set.', {
-    code: 'NO_ACTIVE_WORKOUT',
-    sessionKey
-  });
+function mapWorkoutActionError(error, sessionKey) {
+  if (!error || !error.code) {
+    return error;
+  }
+
+  switch (error.code) {
+    case 'WORKOUT_NOT_FOUND':
+      return conflict('No live workout is available for this action.', {
+        code: 'NO_ACTIVE_WORKOUT',
+        sessionKey,
+        ...(error.details || {})
+      });
+    case 'STALE_WORKOUT_STATE':
+      return conflict('Workout state changed. Refresh and try again.', {
+        code: 'STALE_WORKOUT_STATE',
+        ...(error.details || {})
+      });
+    case 'WORKOUT_NOT_ACTIVE':
+      return conflict('This workout is no longer live.', {
+        code: 'WORKOUT_NOT_ACTIVE',
+        ...(error.details || {})
+      });
+    case 'SET_ALREADY_RECORDED':
+      return conflict('That set was already recorded.', {
+        code: 'SET_ALREADY_RECORDED',
+        ...(error.details || {})
+      });
+    case 'EXERCISE_ALREADY_TERMINAL':
+      return conflict('That exercise is already finished.', {
+        code: 'EXERCISE_ALREADY_TERMINAL',
+        ...(error.details || {})
+      });
+    case 'EXERCISE_NOT_FOUND':
+    case 'SET_NOT_FOUND':
+      return conflict('The targeted workout item no longer matches the current state.', {
+        code: error.code,
+        ...(error.details || {})
+      });
+    default:
+      return error;
+  }
 }
 
-function buildNoActiveSetError(workoutSessionId) {
-  return conflict('There is no current live set to complete in this workout.', {
-    code: 'NO_ACTIVE_SET',
-    workoutSessionId
-  });
-}
-
-async function processCompleteCurrentSetAction({ auth, headers, body }) {
+async function processWorkoutExecutionAction({
+  auth,
+  headers,
+  body,
+  actionId,
+  applyAction,
+  buildAuditPayload
+}) {
   const sessionResetPolicy = await resolveSessionContinuityPolicy(auth.userId);
   const resolvedSessionKey = canonicalSessionKey(auth.userId, body.sessionKey);
   const sessionState = await resolveCurrentSessionState({
@@ -215,82 +287,39 @@ async function processCompleteCurrentSetAction({ auth, headers, body }) {
   }
 
   try {
-    const liveWorkout = await getCurrentWorkoutState({
-      userId: auth.userId,
-      sessionKey: resolvedSessionKey,
-      workoutSessionId: body.workoutSessionId || null
-    });
-
-    if (!liveWorkout) {
-      throw buildNoActiveWorkoutError(resolvedSessionKey);
-    }
-
-    const currentExercise = findCurrentExercise(liveWorkout);
-    const currentSet = findCurrentSet(liveWorkout, currentExercise);
-
-    if (!currentExercise || !currentSet) {
-      throw buildNoActiveSetError(liveWorkout.workoutSessionId);
-    }
-
-    let recordedWorkout;
-    let didRecordSetInThisRequest = true;
+    let workout;
 
     try {
-      const recorded = await recordWorkoutSetResult({
-        userId: auth.userId,
-        input: {
-          workoutSessionId: liveWorkout.workoutSessionId,
-          workoutExerciseId: currentExercise.workoutExerciseId,
-          setIndex: currentSet.setIndex,
-          resultStatus: 'completed',
-          actual: body.actual || {},
-          userNote: body.userNote || null,
-          decision: null,
-          flow: {}
-        }
-      });
-
-      recordedWorkout = recorded.workout;
+      workout = await applyAction();
     } catch (error) {
-      if (error && error.code === 'SET_ALREADY_RECORDED') {
-        didRecordSetInThisRequest = false;
-        recordedWorkout = await getCurrentWorkoutState({
-          userId: auth.userId,
-          sessionKey: resolvedSessionKey,
-          workoutSessionId: liveWorkout.workoutSessionId
-        });
-      } else {
-        throw error;
-      }
+      throw mapWorkoutActionError(error, resolvedSessionKey);
     }
 
     const parentIdempotencyKey = normalizeIdempotencyKey(headers);
 
-    if (didRecordSetInThisRequest && sessionState && sessionState.currentSessionId) {
+    if (sessionState && sessionState.currentSessionId) {
       try {
         await appendSessionEvent({
           userId: auth.userId,
           sessionKey: resolvedSessionKey,
           sessionId: sessionState.currentSessionId,
-          eventType: 'workout.set.completed.ui_action',
+          eventType: ACTION_CONFIG[actionId].eventType,
           actor: 'user',
           payload: {
-            text: 'Completed current workout set via UI.',
+            text: buildActionText(actionId, body),
             metadata: {
               hiddenInFeed: true,
-              source: 'workout_action.complete_current_set',
-              actionId: 'complete_current_set'
+              source: `workout_action.${actionId}`,
+              actionId
             },
-            workoutSessionId: liveWorkout.workoutSessionId,
-            workoutExerciseId: currentExercise.workoutExerciseId,
-            setIndex: currentSet.setIndex
+            ...buildAuditPayload(workout)
           },
           idempotencyKey: parentIdempotencyKey
-            ? `${COMPLETE_CURRENT_SET_ROUTE}:${parentIdempotencyKey}:ui_event`
+            ? `${ACTION_CONFIG[actionId].route}:${parentIdempotencyKey}:ui_event`
             : null
         });
       } catch (error) {
-        console.warn('Unable to append workout.set.completed.ui_action event:', error.message);
+        console.warn(`Unable to append ${ACTION_CONFIG[actionId].eventType} event:`, error.message);
       }
     }
 
@@ -301,40 +330,30 @@ async function processCompleteCurrentSetAction({ auth, headers, body }) {
       jobId: null
     };
 
-    if (didRecordSetInThisRequest) {
-      try {
-        agentFollowUp = await enqueueCompleteSetFollowUp({
-          userId: auth.userId,
-          sessionKey: resolvedSessionKey,
-          sessionResetPolicy,
-          workout: liveWorkout,
-          exercise: currentExercise,
-          set: currentSet,
-          actual: body.actual || {},
-          userNote: body.userNote || null,
-          parentIdempotencyKey
-        });
-      } catch (error) {
-        console.warn('Unable to enqueue workout complete-set follow-up run:', error.message);
-        agentFollowUp = {
-          status: 'failed',
-          runId: null,
-          streamUrl: null,
-          jobId: null
-        };
-      }
+    try {
+      agentFollowUp = await enqueueActionFollowUp({
+        actionId,
+        userId: auth.userId,
+        sessionKey: resolvedSessionKey,
+        sessionResetPolicy,
+        workout,
+        body,
+        parentIdempotencyKey
+      });
+    } catch (error) {
+      console.warn(`Unable to enqueue ${actionId} follow-up run:`, error.message);
+      agentFollowUp = {
+        status: 'failed',
+        runId: null,
+        streamUrl: null,
+        jobId: null
+      };
     }
 
-    const surface = await buildCoachSurfaceView({
-      userId: auth.userId,
-      sessionKey: resolvedSessionKey,
-      sessionResetPolicy
-    });
-
-    return parseCompleteCurrentSetResponse({
+    return parseWorkoutExecutionActionResponse({
       status: 'ok',
-      workout: recordedWorkout,
-      surface,
+      workout,
+      appliedStateVersion: workout.stateVersion,
       agentFollowUp
     });
   } finally {
@@ -346,6 +365,143 @@ async function processCompleteCurrentSetAction({ auth, headers, body }) {
   }
 }
 
+async function processStartWorkoutAction({ auth, headers, body }) {
+  return processWorkoutExecutionAction({
+    auth,
+    headers,
+    body,
+    actionId: 'start_workout',
+    applyAction: () => startWorkoutSession({
+      userId: auth.userId,
+      input: {
+        workoutSessionId: body.workoutSessionId,
+        expectedStateVersion: body.expectedStateVersion
+      }
+    }),
+    buildAuditPayload: workout => ({
+      workoutSessionId: workout.workoutSessionId
+    })
+  });
+}
+
+async function processCompleteCurrentSetAction({ auth, headers, body }) {
+  return processWorkoutExecutionAction({
+    auth,
+    headers,
+    body,
+    actionId: 'complete_current_set',
+    applyAction: async () => {
+      const recorded = await recordWorkoutSetResult({
+        userId: auth.userId,
+        input: {
+          workoutSessionId: body.workoutSessionId,
+          workoutExerciseId: body.workoutExerciseId,
+          setIndex: body.setIndex,
+          expectedStateVersion: body.expectedStateVersion,
+          resultStatus: 'completed',
+          actual: body.actual || {},
+          userNote: body.userNote || null,
+          decision: null,
+          flow: {}
+        }
+      });
+
+      return recorded.workout;
+    },
+    buildAuditPayload: workout => ({
+      workoutSessionId: workout.workoutSessionId,
+      workoutExerciseId: body.workoutExerciseId,
+      setIndex: body.setIndex
+    })
+  });
+}
+
+async function processSkipCurrentExerciseAction({ auth, headers, body }) {
+  return processWorkoutExecutionAction({
+    auth,
+    headers,
+    body,
+    actionId: 'skip_current_exercise',
+    applyAction: () => skipWorkoutExercise({
+      userId: auth.userId,
+      input: {
+        workoutSessionId: body.workoutSessionId,
+        workoutExerciseId: body.workoutExerciseId,
+        expectedStateVersion: body.expectedStateVersion
+      }
+    }),
+    buildAuditPayload: workout => ({
+      workoutSessionId: workout.workoutSessionId,
+      workoutExerciseId: body.workoutExerciseId
+    })
+  });
+}
+
+async function processPauseWorkoutAction({ auth, headers, body }) {
+  return processWorkoutExecutionAction({
+    auth,
+    headers,
+    body,
+    actionId: 'pause_workout',
+    applyAction: () => pauseWorkoutSession({
+      userId: auth.userId,
+      input: {
+        workoutSessionId: body.workoutSessionId,
+        expectedStateVersion: body.expectedStateVersion
+      }
+    }),
+    buildAuditPayload: workout => ({
+      workoutSessionId: workout.workoutSessionId
+    })
+  });
+}
+
+async function processResumeWorkoutAction({ auth, headers, body }) {
+  return processWorkoutExecutionAction({
+    auth,
+    headers,
+    body,
+    actionId: 'resume_workout',
+    applyAction: () => resumeWorkoutSession({
+      userId: auth.userId,
+      input: {
+        workoutSessionId: body.workoutSessionId,
+        expectedStateVersion: body.expectedStateVersion
+      }
+    }),
+    buildAuditPayload: workout => ({
+      workoutSessionId: workout.workoutSessionId
+    })
+  });
+}
+
+async function processFinishWorkoutAction({ auth, headers, body }) {
+  return processWorkoutExecutionAction({
+    auth,
+    headers,
+    body,
+    actionId: 'finish_workout',
+    applyAction: () => finishWorkoutSession({
+      userId: auth.userId,
+      input: {
+        workoutSessionId: body.workoutSessionId,
+        expectedStateVersion: body.expectedStateVersion,
+        finalStatus: 'completed',
+        decision: null,
+        summary: {}
+      }
+    }),
+    buildAuditPayload: workout => ({
+      workoutSessionId: workout.workoutSessionId
+    })
+  });
+}
+
 module.exports = {
-  processCompleteCurrentSetAction
+  processCompleteCurrentSetAction,
+  processFinishWorkoutAction,
+  processPauseWorkoutAction,
+  processResumeWorkoutAction,
+  processSkipCurrentExerciseAction,
+  processStartWorkoutAction
 };

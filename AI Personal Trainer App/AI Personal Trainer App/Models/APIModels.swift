@@ -5,6 +5,10 @@ enum CoachTriggerType: String, Codable {
     case appOpened = "app.opened"
     case startWorkout = "ui.action.start_workout"
     case completeSet = "ui.action.complete_set"
+    case skipExercise = "ui.action.skip_exercise"
+    case pauseWorkout = "ui.action.pause_workout"
+    case resumeWorkout = "ui.action.resume_workout"
+    case finishWorkout = "ui.action.finish_workout"
 }
 
 extension CoachTriggerType {
@@ -38,9 +42,26 @@ struct SessionResetRequest: Codable {
 
 struct CompleteCurrentSetRequest: Codable {
     let sessionKey: String?
-    let workoutSessionId: String?
+    let workoutSessionId: String
+    let workoutExerciseId: String
+    let setIndex: Int
+    let expectedStateVersion: Int?
+    let workoutSetId: String?
     let actual: WorkoutSetActual?
     let userNote: String?
+}
+
+struct WorkoutSessionControlRequest: Codable {
+    let sessionKey: String?
+    let workoutSessionId: String
+    let expectedStateVersion: Int?
+}
+
+struct SkipCurrentExerciseRequest: Codable {
+    let sessionKey: String?
+    let workoutSessionId: String
+    let workoutExerciseId: String
+    let expectedStateVersion: Int?
 }
 
 struct MessageAcceptedResponse: Codable {
@@ -62,10 +83,10 @@ struct WorkoutActionFollowUp: Codable {
     let jobId: String?
 }
 
-struct CompleteCurrentSetResponse: Codable {
+struct WorkoutExecutionActionResponse: Codable {
     let status: String
     let workout: WorkoutSessionState
-    let surface: CoachSurfaceResponse
+    let appliedStateVersion: Int
     let agentFollowUp: WorkoutActionFollowUp
 }
 
@@ -85,6 +106,8 @@ struct CoachRunStreamEvent: Codable {
     let model: String?
     let errorCode: String?
     let message: String?
+    let appliedStateVersion: Int?
+    let workout: WorkoutSessionState?
 }
 
 struct SessionResetResponse: Codable {
@@ -195,71 +218,72 @@ struct CoachQuickAction: Codable, Identifiable, Hashable {
 }
 
 struct WorkoutSessionState: Codable {
-    let workoutSessionId: String
-    let sessionKey: String
-    let status: String
-    let currentPhase: String
-    let title: String?
-    let currentExerciseIndex: Int?
-    let currentSetIndex: Int?
-    let currentExerciseId: String?
-    let progress: WorkoutProgress
-    let exercises: [WorkoutExerciseState]
+    var workoutSessionId: String
+    var sessionKey: String
+    var stateVersion: Int
+    var status: String
+    var currentPhase: String
+    var title: String?
+    var currentExerciseIndex: Int?
+    var currentSetIndex: Int?
+    var currentExerciseId: String?
+    var progress: WorkoutProgress
+    var exercises: [WorkoutExerciseState]
 }
 
 struct WorkoutProgress: Codable {
-    let completedExercises: Int
-    let totalExercises: Int
-    let completedSets: Int
-    let totalSets: Int
-    let remainingExercises: Int
+    var completedExercises: Int
+    var totalExercises: Int
+    var completedSets: Int
+    var totalSets: Int
+    var remainingExercises: Int
 }
 
 struct WorkoutExerciseState: Codable {
-    let workoutExerciseId: String
-    let orderIndex: Int
-    let exerciseName: String
-    let displayName: String
-    let status: String
-    let prescription: WorkoutExercisePrescription
-    let coachMessage: String?
-    let sets: [WorkoutSetState]
+    var workoutExerciseId: String
+    var orderIndex: Int
+    var exerciseName: String
+    var displayName: String
+    var status: String
+    var prescription: WorkoutExercisePrescription
+    var coachMessage: String?
+    var sets: [WorkoutSetState]
 }
 
 struct WorkoutExercisePrescription: Codable {
-    let restSec: Int?
-    let intensityCue: String?
-    let coachingCues: [String]?
+    var restSec: Int?
+    var intensityCue: String?
+    var coachingCues: [String]?
 }
 
 struct WorkoutSetState: Codable {
-    let workoutSetId: String
-    let setIndex: Int
-    let status: String
-    let target: WorkoutSetTarget
+    var workoutSetId: String
+    var setIndex: Int
+    var status: String
+    var target: WorkoutSetTarget
 }
 
 struct WorkoutSetActual: Codable {
-    let reps: Int?
-    let load: WorkoutLoad?
-    let durationSec: Int?
-    let distanceM: Int?
-    let rpe: Double?
-    let side: String?
+    var reps: Int?
+    var load: WorkoutLoad?
+    var durationSec: Int?
+    var distanceM: Int?
+    var rpe: Double?
+    var side: String?
 }
 
 struct WorkoutSetTarget: Codable {
-    let reps: Int?
-    let durationSec: Int?
-    let distanceM: Int?
-    let rpe: Double?
-    let restSec: Int?
-    let load: WorkoutLoad?
+    var reps: Int?
+    var durationSec: Int?
+    var distanceM: Int?
+    var rpe: Double?
+    var restSec: Int?
+    var load: WorkoutLoad?
 }
 
 struct WorkoutLoad: Codable {
-    let value: Double
-    let unit: String?
+    var value: Double
+    var unit: String?
 }
 
 enum APIError: Error, LocalizedError {

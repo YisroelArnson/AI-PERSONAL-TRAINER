@@ -110,8 +110,9 @@ describe('buildWorkoutSurfaceDecorations', () => {
     }));
     expect(result.feedItems[0].card.actions.map(action => action.id)).toEqual([
       'complete_set',
-      'too_hard',
-      'swap_exercise'
+      'skip_exercise',
+      'pause_workout',
+      'finish_workout'
     ]);
     expect(result.feedItems[0].card.actions[0]).toEqual(expect.objectContaining({
       actionType: 'complete_current_set',

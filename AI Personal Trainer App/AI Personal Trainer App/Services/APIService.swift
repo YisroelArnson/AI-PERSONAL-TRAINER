@@ -94,7 +94,7 @@ final class APIService: ObservableObject {
         accessToken: String,
         requestBody: CompleteCurrentSetRequest,
         idempotencyKey: String
-    ) async throws -> CompleteCurrentSetResponse {
+    ) async throws -> WorkoutExecutionActionResponse {
         let request = try makeRequest(
             path: "/v1/workout-actions/complete-current-set",
             method: "POST",
@@ -106,7 +106,102 @@ final class APIService: ObservableObject {
         )
 
         let (data, response) = try await execute(request)
-        return try decode(CompleteCurrentSetResponse.self, from: data, response: response)
+        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
+    }
+
+    func startWorkout(
+        accessToken: String,
+        requestBody: WorkoutSessionControlRequest,
+        idempotencyKey: String
+    ) async throws -> WorkoutExecutionActionResponse {
+        let request = try makeRequest(
+            path: "/v1/workout-actions/start-workout",
+            method: "POST",
+            accessToken: accessToken,
+            body: requestBody,
+            additionalHeaders: [
+                "Idempotency-Key": idempotencyKey
+            ]
+        )
+
+        let (data, response) = try await execute(request)
+        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
+    }
+
+    func skipCurrentExercise(
+        accessToken: String,
+        requestBody: SkipCurrentExerciseRequest,
+        idempotencyKey: String
+    ) async throws -> WorkoutExecutionActionResponse {
+        let request = try makeRequest(
+            path: "/v1/workout-actions/skip-current-exercise",
+            method: "POST",
+            accessToken: accessToken,
+            body: requestBody,
+            additionalHeaders: [
+                "Idempotency-Key": idempotencyKey
+            ]
+        )
+
+        let (data, response) = try await execute(request)
+        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
+    }
+
+    func pauseWorkout(
+        accessToken: String,
+        requestBody: WorkoutSessionControlRequest,
+        idempotencyKey: String
+    ) async throws -> WorkoutExecutionActionResponse {
+        let request = try makeRequest(
+            path: "/v1/workout-actions/pause-workout",
+            method: "POST",
+            accessToken: accessToken,
+            body: requestBody,
+            additionalHeaders: [
+                "Idempotency-Key": idempotencyKey
+            ]
+        )
+
+        let (data, response) = try await execute(request)
+        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
+    }
+
+    func resumeWorkout(
+        accessToken: String,
+        requestBody: WorkoutSessionControlRequest,
+        idempotencyKey: String
+    ) async throws -> WorkoutExecutionActionResponse {
+        let request = try makeRequest(
+            path: "/v1/workout-actions/resume-workout",
+            method: "POST",
+            accessToken: accessToken,
+            body: requestBody,
+            additionalHeaders: [
+                "Idempotency-Key": idempotencyKey
+            ]
+        )
+
+        let (data, response) = try await execute(request)
+        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
+    }
+
+    func finishWorkout(
+        accessToken: String,
+        requestBody: WorkoutSessionControlRequest,
+        idempotencyKey: String
+    ) async throws -> WorkoutExecutionActionResponse {
+        let request = try makeRequest(
+            path: "/v1/workout-actions/finish-workout",
+            method: "POST",
+            accessToken: accessToken,
+            body: requestBody,
+            additionalHeaders: [
+                "Idempotency-Key": idempotencyKey
+            ]
+        )
+
+        let (data, response) = try await execute(request)
+        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
     }
 
     func streamRun(

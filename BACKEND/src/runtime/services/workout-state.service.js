@@ -23,6 +23,30 @@ function buildError(code, details = {}) {
   return error;
 }
 
+function coerceStateVersion(value) {
+  return Number.isInteger(value) && value >= 1 ? value : 1;
+}
+
+function buildNextStateVersion(session) {
+  return coerceStateVersion(session && session.state_version) + 1;
+}
+
+function assertExpectedStateVersion(session, expectedStateVersion) {
+  if (expectedStateVersion == null) {
+    return;
+  }
+
+  const currentStateVersion = coerceStateVersion(session && session.state_version);
+
+  if (expectedStateVersion !== currentStateVersion) {
+    throw buildError('STALE_WORKOUT_STATE', {
+      workoutSessionId: session ? session.workout_session_id : null,
+      expectedStateVersion,
+      currentStateVersion
+    });
+  }
+}
+
 function normalizeExerciseName(value) {
   return String(value || '')
     .trim()
@@ -276,6 +300,7 @@ function buildWorkoutState({ session, exercises, sets, adjustments }) {
   return parseWorkoutSessionState({
     workoutSessionId: session.workout_session_id,
     sessionKey: session.session_key,
+    stateVersion: coerceStateVersion(session.state_version),
     status: session.status,
     currentPhase: session.current_phase,
     title: session.title || null,
@@ -473,6 +498,30 @@ function findWorkoutExerciseRow(graph, workoutExerciseRef) {
   );
 }
 
+function findWorkoutSetRow(graph, workoutExerciseId, setIndex) {
+  if (!graph || !Array.isArray(graph.sets)) {
+    return null;
+  }
+
+  return graph.sets.find(row => (
+    row.workout_exercise_id === workoutExerciseId &&
+    row.set_index === setIndex
+  )) || null;
+}
+
+function findFirstLiveExercise(graph) {
+  if (!graph || !Array.isArray(graph.exercises)) {
+    return null;
+  }
+
+  return (
+    graph.exercises.find(row => row.order_index === graph.session.current_exercise_index) ||
+    graph.exercises.find(row => row.status === 'active') ||
+    graph.exercises.find(row => !TERMINAL_EXERCISE_STATUSES.has(row.status)) ||
+    null
+  );
+}
+
 async function getCurrentWorkoutState({ userId, sessionKey, workoutSessionId }) {
   const graph = await loadResolvedWorkoutGraph({
     userId,
@@ -516,6 +565,7 @@ async function createWorkoutSessionFromDraft({ userId, sessionKey, runId, input 
     user_id: userId,
     session_key: sessionKey,
     originating_run_id: runId,
+    state_version: 1,
     status: startImmediately ? 'in_progress' : 'queued',
     current_phase: startImmediately ? 'exercise' : 'preview',
     title: input.title || null,
@@ -945,6 +995,8 @@ async function recordWorkoutSetResult({ userId, input }) {
   }
 
   const { session, exercises } = graph;
+  assertExpectedStateVersion(session, input.expectedStateVersion);
+
   if (!LIVE_WORKOUT_STATUSES.includes(session.status)) {
     throw buildError('WORKOUT_NOT_ACTIVE', {
       workoutSessionId: session.workout_session_id,
@@ -1040,6 +1092,7 @@ async function recordWorkoutSetResult({ userId, input }) {
   };
 
   await updateWorkoutSessionRow(graphAfterExerciseUpdate.session.workout_session_id, {
+    state_version: buildNextStateVersion(graphAfterExerciseUpdate.session),
     status: flow.sessionStatus,
     current_phase: flow.currentPhase,
     current_exercise_index: flow.currentExerciseIndex,
@@ -1203,6 +1256,7 @@ async function rewriteRemainingWorkoutFromDraft({ userId, input }) {
   await insertWorkoutAdjustmentRows(adjustments);
 
   await updateWorkoutSessionRow(graph.session.workout_session_id, {
+    state_version: buildNextStateVersion(graph.session),
     status: flow.currentPhase === 'preview' ? 'queued' : 'in_progress',
     current_phase: flow.currentPhase,
     current_exercise_index: flow.currentExerciseIndex,
@@ -1351,6 +1405,7 @@ async function replaceWorkoutExerciseFromDraft({ userId, input }) {
   ]);
 
   await updateWorkoutSessionRow(graph.session.workout_session_id, {
+    state_version: buildNextStateVersion(graph.session),
     current_phase: flow.currentPhase,
     current_exercise_index: flow.currentExerciseIndex,
     current_set_index: flow.currentSetIndex,
@@ -1458,17 +1513,16 @@ async function adjustWorkoutSetTargets({ userId, input }) {
     await insertWorkoutAdjustmentRows(adjustmentRows);
   }
 
-  if (hasExplicitFlow(input.flow)) {
-    await updateWorkoutSessionRow(graph.session.workout_session_id, {
-      current_phase: input.flow.currentPhase || graph.session.current_phase,
-      current_exercise_index: input.flow.currentExerciseIndex != null
-        ? input.flow.currentExerciseIndex
-        : graph.session.current_exercise_index,
-      current_set_index: input.flow.currentSetIndex != null
-        ? input.flow.currentSetIndex
-        : graph.session.current_set_index
-    });
-  }
+  await updateWorkoutSessionRow(graph.session.workout_session_id, {
+    state_version: buildNextStateVersion(graph.session),
+    current_phase: input.flow.currentPhase || graph.session.current_phase,
+    current_exercise_index: input.flow.currentExerciseIndex != null
+      ? input.flow.currentExerciseIndex
+      : graph.session.current_exercise_index,
+    current_set_index: input.flow.currentSetIndex != null
+      ? input.flow.currentSetIndex
+      : graph.session.current_set_index
+  });
 
   return getCurrentWorkoutState({
     userId,
@@ -1487,6 +1541,8 @@ async function finishWorkoutSession({ userId, input }) {
       workoutSessionId: input.workoutSessionId
     });
   }
+
+  assertExpectedStateVersion(graph.session, input.expectedStateVersion);
 
   if (!LIVE_WORKOUT_STATUSES.includes(graph.session.status)) {
     throw buildError('WORKOUT_NOT_ACTIVE', {
@@ -1516,6 +1572,7 @@ async function finishWorkoutSession({ userId, input }) {
   }
 
   await updateWorkoutSessionRow(graph.session.workout_session_id, {
+    state_version: buildNextStateVersion(graph.session),
     status: input.finalStatus,
     current_phase: 'finished',
     current_exercise_index: null,
@@ -1534,10 +1591,272 @@ async function finishWorkoutSession({ userId, input }) {
   });
 }
 
+async function startWorkoutSession({ userId, input }) {
+  const graph = await loadResolvedWorkoutGraph({
+    userId,
+    workoutSessionId: input.workoutSessionId
+  });
+
+  if (!graph) {
+    throw buildError('WORKOUT_NOT_FOUND', {
+      workoutSessionId: input.workoutSessionId
+    });
+  }
+
+  assertExpectedStateVersion(graph.session, input.expectedStateVersion);
+
+  if (!LIVE_WORKOUT_STATUSES.includes(graph.session.status)) {
+    throw buildError('WORKOUT_NOT_ACTIVE', {
+      workoutSessionId: graph.session.workout_session_id,
+      status: graph.session.status
+    });
+  }
+
+  if (graph.session.status === 'in_progress' && graph.session.current_phase === 'exercise') {
+    return getCurrentWorkoutState({
+      userId,
+      workoutSessionId: graph.session.workout_session_id
+    });
+  }
+
+  const timestamp = new Date().toISOString();
+  const targetExercise = findFirstLiveExercise(graph);
+  const targetSetIndex = targetExercise
+    ? findFirstPendingSetIndex(
+        graph.sets
+          .filter(row => row.workout_exercise_id === targetExercise.workout_exercise_id)
+          .sort((left, right) => left.set_index - right.set_index)
+      )
+    : null;
+
+  await updateWorkoutSessionRow(graph.session.workout_session_id, {
+    state_version: buildNextStateVersion(graph.session),
+    status: 'in_progress',
+    current_phase: 'exercise',
+    current_exercise_index: targetExercise ? targetExercise.order_index : graph.session.current_exercise_index,
+    current_set_index: targetSetIndex != null ? targetSetIndex : graph.session.current_set_index,
+    started_at: graph.session.started_at || timestamp,
+    completed_at: null
+  });
+
+  await markFutureNodeActiveIfNeeded({
+    flow: {
+      currentPhase: 'exercise',
+      currentExerciseIndex: targetExercise ? targetExercise.order_index : graph.session.current_exercise_index,
+      currentSetIndex: targetSetIndex != null ? targetSetIndex : graph.session.current_set_index,
+      sessionStatus: 'in_progress'
+    },
+    exercises: graph.exercises,
+    sets: graph.sets,
+    timestamp
+  });
+
+  return getCurrentWorkoutState({
+    userId,
+    workoutSessionId: graph.session.workout_session_id
+  });
+}
+
+async function pauseWorkoutSession({ userId, input }) {
+  const graph = await loadResolvedWorkoutGraph({
+    userId,
+    workoutSessionId: input.workoutSessionId
+  });
+
+  if (!graph) {
+    throw buildError('WORKOUT_NOT_FOUND', {
+      workoutSessionId: input.workoutSessionId
+    });
+  }
+
+  assertExpectedStateVersion(graph.session, input.expectedStateVersion);
+
+  if (graph.session.status === 'paused') {
+    return getCurrentWorkoutState({
+      userId,
+      workoutSessionId: graph.session.workout_session_id
+    });
+  }
+
+  if (graph.session.status !== 'in_progress') {
+    throw buildError('WORKOUT_NOT_ACTIVE', {
+      workoutSessionId: graph.session.workout_session_id,
+      status: graph.session.status
+    });
+  }
+
+  await updateWorkoutSessionRow(graph.session.workout_session_id, {
+    state_version: buildNextStateVersion(graph.session),
+    status: 'paused',
+    current_phase: graph.session.current_phase || 'exercise'
+  });
+
+  return getCurrentWorkoutState({
+    userId,
+    workoutSessionId: graph.session.workout_session_id
+  });
+}
+
+async function resumeWorkoutSession({ userId, input }) {
+  const graph = await loadResolvedWorkoutGraph({
+    userId,
+    workoutSessionId: input.workoutSessionId
+  });
+
+  if (!graph) {
+    throw buildError('WORKOUT_NOT_FOUND', {
+      workoutSessionId: input.workoutSessionId
+    });
+  }
+
+  assertExpectedStateVersion(graph.session, input.expectedStateVersion);
+
+  if (graph.session.status === 'in_progress') {
+    return getCurrentWorkoutState({
+      userId,
+      workoutSessionId: graph.session.workout_session_id
+    });
+  }
+
+  if (graph.session.status !== 'paused') {
+    throw buildError('WORKOUT_NOT_ACTIVE', {
+      workoutSessionId: graph.session.workout_session_id,
+      status: graph.session.status
+    });
+  }
+
+  const timestamp = new Date().toISOString();
+  const currentExercise = findFirstLiveExercise(graph);
+  const currentSetIndex = currentExercise
+    ? findFirstPendingSetIndex(
+        graph.sets
+          .filter(row => row.workout_exercise_id === currentExercise.workout_exercise_id)
+          .sort((left, right) => left.set_index - right.set_index)
+      )
+    : graph.session.current_set_index;
+
+  await updateWorkoutSessionRow(graph.session.workout_session_id, {
+    state_version: buildNextStateVersion(graph.session),
+    status: 'in_progress',
+    current_phase: graph.session.current_phase === 'finished' ? 'exercise' : (graph.session.current_phase || 'exercise'),
+    current_exercise_index: currentExercise ? currentExercise.order_index : graph.session.current_exercise_index,
+    current_set_index: currentSetIndex
+  });
+
+  await markFutureNodeActiveIfNeeded({
+    flow: {
+      currentPhase: graph.session.current_phase === 'finished' ? 'exercise' : (graph.session.current_phase || 'exercise'),
+      currentExerciseIndex: currentExercise ? currentExercise.order_index : graph.session.current_exercise_index,
+      currentSetIndex,
+      sessionStatus: 'in_progress'
+    },
+    exercises: graph.exercises,
+    sets: graph.sets,
+    timestamp
+  });
+
+  return getCurrentWorkoutState({
+    userId,
+    workoutSessionId: graph.session.workout_session_id
+  });
+}
+
+async function skipWorkoutExercise({ userId, input }) {
+  const graph = await loadResolvedWorkoutGraph({
+    userId,
+    workoutSessionId: input.workoutSessionId
+  });
+
+  if (!graph) {
+    throw buildError('WORKOUT_NOT_FOUND', {
+      workoutSessionId: input.workoutSessionId
+    });
+  }
+
+  assertExpectedStateVersion(graph.session, input.expectedStateVersion);
+
+  if (!LIVE_WORKOUT_STATUSES.includes(graph.session.status)) {
+    throw buildError('WORKOUT_NOT_ACTIVE', {
+      workoutSessionId: graph.session.workout_session_id,
+      status: graph.session.status
+    });
+  }
+
+  const exercise = findWorkoutExerciseRow(graph, input.workoutExerciseId || 'current');
+  if (!exercise) {
+    throw buildError('EXERCISE_NOT_FOUND', {
+      workoutExerciseId: input.workoutExerciseId || 'current'
+    });
+  }
+
+  if (TERMINAL_EXERCISE_STATUSES.has(exercise.status)) {
+    throw buildError('EXERCISE_ALREADY_TERMINAL', {
+      workoutExerciseId: exercise.workout_exercise_id,
+      status: exercise.status
+    });
+  }
+
+  const timestamp = new Date().toISOString();
+  const exerciseSets = graph.sets
+    .filter(row => row.workout_exercise_id === exercise.workout_exercise_id)
+    .sort((left, right) => left.set_index - right.set_index);
+
+  for (const setRow of exerciseSets) {
+    if (!TERMINAL_SET_STATUSES.has(setRow.status)) {
+      await updateWorkoutSetRow(setRow.workout_set_id, {
+        status: 'skipped',
+        completed_at: timestamp,
+        started_at: setRow.started_at || timestamp
+      });
+    }
+  }
+
+  await updateWorkoutExerciseRow(exercise.workout_exercise_id, {
+    status: 'skipped',
+    started_at: exercise.started_at || timestamp,
+    completed_at: timestamp
+  });
+
+  const refreshedGraph = await loadWorkoutGraph({
+    userId,
+    workoutSessionId: graph.session.workout_session_id
+  });
+  const flow = resolveAutomaticFlow({
+    session: refreshedGraph.session,
+    exercises: refreshedGraph.exercises,
+    sets: refreshedGraph.sets,
+    currentExerciseOrderIndex: exercise.order_index
+  });
+
+  await updateWorkoutSessionRow(graph.session.workout_session_id, {
+    state_version: buildNextStateVersion(graph.session),
+    status: flow.sessionStatus,
+    current_phase: flow.currentPhase,
+    current_exercise_index: flow.currentExerciseIndex,
+    current_set_index: flow.currentSetIndex,
+    completed_at: flow.sessionStatus === 'completed' ? timestamp : null
+  });
+
+  await markFutureNodeActiveIfNeeded({
+    flow,
+    exercises: refreshedGraph.exercises,
+    sets: refreshedGraph.sets,
+    timestamp
+  });
+
+  return getCurrentWorkoutState({
+    userId,
+    workoutSessionId: graph.session.workout_session_id
+  });
+}
+
 module.exports = {
   __testUtils: {
     buildExerciseKey,
+    buildNextStateVersion,
+    coerceStateVersion,
     findWorkoutExerciseRow,
+    findWorkoutSetRow,
     isCurrentReference,
     resolveExerciseDefinitionId
   },
@@ -1546,7 +1865,11 @@ module.exports = {
   createWorkoutSessionFromDraft,
   finishWorkoutSession,
   getCurrentWorkoutState,
+  pauseWorkoutSession,
   recordWorkoutSetResult,
+  resumeWorkoutSession,
   replaceWorkoutExerciseFromDraft,
-  rewriteRemainingWorkoutFromDraft
+  rewriteRemainingWorkoutFromDraft,
+  skipWorkoutExercise,
+  startWorkoutSession
 };

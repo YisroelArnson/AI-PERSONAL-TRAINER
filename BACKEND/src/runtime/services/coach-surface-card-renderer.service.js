@@ -128,16 +128,45 @@ function buildCurrentWorkoutActions(workout) {
         id: 'start_workout',
         label: 'Start',
         icon: 'play.fill',
+        actionType: 'start_workout',
         semanticAction: 'workout_start',
-        message: 'Start this workout now.',
         style: 'primary'
       }),
       buildCardAction({
-        id: 'rewrite_workout',
-        label: 'Adjust plan',
-        icon: 'slider.horizontal.3',
-        semanticAction: 'workout_adjust_plan',
-        message: 'Adjust this workout before I start.',
+        id: 'finish_workout',
+        label: 'Finish',
+        icon: 'xmark.circle',
+        actionType: 'finish_workout',
+        semanticAction: 'workout_finish',
+        style: 'secondary'
+      })
+    ];
+  }
+
+  if (workout.status === 'paused') {
+    return [
+      buildCardAction({
+        id: 'resume_workout',
+        label: 'Resume',
+        icon: 'play.fill',
+        actionType: 'resume_workout',
+        semanticAction: 'workout_resume',
+        style: 'primary'
+      }),
+      buildCardAction({
+        id: 'skip_exercise',
+        label: 'Skip',
+        icon: 'forward.fill',
+        actionType: 'skip_current_exercise',
+        semanticAction: 'workout_skip_exercise',
+        style: 'secondary'
+      }),
+      buildCardAction({
+        id: 'finish_workout',
+        label: 'Finish',
+        icon: 'stop.fill',
+        actionType: 'finish_workout',
+        semanticAction: 'workout_finish',
         style: 'secondary'
       })
     ];
@@ -154,19 +183,27 @@ function buildCurrentWorkoutActions(workout) {
       style: 'primary'
     }),
     buildCardAction({
-      id: 'too_hard',
-      label: 'Too hard',
-      icon: 'arrow.down.circle',
-      semanticAction: 'workout_too_hard',
-      message: 'That was too hard. Adjust the remaining workout.',
+      id: 'skip_exercise',
+      label: 'Skip',
+      icon: 'forward.fill',
+      actionType: 'skip_current_exercise',
+      semanticAction: 'workout_skip_exercise',
       style: 'secondary'
     }),
     buildCardAction({
-      id: 'swap_exercise',
-      label: 'Swap',
-      icon: 'arrow.triangle.2.circlepath',
-      semanticAction: 'workout_swap_exercise',
-      message: 'Swap this exercise for me.',
+      id: 'pause_workout',
+      label: 'Pause',
+      icon: 'pause.fill',
+      actionType: 'pause_workout',
+      semanticAction: 'workout_pause',
+      style: 'secondary'
+    }),
+    buildCardAction({
+      id: 'finish_workout',
+      label: 'Finish',
+      icon: 'stop.fill',
+      actionType: 'finish_workout',
+      semanticAction: 'workout_finish',
       style: 'secondary'
     })
   ];

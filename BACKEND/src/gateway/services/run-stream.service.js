@@ -117,6 +117,21 @@ function normalizeStreamEvent(row) {
     };
   }
 
+  if (row.event_type === 'workout.state.updated') {
+    return {
+      id: row.seq_num,
+      event: 'workout.state.updated',
+      data: {
+        ...base,
+        type: 'workout.state.updated',
+        iteration: payload.iteration || null,
+        toolName: payload.toolName || null,
+        appliedStateVersion: payload.appliedStateVersion || null,
+        workout: payload.workout || null
+      }
+    };
+  }
+
   if (row.event_type === 'run.completed') {
     return {
       id: row.seq_num,
