@@ -70,7 +70,7 @@ async function execute({ input, userId, run }) {
       return semanticError(
         'WORKOUT_NOT_FOUND',
         'The referenced workout session does not exist for this user.',
-        'Read the current workout state first and retry against the returned workoutSessionId.',
+        'Use the current workout context in the prompt and retry against the correct workoutSessionId.',
         error.details || {}
       );
     }
@@ -79,7 +79,7 @@ async function execute({ input, userId, run }) {
       return semanticError(
         'WORKOUT_NOT_ACTIVE',
         'The referenced workout session is no longer live, so set results cannot be recorded into it.',
-        'Load the workout state again before deciding the next action.',
+        'Use the latest workout context in the prompt before deciding the next action.',
         error.details || {}
       );
     }
@@ -88,7 +88,7 @@ async function execute({ input, userId, run }) {
       return semanticError(
         'EXERCISE_NOT_FOUND',
         'The referenced workout exercise does not belong to the workout session.',
-        'Retry using the exact workoutExerciseId from workout_get_current_state.',
+        'Retry using the exact workoutExerciseId from the current workout context in the prompt.',
         error.details || {}
       );
     }
@@ -106,7 +106,7 @@ async function execute({ input, userId, run }) {
       return semanticError(
         'SET_ALREADY_RECORDED',
         'That set was already recorded earlier in this workout.',
-        'Load the current workout state and continue from the next live set instead of recording this one again.',
+        'Use the current workout context and continue from the next live set instead of recording this one again.',
         error.details || {}
       );
     }
@@ -115,7 +115,7 @@ async function execute({ input, userId, run }) {
       return semanticError(
         'INVALID_FLOW_DIRECTIVE',
         'The requested next workout pointer or phase does not match the stored workout structure.',
-        'Retry with a valid currentExerciseIndex/currentSetIndex pair from the current workout state.',
+        'Retry with a valid currentExerciseIndex/currentSetIndex pair from the current workout context in the prompt.',
         error.details || {}
       );
     }

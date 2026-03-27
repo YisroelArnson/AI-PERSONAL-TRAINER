@@ -66,7 +66,7 @@ async function execute({ input, userId, run }) {
       return semanticError(
         'WORKOUT_NOT_FOUND',
         'The referenced workout session does not exist for this user.',
-        'Read the current workout state first and retry against the returned workoutSessionId.',
+        'Use the current workout context in the prompt and retry against the correct workoutSessionId.',
         error.details || {}
       );
     }
@@ -75,7 +75,7 @@ async function execute({ input, userId, run }) {
       return semanticError(
         'WORKOUT_NOT_ACTIVE',
         'Only a live workout can have an exercise replaced.',
-        'Load the current workout state again before choosing the next action.',
+        'Use the latest workout context in the prompt before choosing the next action.',
         error.details || {}
       );
     }
@@ -84,7 +84,7 @@ async function execute({ input, userId, run }) {
       return semanticError(
         'EXERCISE_NOT_FOUND',
         'The referenced workout exercise does not belong to this workout.',
-        'Retry using the exact workoutExerciseId from workout_get_current_state.',
+        'Retry using the exact workoutExerciseId from the current workout context in the prompt.',
         error.details || {}
       );
     }

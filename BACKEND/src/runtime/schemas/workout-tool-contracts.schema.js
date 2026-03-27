@@ -59,10 +59,6 @@ const workoutFlowDirectiveSchema = z.object({
   startRestSec: nullableIntegerSchema
 });
 
-const workoutGetCurrentStateToolInputSchema = z.object({
-  workoutSessionId: nonEmptyStringSchema.optional()
-});
-
 const workoutGenerateToolInputSchema = z.object({
   title: nullableStringSchema,
   guidance: workoutGuidanceSchema.default({}),
@@ -147,7 +143,6 @@ function toProviderInputSchema(schema) {
   return stripJsonSchemaMetadata(z.toJSONSchema(schema, { io: 'input' }));
 }
 
-const workoutGetCurrentStateToolInputJsonSchema = toProviderInputSchema(workoutGetCurrentStateToolInputSchema);
 const workoutGenerateToolInputJsonSchema = toProviderInputSchema(workoutGenerateToolInputSchema);
 const workoutRewriteRemainingToolInputJsonSchema = toProviderInputSchema(workoutRewriteRemainingToolInputSchema);
 const workoutReplaceExerciseToolInputJsonSchema = toProviderInputSchema(workoutReplaceExerciseToolInputSchema);
@@ -165,14 +160,12 @@ module.exports = {
   workoutSetDraftSchema,
   workoutExerciseDraftSchema,
   workoutFlowDirectiveSchema,
-  workoutGetCurrentStateToolInputSchema,
   workoutGenerateToolInputSchema,
   workoutRewriteRemainingToolInputSchema,
   workoutReplaceExerciseToolInputSchema,
   workoutAdjustSetTargetsToolInputSchema,
   workoutRecordSetResultToolInputSchema,
   workoutFinishSessionToolInputSchema,
-  workoutGetCurrentStateToolInputJsonSchema,
   workoutGenerateToolInputJsonSchema,
   workoutRewriteRemainingToolInputJsonSchema,
   workoutReplaceExerciseToolInputJsonSchema,

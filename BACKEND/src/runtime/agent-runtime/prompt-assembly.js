@@ -3,6 +3,7 @@ const { getPromptContextForRun } = require('../services/prompt-context-cache.ser
 const { listBootstrapEpisodicNotes, formatBootstrapEpisodicNotes } = require('../services/episodic-notes.service');
 const { resolveSessionContinuityPolicy } = require('../services/session-reset-policy.service');
 const { loadStaticPromptLayer } = require('../services/static-prompt-layers.service');
+const { getCurrentWorkoutState } = require('../services/workout-state.service');
 const { env } = require('../../config/env');
 
 const DEFAULT_COACH_SOUL = [
@@ -53,11 +54,13 @@ const DEFAULT_SYSTEM_PROMPT = [
   '- If something is unknown, say so briefly and either ask the smallest useful follow-up or use a read-only tool.',
   '',
   '### Tool Use',
-  '- Use the provided tool registry when you need durable memory, program, or retrieval context.',
+  '- MEMORY, PROGRAM, COACH_SOUL, and live workout context are already injected into the prompt when available.',
+  '- Use the provided tool registry when you need targeted retrieval, durable writes, or live workout mutations.',
   '- Prefer read-only tools before mutating tools when more context is needed.',
-  '- Use memory_search when targeted historical context would help.',
+  '- Use memory_search when targeted historical context beyond the prompt would help.',
   '- When you decide to call a tool, emit the tool call directly with complete arguments and no surrounding prose.',
   '- If you use a tool, incorporate the result and continue the run.',
+  '- If runtime context says there is no active workout, do not behave as though one exists. Generate one first if appropriate.',
   '',
   '### Document Lifecycle',
   '- COACH_SOUL defines how the coach behaves, sounds, and relates to the user. Start from the default coach soul and personalize it over time.',
@@ -66,7 +69,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   '- PROGRAM is the current training plan and progression state. It may begin empty. Create it only when enough information exists to make a credible plan.',
   '- EPISODIC_DATE notes are append-only continuity blocks for recent events and session carry-over.',
   '- Do not blur identity, long-term memory, plan state, and day-level continuity together.',
-  '- Never guess expected_version for document mutations. Use the current version from prompt context or load it with memory_get/program_get first.',
+  '- Never guess expected_version for document mutations. Use the current version shown in prompt context.',
   '- Do not claim you updated memory, program, or coach soul unless a mutating tool actually succeeded.',
   '',
   '### Communication',
@@ -75,13 +78,58 @@ const DEFAULT_SYSTEM_PROMPT = [
   '- Avoid filler praise, hype, or corporate assistant language.'
 ].join('\n');
 
-function buildVersionedDocumentMarkdown(record) {
-  const currentVersion = record && record.doc ? record.doc.current_version : 0;
-  const content = record && record.version ? String(record.version.content || '').trim() : '';
+function buildVersionedDocumentMarkdown(record, options = {}) {
+  const currentVersion = record && record.doc
+    ? record.doc.current_version
+    : Number.isInteger(options.defaultVersion)
+      ? options.defaultVersion
+      : 0;
+  const content = record && record.version
+    ? String(record.version.content || '').trim()
+    : String(options.fallbackContent || '').trim();
 
   return [
     `Current Version: ${currentVersion}`,
     content || '_not available yet_'
+  ].join('\n');
+}
+
+function formatCurrentDateTime({ now = new Date(), timezone = 'UTC' } = {}) {
+  const safeTimezone = String(timezone || 'UTC').trim() || 'UTC';
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: safeTimezone,
+    dateStyle: 'full',
+    timeStyle: 'long'
+  });
+
+  return [
+    `Timezone: ${safeTimezone}`,
+    `Local: ${formatter.format(now)}`,
+    `ISO: ${now.toISOString()}`
+  ].join('\n');
+}
+
+function buildRuntimeContextMarkdown({ currentWorkout, timezone }) {
+  const workoutSection = currentWorkout
+    ? [
+        '### Current Workout State',
+        'Use this live workout state as the source of truth for workout decisions in this run.',
+        '```json',
+        JSON.stringify(currentWorkout, null, 2),
+        '```'
+      ].join('\n')
+    : [
+        '### Current Workout State',
+        'There is no current workout available for this user and active session context.',
+        'Generate a workout first and ask the user whether they want to start training now.',
+        'Suggested tool: workout_generate'
+      ].join('\n');
+
+  return [
+    workoutSection,
+    '',
+    '### Current Date and Time',
+    formatCurrentDateTime({ timezone })
   ].join('\n');
 }
 const DEFAULT_COACH_PRINCIPLES = [
@@ -153,13 +201,14 @@ function shouldLoadBootstrapInstructions(programRecord) {
 function buildSystemBlocks({
   systemPromptMarkdown,
   coachPrinciplesMarkdown,
-  coachSoul,
+  coachSoulMarkdown,
   programMarkdown,
   recalledMemoryMarkdown,
   bootstrapMarkdown,
   shouldLoadBootstrap,
   episodicBootstrapMarkdown,
-  triggerType
+  triggerType,
+  runtimeContextMarkdown
 }) {
   const blocks = [
     {
@@ -173,7 +222,7 @@ function buildSystemBlocks({
     },
     {
       type: 'text',
-      text: formatLayer('Coach Soul', coachSoul || DEFAULT_COACH_SOUL)
+      text: formatLayer('Coach Soul', coachSoulMarkdown)
     },
     {
       type: 'text',
@@ -217,13 +266,18 @@ function buildSystemBlocks({
         [
           'A workout card button already recorded the current set as completed in the backend before this run started.',
           'Do not call workout_record_set_result again for that same set unless you are intentionally correcting history.',
-          'If you need more context, read the current workout state and continue from there.',
+          'If you need more context, use the current workout context already included below and continue from there.',
           'If you have a useful brief coaching follow-up, send it.',
           'If no response is needed, reply exactly: no_reply'
         ].join('\n')
       )
     });
   }
+
+  blocks.push({
+    type: 'text',
+    text: formatLayer('Runtime Context', runtimeContextMarkdown)
+  });
 
   const lastBlock = blocks[blocks.length - 1];
   if (env.anthropicPromptCachingEnabled && lastBlock) {
@@ -244,7 +298,8 @@ async function assemblePrompt(run, options = {}) {
     programDoc,
     memoryDoc,
     promptContext,
-    continuityPolicy
+    continuityPolicy,
+    currentWorkout
   ] = await Promise.all([
     loadStaticPromptLayer('system-prompt.md', DEFAULT_SYSTEM_PROMPT),
     loadStaticPromptLayer('coach-principles.md', DEFAULT_COACH_PRINCIPLES),
@@ -254,7 +309,12 @@ async function assemblePrompt(run, options = {}) {
     getLatestDocVersionByDocType(run.user_id, 'PROGRAM').catch(() => null),
     getLatestDocVersionByDocType(run.user_id, 'MEMORY').catch(() => null),
     getPromptContextForRun(run, { messageLimit }),
-    resolveSessionContinuityPolicy(run.user_id).catch(() => null)
+    resolveSessionContinuityPolicy(run.user_id).catch(() => null),
+    getCurrentWorkoutState({
+      userId: run.user_id,
+      sessionKey: run.session_key,
+      workoutSessionId: null
+    }).catch(() => null)
   ]);
   const shouldLoadBootstrapEpisodicNotes = promptContext.sourceEventIds.length <= 1;
   const episodicNotes = shouldLoadBootstrapEpisodicNotes && continuityPolicy
@@ -266,21 +326,28 @@ async function assemblePrompt(run, options = {}) {
       }).catch(() => [])
     : [];
 
-  const coachSoul = coachSoulDoc ? coachSoulDoc.version.content : defaultCoachSoulMarkdown;
+  const coachSoulMarkdown = buildVersionedDocumentMarkdown(coachSoulDoc, {
+    fallbackContent: defaultCoachSoulMarkdown
+  });
   const programMarkdown = buildVersionedDocumentMarkdown(programDoc);
   const recalledMemoryMarkdown = buildVersionedDocumentMarkdown(memoryDoc);
   const shouldLoadBootstrap = shouldLoadBootstrapInstructions(programDoc);
   const episodicBootstrapMarkdown = formatBootstrapEpisodicNotes(episodicNotes);
+  const runtimeContextMarkdown = buildRuntimeContextMarkdown({
+    currentWorkout,
+    timezone: continuityPolicy ? continuityPolicy.timezone : 'UTC'
+  });
   const systemBlocks = buildSystemBlocks({
     systemPromptMarkdown,
     coachPrinciplesMarkdown,
-    coachSoul,
+    coachSoulMarkdown,
     programMarkdown,
     recalledMemoryMarkdown,
     bootstrapMarkdown,
     shouldLoadBootstrap,
     episodicBootstrapMarkdown,
-    triggerType: run.trigger_type
+    triggerType: run.trigger_type,
+    runtimeContextMarkdown
   });
 
   return {
@@ -295,7 +362,8 @@ async function assemblePrompt(run, options = {}) {
         hasProgramMarkdown: hasNonEmptyMarkdown(programDoc),
         hasMemoryMarkdown: hasNonEmptyMarkdown(memoryDoc),
         hasBootstrapInstructions: shouldLoadBootstrap,
-        hasEpisodicBootstrap: episodicNotes.length > 0
+        hasEpisodicBootstrap: episodicNotes.length > 0,
+        hasCurrentWorkout: Boolean(currentWorkout)
       }
     }
   };

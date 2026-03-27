@@ -1,17 +1,17 @@
-const { replaceMutableDocument } = require('../../services/memory-docs.service');
+const { COACH_SOUL_DOC_KEY, replaceMutableDocument } = require('../../services/memory-docs.service');
 const { appendSessionEvent } = require('../../services/transcript-write.service');
 
 const definition = {
   name: 'document_replace_entire',
   category: 'document mutation',
   mutating: true,
-  description: 'Replace the full contents of the durable MEMORY or PROGRAM Markdown document using optimistic concurrency.',
+  description: 'Replace the full contents of the durable MEMORY, PROGRAM, or COACH_SOUL Markdown document using optimistic concurrency.',
   inputSchema: {
     type: 'object',
     properties: {
       doc_key: {
         type: 'string',
-        enum: ['MEMORY', 'PROGRAM']
+        enum: ['MEMORY', 'PROGRAM', COACH_SOUL_DOC_KEY]
       },
       markdown: {
         type: 'string'
@@ -36,7 +36,7 @@ function semanticError(code, explanation, suggestedFix) {
     error: {
       code,
       explanation,
-      agent_guidance: 'Read the latest document version first, then retry with the correct expected_version and desired change.',
+      agent_guidance: 'Use the current document version already included in prompt context, then retry with the correct expected_version and desired change.',
       suggested_fix: suggestedFix,
       retryable_in_run: true
     }
@@ -44,7 +44,11 @@ function semanticError(code, explanation, suggestedFix) {
 }
 
 async function appendAuditEvent({ userId, run, docKey, reason, result }) {
-  const eventType = docKey === 'PROGRAM' ? 'program.updated' : 'memory.updated';
+  const eventType = docKey === 'PROGRAM'
+    ? 'program.updated'
+    : docKey === COACH_SOUL_DOC_KEY
+      ? 'coach_soul.updated'
+      : 'memory.updated';
 
   try {
     await appendSessionEvent({
@@ -104,7 +108,8 @@ async function execute({ input, userId, run }) {
         'VERSION_MISMATCH',
         `The current ${input.doc_key} version no longer matches expected_version ${input.expected_version}.`,
         {
-          suggested_tool: input.doc_key === 'PROGRAM' ? 'program_get' : 'memory_get'
+          doc_key: input.doc_key,
+          current_version_source: 'prompt_context'
         }
       );
     }
@@ -112,9 +117,9 @@ async function execute({ input, userId, run }) {
     if (error && error.message === 'DOC_KEY_NOT_MUTABLE') {
       return semanticError(
         'DOC_KEY_NOT_MUTABLE',
-        `Only MEMORY and PROGRAM can be replaced directly. ${input.doc_key} is not a mutable document target.`,
+        `Only MEMORY, PROGRAM, and ${COACH_SOUL_DOC_KEY} can be replaced directly. ${input.doc_key} is not a mutable document target.`,
         {
-          allowed_doc_keys: ['MEMORY', 'PROGRAM']
+          allowed_doc_keys: ['MEMORY', 'PROGRAM', COACH_SOUL_DOC_KEY]
         }
       );
     }

@@ -40,7 +40,7 @@ function semanticError(code, explanation, suggestedFix) {
     error: {
       code,
       explanation,
-      agent_guidance: 'Read the latest document version and retry with an exact single-span replacement.',
+      agent_guidance: 'Use the current document version and exact text already included in prompt context, then retry with an exact single-span replacement.',
       suggested_fix: suggestedFix,
       retryable_in_run: true
     }
@@ -109,7 +109,8 @@ async function execute({ input, userId, run }) {
         'VERSION_MISMATCH',
         `The current ${input.doc_key} version no longer matches expected_version ${input.expected_version}.`,
         {
-          suggested_tool: input.doc_key === 'PROGRAM' ? 'program_get' : 'memory_get'
+          doc_key: input.doc_key,
+          current_version_source: 'prompt_context'
         }
       );
     }
@@ -129,7 +130,8 @@ async function execute({ input, userId, run }) {
         'TEXT_NOT_FOUND',
         'The exact old_text span was not found in the current document.',
         {
-          suggested_tool: input.doc_key === 'PROGRAM' ? 'program_get' : 'memory_get'
+          doc_key: input.doc_key,
+          content_source: 'prompt_context'
         }
       );
     }

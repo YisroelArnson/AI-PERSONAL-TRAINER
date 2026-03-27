@@ -69,7 +69,7 @@ async function execute({ input, userId, run }) {
       return semanticError(
         'ACTIVE_WORKOUT_EXISTS',
         'A live workout already exists for this user, so a second live workout cannot be created right now.',
-        'Load the existing workout with workout_get_current_state or mutate the current workout instead of creating a second live workout.',
+        'Use the live workout context already included in the prompt or mutate the current workout instead of creating a second live workout.',
         error.details || {}
       );
     }

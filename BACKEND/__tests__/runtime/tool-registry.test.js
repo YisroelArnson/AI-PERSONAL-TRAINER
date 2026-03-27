@@ -1,8 +1,6 @@
 jest.mock('../../src/runtime/services/memory-docs.service', () => ({
   COACH_SOUL_DOC_KEY: 'COACH_SOUL',
   getLatestDocVersionByDocType: jest.fn(),
-  getCoachSoulDocument: jest.fn(),
-  replaceCoachSoulDocument: jest.fn(),
   replaceMutableDocument: jest.fn(),
   replaceMutableDocumentText: jest.fn(),
   appendEpisodicNoteBlock: jest.fn()
@@ -41,18 +39,21 @@ describe('tool-registry', () => {
     jest.clearAllMocks();
   });
 
-  it('registers the coach soul tools', () => {
+  it('registers the trimmed tool set without redundant getter tools', () => {
     const toolNames = listToolDefinitions().map(definition => definition.name);
 
-    expect(toolNames).toContain('coach_soul_get');
-    expect(toolNames).toContain('coach_soul_replace_entire');
     expect(toolNames).toContain('workout_generate');
-    expect(toolNames).toContain('workout_get_current_state');
     expect(toolNames).toContain('workout_rewrite_remaining');
     expect(toolNames).toContain('workout_replace_exercise');
     expect(toolNames).toContain('workout_adjust_set_targets');
     expect(toolNames).toContain('workout_record_set_result');
     expect(toolNames).toContain('workout_finish_session');
+    expect(toolNames).toContain('document_replace_entire');
+    expect(toolNames).not.toContain('memory_get');
+    expect(toolNames).not.toContain('program_get');
+    expect(toolNames).not.toContain('coach_soul_get');
+    expect(toolNames).not.toContain('coach_soul_replace_entire');
+    expect(toolNames).not.toContain('workout_get_current_state');
   });
 
   it('exposes the nested workout contracts in the provider-facing tool schemas', () => {
@@ -126,6 +127,37 @@ describe('tool-registry', () => {
       }
     });
     expect(replaceMutableDocument).not.toHaveBeenCalled();
+  });
+
+  it('allows COACH_SOUL to be replaced through document_replace_entire', async () => {
+    replaceMutableDocument.mockResolvedValue({
+      docKey: 'COACH_SOUL',
+      docType: 'COACH_SOUL',
+      currentVersion: 2,
+      changed: true
+    });
+
+    const result = await executeToolCall({
+      toolName: 'document_replace_entire',
+      input: {
+        doc_key: 'COACH_SOUL',
+        markdown: '# COACH_SOUL.md\n\nBe direct.',
+        expected_version: 1,
+        reason: 'Update coaching tone'
+      },
+      run: {
+        user_id: 'user-123',
+        run_id: 'run-123',
+        session_key: 'user:123:main',
+        session_id: 'session-123'
+      }
+    });
+
+    expect(result.status).toBe('ok');
+    expect(replaceMutableDocument).toHaveBeenCalledWith(expect.objectContaining({
+      docKey: 'COACH_SOUL',
+      expectedVersion: 1
+    }));
   });
 
   it('returns nested workout validation errors from the declared schema', async () => {

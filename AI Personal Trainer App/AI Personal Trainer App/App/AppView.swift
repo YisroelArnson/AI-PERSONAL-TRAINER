@@ -359,16 +359,10 @@ final class CoachSurfaceViewModel: ObservableObject {
         switch toolName {
         case "memory_search":
             return "Searching past notes"
-        case "memory_get":
-            return "Checking saved memory"
-        case "program_get":
-            return "Reviewing program"
         case "document_replace_text", "document_replace_entire":
             return "Updating notes"
         case "episodic_note_append":
             return "Saving note"
-        case "coach_soul_get", "coach_soul_replace_entire":
-            return "Checking coach settings"
         case let name?:
             return name
                 .replacingOccurrences(of: "_", with: " ")

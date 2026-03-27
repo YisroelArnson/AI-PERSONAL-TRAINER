@@ -284,12 +284,9 @@ The core tool registry should include these categories:
 | Tool | Category | Mutating | Purpose |
 | --- | --- | --- | --- |
 | `memory_search` | context | `false` | semantically search durable memory and episodic notes |
-| `memory_get` | context | `false` | fetch current `memory_markdown` content |
-| `program_get` | context | `false` | load current `program_markdown` |
 | `get_recent_workout_history` | context | `false` | load recent workout performance/history |
 | `get_user_readiness` | context | `false` | load readiness/recovery signals |
 | `workout_generate` | workout execution | `true` | generate a workout session structure when the user is ready to train |
-| `workout_get_current_state` | workout execution | `false` | load the current live workout and pinned-card state |
 | `workout_start_session` | workout execution | `true` | mark the workout session active |
 | `workout_complete_set` | workout execution | `true` | complete the current set and update progression state |
 | `workout_complete_exercise` | workout execution | `true` | mark current exercise complete |
@@ -304,7 +301,7 @@ The core tool registry should include these categories:
 | `workout_mark_too_hard` | live adjustment | `true` | record difficulty signal and trigger adaptation |
 | `workout_mark_pain_flag` | live adjustment | `true` | record safety/pain signal and constrain future actions |
 | `document_replace_text` | document mutation | `true` | replace a specific text span inside `memory_markdown` or `program_markdown` |
-| `document_replace_entire` | document mutation | `true` | replace the full contents of `memory_markdown` or `program_markdown` |
+| `document_replace_entire` | document mutation | `true` | replace the full contents of `memory_markdown`, `program_markdown`, or `coach_soul_markdown` |
 | `program_adjust_progression` | program | `true` | progress/regress future training prescription |
 | `calculate_estimated_1rm` | decision support | `false` | compute estimated 1RM from performance data |
 | `suggest_exercise_substitution` | decision support | `false` | find context-appropriate replacement movements |
@@ -333,9 +330,9 @@ The canonical document-mutation tools are:
 
 These tools should follow these rules:
 
-1. `memory_get` and `program_get` are the read path for durable Markdown documents.
+1. The current versions of `memory_markdown`, `program_markdown`, and `coach_soul_markdown` should be injected into prompt context on every run.
 2. `document_replace_text` is the preferred targeted-edit path for `memory_markdown` and `program_markdown`.
-3. `document_replace_entire` is the preferred full-rewrite path for `memory_markdown` and `program_markdown`.
+3. `document_replace_entire` is the preferred full-rewrite path for `memory_markdown`, `program_markdown`, and `coach_soul_markdown`.
 4. `episodic_note_append` is append-only and should be used for flushes, notes, and time-based episodic writes.
 5. All document mutation tools must enforce optimistic concurrency through `expected_version`.
 6. All document mutation tools must create new document versions rather than mutating rows in place.
@@ -360,7 +357,7 @@ These tools should follow these rules:
 
 ```pseudocode
 FUNCTION handle_user_ready_to_work_out(user_id: String, guidance: Dict) -> WorkoutSessionState:
-    current_program = program_get(user_id)
+    current_program = prompt_context.program_markdown
     readiness = get_user_readiness(user_id)
     workout = workout_generate(
         user_id=user_id,
@@ -1646,7 +1643,7 @@ ASSERT tool_result.status == "semantic_error"
 ASSERT tool_result.error.agent_guidance is not NONE
 
 -- Live workout mutation
-current = workout_get_current_state(user_id)
+current = prompt_context.current_workout
 adjusted = workout_adjust_load(current.workout_session_id, delta=5)
 ASSERT adjusted.current_exercise_id == current.current_exercise_id
 

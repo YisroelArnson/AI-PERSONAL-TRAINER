@@ -90,9 +90,10 @@ Recommended v1 mutation tools:
 5. `workout_record_set_result`
 6. `workout_finish_session`
 
-Recommended v1 read tool:
+Recommended v1 read path:
 
-1. `workout_get_current_state`
+1. Inject the current live workout state directly into prompt assembly on every run.
+2. If no live workout exists, inject a semantic no-active-workout context instead.
 
 ## How the mutation tools should work
 
@@ -136,7 +137,7 @@ Recommended v1 read tool:
 ## Recommended v1 implementation order
 
 1. Implement the authoring-tool handlers above so the agent can create and mutate workouts directly.
-2. Build a workout read service that returns `WorkoutSessionState`.
+2. Build a workout read service that returns `WorkoutSessionState` for prompt assembly and card rendering.
 3. Build deterministic card renderers that turn stored workout state into feed items.
 4. Move coach-surface feed reads from `session_events` toward `feed_items`.
 5. Mirror the backend contract in Swift models once the backend is returning real workout payloads.

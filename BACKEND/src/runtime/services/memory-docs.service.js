@@ -3,8 +3,9 @@ const { sha256Hex } = require('../../shared/hash');
 const { enqueueMemoryDocIndexSyncIfNeeded } = require('./indexing-queue.service');
 const { isValidDateKey } = require('./timezone-date.service');
 
-const MUTABLE_DOCUMENT_DOC_KEYS = new Set(['MEMORY', 'PROGRAM']);
 const COACH_SOUL_DOC_KEY = 'COACH_SOUL';
+const MUTABLE_DOCUMENT_DOC_KEYS = new Set(['MEMORY', 'PROGRAM']);
+const ENTIRE_DOCUMENT_DOC_KEYS = new Set(['MEMORY', 'PROGRAM', COACH_SOUL_DOC_KEY]);
 const EPISODIC_DATE_PREFIX = 'EPISODIC_DATE:';
 
 function getAdminClientOrThrow() {
@@ -29,6 +30,16 @@ function getMutableDocTypeForDocKey(docKey) {
   const normalizedDocKey = String(docKey || '').trim().toUpperCase();
 
   if (!MUTABLE_DOCUMENT_DOC_KEYS.has(normalizedDocKey)) {
+    return null;
+  }
+
+  return normalizedDocKey;
+}
+
+function getEntireDocumentDocKey(docKey) {
+  const normalizedDocKey = String(docKey || '').trim().toUpperCase();
+
+  if (!ENTIRE_DOCUMENT_DOC_KEYS.has(normalizedDocKey)) {
     return null;
   }
 
@@ -294,28 +305,6 @@ async function writeMemoryDocVersion({
   return data;
 }
 
-async function getCoachSoulDocument(userId) {
-  return getLatestDocVersionByDocKey(userId, COACH_SOUL_DOC_KEY);
-}
-
-async function replaceCoachSoulDocument({
-  userId,
-  markdown,
-  expectedVersion,
-  updatedByActor,
-  updatedByRunId
-}) {
-  return writeMemoryDocVersion({
-    userId,
-    docType: COACH_SOUL_DOC_KEY,
-    docKey: COACH_SOUL_DOC_KEY,
-    content: String(markdown || ''),
-    expectedVersion,
-    updatedByActor,
-    updatedByRunId
-  });
-}
-
 async function replaceMutableDocument({
   userId,
   docKey,
@@ -324,16 +313,16 @@ async function replaceMutableDocument({
   updatedByActor,
   updatedByRunId
 }) {
-  const docType = getMutableDocTypeForDocKey(docKey);
+  const normalizedDocKey = getEntireDocumentDocKey(docKey);
 
-  if (!docType) {
+  if (!normalizedDocKey) {
     throw new Error('DOC_KEY_NOT_MUTABLE');
   }
 
   return writeMemoryDocVersion({
     userId,
-    docType,
-    docKey: docType,
+    docType: normalizedDocKey,
+    docKey: normalizedDocKey,
     content: String(markdown || ''),
     expectedVersion,
     updatedByActor,
@@ -457,9 +446,7 @@ module.exports = {
   getLatestDocVersionByDocId,
   getLatestDocVersionByDocType,
   getLatestDocVersionsByDocKeys,
-  getCoachSoulDocument,
   getMutableDocTypeForDocKey,
-  replaceCoachSoulDocument,
   replaceMutableDocument,
   replaceMutableDocumentText,
   replaceSingleOccurrence,

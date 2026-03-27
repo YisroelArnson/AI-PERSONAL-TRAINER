@@ -2,7 +2,6 @@ const mockAppendSessionEvent = jest.fn().mockResolvedValue();
 const mockAdjustWorkoutSetTargets = jest.fn();
 const mockCreateWorkoutSessionFromDraft = jest.fn();
 const mockFinishWorkoutSession = jest.fn();
-const mockGetCurrentWorkoutState = jest.fn();
 const mockRecordWorkoutSetResult = jest.fn();
 const mockReplaceWorkoutExerciseFromDraft = jest.fn();
 const mockRewriteRemainingWorkoutFromDraft = jest.fn();
@@ -15,7 +14,6 @@ jest.mock('../../src/runtime/services/workout-state.service', () => ({
   adjustWorkoutSetTargets: mockAdjustWorkoutSetTargets,
   createWorkoutSessionFromDraft: mockCreateWorkoutSessionFromDraft,
   finishWorkoutSession: mockFinishWorkoutSession,
-  getCurrentWorkoutState: mockGetCurrentWorkoutState,
   recordWorkoutSetResult: mockRecordWorkoutSetResult,
   replaceWorkoutExerciseFromDraft: mockReplaceWorkoutExerciseFromDraft,
   rewriteRemainingWorkoutFromDraft: mockRewriteRemainingWorkoutFromDraft
@@ -24,7 +22,6 @@ jest.mock('../../src/runtime/services/workout-state.service', () => ({
 const workoutAdjustSetTargetsTool = require('../../src/runtime/trainer-tools/handlers/workout-adjust-set-targets.tool');
 const workoutFinishSessionTool = require('../../src/runtime/trainer-tools/handlers/workout-finish-session.tool');
 const workoutGenerateTool = require('../../src/runtime/trainer-tools/handlers/workout-generate.tool');
-const workoutGetCurrentStateTool = require('../../src/runtime/trainer-tools/handlers/workout-get-current-state.tool');
 const workoutRecordSetResultTool = require('../../src/runtime/trainer-tools/handlers/workout-record-set-result.tool');
 const workoutReplaceExerciseTool = require('../../src/runtime/trainer-tools/handlers/workout-replace-exercise.tool');
 const workoutRewriteRemainingTool = require('../../src/runtime/trainer-tools/handlers/workout-rewrite-remaining.tool');
@@ -121,23 +118,6 @@ describe('workout tool handlers', () => {
 
     expect(result.status).toBe('semantic_error');
     expect(result.error.code).toBe('ACTIVE_WORKOUT_EXISTS');
-  });
-
-  it('returns a semantic error when no active workout exists', async () => {
-    mockGetCurrentWorkoutState.mockResolvedValue(null);
-
-    const result = await workoutGetCurrentStateTool.execute({
-      input: {},
-      userId: 'user-123',
-      run: {
-        run_id: 'run-123',
-        session_key: 'user:123:main',
-        session_id: 'session-123'
-      }
-    });
-
-    expect(result.status).toBe('semantic_error');
-    expect(result.error.code).toBe('NO_ACTIVE_WORKOUT');
   });
 
   it('records a set result and returns the updated workout', async () => {
