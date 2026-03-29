@@ -12,7 +12,8 @@ jest.mock('../../src/config/env', () => ({
 const { env } = require('../../src/config/env');
 const {
   appendRawLlmPayload,
-  getRawLlmLogFilePath
+  getRawLlmLogFilePath,
+  insertEntryIntoDocument
 } = require('../../src/runtime/services/raw-llm-io-log.service');
 
 describe('raw-llm-io-log.service', () => {
@@ -34,10 +35,17 @@ describe('raw-llm-io-log.service', () => {
       runId: 'run-123',
       iteration: 1,
       payload: {
+        system: 'You are a coach.',
         messages: [
           {
             role: 'user',
             content: 'Build my first program.'
+          }
+        ],
+        tools: [
+          {
+            name: 'document_replace_entire',
+            input_schema: {}
           }
         ]
       }
@@ -51,6 +59,13 @@ describe('raw-llm-io-log.service', () => {
         role: 'assistant',
         content: [
           {
+            type: 'tool_use',
+            name: 'document_replace_entire',
+            input: {
+              doc_key: 'PROGRAM'
+            }
+          },
+          {
             type: 'text',
             text: 'Absolutely. Let us start with three days per week.'
           }
@@ -61,10 +76,16 @@ describe('raw-llm-io-log.service', () => {
     const filePath = getRawLlmLogFilePath('run-123');
     const contents = await fs.readFile(filePath, 'utf8');
 
-    expect(contents).toContain('REQUEST run=run-123 iteration=1');
-    expect(contents).toContain('"content": "Build my first program."');
-    expect(contents).toContain('RESPONSE run=run-123 iteration=1');
-    expect(contents).toContain('"text": "Absolutely. Let us start with three days per week."');
+    expect(filePath.endsWith('.html')).toBe(true);
+    expect(contents).toContain('REQUEST • iteration 1 • run run-123');
+    expect(contents).toContain('Prompt');
+    expect(contents).toContain('Tooling');
+    expect(contents).toContain('Messages');
+    expect(contents).toContain('Tool Use');
+    expect(contents).toContain('Raw JSON');
+    expect(contents).toContain('&quot;content&quot;: &quot;Build my first program.&quot;');
+    expect(contents).toContain('&quot;name&quot;: &quot;document_replace_entire&quot;');
+    expect(contents).toContain('&quot;text&quot;: &quot;Absolutely. Let us start with three days per week.&quot;');
   });
 
   it('returns null and skips file writes when raw I/O logging is disabled', async () => {
@@ -83,5 +104,22 @@ describe('raw-llm-io-log.service', () => {
       code: 'ENOENT'
     });
     expect(result).toBeNull();
+  });
+
+  it('preserves literal dollar signs when appending later entries', async () => {
+    const initialDocument = [
+      '<section>',
+      '  <!-- RAW_LLM_IO_ENTRY_INSERT_MARKER -->',
+      '</section>'
+    ].join('\n');
+    const firstEntry = '<pre>^\\d{4}-\\d{2}-\\d{2}$</pre>';
+    const secondEntry = '<details><summary>RESPONSE</summary></details>';
+
+    const withFirstEntry = insertEntryIntoDocument(initialDocument, firstEntry);
+    const withSecondEntry = insertEntryIntoDocument(withFirstEntry, secondEntry);
+
+    expect(withSecondEntry).toContain('<pre>^\\d{4}-\\d{2}-\\d{2}$</pre>');
+    expect(withSecondEntry).toContain('<details><summary>RESPONSE</summary></details>');
+    expect(withSecondEntry).not.toContain('^\\d{4}-\\d{2}-\\d{2}<details><summary>RESPONSE</summary>');
   });
 });
