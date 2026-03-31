@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { llmSelectionSchema } = require('./llm.schema');
 
 const {
   workoutSessionStateSchema,
@@ -16,20 +17,23 @@ const completeCurrentSetRequestSchema = z.object({
   expectedStateVersion: nullableIntegerSchema,
   workoutSetId: nonEmptyStringSchema.optional(),
   actual: workoutSetActualSchema.optional(),
-  userNote: z.string().trim().min(1).max(4000).optional()
+  userNote: z.string().trim().min(1).max(4000).optional(),
+  llm: llmSelectionSchema.optional()
 });
 
 const workoutSessionControlRequestSchema = z.object({
   sessionKey: nonEmptyStringSchema.optional(),
   workoutSessionId: nonEmptyStringSchema,
-  expectedStateVersion: nullableIntegerSchema
+  expectedStateVersion: nullableIntegerSchema,
+  llm: llmSelectionSchema.optional()
 });
 
 const skipCurrentExerciseRequestSchema = z.object({
   sessionKey: nonEmptyStringSchema.optional(),
   workoutSessionId: nonEmptyStringSchema,
   workoutExerciseId: nonEmptyStringSchema,
-  expectedStateVersion: nullableIntegerSchema
+  expectedStateVersion: nullableIntegerSchema,
+  llm: llmSelectionSchema.optional()
 });
 
 const workoutActionAgentFollowUpSchema = z.object({

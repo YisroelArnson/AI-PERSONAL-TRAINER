@@ -1,7 +1,13 @@
 const { badRequest, conflict, notFound } = require('../../shared/errors');
 const { getRunById } = require('../../runtime/services/run-state.service');
 const { getStreamEventBounds, listStreamEvents } = require('../../runtime/services/stream-events.service');
+const {
+  getRunStreamWindow,
+  listHotRunStreamEvents,
+  waitForHotRunStreamEvents
+} = require('../../runtime/services/run-stream-redis.service');
 const { resolveConcurrencyPolicy } = require('../../runtime/services/concurrency-policy.service');
+const { logPerformance, startTimer } = require('../../runtime/services/performance-log.service');
 const {
   admitActiveStream,
   refreshActiveStreamLease,
@@ -179,6 +185,74 @@ function writeHeartbeat(res, runId) {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
+function buildTerminalEventFromRun({ runId, lastSeenSeqNum, run }) {
+  const seqNum = lastSeenSeqNum || 0;
+  const createdAt = new Date().toISOString();
+
+  if (run.status === 'failed') {
+    return {
+      id: seqNum,
+      event: 'run.failed',
+      data: {
+        runId,
+        eventId: seqNum,
+        seqNum,
+        createdAt,
+        type: 'run.failed',
+        errorCode: run.error_code || 'worker_error',
+        message: run.error_message || 'Run failed'
+      }
+    };
+  }
+
+  if (run.status === 'succeeded') {
+    return {
+      id: seqNum,
+      event: 'run.completed',
+      data: {
+        runId,
+        eventId: seqNum,
+        seqNum,
+        createdAt,
+        type: 'run.completed',
+        phase: 'worker',
+        provider: run.provider_key || null,
+        model: run.model_key || null
+      }
+    };
+  }
+
+  return null;
+}
+
+function emitRowsToSse({ res, rows, lastSeenSeqNum, terminalEventSent }) {
+  let nextLastSeenSeqNum = lastSeenSeqNum;
+  let nextTerminalEventSent = terminalEventSent;
+  let emittedCount = 0;
+
+  for (const row of rows) {
+    nextLastSeenSeqNum = row.seq_num;
+
+    const event = normalizeStreamEvent(row);
+    if (!event) {
+      continue;
+    }
+
+    writeSseEvent(res, event);
+    emittedCount += 1;
+
+    if (event.event === 'run.completed' || event.event === 'run.failed') {
+      nextTerminalEventSent = true;
+    }
+  }
+
+  return {
+    emittedCount,
+    lastSeenSeqNum: nextLastSeenSeqNum,
+    terminalEventSent: nextTerminalEventSent
+  };
+}
+
 async function loadOwnedRun(runId, userId) {
   const run = await getRunById(runId).catch(error => {
     if (error && error.code === 'PGRST116') {
@@ -198,8 +272,22 @@ async function loadOwnedRun(runId, userId) {
 async function streamRunEvents({ auth, req, res, params }) {
   const runId = params.runId;
   const cursor = resolveCursor(req);
-  const initialRun = await loadOwnedRun(runId, auth.userId);
-  const bounds = await getStreamEventBounds(runId);
+  const requestId = req.requestId || null;
+  const setupTimer = startTimer({
+    requestId,
+    route: '/v1/runs/:runId/stream',
+    stage: 'run_stream_setup',
+    runId,
+    userId: auth.userId
+  });
+  const [initialRun, bounds, initialHotWindow] = await Promise.all([
+    loadOwnedRun(runId, auth.userId),
+    getStreamEventBounds(runId),
+    getRunStreamWindow(runId).catch(error => ({
+      available: false,
+      reason: error && error.message ? error.message.slice(0, 200) : 'redis_window_error'
+    }))
+  ]);
 
   if (bounds.firstSeqNum !== null && cursor < bounds.firstSeqNum - 1) {
     throw conflict('Replay window expired', {
@@ -212,6 +300,13 @@ async function streamRunEvents({ auth, req, res, params }) {
     userId: auth.userId,
     headers: req.headers,
     concurrencyPolicy
+  });
+  setupTimer({
+    outcome: 'ok',
+    cursor,
+    redisAvailable: initialHotWindow.available === true,
+    hotFirstSeqNum: initialHotWindow.firstSeqNum ?? null,
+    hotLastSeqNum: initialHotWindow.lastSeqNum ?? null
   });
 
   try {
@@ -230,73 +325,170 @@ async function streamRunEvents({ auth, req, res, params }) {
     let lastHeartbeatAt = Date.now();
     let terminalEventSent = false;
     let runStatus = initialRun.status;
+    let hotWindow = initialHotWindow;
+    let lastRedisId = hotWindow && hotWindow.available
+      ? (hotWindow.lastRedisId || '$')
+      : '$';
 
     req.on('close', () => {
       closed = true;
     });
 
     while (!closed) {
-      const rows = await listStreamEvents({
-        runId,
-        afterSeqNum: lastSeenSeqNum,
-        limit: MAX_BATCH_SIZE
+      let rows = [];
+      let source = hotWindow && hotWindow.available ? 'redis' : 'postgres';
+      let fallbackReason = null;
+
+      if (source === 'redis') {
+        if (
+          hotWindow
+          && hotWindow.empty !== true
+          && hotWindow.firstSeqNum !== null
+          && lastSeenSeqNum < hotWindow.firstSeqNum - 1
+        ) {
+          source = 'postgres';
+          fallbackReason = 'cursor_before_redis_hot_window';
+        } else {
+          const hotResult = await listHotRunStreamEvents({
+            runId,
+            afterSeqNum: lastSeenSeqNum,
+            limit: MAX_BATCH_SIZE
+          });
+
+          if (!hotResult.available) {
+            source = 'postgres';
+            fallbackReason = hotResult.reason || 'redis_unavailable';
+          } else {
+            rows = hotResult.rows;
+            lastRedisId = hotResult.lastRedisId || lastRedisId;
+
+            if (rows.length === 0) {
+              const waitTimer = startTimer({
+                requestId,
+                route: '/v1/runs/:runId/stream',
+                stage: 'run_stream_wait',
+                runId,
+                userId: auth.userId
+              });
+              const waitResult = await waitForHotRunStreamEvents({
+                runId,
+                lastRedisId,
+                limit: MAX_BATCH_SIZE,
+                blockMs: HEARTBEAT_INTERVAL_MS
+              });
+              waitTimer({
+                outcome: 'ok',
+                source: 'redis',
+                timedOut: waitResult.timedOut === true,
+                batchSize: waitResult.rows.length
+              });
+
+              if (!waitResult.available) {
+                source = 'postgres';
+                fallbackReason = waitResult.reason || 'redis_wait_unavailable';
+              } else {
+                rows = waitResult.rows;
+                lastRedisId = waitResult.lastRedisId || lastRedisId;
+              }
+            }
+
+            if (rows.length === 0) {
+              hotWindow = await getRunStreamWindow(runId).catch(error => ({
+                available: false,
+                reason: error && error.message ? error.message.slice(0, 200) : 'redis_window_error'
+              }));
+
+              if (!hotWindow.available) {
+                source = 'postgres';
+                fallbackReason = hotWindow.reason || 'redis_window_unavailable';
+              } else if (
+                hotWindow.empty !== true
+                && hotWindow.lastSeqNum !== null
+                && hotWindow.lastSeqNum > lastSeenSeqNum
+              ) {
+                source = 'postgres';
+                fallbackReason = 'redis_gap_detected';
+              } else {
+                lastRedisId = hotWindow.lastRedisId || lastRedisId || '$';
+              }
+            }
+          }
+        }
+      }
+
+      if (source === 'postgres') {
+        rows = await listStreamEvents({
+          runId,
+          afterSeqNum: lastSeenSeqNum,
+          limit: MAX_BATCH_SIZE
+        });
+
+        if (rows.length === 0) {
+          hotWindow = await getRunStreamWindow(runId).catch(error => ({
+            available: false,
+            reason: error && error.message ? error.message.slice(0, 200) : 'redis_window_error'
+          }));
+
+          if (hotWindow.available) {
+            lastRedisId = hotWindow.lastRedisId || lastRedisId || '$';
+          }
+        }
+      }
+
+      const emission = emitRowsToSse({
+        res,
+        rows,
+        lastSeenSeqNum,
+        terminalEventSent
       });
+      lastSeenSeqNum = emission.lastSeenSeqNum;
+      terminalEventSent = emission.terminalEventSent;
 
-      for (const row of rows) {
-        lastSeenSeqNum = row.seq_num;
+      if (rows.some(row => row.event_type === 'run.completed')) {
+        runStatus = 'succeeded';
+      } else if (rows.some(row => row.event_type === 'run.failed')) {
+        runStatus = 'failed';
+      }
 
-        const event = normalizeStreamEvent(row);
-        if (!event) {
-          continue;
-        }
-
-        writeSseEvent(res, event);
-
-        if (event.event === 'run.completed' || event.event === 'run.failed') {
-          terminalEventSent = true;
-        }
+      if (rows.length > 0) {
+        logPerformance({
+          requestId,
+          route: '/v1/runs/:runId/stream',
+          stage: 'run_stream_batch',
+          runId,
+          userId: auth.userId,
+          source,
+          fallbackReason,
+          batchSize: emission.emittedCount
+        });
       }
 
       if (closed) {
         break;
       }
 
-      const currentRun = await loadOwnedRun(runId, auth.userId);
-      runStatus = currentRun.status;
-
-      if (!terminalEventSent && runStatus === 'failed') {
-        writeSseEvent(res, {
-          id: lastSeenSeqNum || 0,
-          event: 'run.failed',
-          data: {
-            runId,
-            eventId: lastSeenSeqNum || 0,
-            seqNum: lastSeenSeqNum || 0,
-            createdAt: new Date().toISOString(),
-            type: 'run.failed',
-            errorCode: currentRun.error_code || 'worker_error',
-            message: currentRun.error_message || 'Run failed'
-          }
+      if (!terminalEventSent && rows.length === 0) {
+        const currentRun = await loadOwnedRun(runId, auth.userId);
+        runStatus = currentRun.status;
+        const terminalEvent = buildTerminalEventFromRun({
+          runId,
+          lastSeenSeqNum,
+          run: currentRun
         });
-        terminalEventSent = true;
-      }
 
-      if (!terminalEventSent && runStatus === 'succeeded') {
-        writeSseEvent(res, {
-          id: lastSeenSeqNum || 0,
-          event: 'run.completed',
-          data: {
+        if (terminalEvent) {
+          writeSseEvent(res, terminalEvent);
+          terminalEventSent = true;
+          logPerformance({
+            requestId,
+            route: '/v1/runs/:runId/stream',
+            stage: 'run_stream_batch',
             runId,
-            eventId: lastSeenSeqNum || 0,
-            seqNum: lastSeenSeqNum || 0,
-            createdAt: new Date().toISOString(),
-            type: 'run.completed',
-            phase: 'worker',
-            provider: currentRun.provider_key || null,
-            model: currentRun.model_key || null
-          }
-        });
-        terminalEventSent = true;
+            userId: auth.userId,
+            source: 'runs_table',
+            batchSize: 1
+          });
+        }
       }
 
       if (TERMINAL_RUN_STATUSES.has(runStatus) && terminalEventSent) {
@@ -321,7 +513,9 @@ async function streamRunEvents({ auth, req, res, params }) {
         }
       }
 
-      await sleep(POLL_INTERVAL_MS);
+      if (source === 'postgres' && rows.length === 0) {
+        await sleep(POLL_INTERVAL_MS);
+      }
     }
   } finally {
     try {

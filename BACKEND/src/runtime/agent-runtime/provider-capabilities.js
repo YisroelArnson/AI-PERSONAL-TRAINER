@@ -1,3 +1,14 @@
+const PROVIDER_DEFAULT_CAPABILITIES = {
+  xai: {
+    provider: 'xai',
+    supportsTools: true,
+    supportsParallelTools: true,
+    supportsReasoningTokens: false,
+    maxContextTokens: null,
+    streamProtocol: 'openai_responses'
+  }
+};
+
 const PROVIDER_CAPABILITIES = {
   anthropic: {
     'claude-sonnet-4-20250514': {
@@ -45,7 +56,8 @@ const PROVIDER_CAPABILITIES = {
       maxContextTokens: 200000,
       streamProtocol: 'anthropic_messages'
     }
-  }
+  },
+  xai: {}
 };
 
 function getProviderCapabilities(provider, model) {
@@ -53,6 +65,15 @@ function getProviderCapabilities(provider, model) {
   const caps = providerModels[model];
 
   if (!caps) {
+    const providerDefaults = PROVIDER_DEFAULT_CAPABILITIES[provider];
+
+    if (providerDefaults && model) {
+      return {
+        ...providerDefaults,
+        model
+      };
+    }
+
     throw new Error(`Unsupported provider/model combination: ${provider}/${model}`);
   }
 

@@ -52,6 +52,32 @@ final class APIService: ObservableObject {
         return try decode(CoachSurfaceResponse.self, from: data, response: response)
     }
 
+    func fetchLLMSettings(accessToken: String) async throws -> LLMSettingsResponse {
+        let request = try makeRequest(
+            path: "/v1/settings/llm",
+            method: "GET",
+            accessToken: accessToken
+        )
+
+        let (data, response) = try await execute(request)
+        return try decode(LLMSettingsResponse.self, from: data, response: response)
+    }
+
+    func updateLLMSettings(
+        accessToken: String,
+        requestBody: UpdateLLMSettingsRequest
+    ) async throws -> LLMSettingsResponse {
+        let request = try makeRequest(
+            path: "/v1/settings/llm",
+            method: "PUT",
+            accessToken: accessToken,
+            body: requestBody
+        )
+
+        let (data, response) = try await execute(request)
+        return try decode(LLMSettingsResponse.self, from: data, response: response)
+    }
+
     func sendMessage(
         accessToken: String,
         requestBody: MessageIngressRequest,

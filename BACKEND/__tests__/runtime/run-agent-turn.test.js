@@ -8,25 +8,34 @@ const mockCreateStream = jest.fn(() => ({
 }));
 const mockAppendRawLlmPayload = jest.fn().mockResolvedValue(null);
 const mockExtractFinalOutput = jest.fn();
-const mockNormalizeAnthropicOutput = jest.fn();
+const mockNormalizeOutput = jest.fn();
+const mockBuildToolResultMessage = jest.fn();
+const mockAccumulateToolResultState = jest.fn(() => null);
 const mockGetStopDecision = jest.fn();
+const mockResolveEffectiveLlmSelectionForRun = jest.fn(() => ({
+  provider: 'anthropic',
+  model: 'claude-sonnet-4-6'
+}));
 
 jest.mock('../../src/config/env', () => ({
   env: {
     defaultLlmProvider: 'anthropic',
     defaultAnthropicModel: 'claude-sonnet-4-6',
+    defaultXaiModel: 'grok-4.20-reasoning',
     agentMaxIterations: 3,
     agentMaxOutputTokens: 4000,
     agentPromptMessageLimit: 12,
     llmRawIoLoggingEnabled: false,
     anthropicPromptCachingEnabled: false,
     anthropicConversationCacheTtl: '5m',
-    anthropicStaticCacheTtl: '5m'
+    anthropicStaticCacheTtl: '5m',
+    xaiPromptCachingEnabled: false
   }
 }));
 
 jest.mock('../../src/runtime/services/stream-events.service', () => ({
-  appendStreamEvent: mockAppendStreamEvent
+  appendStreamEvent: mockAppendStreamEvent,
+  publishHotStreamEvent: mockAppendStreamEvent
 }));
 
 jest.mock('../../src/runtime/services/transcript-write.service', () => ({
@@ -44,6 +53,9 @@ jest.mock('../../src/runtime/agent-runtime/provider-registry', () => ({
     createStream: mockCreateStream,
     normalizeStreamEvent: jest.fn(() => null),
     extractFinalOutput: mockExtractFinalOutput,
+    normalizeOutput: mockNormalizeOutput,
+    buildToolResultMessage: mockBuildToolResultMessage,
+    accumulateToolResultState: mockAccumulateToolResultState,
     classifyError: jest.fn(() => 'unknown')
   })),
   getProviderCapabilities: jest.fn(() => ({
@@ -70,13 +82,15 @@ jest.mock('../../src/runtime/agent-runtime/output-normalization.adapter', () => 
   createDisplayPhaseParser: jest.fn(() => ({
     consume: jest.fn(() => []),
     flush: jest.fn(() => [])
-  })),
-  normalizeAnthropicOutput: mockNormalizeAnthropicOutput,
-  buildToolResultMessage: jest.fn()
+  }))
 }));
 
 jest.mock('../../src/runtime/agent-runtime/stop-conditions', () => ({
   getStopDecision: mockGetStopDecision
+}));
+
+jest.mock('../../src/runtime/services/llm-config.service', () => ({
+  resolveEffectiveLlmSelectionForRun: mockResolveEffectiveLlmSelectionForRun
 }));
 
 jest.mock('../../src/runtime/agent-runtime/prompt-assembly', () => ({
@@ -116,9 +130,20 @@ describe('run-agent-turn truncated tool handling', () => {
     jest.clearAllMocks();
     env.llmRawIoLoggingEnabled = false;
     env.anthropicPromptCachingEnabled = false;
+    env.xaiPromptCachingEnabled = false;
     mockCreateStream.mockImplementation(() => ({
       on: jest.fn(),
       [Symbol.asyncIterator]: async function* () {}
+    }));
+    mockBuildToolResultMessage.mockImplementation((toolCall, toolResult) => ({
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          toolUseId: toolCall.id,
+          content: JSON.stringify(toolResult)
+        }
+      ]
     }));
   });
 
@@ -135,7 +160,7 @@ describe('run-agent-turn truncated tool handling', () => {
         rawMessage: {}
       });
 
-    mockNormalizeAnthropicOutput
+    mockNormalizeOutput
       .mockReturnValueOnce({
         toolCalls: [
           {
@@ -238,7 +263,7 @@ describe('run-agent-turn truncated tool handling', () => {
       rawMessage: {}
     });
 
-    mockNormalizeAnthropicOutput.mockReturnValue({
+    mockNormalizeOutput.mockReturnValue({
       toolCalls: [],
       outputText: 'no_reply',
       assistantMessage: {
@@ -285,7 +310,7 @@ describe('run-agent-turn truncated tool handling', () => {
       rawMessage: {}
     });
 
-    mockNormalizeAnthropicOutput.mockReturnValue({
+    mockNormalizeOutput.mockReturnValue({
       toolCalls: [],
       outputText: 'Saved cleanly.',
       assistantMessage: {
@@ -330,7 +355,7 @@ describe('run-agent-turn truncated tool handling', () => {
         rawMessage: {}
       });
 
-    mockNormalizeAnthropicOutput
+    mockNormalizeOutput
       .mockReturnValueOnce({
         toolCalls: [
           {
@@ -458,7 +483,7 @@ describe('run-agent-turn truncated tool handling', () => {
       }
     });
 
-    mockNormalizeAnthropicOutput.mockReturnValueOnce({
+    mockNormalizeOutput.mockReturnValueOnce({
       toolCalls: [
         {
           type: 'tool_use',

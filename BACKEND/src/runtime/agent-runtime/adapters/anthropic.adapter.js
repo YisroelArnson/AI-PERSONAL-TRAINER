@@ -1,5 +1,9 @@
 const { getAnthropicClient } = require('../../../infra/anthropic/client');
 const { ERROR_CLASSES, NORMALIZED_STREAM_EVENT_TYPES } = require('../types');
+const {
+  buildToolResultMessage,
+  normalizeAnthropicOutput
+} = require('../output-normalization.adapter');
 
 function providerName() {
   return 'anthropic';
@@ -27,7 +31,12 @@ function buildRequest(runtimeInput) {
   }
 
   if (runtimeInput.toolChoice) {
-    request.tool_choice = runtimeInput.toolChoice;
+    request.tool_choice = runtimeInput.toolChoice === 'auto'
+      ? {
+          type: 'auto',
+          disable_parallel_tool_use: runtimeInput.parallelToolCalls !== true
+        }
+      : runtimeInput.toolChoice;
   }
 
   if (runtimeInput.tools && runtimeInput.tools.length > 0) {
@@ -188,11 +197,16 @@ function classifyError(error) {
 }
 
 module.exports = {
+  accumulateToolResultState() {
+    return null;
+  },
+  buildToolResultMessage,
   providerName,
   validateCapabilities,
   buildRequest,
   createStream,
   normalizeStreamEvent,
   extractFinalOutput,
+  normalizeOutput: normalizeAnthropicOutput,
   classifyError
 };

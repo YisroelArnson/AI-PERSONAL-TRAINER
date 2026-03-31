@@ -9,7 +9,8 @@ coachSurfaceRouter.get('/', authenticateUser, async (req, res, next) => {
   try {
     const surface = await getCoachSurface({
       auth: req.auth,
-      query: req.query
+      query: req.query,
+      requestId: req.requestId
     });
 
     res.status(200).json(surface);

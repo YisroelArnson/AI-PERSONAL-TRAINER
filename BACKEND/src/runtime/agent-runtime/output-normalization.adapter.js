@@ -374,5 +374,6 @@ module.exports = {
   buildToolResultMessage,
   createDisplayPhaseParser,
   extractDisplayText,
-  normalizeAnthropicOutput
+  normalizeAnthropicOutput,
+  normalizeVisibleText
 };

@@ -6,6 +6,7 @@ const { sessionsRouter } = require('./gateway/routes/sessions.route');
 const { coachSurfaceRouter } = require('./gateway/routes/coach-surface.route');
 const { runsRouter } = require('./gateway/routes/runs.route');
 const { workoutActionsRouter } = require('./gateway/routes/workout-actions.route');
+const { settingsRouter } = require('./gateway/routes/settings.route');
 const { errorHandler, notFoundHandler } = require('./gateway/middleware/error-handler');
 
 const app = express();
@@ -38,6 +39,7 @@ app.use('/v1/sessions', sessionsRouter);
 app.use('/v1/coach-surface', coachSurfaceRouter);
 app.use('/v1/runs', runsRouter);
 app.use('/v1/workout-actions', workoutActionsRouter);
+app.use('/v1/settings', settingsRouter);
 
 app.use(notFoundHandler);
 app.use(errorHandler);

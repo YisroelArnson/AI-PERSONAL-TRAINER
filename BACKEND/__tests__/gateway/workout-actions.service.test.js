@@ -6,6 +6,10 @@ const mockReleaseSessionMutationLock = jest.fn();
 const mockAppendSessionEvent = jest.fn();
 const mockRecordWorkoutSetResult = jest.fn();
 const mockRpc = jest.fn();
+const mockResolveEffectiveLlmSelection = jest.fn().mockResolvedValue({
+  provider: 'anthropic',
+  model: 'claude-sonnet-4-6'
+});
 
 jest.mock('../../src/infra/queue/agent.queue', () => ({
   enqueueAgentRunTurn: mockEnqueueAgentRunTurn
@@ -37,6 +41,10 @@ jest.mock('../../src/infra/supabase/client', () => ({
   getSupabaseAdminClient: jest.fn(() => ({
     rpc: mockRpc
   }))
+}));
+
+jest.mock('../../src/runtime/services/llm-config.service', () => ({
+  resolveEffectiveLlmSelection: mockResolveEffectiveLlmSelection
 }));
 
 const { processCompleteCurrentSetAction } = require('../../src/gateway/services/workout-actions.service');
@@ -217,7 +225,11 @@ describe('processCompleteCurrentSetAction', () => {
       triggerType: 'ui.action.complete_set',
       metadata: expect.objectContaining({
         hiddenInFeed: true,
-        actionId: 'complete_current_set'
+        actionId: 'complete_current_set',
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-sonnet-4-6'
+        }
       })
     }));
     expect(result).toEqual(expect.objectContaining({

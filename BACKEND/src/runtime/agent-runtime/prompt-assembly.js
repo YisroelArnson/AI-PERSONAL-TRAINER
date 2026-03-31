@@ -161,7 +161,15 @@ function buildTurnContextMarkdown({
   if (triggerType === 'app.opened') {
     sections.push(formatLayer(
       'App Open Context',
-      'The app was just opened. Welcome the user briefly, check in, and avoid repetitive greetings during short foreground/background churn.'
+      [
+        'The user has returned to the app after enough time away that this should feel like a proactive check-in.',
+        'Welcome them briefly, acknowledge that they are back, and offer a useful next step instead of waiting passively.',
+        'If the runtime context shows a live workout, ask whether they want to continue it and orient them to what is next.',
+        'If there is no live workout, give a short check-in that fits the current context and what you know about them.',
+        'Use the current date/time, session continuity context, and any new-session episodic notes to decide whether this feels like a same-day return, a new day, or a fresh session.',
+        'Keep it concise and avoid sounding like a repeated canned greeting.',
+        'Be freindly and kind, but not too chatty.'
+      ].join('\n')
     ));
   }
 
@@ -302,7 +310,7 @@ function findLastUserMessageIndex(messages) {
   return -1;
 }
 
-function buildPromptMessages({ promptMessages, turnContextMarkdown }) {
+function buildPromptMessages({ promptMessages, turnContextMarkdown, provider }) {
   const clonedMessages = Array.isArray(promptMessages)
     ? promptMessages.map(cloneMessage)
     : [];
@@ -314,7 +322,7 @@ function buildPromptMessages({ promptMessages, turnContextMarkdown }) {
     ? cloneMessage(clonedMessages[lastUserIndex])
     : null;
 
-  if (env.anthropicPromptCachingEnabled && historicalMessages.length > 0) {
+  if (provider === 'anthropic' && env.anthropicPromptCachingEnabled && historicalMessages.length > 0) {
     const lastHistoricalIndex = historicalMessages.length - 1;
     historicalMessages[lastHistoricalIndex] = applyCacheControlToLastTextBlock(
       historicalMessages[lastHistoricalIndex],
@@ -353,7 +361,8 @@ function buildSystemBlocks({
   programMarkdown,
   recalledMemoryMarkdown,
   bootstrapMarkdown,
-  shouldLoadBootstrap
+  shouldLoadBootstrap,
+  provider
 }) {
   const blocks = [
     {
@@ -363,7 +372,9 @@ function buildSystemBlocks({
     {
       type: 'text',
       text: formatLayer('Coach Principles', coachPrinciplesMarkdown || DEFAULT_COACH_PRINCIPLES),
-      cache_control: buildCacheControl(env.anthropicStaticCacheTtl)
+      cache_control: provider === 'anthropic'
+        ? buildCacheControl(env.anthropicStaticCacheTtl)
+        : undefined
     },
     {
       type: 'text',
@@ -386,7 +397,7 @@ function buildSystemBlocks({
     });
   }
 
-  if (env.anthropicPromptCachingEnabled && blocks.length > 0) {
+  if (provider === 'anthropic' && env.anthropicPromptCachingEnabled && blocks.length > 0) {
     const lastStableSystemBlock = blocks[blocks.length - 1];
     lastStableSystemBlock.cache_control = buildCacheControl(env.anthropicDynamicContextCacheTtl);
   }
@@ -396,6 +407,7 @@ function buildSystemBlocks({
 
 async function assemblePrompt(run, options = {}) {
   const messageLimit = options.messageLimit || 12;
+  const provider = options.provider || 'anthropic';
   const [
     systemPromptMarkdown,
     coachPrinciplesMarkdown,
@@ -456,11 +468,13 @@ async function assemblePrompt(run, options = {}) {
     programMarkdown,
     recalledMemoryMarkdown,
     bootstrapMarkdown,
-    shouldLoadBootstrap
+    shouldLoadBootstrap,
+    provider
   });
   const messages = buildPromptMessages({
     promptMessages: promptContext.messages,
-    turnContextMarkdown
+    turnContextMarkdown,
+    provider
   });
 
   return {

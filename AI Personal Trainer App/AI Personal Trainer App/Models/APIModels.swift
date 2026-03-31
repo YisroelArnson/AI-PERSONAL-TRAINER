@@ -29,11 +29,36 @@ struct MessageMetadata: Codable {
     }
 }
 
+struct LLMSelection: Codable, Equatable {
+    let provider: String
+    let model: String?
+
+    init(provider: String, model: String? = nil) {
+        self.provider = provider
+        self.model = model
+    }
+}
+
 struct MessageIngressRequest: Codable {
     let message: String
     let sessionKey: String?
     let triggerType: CoachTriggerType
     let metadata: MessageMetadata?
+    let llm: LLMSelection?
+
+    init(
+        message: String,
+        sessionKey: String? = nil,
+        triggerType: CoachTriggerType,
+        metadata: MessageMetadata? = nil,
+        llm: LLMSelection? = nil
+    ) {
+        self.message = message
+        self.sessionKey = sessionKey
+        self.triggerType = triggerType
+        self.metadata = metadata
+        self.llm = llm
+    }
 }
 
 struct SessionResetRequest: Codable {
@@ -49,12 +74,48 @@ struct CompleteCurrentSetRequest: Codable {
     let workoutSetId: String?
     let actual: WorkoutSetActual?
     let userNote: String?
+    let llm: LLMSelection?
+
+    init(
+        sessionKey: String? = nil,
+        workoutSessionId: String,
+        workoutExerciseId: String,
+        setIndex: Int,
+        expectedStateVersion: Int? = nil,
+        workoutSetId: String? = nil,
+        actual: WorkoutSetActual? = nil,
+        userNote: String? = nil,
+        llm: LLMSelection? = nil
+    ) {
+        self.sessionKey = sessionKey
+        self.workoutSessionId = workoutSessionId
+        self.workoutExerciseId = workoutExerciseId
+        self.setIndex = setIndex
+        self.expectedStateVersion = expectedStateVersion
+        self.workoutSetId = workoutSetId
+        self.actual = actual
+        self.userNote = userNote
+        self.llm = llm
+    }
 }
 
 struct WorkoutSessionControlRequest: Codable {
     let sessionKey: String?
     let workoutSessionId: String
     let expectedStateVersion: Int?
+    let llm: LLMSelection?
+
+    init(
+        sessionKey: String? = nil,
+        workoutSessionId: String,
+        expectedStateVersion: Int? = nil,
+        llm: LLMSelection? = nil
+    ) {
+        self.sessionKey = sessionKey
+        self.workoutSessionId = workoutSessionId
+        self.expectedStateVersion = expectedStateVersion
+        self.llm = llm
+    }
 }
 
 struct SkipCurrentExerciseRequest: Codable {
@@ -62,6 +123,34 @@ struct SkipCurrentExerciseRequest: Codable {
     let workoutSessionId: String
     let workoutExerciseId: String
     let expectedStateVersion: Int?
+    let llm: LLMSelection?
+
+    init(
+        sessionKey: String? = nil,
+        workoutSessionId: String,
+        workoutExerciseId: String,
+        expectedStateVersion: Int? = nil,
+        llm: LLMSelection? = nil
+    ) {
+        self.sessionKey = sessionKey
+        self.workoutSessionId = workoutSessionId
+        self.workoutExerciseId = workoutExerciseId
+        self.expectedStateVersion = expectedStateVersion
+        self.llm = llm
+    }
+}
+
+struct LLMSettingsResponse: Codable {
+    let userDefaultLlm: LLMSelection?
+    let effectiveDefaultLlm: LLMSelection
+}
+
+struct UpdateLLMSettingsRequest: Codable {
+    let userDefaultLlm: LLMSelection?
+
+    init(userDefaultLlm: LLMSelection?) {
+        self.userDefaultLlm = userDefaultLlm
+    }
 }
 
 struct MessageAcceptedResponse: Codable {

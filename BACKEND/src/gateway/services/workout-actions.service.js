@@ -15,6 +15,7 @@ const {
   skipWorkoutExercise,
   startWorkoutSession
 } = require('../../runtime/services/workout-state.service');
+const { resolveEffectiveLlmSelection } = require('../../runtime/services/llm-config.service');
 const { conflict } = require('../../shared/errors');
 const { parseWorkoutExecutionActionResponse } = require('../schemas/workout-actions.schema');
 
@@ -168,7 +169,8 @@ async function enqueueActionFollowUp({
   sessionResetPolicy,
   workout,
   body,
-  parentIdempotencyKey
+  parentIdempotencyKey,
+  effectiveLlm
 }) {
   const config = ACTION_CONFIG[actionId];
   const followUpIdempotencyKey = parentIdempotencyKey
@@ -191,6 +193,7 @@ async function enqueueActionFollowUp({
       hiddenInFeed: true,
       source: `workout_action.${actionId}`,
       actionId,
+      llm: effectiveLlm,
       workoutSessionId: workout.workoutSessionId,
       workoutExerciseId: body.workoutExerciseId || null,
       setIndex: body.setIndex != null ? body.setIndex : null,
@@ -266,6 +269,10 @@ async function processWorkoutExecutionAction({
   buildAuditPayload
 }) {
   const sessionResetPolicy = await resolveSessionContinuityPolicy(auth.userId);
+  const effectiveLlm = await resolveEffectiveLlmSelection({
+    userId: auth.userId,
+    requestedLlm: body.llm || null
+  });
   const resolvedSessionKey = canonicalSessionKey(auth.userId, body.sessionKey);
   const sessionState = await resolveCurrentSessionState({
     userId: auth.userId,
@@ -338,7 +345,8 @@ async function processWorkoutExecutionAction({
         sessionResetPolicy,
         workout,
         body,
-        parentIdempotencyKey
+        parentIdempotencyKey,
+        effectiveLlm
       });
     } catch (error) {
       console.warn(`Unable to enqueue ${actionId} follow-up run:`, error.message);

@@ -13,6 +13,10 @@ const mockReleaseMessageRateLimitReservation = jest.fn();
 const mockAdmitActiveRun = jest.fn();
 const mockReleaseActiveRunReservation = jest.fn();
 const mockBindRunConcurrencyReservation = jest.fn();
+const mockResolveEffectiveLlmSelection = jest.fn().mockResolvedValue({
+  provider: 'anthropic',
+  model: 'claude-sonnet-4-6'
+});
 
 jest.mock('../../src/infra/queue/agent.queue', () => ({
   enqueueAgentRunTurn: mockEnqueueAgentRunTurn
@@ -64,6 +68,10 @@ jest.mock('../../src/gateway/services/concurrency-admission.service', () => ({
   admitActiveRun: mockAdmitActiveRun,
   releaseActiveRunReservation: mockReleaseActiveRunReservation,
   bindRunConcurrencyReservation: mockBindRunConcurrencyReservation
+}));
+
+jest.mock('../../src/runtime/services/llm-config.service', () => ({
+  resolveEffectiveLlmSelection: mockResolveEffectiveLlmSelection
 }));
 
 const { processInboundMessage } = require('../../src/gateway/services/message-ingress.service');
@@ -198,6 +206,14 @@ describe('processInboundMessage admission integration', () => {
 
     expect(mockAdmitMessageRequest).toHaveBeenCalled();
     expect(mockAdmitActiveRun).toHaveBeenCalled();
+    expect(mockPersistInboundMessage).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-sonnet-4-6'
+        }
+      })
+    }));
     expect(mockReleaseMessageRateLimitReservation).toHaveBeenCalledTimes(1);
     expect(mockReleaseActiveRunReservation).toHaveBeenCalledWith(activeRunReservation);
     expect(mockBindRunConcurrencyReservation).not.toHaveBeenCalled();
@@ -286,6 +302,14 @@ describe('processInboundMessage admission integration', () => {
       runId: 'run-123',
       reservation: activeRunReservation
     });
+    expect(mockPersistInboundMessage).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-sonnet-4-6'
+        }
+      })
+    }));
     expect(result.debug.concurrencyPolicyCacheHit).toBe(false);
     expect(result.jobId).toBe('job-123');
   });

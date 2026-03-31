@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { llmSelectionSchema } = require('./llm.schema');
 
 const messageSchema = z.object({
   message: z.string().trim().min(1).max(4000),
@@ -9,7 +10,8 @@ const messageSchema = z.object({
     'ui.action.start_workout',
     'ui.action.complete_set'
   ]).default('user.message'),
-  metadata: z.record(z.string(), z.unknown()).optional()
+  metadata: z.record(z.string(), z.unknown()).optional(),
+  llm: llmSelectionSchema.optional()
 });
 
 function parseMessageRequest(body) {

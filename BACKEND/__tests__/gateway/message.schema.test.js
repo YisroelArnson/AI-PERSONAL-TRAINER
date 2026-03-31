@@ -14,4 +14,28 @@ describe('parseMessageRequest', () => {
 
     expect(parsed.triggerType).toBe('ui.action.complete_set');
   });
+
+  it('accepts an explicit llm provider override with an optional model', () => {
+    const parsed = parseMessageRequest({
+      message: 'Use Grok for this one.',
+      llm: {
+        provider: 'xai',
+        model: 'grok-4'
+      }
+    });
+
+    expect(parsed.llm).toEqual({
+      provider: 'xai',
+      model: 'grok-4'
+    });
+  });
+
+  it('rejects llm model values without a provider', () => {
+    expect(() => parseMessageRequest({
+      message: 'Hello',
+      llm: {
+        model: 'grok-4'
+      }
+    })).toThrow();
+  });
 });

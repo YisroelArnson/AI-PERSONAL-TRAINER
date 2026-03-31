@@ -2,9 +2,11 @@ import SwiftUI
 import Supabase
 
 struct AppView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @StateObject private var sessionController = AppSessionController()
     @StateObject private var viewModel = CoachSurfaceViewModel()
     @StateObject private var speechManager = SpeechManager()
+    @State private var hasSeenActiveScene = false
 
     var body: some View {
         ZStack {
@@ -36,6 +38,23 @@ struct AppView: View {
             }
 
             await viewModel.activate(session: session)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            switch newPhase {
+            case .active:
+                guard hasSeenActiveScene else {
+                    hasSeenActiveScene = true
+                    return
+                }
+
+                guard let session = sessionController.session else { return }
+
+                Task { await viewModel.activate(session: session) }
+            case .inactive, .background:
+                viewModel.recordAppDidBecomeInactive()
+            @unknown default:
+                break
+            }
         }
         .onChange(of: speechManager.errorMessage) { _, error in
             guard let error, !error.isEmpty else { return }
@@ -156,6 +175,11 @@ enum WorkoutDirectAction: String {
 
 @MainActor
 final class CoachSurfaceViewModel: ObservableObject {
+    private enum AppOpenTriggerPolicy {
+        static let minimumInactiveInterval: TimeInterval = 60 * 60
+        static let lastInactiveDefaultsKeyPrefix = "coach_surface.last_inactive_at"
+    }
+
     @Published var surface: CoachSurfaceResponse?
     @Published var composerText = ""
     @Published var isLoading = false
@@ -173,7 +197,6 @@ final class CoachSurfaceViewModel: ObservableObject {
     private var pollTask: Task<Void, Never>?
     private var streamTask: Task<Void, Never>?
     private var isWorkoutActionRequestInFlight = false
-    private var didTriggerAppOpenThisLaunch = false
     private var observedRunID: String?
     private var observedStreamPath: String?
     private var lastStreamEventID: String?
@@ -289,7 +312,6 @@ final class CoachSurfaceViewModel: ObservableObject {
         errorMessage = nil
         toast = nil
         isWorkoutActionRequestInFlight = false
-        didTriggerAppOpenThisLaunch = false
         runTraces = [:]
         runTraceOrder = []
         pollTask?.cancel()
@@ -321,6 +343,20 @@ final class CoachSurfaceViewModel: ObservableObject {
         guard var trace = runTraces[runID] else { return }
         mutate(&trace)
         runTraces[runID] = trace
+    }
+
+    private func clearRunTraces() {
+        runTraces = [:]
+        runTraceOrder = []
+    }
+
+    private func didSessionBoundaryChange(comparedTo latestSurface: CoachSurfaceResponse) -> Bool {
+        guard let currentSurface = surface else {
+            return false
+        }
+
+        return currentSurface.sessionKey != latestSurface.sessionKey
+            || currentSurface.sessionId != latestSurface.sessionId
     }
 
     private func makeRunTraceItem(runID: String) -> CoachRenderedFeedItem? {
@@ -405,7 +441,6 @@ final class CoachSurfaceViewModel: ObservableObject {
             errorMessage = nil
             isResettingSession = false
             isWorkoutActionRequestInFlight = false
-            didTriggerAppOpenThisLaunch = false
             runTraces = [:]
             runTraceOrder = []
             pollTask?.cancel()
@@ -441,7 +476,6 @@ final class CoachSurfaceViewModel: ObservableObject {
             optimisticWorkout = nil
             isWorkoutSyncing = false
             isWorkoutActionRequestInFlight = false
-            didTriggerAppOpenThisLaunch = true
             toast = ToastData(message: "Started a fresh chat.", icon: "square.and.pencil")
             Haptic.medium()
 
@@ -725,11 +759,18 @@ final class CoachSurfaceViewModel: ObservableObject {
                 isLoading = true
             }
 
+            let shouldConsiderAppOpenTrigger = allowAppOpenTrigger && shouldConsiderAppOpenTrigger()
             let accessToken = try await freshAccessToken()
             let latestSurface = try await APIService.shared.fetchCoachSurface(
                 accessToken: accessToken,
                 sessionKey: sessionKeyOverride ?? surface?.sessionKey
             )
+
+            let didRotateSessionBoundary = didSessionBoundaryChange(comparedTo: latestSurface)
+            if didRotateSessionBoundary {
+                clearRunTraces()
+                cancelRunObservation(resetStreamState: true)
+            }
 
             surface = latestSurface
             mergeIncomingWorkout(latestSurface.workout)
@@ -746,8 +787,7 @@ final class CoachSurfaceViewModel: ObservableObject {
             errorMessage = nil
             isLoading = false
 
-            if allowAppOpenTrigger, shouldTriggerAppOpen(for: latestSurface) {
-                didTriggerAppOpenThisLaunch = true
+            if shouldTriggerAppOpenTrigger(for: latestSurface, shouldConsiderTrigger: shouldConsiderAppOpenTrigger) {
                 _ = await submitMessage(
                     message: "app_opened",
                     triggerType: .appOpened,
@@ -760,9 +800,35 @@ final class CoachSurfaceViewModel: ObservableObject {
         }
     }
 
-    private func shouldTriggerAppOpen(for surface: CoachSurfaceResponse) -> Bool {
-        guard !didTriggerAppOpenThisLaunch else { return false }
-        return surface.sessionId == nil && surface.feed.isEmpty && surface.activeRun == nil
+    func recordAppDidBecomeInactive() {
+        guard let activeUserID else { return }
+        UserDefaults.standard.set(
+            Date().timeIntervalSince1970,
+            forKey: appOpenLastInactiveDefaultsKey(for: activeUserID)
+        )
+    }
+
+    private func shouldConsiderAppOpenTrigger() -> Bool {
+        guard let activeUserID else { return false }
+        let defaultsKey = appOpenLastInactiveDefaultsKey(for: activeUserID)
+        guard let lastInactiveTimestamp = UserDefaults.standard.object(forKey: defaultsKey) as? Double else {
+            return false
+        }
+
+        let elapsed = Date().timeIntervalSince1970 - lastInactiveTimestamp
+        return elapsed >= AppOpenTriggerPolicy.minimumInactiveInterval
+    }
+
+    private func shouldTriggerAppOpenTrigger(
+        for surface: CoachSurfaceResponse,
+        shouldConsiderTrigger: Bool
+    ) -> Bool {
+        guard shouldConsiderTrigger else { return false }
+        return surface.activeRun == nil
+    }
+
+    private func appOpenLastInactiveDefaultsKey(for userID: UUID) -> String {
+        "\(AppOpenTriggerPolicy.lastInactiveDefaultsKeyPrefix).\(userID.uuidString.lowercased())"
     }
 
     private func submitMessage(
@@ -798,8 +864,13 @@ final class CoachSurfaceViewModel: ObservableObject {
                 runID: accepted.runId,
                 streamPath: accepted.streamUrl ?? "/v1/runs/\(accepted.runId)/stream"
             )
-            await refreshSurface(allowAppOpenTrigger: false)
             isSending = false
+
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                await self.refreshSurface(allowAppOpenTrigger: false)
+            }
+
             return true
         } catch {
             showError(error.localizedDescription)

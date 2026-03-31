@@ -14,7 +14,8 @@ messagesRouter.post('/', authenticateUser, async (req, res, next) => {
       auth: req.auth,
       headers: req.headers,
       body,
-      ipAddress: req.ip
+      ipAddress: req.ip,
+      requestId: req.requestId
     });
 
     res.status(202).json(accepted);

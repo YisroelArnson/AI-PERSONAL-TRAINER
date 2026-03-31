@@ -1,3 +1,5 @@
+const { env } = require('../../config/env');
+const { getRedisConnection } = require('../../infra/redis/connection');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { parseWorkoutSessionState } = require('../schemas/workout.schema');
 const { resolveSessionContinuityPolicy } = require('./session-reset-policy.service');
@@ -18,6 +20,89 @@ function getAdminClientOrThrow() {
   }
 
   return supabase;
+}
+
+function getRedisOrNull() {
+  return getRedisConnection();
+}
+
+function buildWorkoutStateSessionCacheKey(userId, sessionKey) {
+  return `workout-state:session:${userId}:${sessionKey}`;
+}
+
+function buildWorkoutStateIdCacheKey(userId, workoutSessionId) {
+  return `workout-state:id:${userId}:${workoutSessionId}`;
+}
+
+async function getCachedWorkoutState({ userId, sessionKey, workoutSessionId }) {
+  const redis = getRedisOrNull();
+  const cacheKey = workoutSessionId
+    ? buildWorkoutStateIdCacheKey(userId, workoutSessionId)
+    : (sessionKey ? buildWorkoutStateSessionCacheKey(userId, sessionKey) : null);
+
+  if (!redis || !cacheKey) {
+    return null;
+  }
+
+  const raw = await redis.get(cacheKey);
+  if (!raw) {
+    return null;
+  }
+
+  return parseWorkoutSessionState(JSON.parse(raw));
+}
+
+async function evictWorkoutStateCache({ userId, sessionKey, workoutSessionId }) {
+  const redis = getRedisOrNull();
+  if (!redis) {
+    return;
+  }
+
+  const keys = [];
+
+  if (sessionKey) {
+    keys.push(buildWorkoutStateSessionCacheKey(userId, sessionKey));
+  }
+
+  if (workoutSessionId) {
+    keys.push(buildWorkoutStateIdCacheKey(userId, workoutSessionId));
+  }
+
+  if (keys.length > 0) {
+    await redis.del(...keys);
+  }
+}
+
+async function cacheWorkoutState(state, userIdOverride = null) {
+  if (!state || !LIVE_WORKOUT_STATUSES.includes(state.status)) {
+    await evictWorkoutStateCache({
+      userId: userIdOverride,
+      sessionKey: state ? state.sessionKey : null,
+      workoutSessionId: state ? state.workoutSessionId : null
+    });
+    return;
+  }
+
+  const redis = getRedisOrNull();
+  const userId = userIdOverride;
+
+  if (!redis || !userId) {
+    return;
+  }
+
+  const payload = JSON.stringify(state);
+  const ttlSec = Math.max(60, env.workoutStateCacheTtlSec || 900);
+  const multi = redis.multi();
+
+  if (state.sessionKey) {
+    multi.set(buildWorkoutStateSessionCacheKey(userId, state.sessionKey), payload, 'EX', ttlSec);
+  }
+
+  if (state.workoutSessionId) {
+    multi.set(buildWorkoutStateIdCacheKey(userId, state.workoutSessionId), payload, 'EX', ttlSec);
+  }
+
+  await multi.exec();
 }
 
 function buildError(code, details = {}) {
@@ -762,6 +847,11 @@ async function loadResolvedWorkoutGraph({ userId, sessionKey, workoutSessionId, 
     Array.isArray(graph.exercises) &&
     graph.exercises.length === 0
   ) {
+    await evictWorkoutStateCache({
+      userId,
+      sessionKey: graph.session.session_key,
+      workoutSessionId: graph.session.workout_session_id
+    });
     await deleteWorkoutSessionRow(graph.session.workout_session_id);
     return null;
   }
@@ -823,6 +913,20 @@ function findFirstLiveExercise(graph) {
 }
 
 async function getCurrentWorkoutState({ userId, sessionKey, workoutSessionId }) {
+  try {
+    const cached = await getCachedWorkoutState({
+      userId,
+      sessionKey,
+      workoutSessionId
+    });
+
+    if (cached) {
+      return cached;
+    }
+  } catch (error) {
+    console.warn('Workout state cache read failed:', error.message);
+  }
+
   const graph = await loadResolvedWorkoutGraph({
     userId,
     sessionKey,
@@ -830,10 +934,27 @@ async function getCurrentWorkoutState({ userId, sessionKey, workoutSessionId }) 
   });
 
   if (!graph) {
+    try {
+      await evictWorkoutStateCache({
+        userId,
+        sessionKey,
+        workoutSessionId
+      });
+    } catch (error) {
+      console.warn('Workout state cache eviction failed:', error.message);
+    }
     return null;
   }
 
-  return buildWorkoutState(graph);
+  const state = buildWorkoutState(graph);
+
+  try {
+    await cacheWorkoutState(state, userId);
+  } catch (error) {
+    console.warn('Workout state cache write failed:', error.message);
+  }
+
+  return state;
 }
 
 async function getWorkoutHistory({ userId, input }) {
@@ -930,6 +1051,11 @@ async function createWorkoutSessionFromDraft({ userId, sessionKey, runId, input 
     const hasExercises = await workoutSessionHasExercises(existingLiveWorkout.workout_session_id);
 
     if (!hasExercises) {
+      await evictWorkoutStateCache({
+        userId,
+        sessionKey: existingLiveWorkout.session_key,
+        workoutSessionId: existingLiveWorkout.workout_session_id
+      });
       await deleteWorkoutSessionRow(existingLiveWorkout.workout_session_id);
       existingLiveWorkout = null;
     }
@@ -1028,6 +1154,11 @@ async function createWorkoutSessionFromDraft({ userId, sessionKey, runId, input 
     });
   } catch (error) {
     if (session && session.workout_session_id) {
+      await evictWorkoutStateCache({
+        userId,
+        sessionKey: session.session_key,
+        workoutSessionId: session.workout_session_id
+      });
       await deleteWorkoutSessionRow(session.workout_session_id);
     }
 

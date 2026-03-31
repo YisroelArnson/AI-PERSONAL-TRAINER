@@ -1,8 +1,10 @@
 const anthropicAdapter = require('./adapters/anthropic.adapter');
+const xaiAdapter = require('./adapters/xai.adapter');
 const { getProviderCapabilities } = require('./provider-capabilities');
 
 const ADAPTERS = {
-  anthropic: anthropicAdapter
+  anthropic: anthropicAdapter,
+  xai: xaiAdapter
 };
 
 function getProviderAdapter(provider) {

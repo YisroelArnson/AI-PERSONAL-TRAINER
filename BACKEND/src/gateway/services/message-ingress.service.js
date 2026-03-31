@@ -9,6 +9,8 @@ const { resolveRateLimitPolicy } = require('../../runtime/services/rate-limit-po
 const { resolveConcurrencyPolicy } = require('../../runtime/services/concurrency-policy.service');
 const { enqueueSessionMemoryFlushIfNeeded } = require('../../runtime/services/session-memory-queue.service');
 const { enqueueSessionIndexSyncIfNeeded } = require('../../runtime/services/indexing-queue.service');
+const { resolveEffectiveLlmSelection } = require('../../runtime/services/llm-config.service');
+const { startTimer } = require('../../runtime/services/performance-log.service');
 const {
   admitMessageRequest,
   releaseMessageRateLimitReservation
@@ -30,6 +32,7 @@ async function buildAcceptedResponse({
   retrievalPolicy,
   rateLimitPolicy,
   concurrencyPolicy,
+  requestId,
   rateLimitBypassedForReplay = false,
   rateLimitTokensRefunded = false,
   concurrencyGateBypassedForReplay = false
@@ -37,14 +40,38 @@ async function buildAcceptedResponse({
   if (persisted.replayed) {
     const run = await getRunById(persisted.runId);
     const shouldReEnqueue = run.status === 'queued';
-    const job = shouldReEnqueue
-      ? await enqueueAgentRunTurn({
-          runId: persisted.runId,
-          userId,
-          sessionKey: persisted.sessionKey,
-          sessionId: persisted.sessionId
-        })
-      : null;
+    let job = null;
+    const finishQueue = startTimer({
+      requestId: requestId || null,
+      route: MESSAGE_ROUTE,
+      stage: 'queue_enqueue',
+      userId,
+      runId: persisted.runId
+    });
+
+    try {
+      job = shouldReEnqueue
+        ? await enqueueAgentRunTurn({
+            runId: persisted.runId,
+            userId,
+            sessionKey: persisted.sessionKey,
+            sessionId: persisted.sessionId
+          })
+        : null;
+      finishQueue({
+        outcome: 'ok',
+        replayed: true,
+        enqueued: Boolean(job)
+      });
+    } catch (error) {
+      finishQueue({
+        outcome: 'error',
+        replayed: true,
+        enqueued: false,
+        errorMessage: error && error.message ? String(error.message).slice(0, 500) : 'Unknown error'
+      });
+      throw error;
+    }
 
     return {
       ...persisted,
@@ -65,12 +92,36 @@ async function buildAcceptedResponse({
     };
   }
 
-  const job = await enqueueAgentRunTurn({
-    runId: persisted.runId,
+  let job;
+  const finishQueue = startTimer({
+    requestId: requestId || null,
+    route: MESSAGE_ROUTE,
+    stage: 'queue_enqueue',
     userId,
-    sessionKey: persisted.sessionKey,
-    sessionId: persisted.sessionId
+    runId: persisted.runId
   });
+
+  try {
+    job = await enqueueAgentRunTurn({
+      runId: persisted.runId,
+      userId,
+      sessionKey: persisted.sessionKey,
+      sessionId: persisted.sessionId
+    });
+    finishQueue({
+      outcome: 'ok',
+      replayed: false,
+      enqueued: true
+    });
+  } catch (error) {
+    finishQueue({
+      outcome: 'error',
+      replayed: false,
+      enqueued: false,
+      errorMessage: error && error.message ? String(error.message).slice(0, 500) : 'Unknown error'
+    });
+    throw error;
+  }
 
   return {
     ...persisted,
@@ -91,7 +142,7 @@ async function buildAcceptedResponse({
   };
 }
 
-async function processInboundMessage({ auth, headers, body, ipAddress }) {
+async function processInboundMessage({ auth, headers, body, ipAddress, requestId }) {
   const idempotencyKey = requireIdempotencyKey(headers);
   const requestHash = hashRequestPayload(body);
   const replayedResponse = await lookupIdempotencyResponse({
@@ -100,12 +151,36 @@ async function processInboundMessage({ auth, headers, body, ipAddress }) {
     idempotencyKey,
     requestHash
   });
-  const [continuityPolicy, retrievalPolicy, rateLimitPolicy, concurrencyPolicy] = await Promise.all([
-    resolveSessionContinuityPolicy(auth.userId),
-    resolveRetrievalPolicy(auth.userId),
-    resolveRateLimitPolicy(auth.userId),
-    resolveConcurrencyPolicy(auth.userId)
-  ]);
+  const finishPolicyResolution = startTimer({
+    requestId: requestId || null,
+    route: MESSAGE_ROUTE,
+    stage: 'policy_resolution',
+    userId: auth.userId
+  });
+  let continuityPolicy;
+  let retrievalPolicy;
+  let rateLimitPolicy;
+  let concurrencyPolicy;
+
+  try {
+    [continuityPolicy, retrievalPolicy, rateLimitPolicy, concurrencyPolicy] = await Promise.all([
+      resolveSessionContinuityPolicy(auth.userId),
+      resolveRetrievalPolicy(auth.userId),
+      resolveRateLimitPolicy(auth.userId),
+      resolveConcurrencyPolicy(auth.userId)
+    ]);
+    finishPolicyResolution({
+      outcome: 'ok',
+      replayed: Boolean(replayedResponse)
+    });
+  } catch (error) {
+    finishPolicyResolution({
+      outcome: 'error',
+      replayed: Boolean(replayedResponse),
+      errorMessage: error && error.message ? String(error.message).slice(0, 500) : 'Unknown error'
+    });
+    throw error;
+  }
 
   if (replayedResponse) {
     return buildAcceptedResponse({
@@ -117,6 +192,7 @@ async function processInboundMessage({ auth, headers, body, ipAddress }) {
       retrievalPolicy,
       rateLimitPolicy,
       concurrencyPolicy,
+      requestId,
       rateLimitBypassedForReplay: true,
       concurrencyGateBypassedForReplay: true
     });
@@ -130,6 +206,10 @@ async function processInboundMessage({ auth, headers, body, ipAddress }) {
   });
   let activeRunReservation = null;
   let persisted;
+  const effectiveLlm = await resolveEffectiveLlmSelection({
+    userId: auth.userId,
+    requestedLlm: body.llm || null
+  });
   try {
     activeRunReservation = await admitActiveRun({
       userId: auth.userId,
@@ -138,17 +218,40 @@ async function processInboundMessage({ auth, headers, body, ipAddress }) {
       route: MESSAGE_ROUTE
     });
 
-    persisted = await persistInboundMessage({
-      userId: auth.userId,
+    const finishIngest = startTimer({
+      requestId: requestId || null,
       route: MESSAGE_ROUTE,
-      idempotencyKey,
-      requestHash,
-      sessionKey: body.sessionKey,
-      triggerType: body.triggerType,
-      message: body.message,
-      metadata: body.metadata,
-      sessionResetPolicy: continuityPolicy
+      stage: 'message_ingest_rpc',
+      userId: auth.userId
     });
+    try {
+      persisted = await persistInboundMessage({
+        userId: auth.userId,
+        route: MESSAGE_ROUTE,
+        idempotencyKey,
+        requestHash,
+        sessionKey: body.sessionKey,
+        triggerType: body.triggerType,
+        message: body.message,
+        metadata: {
+          ...(body.metadata || {}),
+          llm: effectiveLlm
+        },
+        sessionResetPolicy: continuityPolicy
+      });
+      finishIngest({
+        outcome: 'ok',
+        runId: persisted.runId,
+        replayed: Boolean(persisted.replayed),
+        rotated: Boolean(persisted.rotated)
+      });
+    } catch (error) {
+      finishIngest({
+        outcome: 'error',
+        errorMessage: error && error.message ? String(error.message).slice(0, 500) : 'Unknown error'
+      });
+      throw error;
+    }
   } catch (error) {
     try {
       await releaseMessageRateLimitReservation(admission.reservation);
@@ -226,6 +329,7 @@ async function processInboundMessage({ auth, headers, body, ipAddress }) {
     retrievalPolicy,
     rateLimitPolicy,
     concurrencyPolicy,
+    requestId,
     rateLimitTokensRefunded
   });
 }
