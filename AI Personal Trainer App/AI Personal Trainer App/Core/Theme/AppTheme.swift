@@ -18,16 +18,37 @@ enum AppTheme {
             })
         }
 
-        static let background = dynamic(light: UIColor(hex: "FFFFFF"), dark: UIColor(hex: "000000"))
-        static let surface = dynamic(light: UIColor(hex: "F5F5F7"), dark: UIColor(hex: "111111"))
-        static let surfaceHover = dynamic(light: UIColor(hex: "EBEBED"), dark: UIColor(hex: "1A1A1A"))
+        static let background = dynamic(light: UIColor(hex: "F7F7F4"), dark: UIColor(hex: "060606"))
+        static let surface = dynamic(
+            light: UIColor(hex: "FFFFFF").withAlphaComponent(0.74),
+            dark: UIColor(hex: "181818").withAlphaComponent(0.72)
+        )
+        static let surfaceHover = dynamic(
+            light: UIColor(hex: "FFFFFF").withAlphaComponent(0.88),
+            dark: UIColor(hex: "202020").withAlphaComponent(0.86)
+        )
+        static let glassFill = dynamic(
+            light: UIColor(hex: "FFFFFF").withAlphaComponent(0.58),
+            dark: UIColor(hex: "171717").withAlphaComponent(0.6)
+        )
+        static let glassStroke = dynamic(
+            light: UIColor(hex: "FFFFFF").withAlphaComponent(0.62),
+            dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.16)
+        )
+        static let floatingShadow = dynamic(
+            light: UIColor(hex: "000000").withAlphaComponent(0.08),
+            dark: UIColor(hex: "000000").withAlphaComponent(0.28)
+        )
 
         static let primaryText = dynamic(light: UIColor(hex: "000000"), dark: UIColor(hex: "FFFFFF"))
         static let secondaryText = dynamic(light: UIColor(hex: "000000").withAlphaComponent(0.6), dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.6))
         static let tertiaryText = dynamic(light: UIColor(hex: "000000").withAlphaComponent(0.4), dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.4))
 
         static let divider = dynamic(light: UIColor(hex: "000000").withAlphaComponent(0.06), dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.08))
-        static let highlight = dynamic(light: UIColor(hex: "000000").withAlphaComponent(0.06), dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.1))
+        static let highlight = dynamic(
+            light: UIColor(hex: "BFE0FF").withAlphaComponent(0.32),
+            dark: UIColor(hex: "8EBEFF").withAlphaComponent(0.15)
+        )
 
         // Stat highlight - for inline text highlights (matches design-schema.json)
         static let statHighlight = dynamic(light: UIColor(hex: "000000").withAlphaComponent(0.06), dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.1))

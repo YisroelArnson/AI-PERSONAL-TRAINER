@@ -220,6 +220,7 @@ const workoutSessionStateSchema = z.object({
   currentSetIndex: nullableIntegerSchema,
   startedAt: nullableStringSchema,
   completedAt: nullableStringSchema,
+  updatedAt: nullableStringSchema,
   currentExerciseId: nullableStringSchema,
   progress: workoutProgressSchema,
   exercises: z.array(workoutExerciseStateSchema).default([])

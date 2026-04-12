@@ -80,4 +80,26 @@ describe('workout-state service helpers', () => {
       completed_at: '2026-03-27T13:00:00Z'
     })).toBe('2026-03-27T13:00:00Z');
   });
+
+  it('treats live workouts as expired after four idle hours based on updated_at', () => {
+    expect(__testUtils.isWorkoutSessionExpired({
+      session: {
+        status: 'in_progress',
+        updated_at: '2026-04-01T07:59:59Z'
+      },
+      idleExpiryMinutes: 240,
+      now: '2026-04-01T12:00:00Z'
+    })).toBe(true);
+  });
+
+  it('keeps live workouts active when they are still inside the idle window', () => {
+    expect(__testUtils.isWorkoutSessionExpired({
+      session: {
+        status: 'paused',
+        updated_at: '2026-04-01T08:30:00Z'
+      },
+      idleExpiryMinutes: 240,
+      now: '2026-04-01T12:00:00Z'
+    })).toBe(false);
+  });
 });

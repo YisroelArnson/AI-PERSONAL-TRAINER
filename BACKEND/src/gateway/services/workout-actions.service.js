@@ -162,6 +162,29 @@ function buildFollowUpMessage({ actionId, workout, body = {} }) {
   return baseParts.join(' ');
 }
 
+function findWorkoutExercise(workout, workoutExerciseId) {
+  if (!workout || !Array.isArray(workout.exercises) || !workoutExerciseId) {
+    return null;
+  }
+
+  return workout.exercises.find(exercise => exercise.workoutExerciseId === workoutExerciseId) || null;
+}
+
+function resolveFollowUpDeliveryMode({ actionId, workout, body = {} }) {
+  switch (actionId) {
+    case 'start_workout':
+    case 'skip_current_exercise':
+    case 'finish_workout':
+      return 'background';
+    case 'complete_current_set': {
+      const exercise = findWorkoutExercise(workout, body.workoutExerciseId);
+      return exercise && exercise.status === 'completed' ? 'background' : null;
+    }
+    default:
+      return null;
+  }
+}
+
 async function enqueueActionFollowUp({
   actionId,
   userId,
@@ -170,7 +193,8 @@ async function enqueueActionFollowUp({
   workout,
   body,
   parentIdempotencyKey,
-  effectiveLlm
+  effectiveLlm,
+  deliveryMode
 }) {
   const config = ACTION_CONFIG[actionId];
   const followUpIdempotencyKey = parentIdempotencyKey
@@ -193,6 +217,8 @@ async function enqueueActionFollowUp({
       hiddenInFeed: true,
       source: `workout_action.${actionId}`,
       actionId,
+      deliveryMode,
+      runVisibility: deliveryMode,
       llm: effectiveLlm,
       workoutSessionId: workout.workoutSessionId,
       workoutExerciseId: body.workoutExerciseId || null,
@@ -211,6 +237,7 @@ async function enqueueActionFollowUp({
 
   return {
     status: 'queued',
+    deliveryMode,
     runId: persisted.runId,
     streamUrl: `/v1/runs/${persisted.runId}/stream`,
     jobId: job.jobId
@@ -332,30 +359,41 @@ async function processWorkoutExecutionAction({
 
     let agentFollowUp = {
       status: 'not_queued',
+      deliveryMode: null,
       runId: null,
       streamUrl: null,
       jobId: null
     };
 
-    try {
-      agentFollowUp = await enqueueActionFollowUp({
-        actionId,
-        userId: auth.userId,
-        sessionKey: resolvedSessionKey,
-        sessionResetPolicy,
-        workout,
-        body,
-        parentIdempotencyKey,
-        effectiveLlm
-      });
-    } catch (error) {
-      console.warn(`Unable to enqueue ${actionId} follow-up run:`, error.message);
-      agentFollowUp = {
-        status: 'failed',
-        runId: null,
-        streamUrl: null,
-        jobId: null
-      };
+    const followUpDeliveryMode = resolveFollowUpDeliveryMode({
+      actionId,
+      workout,
+      body
+    });
+
+    if (followUpDeliveryMode) {
+      try {
+        agentFollowUp = await enqueueActionFollowUp({
+          actionId,
+          userId: auth.userId,
+          sessionKey: resolvedSessionKey,
+          sessionResetPolicy,
+          workout,
+          body,
+          parentIdempotencyKey,
+          effectiveLlm,
+          deliveryMode: followUpDeliveryMode
+        });
+      } catch (error) {
+        console.warn(`Unable to enqueue ${actionId} follow-up run:`, error.message);
+        agentFollowUp = {
+          status: 'failed',
+          deliveryMode: followUpDeliveryMode,
+          runId: null,
+          streamUrl: null,
+          jobId: null
+        };
+      }
     }
 
     return parseWorkoutExecutionActionResponse({

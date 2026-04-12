@@ -11,6 +11,7 @@ const TERMINAL_SET_STATUSES = new Set(['completed', 'skipped']);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DEFAULT_WORKOUT_HISTORY_MAX_SESSIONS = 10;
 const MAX_WORKOUT_HISTORY_MAX_SESSIONS = 31;
+const DEFAULT_WORKOUT_IDLE_EXPIRY_MINUTES = 240;
 
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
@@ -49,7 +50,16 @@ async function getCachedWorkoutState({ userId, sessionKey, workoutSessionId }) {
     return null;
   }
 
-  return parseWorkoutSessionState(JSON.parse(raw));
+  const state = parseWorkoutSessionState(JSON.parse(raw));
+
+  // Older cache payloads did not include the session timestamp we need to enforce
+  // workout idle expiry, so treat them as cache misses and refresh from the DB.
+  if (LIVE_WORKOUT_STATUSES.includes(state.status) && !state.updatedAt) {
+    await redis.del(cacheKey);
+    return null;
+  }
+
+  return state;
 }
 
 async function evictWorkoutStateCache({ userId, sessionKey, workoutSessionId }) {
@@ -118,6 +128,123 @@ function coerceStateVersion(value) {
 
 function buildNextStateVersion(session) {
   return coerceStateVersion(session && session.state_version) + 1;
+}
+
+function normalizeIdleExpiryMinutes(value, fallback = DEFAULT_WORKOUT_IDLE_EXPIRY_MINUTES) {
+  const coerced = Number(value);
+
+  if (!Number.isFinite(coerced)) {
+    return fallback;
+  }
+
+  return Math.max(0, Math.floor(coerced));
+}
+
+async function resolveWorkoutIdleExpiryMinutes(userId) {
+  if (!userId) {
+    return DEFAULT_WORKOUT_IDLE_EXPIRY_MINUTES;
+  }
+
+  try {
+    const policy = await resolveSessionContinuityPolicy(userId);
+    return normalizeIdleExpiryMinutes(policy ? policy.idleExpiryMinutes : null);
+  } catch (error) {
+    console.warn('Workout idle expiry policy lookup failed:', error.message);
+    return DEFAULT_WORKOUT_IDLE_EXPIRY_MINUTES;
+  }
+}
+
+function getWorkoutSessionLastTouchedAt(session) {
+  return (
+    (session && (session.updated_at || session.updatedAt)) ||
+    (session && (session.started_at || session.startedAt)) ||
+    (session && (session.created_at || session.createdAt)) ||
+    null
+  );
+}
+
+function isWorkoutSessionExpired({ session, idleExpiryMinutes, now = new Date() }) {
+  if (!session || !LIVE_WORKOUT_STATUSES.includes(session.status)) {
+    return false;
+  }
+
+  const normalizedIdleExpiryMinutes = normalizeIdleExpiryMinutes(idleExpiryMinutes);
+  if (normalizedIdleExpiryMinutes <= 0) {
+    return false;
+  }
+
+  const lastTouchedAt = getWorkoutSessionLastTouchedAt(session);
+  if (!lastTouchedAt) {
+    return false;
+  }
+
+  const lastTouchedMs = Date.parse(lastTouchedAt);
+  const nowMs = now instanceof Date ? now.getTime() : Date.parse(now);
+
+  if (!Number.isFinite(lastTouchedMs) || !Number.isFinite(nowMs)) {
+    return false;
+  }
+
+  return lastTouchedMs <= nowMs - (normalizedIdleExpiryMinutes * 60 * 1000);
+}
+
+function buildAbandonedWorkoutSummary(summary, { abandonedAt, idleExpiryMinutes, lastTouchedAt }) {
+  return {
+    ...(summary && typeof summary === 'object' ? summary : {}),
+    abandonment: {
+      reason: 'idle_timeout',
+      abandonedAt,
+      idleExpiryMinutes,
+      lastTouchedAt
+    }
+  };
+}
+
+async function expireStaleWorkoutSessionIfNeeded({
+  userId,
+  session,
+  returnNullWhenExpired = false,
+  idleExpiryMinutes = null
+}) {
+  if (!session || !LIVE_WORKOUT_STATUSES.includes(session.status)) {
+    return session;
+  }
+
+  const effectiveIdleExpiryMinutes = idleExpiryMinutes != null
+    ? normalizeIdleExpiryMinutes(idleExpiryMinutes)
+    : await resolveWorkoutIdleExpiryMinutes(userId);
+
+  if (!isWorkoutSessionExpired({
+    session,
+    idleExpiryMinutes: effectiveIdleExpiryMinutes
+  })) {
+    return session;
+  }
+
+  const abandonedAt = new Date().toISOString();
+  const updatedSession = await updateWorkoutSessionRow(session.workout_session_id, {
+    state_version: buildNextStateVersion(session),
+    status: 'abandoned',
+    current_phase: 'finished',
+    summary_json: buildAbandonedWorkoutSummary(session.summary_json, {
+      abandonedAt,
+      idleExpiryMinutes: effectiveIdleExpiryMinutes,
+      lastTouchedAt: getWorkoutSessionLastTouchedAt(session)
+    }),
+    completed_at: null
+  });
+
+  try {
+    await evictWorkoutStateCache({
+      userId,
+      sessionKey: updatedSession.session_key,
+      workoutSessionId: updatedSession.workout_session_id
+    });
+  } catch (error) {
+    console.warn('Workout state cache eviction failed:', error.message);
+  }
+
+  return returnNullWhenExpired ? null : updatedSession;
 }
 
 function assertExpectedStateVersion(session, expectedStateVersion) {
@@ -399,6 +526,7 @@ function buildWorkoutState({ session, exercises, sets, adjustments }) {
     currentSetIndex: session.current_set_index,
     startedAt: session.started_at,
     completedAt: session.completed_at,
+    updatedAt: session.updated_at,
     currentExerciseId: currentExercise ? currentExercise.workoutExerciseId : null,
     progress: computeProgress(exerciseStates),
     exercises: exerciseStates
@@ -719,7 +847,11 @@ async function getWorkoutSessionRow({ userId, workoutSessionId, liveOnly = false
     throw error;
   }
 
-  return data || null;
+  return expireStaleWorkoutSessionIfNeeded({
+    userId,
+    session: data || null,
+    returnNullWhenExpired: liveOnly
+  });
 }
 
 async function getLiveWorkoutSessionRow({ userId, sessionKey }) {
@@ -742,7 +874,11 @@ async function getLiveWorkoutSessionRow({ userId, sessionKey }) {
     throw error;
   }
 
-  return data || null;
+  return expireStaleWorkoutSessionIfNeeded({
+    userId,
+    session: data || null,
+    returnNullWhenExpired: true
+  });
 }
 
 async function resolveWorkoutSessionRow({ userId, sessionKey, workoutSessionId, liveOnly = false }) {
@@ -912,19 +1048,31 @@ function findFirstLiveExercise(graph) {
   );
 }
 
-async function getCurrentWorkoutState({ userId, sessionKey, workoutSessionId }) {
-  try {
-    const cached = await getCachedWorkoutState({
-      userId,
-      sessionKey,
-      workoutSessionId
-    });
+async function getCurrentWorkoutState({ userId, sessionKey, workoutSessionId, bypassCache = false }) {
+  if (!bypassCache) {
+    try {
+      const cached = await getCachedWorkoutState({
+        userId,
+        sessionKey,
+        workoutSessionId
+      });
 
-    if (cached) {
-      return cached;
+      if (cached) {
+        const idleExpiryMinutes = await resolveWorkoutIdleExpiryMinutes(userId);
+
+        if (!isWorkoutSessionExpired({ session: cached, idleExpiryMinutes })) {
+          return cached;
+        }
+
+        await evictWorkoutStateCache({
+          userId,
+          sessionKey,
+          workoutSessionId
+        });
+      }
+    } catch (error) {
+      console.warn('Workout state cache read failed:', error.message);
     }
-  } catch (error) {
-    console.warn('Workout state cache read failed:', error.message);
   }
 
   const graph = await loadResolvedWorkoutGraph({
@@ -1150,7 +1298,8 @@ async function createWorkoutSessionFromDraft({ userId, sessionKey, runId, input 
 
     return getCurrentWorkoutState({
       userId,
-      workoutSessionId: session.workout_session_id
+      workoutSessionId: session.workout_session_id,
+      bypassCache: true
     });
   } catch (error) {
     if (session && session.workout_session_id) {
@@ -1625,7 +1774,8 @@ async function recordWorkoutSetResult({ userId, input }) {
 
   const finalState = await getCurrentWorkoutState({
     userId,
-    workoutSessionId: graphAfterExerciseUpdate.session.workout_session_id
+    workoutSessionId: graphAfterExerciseUpdate.session.workout_session_id,
+    bypassCache: true
   });
 
   return {
@@ -1791,7 +1941,8 @@ async function rewriteRemainingWorkoutFromDraft({ userId, input }) {
 
   return getCurrentWorkoutState({
     userId,
-    workoutSessionId: graph.session.workout_session_id
+    workoutSessionId: graph.session.workout_session_id,
+    bypassCache: true
   });
 }
 
@@ -1929,7 +2080,8 @@ async function replaceWorkoutExerciseFromDraft({ userId, input }) {
 
   return getCurrentWorkoutState({
     userId,
-    workoutSessionId: graph.session.workout_session_id
+    workoutSessionId: graph.session.workout_session_id,
+    bypassCache: true
   });
 }
 
@@ -2041,7 +2193,8 @@ async function adjustWorkoutSetTargets({ userId, input }) {
 
   return getCurrentWorkoutState({
     userId,
-    workoutSessionId: graph.session.workout_session_id
+    workoutSessionId: graph.session.workout_session_id,
+    bypassCache: true
   });
 }
 
@@ -2102,7 +2255,8 @@ async function finishWorkoutSession({ userId, input }) {
 
   return getCurrentWorkoutState({
     userId,
-    workoutSessionId: graph.session.workout_session_id
+    workoutSessionId: graph.session.workout_session_id,
+    bypassCache: true
   });
 }
 
@@ -2130,7 +2284,8 @@ async function startWorkoutSession({ userId, input }) {
   if (graph.session.status === 'in_progress' && graph.session.current_phase === 'exercise') {
     return getCurrentWorkoutState({
       userId,
-      workoutSessionId: graph.session.workout_session_id
+      workoutSessionId: graph.session.workout_session_id,
+      bypassCache: true
     });
   }
 
@@ -2168,7 +2323,8 @@ async function startWorkoutSession({ userId, input }) {
 
   return getCurrentWorkoutState({
     userId,
-    workoutSessionId: graph.session.workout_session_id
+    workoutSessionId: graph.session.workout_session_id,
+    bypassCache: true
   });
 }
 
@@ -2189,7 +2345,8 @@ async function pauseWorkoutSession({ userId, input }) {
   if (graph.session.status === 'paused') {
     return getCurrentWorkoutState({
       userId,
-      workoutSessionId: graph.session.workout_session_id
+      workoutSessionId: graph.session.workout_session_id,
+      bypassCache: true
     });
   }
 
@@ -2208,7 +2365,8 @@ async function pauseWorkoutSession({ userId, input }) {
 
   return getCurrentWorkoutState({
     userId,
-    workoutSessionId: graph.session.workout_session_id
+    workoutSessionId: graph.session.workout_session_id,
+    bypassCache: true
   });
 }
 
@@ -2229,7 +2387,8 @@ async function resumeWorkoutSession({ userId, input }) {
   if (graph.session.status === 'in_progress') {
     return getCurrentWorkoutState({
       userId,
-      workoutSessionId: graph.session.workout_session_id
+      workoutSessionId: graph.session.workout_session_id,
+      bypassCache: true
     });
   }
 
@@ -2272,7 +2431,8 @@ async function resumeWorkoutSession({ userId, input }) {
 
   return getCurrentWorkoutState({
     userId,
-    workoutSessionId: graph.session.workout_session_id
+    workoutSessionId: graph.session.workout_session_id,
+    bypassCache: true
   });
 }
 
@@ -2361,7 +2521,8 @@ async function skipWorkoutExercise({ userId, input }) {
 
   return getCurrentWorkoutState({
     userId,
-    workoutSessionId: graph.session.workout_session_id
+    workoutSessionId: graph.session.workout_session_id,
+    bypassCache: true
   });
 }
 
@@ -2373,7 +2534,9 @@ module.exports = {
     coerceStateVersion,
     findWorkoutExerciseRow,
     findWorkoutSetRow,
+    getWorkoutSessionLastTouchedAt,
     getWorkoutHistoryReferenceTimestamp,
+    isWorkoutSessionExpired,
     isCurrentReference,
     normalizeWorkoutHistoryWindow,
     resolveExerciseDefinitionId

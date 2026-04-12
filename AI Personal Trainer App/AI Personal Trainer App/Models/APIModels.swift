@@ -167,6 +167,7 @@ struct MessageAcceptedResponse: Codable {
 
 struct WorkoutActionFollowUp: Codable {
     let status: String
+    let deliveryMode: String?
     let runId: String?
     let streamUrl: String?
     let jobId: String?

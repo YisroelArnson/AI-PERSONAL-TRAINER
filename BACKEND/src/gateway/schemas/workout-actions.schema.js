@@ -38,6 +38,7 @@ const skipCurrentExerciseRequestSchema = z.object({
 
 const workoutActionAgentFollowUpSchema = z.object({
   status: z.enum(['queued', 'not_queued', 'failed']),
+  deliveryMode: z.enum(['background', 'foreground']).nullable().optional(),
   runId: nonEmptyStringSchema.nullable().optional(),
   streamUrl: nonEmptyStringSchema.nullable().optional(),
   jobId: nonEmptyStringSchema.nullable().optional()

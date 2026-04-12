@@ -67,15 +67,21 @@ struct AppView: View {
         ZStack {
             Circle()
                 .fill(AppTheme.Colors.highlight)
-                .frame(width: 320, height: 320)
-                .blur(radius: 40)
-                .offset(x: -130, y: -280)
+                .frame(width: 340, height: 340)
+                .blur(radius: 72)
+                .offset(x: -150, y: -310)
 
             RoundedRectangle(cornerRadius: 120, style: .continuous)
                 .fill(AppTheme.Colors.highlight)
                 .frame(width: 280, height: 220)
-                .blur(radius: 40)
-                .offset(x: 120, y: 260)
+                .blur(radius: 64)
+                .offset(x: 135, y: 310)
+
+            Circle()
+                .fill(AppTheme.Colors.orbSkyLight.opacity(0.22))
+                .frame(width: 240, height: 240)
+                .blur(radius: 58)
+                .offset(x: 0, y: 380)
         }
         .allowsHitTesting(false)
     }
@@ -190,15 +196,18 @@ final class CoachSurfaceViewModel: ObservableObject {
     @Published var toast: ToastData?
     @Published private(set) var serverWorkout: WorkoutSessionState?
     @Published private(set) var optimisticWorkout: WorkoutSessionState?
+    @Published private(set) var isWorkoutActionInFlight = false
     @Published private(set) var isWorkoutSyncing = false
     @Published private var runTraces: [String: CoachRunTraceState] = [:]
 
     private var activeUserID: UUID?
     private var pollTask: Task<Void, Never>?
     private var streamTask: Task<Void, Never>?
-    private var isWorkoutActionRequestInFlight = false
+    private var backgroundStreamTask: Task<Void, Never>?
     private var observedRunID: String?
     private var observedStreamPath: String?
+    private var observedBackgroundRunID: String?
+    private var observedBackgroundStreamPath: String?
     private var lastStreamEventID: String?
     private var runTraceOrder: [String] = []
 
@@ -276,7 +285,13 @@ final class CoachSurfaceViewModel: ObservableObject {
     }
 
     var composerPlaceholder: String {
-        surface?.composer.placeholder ?? "Message your coach"
+        let placeholder = surface?.composer.placeholder.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        if placeholder.isEmpty || placeholder.localizedCaseInsensitiveContains("coach") {
+            return "Ask anything"
+        }
+
+        return placeholder
     }
 
     var scrollToken: String {
@@ -303,6 +318,7 @@ final class CoachSurfaceViewModel: ObservableObject {
         surface = nil
         serverWorkout = nil
         optimisticWorkout = nil
+        isWorkoutActionInFlight = false
         isWorkoutSyncing = false
         composerText = ""
         isLoading = false
@@ -311,11 +327,11 @@ final class CoachSurfaceViewModel: ObservableObject {
         isQuickActionsExpanded = false
         errorMessage = nil
         toast = nil
-        isWorkoutActionRequestInFlight = false
         runTraces = [:]
         runTraceOrder = []
         pollTask?.cancel()
         pollTask = nil
+        cancelBackgroundRunObservation()
         cancelRunObservation(resetStreamState: true)
     }
 
@@ -436,15 +452,16 @@ final class CoachSurfaceViewModel: ObservableObject {
             surface = nil
             serverWorkout = nil
             optimisticWorkout = nil
+            isWorkoutActionInFlight = false
             isWorkoutSyncing = false
             composerText = ""
             errorMessage = nil
             isResettingSession = false
-            isWorkoutActionRequestInFlight = false
             runTraces = [:]
             runTraceOrder = []
             pollTask?.cancel()
             pollTask = nil
+            cancelBackgroundRunObservation()
             cancelRunObservation(resetStreamState: true)
         }
 
@@ -474,8 +491,8 @@ final class CoachSurfaceViewModel: ObservableObject {
             errorMessage = nil
             serverWorkout = nil
             optimisticWorkout = nil
+            isWorkoutActionInFlight = false
             isWorkoutSyncing = false
-            isWorkoutActionRequestInFlight = false
             toast = ToastData(message: "Started a fresh chat.", icon: "square.and.pencil")
             Haptic.medium()
 
@@ -569,7 +586,7 @@ final class CoachSurfaceViewModel: ObservableObject {
     }
 
     func runWorkoutAction(_ action: WorkoutDirectAction) async {
-        guard !isWorkoutActionRequestInFlight else { return }
+        guard !isWorkoutActionInFlight else { return }
         guard let workout = effectiveWorkout else {
             toast = ToastData(message: "There is no live workout to update right now.", icon: "hand.raised.fill")
             return
@@ -581,10 +598,11 @@ final class CoachSurfaceViewModel: ObservableObject {
 
         let previousOptimisticWorkout = optimisticWorkout
 
-        isWorkoutActionRequestInFlight = true
+        isWorkoutActionInFlight = true
         isWorkoutSyncing = true
         optimisticWorkout = optimistic
         errorMessage = nil
+        Haptic.selection()
 
         await Task.yield()
 
@@ -596,16 +614,24 @@ final class CoachSurfaceViewModel: ObservableObject {
                 accessToken: accessToken
             )
 
-            isWorkoutActionRequestInFlight = false
+            isWorkoutActionInFlight = false
             mergeIncomingWorkout(response.workout)
-            Haptic.medium()
 
             if response.agentFollowUp.status == "queued",
                let runID = response.agentFollowUp.runId {
-                startRunObservation(
-                    runID: runID,
-                    streamPath: response.agentFollowUp.streamUrl ?? "/v1/runs/\(runID)/stream"
-                )
+                let streamPath = response.agentFollowUp.streamUrl ?? "/v1/runs/\(runID)/stream"
+
+                if response.agentFollowUp.deliveryMode == "foreground" {
+                    startRunObservation(
+                        runID: runID,
+                        streamPath: streamPath
+                    )
+                } else {
+                    startBackgroundRunObservation(
+                        runID: runID,
+                        streamPath: streamPath
+                    )
+                }
             }
 
             Task { @MainActor [weak self] in
@@ -615,7 +641,7 @@ final class CoachSurfaceViewModel: ObservableObject {
         } catch {
             optimisticWorkout = previousOptimisticWorkout
             isWorkoutSyncing = false
-            isWorkoutActionRequestInFlight = false
+            isWorkoutActionInFlight = false
             showError(error.localizedDescription)
         }
     }
@@ -648,7 +674,7 @@ final class CoachSurfaceViewModel: ObservableObject {
             if optimisticWorkout == nil {
                 serverWorkout = nil
                 isWorkoutSyncing = false
-                isWorkoutActionRequestInFlight = false
+                isWorkoutActionInFlight = false
             }
             return
         }
@@ -660,7 +686,7 @@ final class CoachSurfaceViewModel: ObservableObject {
         if let optimisticWorkout, optimisticWorkout.stateVersion <= workout.stateVersion {
             self.optimisticWorkout = nil
             self.isWorkoutSyncing = false
-            self.isWorkoutActionRequestInFlight = false
+            self.isWorkoutActionInFlight = false
         }
     }
 
@@ -769,6 +795,7 @@ final class CoachSurfaceViewModel: ObservableObject {
             let didRotateSessionBoundary = didSessionBoundaryChange(comparedTo: latestSurface)
             if didRotateSessionBoundary {
                 clearRunTraces()
+                cancelBackgroundRunObservation()
                 cancelRunObservation(resetStreamState: true)
             }
 
@@ -959,6 +986,64 @@ final class CoachSurfaceViewModel: ObservableObject {
 
         if resetStreamState {
             lastStreamEventID = nil
+        }
+    }
+
+    private func startBackgroundRunObservation(runID: String, streamPath: String) {
+        if observedBackgroundRunID == runID,
+           observedBackgroundStreamPath == streamPath,
+           backgroundStreamTask != nil {
+            return
+        }
+
+        cancelBackgroundRunObservation()
+        observedBackgroundRunID = runID
+        observedBackgroundStreamPath = streamPath
+
+        backgroundStreamTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            do {
+                let accessToken = try await self.freshAccessToken()
+                let stream = APIService.shared.streamRun(
+                    accessToken: accessToken,
+                    streamPath: streamPath
+                )
+
+                for try await event in stream {
+                    guard !Task.isCancelled else { return }
+                    self.handleBackgroundRunStreamEvent(event, expectedRunID: runID)
+                }
+
+                self.backgroundStreamTask = nil
+                self.observedBackgroundRunID = nil
+                self.observedBackgroundStreamPath = nil
+                await self.refreshSurface(allowAppOpenTrigger: false)
+            } catch is CancellationError {
+                self.backgroundStreamTask = nil
+                self.observedBackgroundRunID = nil
+                self.observedBackgroundStreamPath = nil
+            } catch {
+                self.backgroundStreamTask = nil
+                self.observedBackgroundRunID = nil
+                self.observedBackgroundStreamPath = nil
+                await self.refreshSurface(allowAppOpenTrigger: false)
+            }
+        }
+    }
+
+    private func cancelBackgroundRunObservation() {
+        backgroundStreamTask?.cancel()
+        backgroundStreamTask = nil
+        observedBackgroundRunID = nil
+        observedBackgroundStreamPath = nil
+    }
+
+    private func handleBackgroundRunStreamEvent(_ event: CoachRunStreamEvent, expectedRunID: String) {
+        guard event.runId == expectedRunID else { return }
+
+        if event.type == "workout.state.updated", let workout = event.workout {
+            mergeIncomingWorkout(workout)
         }
     }
 
@@ -1298,119 +1383,384 @@ private struct CoachSurfaceScreen: View {
     let userEmail: String?
     let onSignOut: () -> Void
 
+    private enum Layout {
+        static let topGlassDepth: CGFloat = 30
+        static let topGlassFadeDepth: CGFloat = 18
+        static let topContentClearance: CGFloat = 10
+    }
+
     private let bottomAnchor = "coach-feed-bottom"
+    @State private var isUtilitySheetPresented = false
+    @State private var dictationSeedText = ""
+    @FocusState private var composerIsFocused: Bool
+
+    private var composerHasText: Bool {
+        !viewModel.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var composerIsExpanded: Bool {
+        composerIsFocused || composerHasText || speechManager.isListening
+    }
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    CoachSurfaceTopHeader(
-                        subtitle: viewModel.surface?.header.subtitle ?? "One calm surface for training, planning, and check-ins",
-                        userEmail: userEmail,
-                        hasActiveRun: viewModel.activeRun != nil,
-                        isResettingSession: viewModel.isResettingSession,
-                        onResetSession: {
-                            Task { await viewModel.resetSession() }
-                        },
-                        onRefresh: {
-                            Task { await viewModel.manualRefresh() }
-                        },
-                        onSignOut: onSignOut
-                    )
+        GeometryReader { geometry in
+            let topGlassClearance = topGlassReservedHeight(for: geometry.safeAreaInsets.top)
 
-                    if let errorMessage = viewModel.errorMessage {
-                        CoachStatusBanner(
-                            title: "Connection needs attention",
-                            message: errorMessage,
-                            icon: "exclamationmark.triangle.fill"
-                        )
-                    }
+            ZStack(alignment: .top) {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 20) {
+                            Color.clear
+                                .frame(height: topGlassClearance)
 
-                    if viewModel.isLoading && viewModel.visibleFeedItems.isEmpty {
-                        CoachLoadingCard()
-                    } else if viewModel.visibleFeedItems.isEmpty {
-                        CoachEmptyStateCard(quickActions: viewModel.quickActions) { action in
-                            Task { await viewModel.runQuickAction(action) }
-                        }
-                    }
-
-                    LazyVStack(spacing: 14) {
-                        ForEach(viewModel.visibleFeedItems) { item in
-                            CoachFeedRow(item: item) { action in
-                                Task { await viewModel.runCardAction(action) }
+                            if let errorMessage = viewModel.errorMessage {
+                                CoachStatusBanner(
+                                    title: "Connection needs attention",
+                                    message: errorMessage,
+                                    icon: "exclamationmark.triangle.fill"
+                                )
                             }
+
+                            if viewModel.isLoading && viewModel.visibleFeedItems.isEmpty {
+                                CoachLoadingCard()
+                            } else if viewModel.visibleFeedItems.isEmpty {
+                                CoachEmptyStateCard(userEmail: userEmail, quickActions: viewModel.quickActions) { action in
+                                    Task { await viewModel.runQuickAction(action) }
+                                }
+                            }
+
+                            LazyVStack(spacing: 22) {
+                                ForEach(viewModel.visibleFeedItems) { item in
+                                    CoachFeedRow(item: item) { action in
+                                        Task { await viewModel.runCardAction(action) }
+                                    }
+                                }
+                            }
+
+                            Color.clear
+                                .frame(height: 1)
+                                .id(bottomAnchor)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 10)
+                        .padding(.bottom, 28)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .scrollIndicators(.hidden)
+                    .scrollDismissesKeyboard(.interactively)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        composerIsFocused = false
+                    }
+                    .safeAreaInset(edge: .bottom, spacing: 10) {
+                        VStack(spacing: 10) {
+                            if let pinnedWorkout = viewModel.pinnedWorkout {
+                                PinnedWorkoutControlCard(
+                                    workout: pinnedWorkout,
+                                    isSyncing: viewModel.isWorkoutSyncing,
+                                    isActionInFlight: viewModel.isWorkoutActionInFlight
+                                ) { action in
+                                    Task { await viewModel.runWorkoutAction(action) }
+                                }
+                            }
+
+                            ComposerDock(
+                                text: $viewModel.composerText,
+                                isSending: viewModel.isSending,
+                                placeholder: viewModel.composerPlaceholder,
+                                speechManager: speechManager,
+                                isFocused: $composerIsFocused,
+                                isExpanded: composerIsExpanded,
+                                onPlusTap: {
+                                    composerIsFocused = false
+                                    Haptic.light()
+                                    isUtilitySheetPresented = true
+                                },
+                                onSend: handleSend,
+                                onMicrophoneTap: handleMicrophoneTap
+                            )
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 10)
+                    }
+                    .sheet(isPresented: $isUtilitySheetPresented) {
+                        VoiceUtilitySheet(
+                            isResettingSession: viewModel.isResettingSession,
+                            onNewChat: {
+                                Task { await viewModel.resetSession() }
+                            },
+                            onRefresh: {
+                                Task { await viewModel.manualRefresh() }
+                            },
+                            onSignOut: onSignOut
+                        )
+                        .presentationDetents([.height(260)])
+                        .presentationDragIndicator(.visible)
+                        .presentationCornerRadius(30)
+                        .presentationBackground(.ultraThinMaterial)
+                    }
+                    .onChange(of: viewModel.scrollToken) { _, _ in
+                        withAnimation(AppTheme.Animation.slow) {
+                            proxy.scrollTo(bottomAnchor, anchor: .bottom)
                         }
                     }
-
-                    Color.clear
-                        .frame(height: 1)
-                        .id(bottomAnchor)
-                }
-                .padding(.horizontal, 18)
-                .padding(.top, 18)
-                .padding(.bottom, 24)
-            }
-            .scrollIndicators(.hidden)
-            .safeAreaInset(edge: .bottom, spacing: 12) {
-                VStack(spacing: 12) {
-                    if let pinnedWorkout = viewModel.pinnedWorkout {
-                        PinnedWorkoutControlCard(
-                            workout: pinnedWorkout,
-                            isSyncing: viewModel.isWorkoutSyncing
-                        ) { action in
-                            Task { await viewModel.runWorkoutAction(action) }
+                    .onChange(of: speechManager.partialTranscript) { _, _ in
+                        syncLiveTranscriptIntoComposer()
+                    }
+                    .onChange(of: speechManager.finalTranscript) { _, _ in
+                        syncLiveTranscriptIntoComposer()
+                    }
+                    .onChange(of: speechManager.isListening) { _, isListening in
+                        if isListening {
+                            composerIsFocused = false
+                        } else {
+                            syncLiveTranscriptIntoComposer()
+                            dictationSeedText = ""
                         }
                     }
-
-                    if viewModel.isQuickActionsExpanded, !viewModel.quickActions.isEmpty {
-                        QuickActionTray(actions: viewModel.quickActions) { action in
-                            Task { await viewModel.runQuickAction(action) }
-                        }
-                    }
-
-                    ComposerDock(
-                        text: $viewModel.composerText,
-                        isSending: viewModel.isSending,
-                        placeholder: viewModel.composerPlaceholder,
-                        speechManager: speechManager,
-                        quickActionsExpanded: viewModel.isQuickActionsExpanded,
-                        onToggleQuickActions: viewModel.toggleQuickActions,
-                        onSend: {
-                            Task { await viewModel.submitComposer() }
-                        },
-                        onMicrophoneTap: handleMicrophoneTap
-                    )
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 10)
-                .background(Color.clear)
-            }
-            .onChange(of: viewModel.scrollToken) { _, _ in
-                withAnimation(AppTheme.Animation.slow) {
-                    proxy.scrollTo(bottomAnchor, anchor: .bottom)
-                }
+
+                CoachSurfaceTopGlass(
+                    topInset: geometry.safeAreaInsets.top,
+                    depth: Layout.topGlassDepth,
+                    fadeDepth: Layout.topGlassFadeDepth
+                )
+                .zIndex(1)
             }
         }
     }
 
+    private func topGlassReservedHeight(for topInset: CGFloat) -> CGFloat {
+        topInset + Layout.topGlassDepth + Layout.topContentClearance
+    }
+
     private func handleMicrophoneTap() {
         if speechManager.isListening {
-            let transcript = speechManager.finalTranscript.isEmpty
-                ? speechManager.partialTranscript
-                : speechManager.finalTranscript
-            speechManager.stopListening()
-            viewModel.mergeTranscript(transcript)
+            stopListeningAndCommitCurrentTranscript()
             Haptic.selection()
             return
         }
+
+        dictationSeedText = viewModel.composerText
+        composerIsFocused = false
 
         Task {
             await speechManager.startListening()
             if speechManager.isListening {
                 Haptic.light()
+                syncLiveTranscriptIntoComposer()
+            } else {
+                dictationSeedText = ""
             }
         }
+    }
+
+    private func handleSend() {
+        if speechManager.isListening {
+            stopListeningAndCommitCurrentTranscript()
+        }
+
+        guard composerHasText else { return }
+
+        composerIsFocused = false
+        Task { await viewModel.submitComposer() }
+    }
+
+    private func syncLiveTranscriptIntoComposer() {
+        guard speechManager.isListening else { return }
+        viewModel.composerText = composedText(
+            baseText: dictationSeedText,
+            transcript: currentTranscript
+        )
+    }
+
+    private func stopListeningAndCommitCurrentTranscript() {
+        let transcript = currentTranscript
+        speechManager.stopListening()
+        viewModel.composerText = composedText(baseText: dictationSeedText, transcript: transcript)
+        dictationSeedText = ""
+
+        if !viewModel.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            composerIsFocused = true
+        }
+    }
+
+    private var currentTranscript: String {
+        let transcript = speechManager.finalTranscript.isEmpty
+            ? speechManager.partialTranscript
+            : speechManager.finalTranscript
+
+        return transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func composedText(baseText: String, transcript: String) -> String {
+        let trimmedBase = baseText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        switch (trimmedBase.isEmpty, trimmedTranscript.isEmpty) {
+        case (true, true):
+            return ""
+        case (false, true):
+            return trimmedBase
+        case (true, false):
+            return trimmedTranscript
+        case (false, false):
+            return "\(trimmedBase) \(trimmedTranscript)"
+        }
+    }
+}
+
+private struct CoachSurfaceTopGlass: View {
+    let topInset: CGFloat
+    let depth: CGFloat
+    let fadeDepth: CGFloat
+
+    private var totalHeight: CGFloat {
+        topInset + depth + fadeDepth
+    }
+
+    var body: some View {
+        Rectangle()
+            .fill(.ultraThinMaterial)
+            .overlay {
+                Rectangle()
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                AppTheme.Colors.glassFill.opacity(0.92),
+                                AppTheme.Colors.glassFill.opacity(0.74),
+                                AppTheme.Colors.glassFill.opacity(0.3),
+                                .clear
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+            }
+            .overlay(alignment: .top) {
+                LinearGradient(
+                    colors: [
+                        AppTheme.Colors.glassStroke.opacity(0.2),
+                        AppTheme.Colors.glassStroke.opacity(0.08),
+                        .clear
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: topInset + 18)
+            }
+            .mask {
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black.opacity(0.98), location: 0.5),
+                        .init(color: .black.opacity(0.68), location: 0.76),
+                        .init(color: .black.opacity(0.22), location: 0.92),
+                        .init(color: .clear, location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+            .frame(height: totalHeight)
+            .shadow(color: AppTheme.Colors.floatingShadow.opacity(0.05), radius: 14, y: 6)
+            .ignoresSafeArea(edges: .top)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+}
+
+private struct VoiceUtilitySheet: View {
+    let isResettingSession: Bool
+    let onNewChat: () -> Void
+    let onRefresh: () -> Void
+    let onSignOut: () -> Void
+
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Chat actions")
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppTheme.Colors.secondaryText)
+                .padding(.top, 4)
+
+            VoiceUtilityActionRow(
+                title: "Create new chat",
+                subtitle: "Start fresh without leaving the screen.",
+                systemImage: "square.and.pencil",
+                isDisabled: isResettingSession
+            ) {
+                dismiss()
+                onNewChat()
+            }
+
+            VoiceUtilityActionRow(
+                title: "Refresh",
+                subtitle: "Pull the latest thread state from the server.",
+                systemImage: "arrow.clockwise"
+            ) {
+                dismiss()
+                onRefresh()
+            }
+
+            VoiceUtilityActionRow(
+                title: "Log out",
+                subtitle: "Sign out of this account.",
+                systemImage: "rectangle.portrait.and.arrow.right"
+            ) {
+                dismiss()
+                onSignOut()
+            }
+        }
+        .padding(.horizontal, 18)
+        .padding(.top, 6)
+    }
+}
+
+private struct VoiceUtilityActionRow: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    var isDisabled = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: {
+            Haptic.light()
+            action()
+        }) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 15, style: .continuous)
+                        .fill(AppTheme.Colors.surfaceHover)
+                        .frame(width: 48, height: 48)
+
+                    Image(systemName: systemImage)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(AppTheme.Colors.primaryText)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppTheme.Colors.primaryText)
+
+                    Text(subtitle)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(AppTheme.Colors.secondaryText)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 12)
+            .liquidGlassBackground(cornerRadius: 24)
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.6 : 1)
     }
 }
 
@@ -1513,9 +1863,15 @@ private struct CoachStatusBanner: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(AppTheme.Colors.primaryText)
+            ZStack {
+                Circle()
+                    .fill(AppTheme.Colors.surfaceHover)
+                    .frame(width: 34, height: 34)
+
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.primaryText)
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
@@ -1530,11 +1886,8 @@ private struct CoachStatusBanner: View {
 
             Spacer()
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .fill(AppTheme.Colors.surface)
-        )
+        .padding(14)
+        .liquidGlassBackground(cornerRadius: 24)
     }
 }
 
@@ -1544,40 +1897,39 @@ private struct CoachLoadingCard: View {
             ProgressView()
                 .controlSize(.small)
 
-            Text("Loading the latest coach thread from the backend...")
+            Text("Loading the latest conversation...")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundStyle(AppTheme.Colors.secondaryText)
 
             Spacer()
         }
-        .padding(18)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(AppTheme.Colors.surface)
-        )
+        .padding(.horizontal, 14)
+        .padding(.vertical, 13)
+        .liquidGlassBackground(cornerRadius: 22)
     }
 }
 
 private struct CoachEmptyStateCard: View {
+    let userEmail: String?
     let quickActions: [CoachQuickAction]
     let onAction: (CoachQuickAction) -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Your coach surface is ready")
-                .font(.system(size: 24, weight: .bold, design: .rounded))
+        VStack(alignment: .leading, spacing: 18) {
+            if let userEmail, !userEmail.isEmpty {
+                Text(userEmail)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.tertiaryText)
+            }
+
+            Text("How can I help with training today?")
+                .font(.system(size: 31, weight: .regular, design: .rounded))
                 .foregroundStyle(AppTheme.Colors.primaryText)
 
-            Text("This screen is the whole product surface from the spec: one feed, one dock, and structured cards when they matter.")
-                .font(.system(size: 15, weight: .medium))
+            Text("Use voice or type naturally. Replies will stay lightweight, with user messages tucked to the right and everything else feeling as direct as a conversation.")
+                .font(.system(size: 17, weight: .regular))
                 .foregroundStyle(AppTheme.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
-
-            VStack(alignment: .leading, spacing: 10) {
-                FeatureLine(text: "Talk naturally by voice or text.")
-                FeatureLine(text: "Start a workout without leaving the thread.")
-                FeatureLine(text: "See the current workout card pinned above the dock when it becomes relevant.")
-            }
 
             if !quickActions.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -1590,12 +1942,9 @@ private struct CoachEmptyStateCard: View {
                                 }
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(AppTheme.Colors.primaryText)
-                                .padding(.horizontal, 14)
+                                .padding(.horizontal, 15)
                                 .padding(.vertical, 12)
-                                .background(
-                                    Capsule(style: .continuous)
-                                        .fill(AppTheme.Colors.background)
-                                )
+                                .liquidGlassCapsule()
                             }
                             .buttonStyle(.plain)
                         }
@@ -1603,15 +1952,7 @@ private struct CoachEmptyStateCard: View {
                 }
             }
         }
-        .padding(22)
-        .background(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(AppTheme.Colors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(AppTheme.Colors.divider, lineWidth: 1)
-        )
+        .padding(.vertical, 12)
     }
 }
 
@@ -1663,12 +2004,12 @@ private struct CoachFeedRow: View {
             isProvisional: item.isProvisional
         )
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.trailing, 26)
+        .padding(.trailing, 34)
     }
 
     private var userMessageContent: some View {
         HStack {
-            Spacer(minLength: 42)
+            Spacer(minLength: 64)
 
             CoachMessageText(
                 text: item.text,
@@ -1676,16 +2017,9 @@ private struct CoachFeedRow: View {
                 foregroundColor: AppTheme.Colors.primaryText,
                 isProvisional: false
             )
-            .padding(.horizontal, 16)
+            .padding(.horizontal, 17)
             .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(AppTheme.Colors.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(AppTheme.Colors.divider, lineWidth: 1)
-            )
+            .liquidGlassBackground(cornerRadius: 24, shadowOpacity: 0.05)
         }
     }
 }
@@ -1779,6 +2113,7 @@ private func pinnedWorkoutControlActions(for workout: WorkoutSessionState) -> [P
 private struct PinnedWorkoutControlCard: View {
     let workout: WorkoutSessionState
     let isSyncing: Bool
+    let isActionInFlight: Bool
     let onAction: (WorkoutDirectAction) -> Void
 
     private var currentExercise: WorkoutExerciseState? {
@@ -1811,14 +2146,9 @@ private struct PinnedWorkoutControlCard: View {
 
                 VStack(alignment: .trailing, spacing: 6) {
                     if isSyncing {
-                        HStack(spacing: 6) {
-                            ProgressView()
-                                .controlSize(.mini)
-
-                            Text("Syncing")
-                        }
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(AppTheme.Colors.secondaryText)
+                        Text("Syncing")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(AppTheme.Colors.secondaryText)
                     }
 
                     Text(progressText)
@@ -1828,7 +2158,7 @@ private struct PinnedWorkoutControlCard: View {
                         .padding(.vertical, 6)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(AppTheme.Colors.background)
+                                .fill(AppTheme.Colors.surfaceHover)
                         )
                 }
             }
@@ -1863,23 +2193,18 @@ private struct PinnedWorkoutControlCard: View {
                             .padding(.vertical, 11)
                             .background(
                                 Capsule(style: .continuous)
-                                    .fill(action.isPrimary ? AppTheme.Colors.primaryText : AppTheme.Colors.background)
+                                    .fill(action.isPrimary ? AppTheme.Colors.primaryText : AppTheme.Colors.surfaceHover)
                             )
                         }
                         .buttonStyle(.plain)
+                        .disabled(isActionInFlight)
+                        .opacity(isActionInFlight ? 0.82 : 1)
                     }
                 }
             }
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(AppTheme.Colors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .stroke(AppTheme.Colors.divider, lineWidth: 1)
-        )
+        .liquidGlassBackground(cornerRadius: 24)
     }
 
     private var progressText: String {
@@ -1967,7 +2292,7 @@ private struct CoachRunTraceView: View {
                     .frame(width: 8, height: 8)
                     .shimmer(duration: 1.2)
 
-                Text("Thoughts")
+                Text(commentaryLines.isEmpty ? "Thinking" : "Working")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(AppTheme.Colors.secondaryText)
 
@@ -1982,15 +2307,14 @@ private struct CoachRunTraceView: View {
             }
 
             if commentaryLines.isEmpty {
-                Text("Thinking…")
-                    .font(.system(size: 15, weight: .medium))
+                Text("Thinking through the reply...")
+                    .font(.system(size: 15, weight: .regular))
                     .foregroundStyle(AppTheme.Colors.secondaryText)
-                    .italic()
             } else {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(Array(commentaryLines.enumerated()), id: \.offset) { _, line in
                         Text(line)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 15, weight: .regular))
                             .foregroundStyle(AppTheme.Colors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -2004,6 +2328,7 @@ private struct CoachRunTraceView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        .padding(.trailing, 42)
     }
 
     private var archivedTraceBody: some View {
@@ -2014,7 +2339,7 @@ private struct CoachRunTraceView: View {
                 }
             }) {
                 HStack(alignment: .center, spacing: 10) {
-                    Text("Thoughts")
+                    Text("Show reasoning")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(AppTheme.Colors.secondaryText)
 
@@ -2031,7 +2356,7 @@ private struct CoachRunTraceView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(Array(commentaryLines.enumerated()), id: \.offset) { _, line in
                         Text(line)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 14, weight: .regular))
                             .foregroundStyle(AppTheme.Colors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -2046,6 +2371,7 @@ private struct CoachRunTraceView: View {
             }
         }
         .padding(.top, 2)
+        .padding(.trailing, 42)
     }
 
     private var elapsedLabel: String? {
@@ -2072,12 +2398,12 @@ private struct CoachStructuredCard: View {
             HStack(alignment: .top, spacing: 12) {
                 VStack(alignment: .leading, spacing: 6) {
                     Text(card.title)
-                        .font(.system(size: isPinned ? 22 : 20, weight: .bold, design: .rounded))
+                        .font(.system(size: isPinned ? 22 : 19, weight: .semibold, design: .rounded))
                         .foregroundStyle(AppTheme.Colors.primaryText)
 
                     if let subtitle = card.subtitle, !subtitle.isEmpty {
                         Text(subtitle)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 14, weight: .regular))
                             .foregroundStyle(AppTheme.Colors.secondaryText)
                     }
                 }
@@ -2092,7 +2418,7 @@ private struct CoachStructuredCard: View {
                         .padding(.vertical, 8)
                         .background(
                             Capsule(style: .continuous)
-                                .fill(AppTheme.Colors.background)
+                                .fill(AppTheme.Colors.surfaceHover)
                         )
                 }
             }
@@ -2128,14 +2454,7 @@ private struct CoachStructuredCard: View {
             }
         }
         .padding(isPinned ? 18 : 16)
-        .background(
-            RoundedRectangle(cornerRadius: isPinned ? 26 : 24, style: .continuous)
-                .fill(AppTheme.Colors.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: isPinned ? 26 : 24, style: .continuous)
-                .stroke(AppTheme.Colors.divider, lineWidth: 1)
-        )
+        .liquidGlassBackground(cornerRadius: isPinned ? 26 : 24)
     }
 
     @ViewBuilder
@@ -2143,19 +2462,19 @@ private struct CoachStructuredCard: View {
         VStack(alignment: .leading, spacing: 10) {
             if let currentExerciseName = card.currentExerciseName, !currentExerciseName.isEmpty {
                 Text(currentExerciseName)
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 18, weight: .semibold))
                     .foregroundStyle(AppTheme.Colors.primaryText)
             }
 
             if let currentSetLabel = card.currentSetLabel, !currentSetLabel.isEmpty {
                 Text(currentSetLabel)
-                    .font(.system(size: 14, weight: .semibold))
+                    .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(AppTheme.Colors.secondaryText)
             }
 
             if let coachCue = card.coachCue, !coachCue.isEmpty {
                 Text(coachCue)
-                    .font(.system(size: 15, weight: .medium))
+                    .font(.system(size: 15, weight: .regular))
                     .foregroundStyle(AppTheme.Colors.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -2174,14 +2493,14 @@ private struct CoachStructuredCard: View {
                             .padding(.top, 6)
 
                         Text(highlight)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 14, weight: .regular))
                             .foregroundStyle(AppTheme.Colors.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                 }
             } else if let body = card.body, !body.isEmpty {
                 Text(body)
-                    .font(.system(size: 14, weight: .medium))
+                    .font(.system(size: 14, weight: .regular))
                     .foregroundStyle(AppTheme.Colors.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -2192,12 +2511,12 @@ private struct CoachStructuredCard: View {
     private var insightBody: some View {
         if let body = card.body, !body.isEmpty {
             Text(body)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 14, weight: .regular))
                 .foregroundStyle(AppTheme.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         } else {
             Text(card.title)
-                .font(.system(size: 14, weight: .medium))
+                .font(.system(size: 14, weight: .regular))
                 .foregroundStyle(AppTheme.Colors.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -2219,10 +2538,7 @@ private struct CoachMetricChipView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(AppTheme.Colors.background)
-        )
+        .liquidGlassBackground(cornerRadius: 18, shadowOpacity: 0.03)
     }
 
     private var foregroundColor: Color {
@@ -2254,22 +2570,24 @@ private struct CoachCardActionButton: View {
             .foregroundStyle(foregroundColor)
             .padding(.horizontal, 14)
             .padding(.vertical, 12)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(backgroundColor)
-            )
+            .background(backgroundBody)
         }
         .buttonStyle(.plain)
     }
 
-    private var backgroundColor: Color {
+    @ViewBuilder
+    private var backgroundBody: some View {
         switch action.style {
         case "primary":
-            return AppTheme.Colors.primaryText
+            Capsule(style: .continuous)
+                .fill(AppTheme.Colors.primaryText)
         case "destructive":
-            return Color(red: 0.69, green: 0.2, blue: 0.21)
+            Capsule(style: .continuous)
+                .fill(Color(red: 0.69, green: 0.2, blue: 0.21))
         default:
-            return AppTheme.Colors.background
+            Capsule(style: .continuous)
+                .fill(Color.clear)
+                .liquidGlassCapsule(shadowOpacity: 0.04)
         }
     }
 
@@ -2288,33 +2606,20 @@ private struct CoachMessageText: View {
 
     var body: some View {
         if rendersMarkdown {
-            if isProvisional {
-                Text(parsedText)
-                    .foregroundStyle(foregroundColor)
-                    .tint(foregroundColor)
-                    .lineSpacing(4)
-                    .opacity(0.96)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text(parsedText)
-                    .foregroundStyle(foregroundColor)
-                    .tint(foregroundColor)
-                    .lineSpacing(4)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(parsedText)
+                .font(.system(size: 18, weight: .regular))
+                .foregroundStyle(foregroundColor)
+                .tint(foregroundColor)
+                .lineSpacing(6)
+                .opacity(isProvisional ? 0.96 : 1)
+                .fixedSize(horizontal: false, vertical: true)
         } else {
-            if isProvisional {
-                Text(text)
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(foregroundColor)
-                    .opacity(0.96)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                Text(text)
-                    .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(foregroundColor)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text(text)
+                .font(.system(size: 17, weight: .regular))
+                .foregroundStyle(foregroundColor)
+                .lineSpacing(4)
+                .opacity(isProvisional ? 0.96 : 1)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -2348,10 +2653,7 @@ private struct QuickActionTray: View {
                         .foregroundStyle(AppTheme.Colors.primaryText)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 12)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(AppTheme.Colors.surface)
-                        )
+                        .liquidGlassCapsule()
                     }
                     .buttonStyle(.plain)
                 }
@@ -2360,93 +2662,174 @@ private struct QuickActionTray: View {
     }
 }
 
+
 private struct ComposerDock: View {
     @Binding var text: String
     let isSending: Bool
     let placeholder: String
     @ObservedObject var speechManager: SpeechManager
-    let quickActionsExpanded: Bool
-    let onToggleQuickActions: () -> Void
+    @FocusState.Binding var isFocused: Bool
+    let isExpanded: Bool
+    let onPlusTap: () -> Void
     let onSend: () -> Void
     let onMicrophoneTap: () -> Void
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 12) {
-            Button(action: onToggleQuickActions) {
-                Circle()
-                    .fill(AppTheme.Colors.background)
-                    .frame(width: 44, height: 44)
-                    .overlay {
-                        Image(systemName: quickActionsExpanded ? "xmark" : "plus")
+            dockCircleButton(icon: "plus", action: onPlusTap)
+
+            HStack(alignment: .bottom, spacing: 10) {
+                TextField(speechManager.isListening ? "Listening..." : placeholder, text: $text, axis: .vertical)
+                    .font(.system(size: 17, weight: .regular))
+                    .foregroundStyle(AppTheme.Colors.primaryText)
+                    .lineLimit(isExpanded ? 6 : 1)
+                    .focused($isFocused)
+                    .disabled(speechManager.isListening)
+                    .padding(.vertical, isExpanded ? 13 : 9)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                if shouldShowSendButton {
+                    Button(action: onSend) {
+                        ZStack {
+                            Circle()
+                                .fill(sendEnabled ? AppTheme.Colors.primaryText : AppTheme.Colors.tertiaryText.opacity(0.18))
+                                .frame(width: 38, height: 38)
+
+                            if isSending {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .tint(AppTheme.Colors.background)
+                            } else {
+                                Image(systemName: "arrow.up")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(AppTheme.Colors.background)
+                            }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!sendEnabled)
+                    .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .padding(.leading, 14)
+            .padding(.trailing, shouldShowSendButton ? 8 : 14)
+            .padding(.vertical, 5)
+            .frame(minHeight: isExpanded ? 60 : 52)
+            .liquidGlassBackground(cornerRadius: 28)
+            .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+            .onTapGesture {
+                guard !speechManager.isListening else { return }
+                isFocused = true
+            }
+            .animation(AppTheme.Animation.gentle, value: shouldShowSendButton)
+
+            Button(action: onMicrophoneTap) {
+                ZStack {
+                    Circle()
+                        .fill(speechManager.isListening ? AppTheme.Colors.primaryText : AppTheme.Colors.surfaceHover)
+                        .frame(width: 48, height: 48)
+
+                    if speechManager.isListening {
+                        WaveformView(
+                            active: true,
+                            activeColor: AppTheme.Colors.background,
+                            inactiveColor: AppTheme.Colors.background.opacity(0.45)
+                        )
+                            .frame(width: 20, height: 18)
+                    } else {
+                        Image(systemName: "mic.fill")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundStyle(AppTheme.Colors.primaryText)
                     }
+                }
+                .overlay {
+                    Circle()
+                        .stroke(speechManager.isListening ? AppTheme.Colors.primaryText.opacity(0.15) : AppTheme.Colors.glassStroke, lineWidth: 1)
+                }
+                .shadow(color: AppTheme.Colors.floatingShadow.opacity(speechManager.isListening ? 0.12 : 0.05), radius: 16, y: 10)
             }
             .buttonStyle(.plain)
-
-            HStack(alignment: .bottom, spacing: 10) {
-                Button(action: onMicrophoneTap) {
-                    ZStack {
-                        Circle()
-                            .fill(speechManager.isListening ? AppTheme.Colors.primaryText : AppTheme.Colors.background)
-                            .frame(width: 40, height: 40)
-
-                        Image(systemName: speechManager.isListening ? "stop.fill" : "mic.fill")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(speechManager.isListening ? AppTheme.Colors.background : AppTheme.Colors.primaryText)
-                    }
-                }
-                .buttonStyle(.plain)
-
-                Group {
-                    if speechManager.isListening {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(speechManager.partialTranscript.isEmpty ? "Listening..." : speechManager.partialTranscript)
-                                .font(.system(size: 15, weight: .medium))
-                                .foregroundStyle(AppTheme.Colors.primaryText)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-
-                            WaveformView(active: true)
-                        }
-                    } else {
-                        TextField(placeholder, text: $text, axis: .vertical)
-                            .font(AppTheme.Typography.input)
-                            .foregroundStyle(AppTheme.Colors.primaryText)
-                            .lineLimit(1...5)
-                    }
-                }
-
-                Button(action: onSend) {
-                    ZStack {
-                        Circle()
-                            .fill(sendEnabled ? AppTheme.Colors.primaryText : AppTheme.Colors.tertiaryText.opacity(0.18))
-                            .frame(width: 40, height: 40)
-
-                        if isSending {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(AppTheme.Colors.background)
-                        } else {
-                            Image(systemName: "arrow.up")
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(AppTheme.Colors.background)
-                        }
-                    }
-                }
-                .buttonStyle(.plain)
-                .disabled(!sendEnabled)
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .background(
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(AppTheme.Colors.surface)
-            )
         }
     }
 
     private var sendEnabled: Bool {
-        speechManager.isListening == false && text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && !isSending
+        text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false && !isSending
+    }
+
+    private var shouldShowSendButton: Bool {
+        isExpanded || sendEnabled || speechManager.isListening
+    }
+
+    private func dockCircleButton(icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Circle()
+                .fill(AppTheme.Colors.surface)
+                .frame(width: 46, height: 46)
+                .overlay {
+                    Image(systemName: icon)
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(AppTheme.Colors.primaryText)
+                }
+                .overlay {
+                    Circle()
+                        .stroke(AppTheme.Colors.glassStroke, lineWidth: 1)
+                }
+                .shadow(color: AppTheme.Colors.floatingShadow.opacity(0.05), radius: 16, y: 10)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct LiquidGlassBackgroundModifier: ViewModifier {
+    let cornerRadius: CGFloat
+    let shadowOpacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                            .fill(AppTheme.Colors.glassFill)
+                    }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(AppTheme.Colors.glassStroke, lineWidth: 1)
+            }
+            .shadow(color: AppTheme.Colors.floatingShadow.opacity(shadowOpacity), radius: 22, y: 12)
+    }
+}
+
+private struct LiquidGlassCapsuleModifier: ViewModifier {
+    let shadowOpacity: Double
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                Capsule(style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        Capsule(style: .continuous)
+                            .fill(AppTheme.Colors.glassFill)
+                    }
+            }
+            .overlay {
+                Capsule(style: .continuous)
+                    .stroke(AppTheme.Colors.glassStroke, lineWidth: 1)
+            }
+            .shadow(color: AppTheme.Colors.floatingShadow.opacity(shadowOpacity), radius: 18, y: 10)
+    }
+}
+
+private extension View {
+    func liquidGlassBackground(cornerRadius: CGFloat, shadowOpacity: Double = 0.08) -> some View {
+        modifier(LiquidGlassBackgroundModifier(cornerRadius: cornerRadius, shadowOpacity: shadowOpacity))
+    }
+
+    func liquidGlassCapsule(shadowOpacity: Double = 0.06) -> some View {
+        modifier(LiquidGlassCapsuleModifier(shadowOpacity: shadowOpacity))
     }
 }
 

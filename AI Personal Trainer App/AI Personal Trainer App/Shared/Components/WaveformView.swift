@@ -2,6 +2,8 @@ import SwiftUI
 
 struct WaveformView: View {
     let active: Bool
+    var activeColor: Color = AppTheme.Colors.primaryText
+    var inactiveColor: Color = AppTheme.Colors.tertiaryText
 
     private let barCount = 20
     private let barWidth: CGFloat = 3
@@ -13,7 +15,7 @@ struct WaveformView: View {
         HStack(spacing: barSpacing) {
             ForEach(0..<barCount, id: \.self) { index in
                 RoundedRectangle(cornerRadius: 2)
-                    .fill(active ? AppTheme.Colors.danger : AppTheme.Colors.tertiaryText)
+                    .fill(active ? activeColor : inactiveColor)
                     .frame(width: barWidth, height: barHeights[index])
                     .animation(
                         .easeInOut(duration: 0.15).delay(Double(index) * 0.02),

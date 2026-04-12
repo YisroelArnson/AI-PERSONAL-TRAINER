@@ -58,6 +58,15 @@ function mapRunSummary(run) {
   };
 }
 
+function getRunSurfaceVisibility(run) {
+  const triggerPayload = run && typeof run.trigger_payload === 'object' ? run.trigger_payload : {};
+  const metadata = triggerPayload && typeof triggerPayload.metadata === 'object'
+    ? triggerPayload.metadata
+    : {};
+
+  return metadata.runVisibility === 'background' ? 'background' : 'foreground';
+}
+
 async function resolveCurrentSessionState({
   supabase,
   userId,
@@ -124,14 +133,15 @@ async function loadActiveRun({ supabase, userId, sessionKey, sessionId }) {
     .eq('session_id', sessionId)
     .in('status', ['queued', 'running'])
     .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .limit(10);
 
   if (error) {
     throw error;
   }
 
-  return mapRunSummary(data);
+  const activeRuns = Array.isArray(data) ? data : [];
+  const visibleRun = activeRuns.find(run => getRunSurfaceVisibility(run) !== 'background') || null;
+  return mapRunSummary(visibleRun);
 }
 
 async function buildCoachSurfaceView({ userId, sessionKey, sessionResetPolicy }) {
