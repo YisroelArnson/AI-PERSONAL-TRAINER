@@ -1,5 +1,12 @@
+-- File overview:
+-- Applies the resolve-session-surface-state database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.resolve_session_surface_state: Implements the public.resolve_session_surface_state database routine used by this migration.
+
 DROP FUNCTION IF EXISTS public.resolve_session_surface_state(uuid, text, text, boolean, integer);
 
+-- Implements the public.resolve_session_surface_state database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.resolve_session_surface_state(
   p_user_id uuid,
   p_session_key text DEFAULT NULL,

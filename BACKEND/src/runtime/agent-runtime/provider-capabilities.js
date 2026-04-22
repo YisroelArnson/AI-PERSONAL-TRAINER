@@ -1,3 +1,11 @@
+/**
+ * File overview:
+ * Supports the agent runtime flow for provider capabilities.
+ *
+ * Main functions in this file:
+ * - getProviderCapabilities: Gets Provider capabilities needed by this file.
+ */
+
 const PROVIDER_DEFAULT_CAPABILITIES = {
   xai: {
     provider: 'xai',
@@ -60,6 +68,9 @@ const PROVIDER_CAPABILITIES = {
   xai: {}
 };
 
+/**
+ * Gets Provider capabilities needed by this file.
+ */
 function getProviderCapabilities(provider, model) {
   const providerModels = PROVIDER_CAPABILITIES[provider] || {};
   const caps = providerModels[model];

@@ -5,6 +5,11 @@
 //  Updated to match design-schema.json (minimal flat monochrome, orb-only color).
 //
 
+// Defines theme-related UI helpers for app theme.
+//
+// Main functions in this file:
+// - dynamic: Handles Dynamic for AppTheme.swift.
+
 import SwiftUI
 
 /// Centralized theme configuration for consistent design across the app
@@ -12,6 +17,7 @@ import SwiftUI
 enum AppTheme {
     // MARK: - Colors
     enum Colors {
+        /// Handles Dynamic for AppTheme.swift.
         private static func dynamic(light: UIColor, dark: UIColor) -> Color {
             Color(UIColor { traits in
                 traits.userInterfaceStyle == .dark ? dark : light

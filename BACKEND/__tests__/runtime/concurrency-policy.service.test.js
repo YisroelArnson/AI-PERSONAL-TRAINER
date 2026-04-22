@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the concurrency policy service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const {
   buildEffectiveConcurrencyPolicy
 } = require('../../src/runtime/services/concurrency-policy.service');

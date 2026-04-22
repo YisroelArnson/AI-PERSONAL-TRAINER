@@ -1,3 +1,18 @@
+/**
+ * File overview:
+ * Implements runtime service logic for session memory flush.
+ *
+ * Main functions in this file:
+ * - buildSessionMemoryMarker: Builds a Session memory marker used by this file.
+ * - normalizeSessionMemoryMessageCount: Normalizes Session memory message count into the format this file expects.
+ * - shouldIncludeSessionMemoryEvent: Handles Should include session memory event for session-memory-flush.service.js.
+ * - toSessionMemoryEntry: Handles To session memory entry for session-memory-flush.service.js.
+ * - buildSessionExcerptMarkdown: Builds a Session excerpt markdown used by this file.
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - listRecentSessionEventsForFlush: Lists Recent session events for flush for the caller.
+ * - flushSessionMemoryToEpisodicDate: Flushes Session memory to episodic date when buffered work needs to be emitted.
+ */
+
 const { appendEpisodicNoteBlock } = require('./memory-docs.service');
 const { appendSessionEvent } = require('./transcript-write.service');
 const { getDateKeyInTimezone } = require('./timezone-date.service');
@@ -7,14 +22,23 @@ const SESSION_MEMORY_MARKER_PREFIX = 'session-memory-flush';
 const PAGE_SIZE = 100;
 const MAX_PAGES = 5;
 
+/**
+ * Builds a Session memory marker used by this file.
+ */
 function buildSessionMemoryMarker(sessionId) {
   return `<!-- ${SESSION_MEMORY_MARKER_PREFIX}:${sessionId} -->`;
 }
 
+/**
+ * Normalizes Session memory message count into the format this file expects.
+ */
 function normalizeSessionMemoryMessageCount(value) {
   return Math.max(1, Number.isFinite(Number(value)) ? Math.floor(Number(value)) : 15);
 }
 
+/**
+ * Handles Should include session memory event for session-memory-flush.service.js.
+ */
 function shouldIncludeSessionMemoryEvent(event) {
   const payload = event && event.payload ? event.payload : {};
   const metadata = payload.metadata || {};
@@ -43,6 +67,9 @@ function shouldIncludeSessionMemoryEvent(event) {
   return true;
 }
 
+/**
+ * Handles To session memory entry for session-memory-flush.service.js.
+ */
 function toSessionMemoryEntry(event) {
   const payload = event.payload || {};
 
@@ -53,6 +80,9 @@ function toSessionMemoryEntry(event) {
   };
 }
 
+/**
+ * Builds a Session excerpt markdown used by this file.
+ */
 function buildSessionExcerptMarkdown({
   sessionKey,
   sessionId,
@@ -86,6 +116,9 @@ function buildSessionExcerptMarkdown({
   return lines.join('\n');
 }
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -96,6 +129,9 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Lists Recent session events for flush for the caller.
+ */
 async function listRecentSessionEventsForFlush({
   userId,
   sessionKey,
@@ -138,19 +174,35 @@ async function listRecentSessionEventsForFlush({
   return [...events].reverse();
 }
 
+/**
+ * Flushes Session memory to episodic date when buffered work needs to be emitted.
+ */
 async function flushSessionMemoryToEpisodicDate({
   userId,
   sessionKey,
+  sessionId,
   previousSessionId,
   rotationReason,
   timezone,
-  messageCount
+  messageCount,
+  flushKind = 'session_end',
+  currentCompactionCount = null,
+  updateSessionState = false
 }) {
+  const targetSessionId = sessionId || previousSessionId;
+
+  if (!targetSessionId) {
+    return {
+      status: 'skipped',
+      reason: 'missing_session_id'
+    };
+  }
+
   const effectiveMessageCount = normalizeSessionMemoryMessageCount(messageCount);
   const recentEvents = await listRecentSessionEventsForFlush({
     userId,
     sessionKey,
-    sessionId: previousSessionId,
+    sessionId: targetSessionId,
     messageCount: effectiveMessageCount
   });
   const entries = recentEvents
@@ -162,7 +214,7 @@ async function flushSessionMemoryToEpisodicDate({
     return {
       status: 'skipped',
       reason: 'no_visible_messages',
-      previousSessionId
+      previousSessionId: targetSessionId
     };
   }
 
@@ -170,7 +222,7 @@ async function flushSessionMemoryToEpisodicDate({
   const dateKey = getDateKeyInTimezone(endedAt, timezone);
   const markdownBlock = buildSessionExcerptMarkdown({
     sessionKey,
-    sessionId: previousSessionId,
+    sessionId: targetSessionId,
     endedAt,
     rotationReason,
     entries
@@ -194,22 +246,49 @@ async function flushSessionMemoryToEpisodicDate({
         dateKey,
         docKey: `EPISODIC_DATE:${dateKey}`,
         messageCount: entries.length,
-        rotationReason
+        rotationReason,
+        flushKind,
+        currentCompactionCount
       },
       occurredAt: endedAt,
-      idempotencyKey: `memory.flush_session_end:${previousSessionId}`
+      idempotencyKey: flushKind === 'pre_compaction'
+        ? `memory.flush_pre_compaction:${targetSessionId}:${currentCompactionCount || 1}`
+        : `memory.flush_session_end:${targetSessionId}`
     });
   } catch (error) {
     console.warn('Unable to append memory.flush.executed audit event:', error.message);
   }
 
+  if (updateSessionState) {
+    const supabase = getAdminClientOrThrow();
+    const patch = {
+      memory_flush_at: new Date().toISOString()
+    };
+
+    if (currentCompactionCount != null) {
+      patch.memory_flush_compaction_count = currentCompactionCount;
+    }
+
+    const { error: stateError } = await supabase
+      .from('session_state')
+      .update(patch)
+      .eq('user_id', userId)
+      .eq('session_key', sessionKey);
+
+    if (stateError) {
+      throw stateError;
+    }
+  }
+
   return {
     status: appendResult.status || 'updated',
-    previousSessionId,
+    previousSessionId: targetSessionId,
     dateKey,
     docKey: `EPISODIC_DATE:${dateKey}`,
     messageCount: entries.length,
-    changed: appendResult.changed !== false
+    changed: appendResult.changed !== false,
+    flushKind,
+    currentCompactionCount
   };
 }
 

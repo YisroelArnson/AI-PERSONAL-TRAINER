@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the agent run turn handler behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const mockAppendStreamEvent = jest.fn().mockResolvedValue();
 const mockFlushBufferedRunStreamEvents = jest.fn().mockResolvedValue({
   flushed: true,
@@ -12,9 +19,6 @@ const mockRefreshActiveRunLease = jest.fn().mockResolvedValue({
   enforced: true
 });
 const mockReleaseActiveRunLease = jest.fn().mockResolvedValue();
-const mockAcquireSessionMutationLock = jest.fn();
-const mockRenewSessionMutationLock = jest.fn().mockResolvedValue(true);
-const mockReleaseSessionMutationLock = jest.fn().mockResolvedValue();
 const mockGetRunById = jest.fn();
 const mockMarkRunRunning = jest.fn().mockResolvedValue();
 const mockMarkRunSucceeded = jest.fn().mockResolvedValue();
@@ -23,6 +27,16 @@ const mockResolveEffectiveLlmSelectionForRun = jest.fn(() => ({
   provider: 'anthropic',
   model: 'claude-sonnet-4-6'
 }));
+const mockBuildNormalizedRunDeliveryPayload = jest.fn().mockResolvedValue({
+  channel: 'in_app',
+  runId: 'run-123'
+});
+const mockUpsertRunDeliveryOutbox = jest.fn().mockResolvedValue({
+  delivery_id: 'delivery-123'
+});
+const mockEnqueueDeliverySend = jest.fn().mockResolvedValue({
+  jobId: 'delivery-job-123'
+});
 
 jest.mock('../../src/runtime/services/stream-events.service', () => ({
   appendStreamEvent: mockAppendStreamEvent,
@@ -43,19 +57,6 @@ jest.mock('../../src/gateway/services/concurrency-admission.service', () => ({
   releaseActiveRunLease: mockReleaseActiveRunLease
 }));
 
-jest.mock('../../src/runtime/services/session-mutation-lock.service', () => ({
-  SessionMutationLockBusyError: class SessionMutationLockBusyError extends Error {
-    constructor(message = 'busy') {
-      super(message);
-      this.name = 'SessionMutationLockBusyError';
-      this.code = 'SESSION_MUTATION_LOCK_BUSY';
-    }
-  },
-  acquireSessionMutationLock: mockAcquireSessionMutationLock,
-  renewSessionMutationLock: mockRenewSessionMutationLock,
-  releaseSessionMutationLock: mockReleaseSessionMutationLock
-}));
-
 jest.mock('../../src/runtime/services/run-state.service', () => ({
   getRunById: mockGetRunById,
   markRunRunning: mockMarkRunRunning,
@@ -67,9 +68,18 @@ jest.mock('../../src/runtime/services/llm-config.service', () => ({
   resolveEffectiveLlmSelectionForRun: mockResolveEffectiveLlmSelectionForRun
 }));
 
+jest.mock('../../src/runtime/services/delivery-outbox.service', () => ({
+  buildNormalizedRunDeliveryPayload: mockBuildNormalizedRunDeliveryPayload,
+  upsertRunDeliveryOutbox: mockUpsertRunDeliveryOutbox
+}));
+
+jest.mock('../../src/infra/queue/agent.queue', () => ({
+  enqueueDeliverySend: mockEnqueueDeliverySend
+}));
+
 const { handleAgentRunTurn } = require('../../src/worker/handlers/agent-run-turn.handler');
 
-describe('handleAgentRunTurn session serialization', () => {
+describe('handleAgentRunTurn', () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
@@ -90,47 +100,19 @@ describe('handleAgentRunTurn session serialization', () => {
       insertedCount: 0,
       lastSeqNum: null
     });
+    mockBuildNormalizedRunDeliveryPayload.mockResolvedValue({
+      channel: 'in_app',
+      runId: 'run-123'
+    });
+    mockUpsertRunDeliveryOutbox.mockResolvedValue({
+      delivery_id: 'delivery-123'
+    });
+    mockEnqueueDeliverySend.mockResolvedValue({
+      jobId: 'delivery-job-123'
+    });
   });
 
-  it('defers the job when another worker already holds the session mutation lock', async () => {
-    mockAcquireSessionMutationLock.mockResolvedValue({
-      acquired: false,
-      enforced: true
-    });
-
-    const job = {
-      id: 'job-123',
-      data: {
-        runId: 'run-123'
-      },
-      moveToDelayed: jest.fn().mockResolvedValue()
-    };
-
-    await expect(handleAgentRunTurn(job, 'worker-token')).rejects.toHaveProperty('name', 'DelayedError');
-
-    expect(mockRefreshActiveRunLease).toHaveBeenCalledWith({
-      runId: 'run-123',
-      userId: 'user-123',
-      concurrencyPolicy: {
-        maxActiveRuns: 20,
-        retryHintSeconds: 30
-      }
-    });
-    expect(job.moveToDelayed).toHaveBeenCalledWith(expect.any(Number), 'worker-token');
-    expect(mockMarkRunRunning).not.toHaveBeenCalled();
-    expect(mockRunAgentTurn).not.toHaveBeenCalled();
-    expect(mockAppendStreamEvent).not.toHaveBeenCalled();
-    expect(mockReleaseSessionMutationLock).not.toHaveBeenCalled();
-  });
-
-  it('runs under the session mutation lock and releases resources on success', async () => {
-    mockAcquireSessionMutationLock.mockResolvedValue({
-      acquired: true,
-      enforced: true,
-      key: 'lock:key',
-      token: 'lock-token',
-      ttlMs: 300000
-    });
+  it('runs a turn without taking a long-lived session mutation lock', async () => {
     mockRunAgentTurn.mockResolvedValue({
       provider: 'anthropic',
       model: 'claude-sonnet-4-6',
@@ -176,16 +158,22 @@ describe('handleAgentRunTurn session serialization', () => {
       }
     });
     expect(mockMarkRunSucceeded).toHaveBeenCalledWith('run-123');
-    expect(mockReleaseActiveRunLease).toHaveBeenCalledWith({
+    expect(mockBuildNormalizedRunDeliveryPayload).toHaveBeenCalledWith({
+      run: expect.objectContaining({
+        run_id: 'run-123'
+      }),
+      outputText: 'All set',
+      error: null
+    });
+    expect(mockUpsertRunDeliveryOutbox).toHaveBeenCalled();
+    expect(mockEnqueueDeliverySend).toHaveBeenCalledWith({
+      deliveryId: 'delivery-123',
       runId: 'run-123',
       userId: 'user-123'
     });
-    expect(mockReleaseSessionMutationLock).toHaveBeenCalledWith({
-      acquired: true,
-      enforced: true,
-      key: 'lock:key',
-      token: 'lock-token',
-      ttlMs: 300000
+    expect(mockReleaseActiveRunLease).toHaveBeenCalledWith({
+      runId: 'run-123',
+      userId: 'user-123'
     });
     expect(mockFlushBufferedRunStreamEvents).toHaveBeenCalledWith('run-123');
     expect(mockMarkRunFailed).not.toHaveBeenCalled();
@@ -196,14 +184,6 @@ describe('handleAgentRunTurn session serialization', () => {
   });
 
   it('defers provider rate limits instead of failing the run', async () => {
-    mockAcquireSessionMutationLock.mockResolvedValue({
-      acquired: true,
-      enforced: true,
-      key: 'lock:key',
-      token: 'lock-token',
-      ttlMs: 300000
-    });
-
     const rateLimitError = Object.assign(
       new Error('This request would exceed your organization\'s rate limit of 30,000 input tokens per minute.'),
       {
@@ -230,13 +210,7 @@ describe('handleAgentRunTurn session serialization', () => {
     expect(job.moveToDelayed).toHaveBeenCalledWith(expect.any(Number), 'worker-token');
     expect(mockMarkRunFailed).not.toHaveBeenCalled();
     expect(mockReleaseActiveRunLease).not.toHaveBeenCalled();
-    expect(mockReleaseSessionMutationLock).toHaveBeenCalledWith({
-      acquired: true,
-      enforced: true,
-      key: 'lock:key',
-      token: 'lock-token',
-      ttlMs: 300000
-    });
+    expect(mockUpsertRunDeliveryOutbox).not.toHaveBeenCalled();
     expect(mockAppendStreamEvent).toHaveBeenCalledWith({
       runId: 'run-123',
       eventType: 'run.deferred',
@@ -258,13 +232,6 @@ describe('handleAgentRunTurn session serialization', () => {
       session_key: 'session-key',
       session_id: 'session-id',
       status: 'running'
-    });
-    mockAcquireSessionMutationLock.mockResolvedValue({
-      acquired: true,
-      enforced: true,
-      key: 'lock:key',
-      token: 'lock-token',
-      ttlMs: 300000
     });
     mockRunAgentTurn.mockResolvedValue({
       provider: 'anthropic',

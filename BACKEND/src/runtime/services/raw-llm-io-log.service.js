@@ -1,9 +1,39 @@
+/**
+ * File overview:
+ * Implements runtime service logic for raw llm io log.
+ *
+ * Main functions in this file:
+ * - prettyPrintRawPayload: Handles Pretty print raw payload for raw-llm-io-log.service.js.
+ * - sanitizeRunId: Handles Sanitize run ID for raw-llm-io-log.service.js.
+ * - getRawLlmLogDirectory: Gets Raw LLM log directory needed by this file.
+ * - getRawLlmLogFilePath: Gets Raw LLM log file path needed by this file.
+ * - escapeHtml: Handles Escape HTML for raw-llm-io-log.service.js.
+ * - formatJson: Formats JSON for display or logging.
+ * - renderPre: Renders Pre for the caller.
+ * - renderSection: Renders Section for the caller.
+ * - renderJsonDetails: Renders JSON details for the caller.
+ * - renderCollectionItem: Renders Collection item for the caller.
+ * - renderCollectionSection: Renders Collection section for the caller.
+ * - renderPromptSections: Renders Prompt sections for the caller.
+ * - getResponseContentBlocks: Gets Response content blocks needed by this file.
+ * - getToolUseBlocks: Gets Tool use blocks needed by this file.
+ * - renderResponseSections: Renders Response sections for the caller.
+ * - renderPhaseSections: Renders Phase sections for the caller.
+ * - renderEntryHtml: Renders Entry HTML for the caller.
+ * - renderHtmlDocument: Renders HTML document for the caller.
+ * - insertEntryIntoDocument: Handles Insert entry into document for raw-llm-io-log.service.js.
+ * - appendRawLlmPayload: Appends Raw LLM payload to the existing record.
+ */
+
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { env } = require('../../config/env');
 
 const ENTRY_INSERT_MARKER = '<!-- RAW_LLM_IO_ENTRY_INSERT_MARKER -->';
 
+/**
+ * Handles Pretty print raw payload for raw-llm-io-log.service.js.
+ */
 function prettyPrintRawPayload(payload) {
   try {
     return JSON.stringify(payload, null, 2);
@@ -15,18 +45,30 @@ function prettyPrintRawPayload(payload) {
   }
 }
 
+/**
+ * Handles Sanitize run ID for raw-llm-io-log.service.js.
+ */
 function sanitizeRunId(runId) {
   return String(runId || 'unknown-run').replace(/[^a-zA-Z0-9._-]/g, '_');
 }
 
+/**
+ * Gets Raw LLM log directory needed by this file.
+ */
 function getRawLlmLogDirectory() {
   return env.llmRawIoLoggingDirectory;
 }
 
+/**
+ * Gets Raw LLM log file path needed by this file.
+ */
 function getRawLlmLogFilePath(runId) {
   return path.join(getRawLlmLogDirectory(), `${sanitizeRunId(runId)}.html`);
 }
 
+/**
+ * Handles Escape HTML for raw-llm-io-log.service.js.
+ */
 function escapeHtml(value) {
   return String(value)
     .replace(/&/g, '&amp;')
@@ -36,14 +78,23 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Formats JSON for display or logging.
+ */
 function formatJson(value) {
   return prettyPrintRawPayload(value);
 }
 
+/**
+ * Renders Pre for the caller.
+ */
 function renderPre(value) {
   return `<pre>${escapeHtml(typeof value === 'string' ? value : formatJson(value))}</pre>`;
 }
 
+/**
+ * Renders Section for the caller.
+ */
 function renderSection(title, bodyHtml) {
   return [
     '<details class="section">',
@@ -55,10 +106,16 @@ function renderSection(title, bodyHtml) {
   ].join('\n');
 }
 
+/**
+ * Renders JSON details for the caller.
+ */
 function renderJsonDetails(title, value) {
   return renderSection(title, renderPre(value));
 }
 
+/**
+ * Renders Collection item for the caller.
+ */
 function renderCollectionItem(label, value) {
   return [
     '<details class="item">',
@@ -70,6 +127,9 @@ function renderCollectionItem(label, value) {
   ].join('\n');
 }
 
+/**
+ * Renders Collection section for the caller.
+ */
 function renderCollectionSection(title, values, labelBuilder) {
   if (!Array.isArray(values) || values.length === 0) {
     return renderJsonDetails(title, []);
@@ -81,6 +141,9 @@ function renderCollectionSection(title, values, labelBuilder) {
   );
 }
 
+/**
+ * Renders Prompt sections for the caller.
+ */
 function renderPromptSections(payload) {
   return [
     renderSection('Prompt', [
@@ -114,6 +177,9 @@ function renderPromptSections(payload) {
   ].join('\n');
 }
 
+/**
+ * Gets Response content blocks needed by this file.
+ */
 function getResponseContentBlocks(payload) {
   if (!payload || !Array.isArray(payload.content)) {
     return [];
@@ -122,10 +188,16 @@ function getResponseContentBlocks(payload) {
   return payload.content;
 }
 
+/**
+ * Gets Tool use blocks needed by this file.
+ */
 function getToolUseBlocks(payload) {
   return getResponseContentBlocks(payload).filter(block => block && block.type === 'tool_use');
 }
 
+/**
+ * Renders Response sections for the caller.
+ */
 function renderResponseSections(payload) {
   const contentBlocks = getResponseContentBlocks(payload);
   const toolUseBlocks = getToolUseBlocks(payload);
@@ -158,6 +230,9 @@ function renderResponseSections(payload) {
   ].join('\n');
 }
 
+/**
+ * Renders Phase sections for the caller.
+ */
 function renderPhaseSections(phase, payload) {
   if (phase === 'REQUEST') {
     return renderPromptSections(payload);
@@ -170,6 +245,9 @@ function renderPhaseSections(phase, payload) {
   return renderJsonDetails('Data', payload);
 }
 
+/**
+ * Renders Entry HTML for the caller.
+ */
 function renderEntryHtml({ phase, runId, iteration, payload, timestamp }) {
   const summaryParts = [
     phase,
@@ -189,6 +267,9 @@ function renderEntryHtml({ phase, runId, iteration, payload, timestamp }) {
   ].join('\n');
 }
 
+/**
+ * Renders HTML document for the caller.
+ */
 function renderHtmlDocument({ runId }) {
   return [
     '<!DOCTYPE html>',
@@ -240,6 +321,9 @@ function renderHtmlDocument({ runId }) {
   ].join('\n');
 }
 
+/**
+ * Handles Insert entry into document for raw-llm-io-log.service.js.
+ */
 function insertEntryIntoDocument(documentHtml, entry) {
   const markerIndex = documentHtml.lastIndexOf(ENTRY_INSERT_MARKER);
 
@@ -256,6 +340,9 @@ function insertEntryIntoDocument(documentHtml, entry) {
   ].join('');
 }
 
+/**
+ * Appends Raw LLM payload to the existing record.
+ */
 async function appendRawLlmPayload({ phase, runId, iteration, payload }) {
   if (!env.llmRawIoLoggingEnabled) {
     return null;

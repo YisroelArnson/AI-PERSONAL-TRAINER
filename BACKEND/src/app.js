@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Provides the app logic used by this part of the codebase.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const express = require('express');
 const { randomUUID } = require('node:crypto');
 
@@ -5,7 +12,7 @@ const { messagesRouter } = require('./gateway/routes/messages.route');
 const { sessionsRouter } = require('./gateway/routes/sessions.route');
 const { coachSurfaceRouter } = require('./gateway/routes/coach-surface.route');
 const { runsRouter } = require('./gateway/routes/runs.route');
-const { workoutActionsRouter } = require('./gateway/routes/workout-actions.route');
+const { workoutCommandsRouter } = require('./gateway/routes/workout-commands.route');
 const { settingsRouter } = require('./gateway/routes/settings.route');
 const { errorHandler, notFoundHandler } = require('./gateway/middleware/error-handler');
 
@@ -38,7 +45,7 @@ app.use('/v1/messages', messagesRouter);
 app.use('/v1/sessions', sessionsRouter);
 app.use('/v1/coach-surface', coachSurfaceRouter);
 app.use('/v1/runs', runsRouter);
-app.use('/v1/workout-actions', workoutActionsRouter);
+app.use('/v1/workout-commands', workoutCommandsRouter);
 app.use('/v1/settings', settingsRouter);
 
 app.use(notFoundHandler);

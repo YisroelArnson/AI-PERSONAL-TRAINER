@@ -1,3 +1,11 @@
+-- File overview:
+-- Applies the retrieval-search-fix-ambiguity database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.retrieval_search_postgres_fallback: Implements the public.retrieval_search_postgres_fallback database routine used by this migration.
+
+-- Implements the public.retrieval_search_postgres_fallback database routine used by this migration.
+
 CREATE OR REPLACE FUNCTION public.retrieval_search_postgres_fallback(
   p_user_id uuid,
   p_query_text text,

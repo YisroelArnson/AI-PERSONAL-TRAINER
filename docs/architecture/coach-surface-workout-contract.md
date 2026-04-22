@@ -40,6 +40,14 @@ Derived read model:
 - `feed` items are presentation records for the chat surface.
 - `pinnedCard` is only a reference to an existing feed item, not a second copy of the card.
 
+Assistant feed messages are also structured now:
+
+- durable assistant replies come from `assistant.notify`,
+- durable assistant questions come from `assistant.ask`,
+- and silent terminal runs end with `idle` and do not create a feed item.
+
+The coach surface should not depend on freeform assistant transcript writes or legacy stream phases. User-visible assistant text is emitted through message tools and then projected into feed items from those transcript events.
+
 ## What the agent controls
 
 - exercise selection,

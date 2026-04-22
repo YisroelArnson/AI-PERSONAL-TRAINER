@@ -1,3 +1,11 @@
+/**
+ * File overview:
+ * Provides the workout logic used by this part of the codebase.
+ *
+ * Main functions in this file:
+ * - parseWorkoutSessionState: Parses Workout session state into a validated shape.
+ */
+
 const { z } = require('zod');
 
 const nonEmptyStringSchema = z.string().trim().min(1);
@@ -226,6 +234,9 @@ const workoutSessionStateSchema = z.object({
   exercises: z.array(workoutExerciseStateSchema).default([])
 });
 
+/**
+ * Parses Workout session state into a validated shape.
+ */
 function parseWorkoutSessionState(input) {
   return workoutSessionStateSchema.parse(input);
 }

@@ -1,6 +1,18 @@
+/**
+ * File overview:
+ * Implements runtime service logic for manual session reset.
+ *
+ * Main functions in this file:
+ * - mapRpcError: Maps RPC error into the structure expected downstream.
+ * - resetSessionHead: Resets Session head back to its baseline state.
+ */
+
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { badRequest, conflict } = require('../../shared/errors');
 
+/**
+ * Maps RPC error into the structure expected downstream.
+ */
 function mapRpcError(error) {
   const message = error && error.message ? error.message : 'manual_reset_session failed';
 
@@ -23,6 +35,9 @@ function mapRpcError(error) {
   return error;
 }
 
+/**
+ * Resets Session head back to its baseline state.
+ */
 async function resetSessionHead({
   userId,
   route,

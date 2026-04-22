@@ -1,5 +1,18 @@
+/**
+ * File overview:
+ * Provides middleware used by the gateway request pipeline.
+ *
+ * Main functions in this file:
+ * - isMissingAuthUserForeignKeyError: Handles Is missing auth user foreign key error for error-handler.js.
+ * - notFoundHandler: Handles Not found handler for error-handler.js.
+ * - errorHandler: Handles Error handler for error-handler.js.
+ */
+
 const { HttpError, notFound } = require('../../shared/errors');
 
+/**
+ * Handles Is missing auth user foreign key error for error-handler.js.
+ */
 function isMissingAuthUserForeignKeyError(err) {
   const details = String(err && err.details ? err.details : '');
   const message = String(err && err.message ? err.message : '');
@@ -19,10 +32,16 @@ function isMissingAuthUserForeignKeyError(err) {
   );
 }
 
+/**
+ * Handles Not found handler for error-handler.js.
+ */
 function notFoundHandler(req, res, next) {
   next(notFound(`No route for ${req.method} ${req.originalUrl}`));
 }
 
+/**
+ * Handles Error handler for error-handler.js.
+ */
 function errorHandler(err, req, res, next) {
   if (res.headersSent) {
     next(err);

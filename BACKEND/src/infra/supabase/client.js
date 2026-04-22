@@ -1,3 +1,12 @@
+/**
+ * File overview:
+ * Provides infrastructure helpers for client.
+ *
+ * Main functions in this file:
+ * - getSupabaseAuthClient: Gets Supabase auth client needed by this file.
+ * - getSupabaseAdminClient: Gets Supabase admin client needed by this file.
+ */
+
 const { createClient } = require('@supabase/supabase-js');
 
 const { env } = require('../../config/env');
@@ -5,6 +14,9 @@ const { env } = require('../../config/env');
 let authClient;
 let adminClient;
 
+/**
+ * Gets Supabase auth client needed by this file.
+ */
 function getSupabaseAuthClient() {
   const authKey = env.supabaseSecretKey || env.supabasePublishableKey;
 
@@ -19,6 +31,9 @@ function getSupabaseAuthClient() {
   return authClient;
 }
 
+/**
+ * Gets Supabase admin client needed by this file.
+ */
 function getSupabaseAdminClient() {
   if (!env.supabaseUrl || !env.supabaseSecretKey) {
     return null;

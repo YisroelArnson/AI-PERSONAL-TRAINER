@@ -1,10 +1,27 @@
+/**
+ * File overview:
+ * Implements runtime service logic for episodic notes.
+ *
+ * Main functions in this file:
+ * - normalizeWindowDays: Normalizes Window days into the format this file expects.
+ * - getDateKeysForReadStrategy: Gets Date keys for read strategy needed by this file.
+ * - listBootstrapEpisodicNotes: Lists Bootstrap episodic notes for the caller.
+ * - formatBootstrapEpisodicNotes: Formats Bootstrap episodic notes for display or logging.
+ */
+
 const { getLatestDocVersionsByDocKeys } = require('./memory-docs.service');
 const { getDateKeyInTimezone, shiftDateKey } = require('./timezone-date.service');
 
+/**
+ * Normalizes Window days into the format this file expects.
+ */
 function normalizeWindowDays(value) {
   return Math.max(1, Number.isFinite(Number(value)) ? Math.floor(Number(value)) : 1);
 }
 
+/**
+ * Gets Date keys for read strategy needed by this file.
+ */
 function getDateKeysForReadStrategy({ now = new Date(), timezone, readStrategy, customWindowDays }) {
   const todayKey = getDateKeyInTimezone(now, timezone);
 
@@ -25,6 +42,9 @@ function getDateKeysForReadStrategy({ now = new Date(), timezone, readStrategy, 
   }
 }
 
+/**
+ * Lists Bootstrap episodic notes for the caller.
+ */
 async function listBootstrapEpisodicNotes({
   userId,
   timezone,
@@ -51,6 +71,9 @@ async function listBootstrapEpisodicNotes({
     }));
 }
 
+/**
+ * Formats Bootstrap episodic notes for display or logging.
+ */
 function formatBootstrapEpisodicNotes(notes) {
   if (!Array.isArray(notes) || notes.length === 0) {
     return '';

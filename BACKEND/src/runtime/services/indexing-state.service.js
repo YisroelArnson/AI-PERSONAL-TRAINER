@@ -1,5 +1,24 @@
+/**
+ * File overview:
+ * Implements runtime service logic for indexing state.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - getSessionIndexState: Gets Session index state needed by this file.
+ * - markSessionIndexProcessing: Marks Session index processing with the appropriate status.
+ * - markSessionIndexCompleted: Marks Session index completed with the appropriate status.
+ * - markSessionIndexFailed: Marks Session index failed with the appropriate status.
+ * - getMemoryDocRecord: Gets Memory doc record needed by this file.
+ * - markMemoryDocIndexProcessing: Marks Memory doc index processing with the appropriate status.
+ * - markMemoryDocIndexCompleted: Marks Memory doc index completed with the appropriate status.
+ * - markMemoryDocIndexFailed: Marks Memory doc index failed with the appropriate status.
+ */
+
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -10,6 +29,9 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Gets Session index state needed by this file.
+ */
 async function getSessionIndexState({ userId, sessionKey, sessionId }) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase
@@ -27,6 +49,9 @@ async function getSessionIndexState({ userId, sessionKey, sessionId }) {
   return data || null;
 }
 
+/**
+ * Marks Session index processing with the appropriate status.
+ */
 async function markSessionIndexProcessing({ userId, sessionKey, sessionId }) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase
@@ -47,6 +72,9 @@ async function markSessionIndexProcessing({ userId, sessionKey, sessionId }) {
   return data || null;
 }
 
+/**
+ * Marks Session index completed with the appropriate status.
+ */
 async function markSessionIndexCompleted({
   userId,
   sessionKey,
@@ -80,6 +108,9 @@ async function markSessionIndexCompleted({
   return data || null;
 }
 
+/**
+ * Marks Session index failed with the appropriate status.
+ */
 async function markSessionIndexFailed({ userId, sessionKey, sessionId, reason }) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase
@@ -102,6 +133,9 @@ async function markSessionIndexFailed({ userId, sessionKey, sessionId, reason })
   return data || null;
 }
 
+/**
+ * Gets Memory doc record needed by this file.
+ */
 async function getMemoryDocRecord({ userId, docId }) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase
@@ -118,6 +152,9 @@ async function getMemoryDocRecord({ userId, docId }) {
   return data || null;
 }
 
+/**
+ * Marks Memory doc index processing with the appropriate status.
+ */
 async function markMemoryDocIndexProcessing({ userId, docId }) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase
@@ -137,6 +174,9 @@ async function markMemoryDocIndexProcessing({ userId, docId }) {
   return data || null;
 }
 
+/**
+ * Marks Memory doc index completed with the appropriate status.
+ */
 async function markMemoryDocIndexCompleted({
   userId,
   docId,
@@ -166,6 +206,9 @@ async function markMemoryDocIndexCompleted({
   return data || null;
 }
 
+/**
+ * Marks Memory doc index failed with the appropriate status.
+ */
 async function markMemoryDocIndexFailed({ userId, docId, reason }) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase

@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Defines the settings HTTP route wiring for the gateway layer.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const express = require('express');
 
 const { authenticateUser } = require('../middleware/authenticate-user');

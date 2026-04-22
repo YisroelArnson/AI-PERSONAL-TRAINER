@@ -1,3 +1,10 @@
+-- File overview:
+-- Applies the indexing-and-retrieval-foundation database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.mark_session_index_dirty_from_event: Implements the public.mark_session_index_dirty_from_event database routine used by this migration.
+-- - public.retrieval_search_postgres_fallback: Implements the public.retrieval_search_postgres_fallback database routine used by this migration.
+
 CREATE TABLE IF NOT EXISTS public.session_index_state (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -94,6 +101,7 @@ BEFORE UPDATE ON public.session_index_state
 FOR EACH ROW
 EXECUTE FUNCTION public.set_updated_at();
 
+-- Implements the public.mark_session_index_dirty_from_event database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.mark_session_index_dirty_from_event()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -191,6 +199,7 @@ SET index_dirty = true,
     index_dirty_reason = COALESCE(index_dirty_reason, 'backfill')
 WHERE current_version > 0;
 
+-- Implements the public.retrieval_search_postgres_fallback database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.retrieval_search_postgres_fallback(
   p_user_id uuid,
   p_query_text text,

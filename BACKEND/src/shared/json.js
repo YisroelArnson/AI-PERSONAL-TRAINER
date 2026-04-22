@@ -1,3 +1,7 @@
+
+/**
+ * Handles Stable JSON stringify for json.js.
+ */
 function stableJsonStringify(value) {
   if (value === null || typeof value !== 'object') {
     return JSON.stringify(value);

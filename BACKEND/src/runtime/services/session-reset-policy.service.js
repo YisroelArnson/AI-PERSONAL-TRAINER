@@ -1,3 +1,28 @@
+/**
+ * File overview:
+ * Implements runtime service logic for session reset policy.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - buildCacheKey: Builds a Cache key used by this file.
+ * - isPlainObject: Handles Is plain object for session-reset-policy.service.js.
+ * - getNestedValue: Gets Nested value needed by this file.
+ * - firstDefinedValue: Handles First defined value for session-reset-policy.service.js.
+ * - normalizeTimezone: Normalizes Timezone into the format this file expects.
+ * - normalizeBoolean: Normalizes Boolean into the format this file expects.
+ * - normalizeNonNegativeInteger: Normalizes Non negative integer into the format this file expects.
+ * - normalizeReadStrategy: Normalizes Read strategy into the format this file expects.
+ * - buildEffectiveSessionContinuityPolicy: Builds an Effective session continuity policy used by this file.
+ * - buildEffectiveSessionResetPolicy: Builds an Effective session reset policy used by this file.
+ * - readInMemoryCache: Reads In memory cache from its source.
+ * - writeInMemoryCache: Writes In memory cache to its destination.
+ * - readCachedPolicy: Reads Cached policy from its source.
+ * - writeCachedPolicy: Writes Cached policy to its destination.
+ * - loadPolicyInputs: Loads Policy inputs for the surrounding workflow.
+ * - resolveSessionContinuityPolicy: Resolves Session continuity policy before the next step runs.
+ * - resolveSessionResetPolicy: Resolves Session reset policy before the next step runs.
+ */
+
 const { env } = require('../../config/env');
 const { getRedisConnection } = require('../../infra/redis/connection');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
@@ -21,6 +46,9 @@ const PLAN_SESSION_CONTINUITY_DEFAULTS = Object.freeze({
 
 const inMemoryPolicyCache = new Map();
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -31,14 +59,23 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Builds a Cache key used by this file.
+ */
 function buildCacheKey(userId) {
   return `session-reset-policy:user:${userId}`;
 }
 
+/**
+ * Handles Is plain object for session-reset-policy.service.js.
+ */
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Gets Nested value needed by this file.
+ */
 function getNestedValue(source, path) {
   let current = source;
 
@@ -53,6 +90,9 @@ function getNestedValue(source, path) {
   return current;
 }
 
+/**
+ * Handles First defined value for session-reset-policy.service.js.
+ */
 function firstDefinedValue(source, paths) {
   for (const path of paths) {
     const value = getNestedValue(source, path);
@@ -65,6 +105,9 @@ function firstDefinedValue(source, paths) {
   return undefined;
 }
 
+/**
+ * Normalizes Timezone into the format this file expects.
+ */
 function normalizeTimezone(rawTimezone) {
   if (!rawTimezone || !String(rawTimezone).trim()) {
     return GLOBAL_SESSION_CONTINUITY_DEFAULTS.timezone;
@@ -83,6 +126,9 @@ function normalizeTimezone(rawTimezone) {
   }
 }
 
+/**
+ * Normalizes Boolean into the format this file expects.
+ */
 function normalizeBoolean(rawValue, fallback) {
   if (typeof rawValue === 'boolean') {
     return rawValue;
@@ -103,6 +149,9 @@ function normalizeBoolean(rawValue, fallback) {
   return fallback;
 }
 
+/**
+ * Normalizes Non negative integer into the format this file expects.
+ */
 function normalizeNonNegativeInteger(rawValue, fallback) {
   if (rawValue === undefined || rawValue === null || rawValue === '') {
     return fallback;
@@ -116,6 +165,9 @@ function normalizeNonNegativeInteger(rawValue, fallback) {
   return Math.max(0, Math.floor(coerced));
 }
 
+/**
+ * Normalizes Read strategy into the format this file expects.
+ */
 function normalizeReadStrategy(rawValue, fallback) {
   if (typeof rawValue !== 'string') {
     return fallback;
@@ -134,6 +186,9 @@ function normalizeReadStrategy(rawValue, fallback) {
   return fallback;
 }
 
+/**
+ * Builds an Effective session continuity policy used by this file.
+ */
 function buildEffectiveSessionContinuityPolicy({ planTier, policyOverrides, timezone }) {
   const normalizedPlanTier = planTier || GLOBAL_SESSION_CONTINUITY_DEFAULTS.planTier;
   const planDefaults = PLAN_SESSION_CONTINUITY_DEFAULTS[normalizedPlanTier] || {};
@@ -211,6 +266,9 @@ function buildEffectiveSessionContinuityPolicy({ planTier, policyOverrides, time
   };
 }
 
+/**
+ * Builds an Effective session reset policy used by this file.
+ */
 function buildEffectiveSessionResetPolicy(inputs) {
   const continuityPolicy = buildEffectiveSessionContinuityPolicy(inputs);
 
@@ -222,6 +280,9 @@ function buildEffectiveSessionResetPolicy(inputs) {
   };
 }
 
+/**
+ * Reads In memory cache from its source.
+ */
 function readInMemoryCache(cacheKey) {
   const cached = inMemoryPolicyCache.get(cacheKey);
 
@@ -237,6 +298,9 @@ function readInMemoryCache(cacheKey) {
   return cached.value;
 }
 
+/**
+ * Writes In memory cache to its destination.
+ */
 function writeInMemoryCache(cacheKey, value, ttlSec) {
   if (ttlSec <= 0) {
     return;
@@ -248,6 +312,9 @@ function writeInMemoryCache(cacheKey, value, ttlSec) {
   });
 }
 
+/**
+ * Reads Cached policy from its source.
+ */
 async function readCachedPolicy(cacheKey) {
   const redis = getRedisConnection();
 
@@ -262,6 +329,9 @@ async function readCachedPolicy(cacheKey) {
   return readInMemoryCache(cacheKey);
 }
 
+/**
+ * Writes Cached policy to its destination.
+ */
 async function writeCachedPolicy(cacheKey, value, ttlSec) {
   const redis = getRedisConnection();
 
@@ -272,6 +342,9 @@ async function writeCachedPolicy(cacheKey, value, ttlSec) {
   writeInMemoryCache(cacheKey, value, ttlSec);
 }
 
+/**
+ * Loads Policy inputs for the surrounding workflow.
+ */
 async function loadPolicyInputs(userId) {
   const supabase = getAdminClientOrThrow();
   const [settingsResult, profileResult] = await Promise.all([
@@ -302,6 +375,9 @@ async function loadPolicyInputs(userId) {
   };
 }
 
+/**
+ * Resolves Session continuity policy before the next step runs.
+ */
 async function resolveSessionContinuityPolicy(userId, options = {}) {
   const cacheTtlSec = Math.max(0, env.sessionResetPolicyCacheTtlSec || 0);
   const cacheKey = buildCacheKey(userId);
@@ -339,6 +415,9 @@ async function resolveSessionContinuityPolicy(userId, options = {}) {
   };
 }
 
+/**
+ * Resolves Session reset policy before the next step runs.
+ */
 async function resolveSessionResetPolicy(userId, options = {}) {
   const policy = await resolveSessionContinuityPolicy(userId, options);
 

@@ -1,6 +1,17 @@
+/**
+ * File overview:
+ * Provides the server logic used by this part of the codebase.
+ *
+ * Main functions in this file:
+ * - startServer: Starts Server for this module.
+ */
+
 const { app } = require('./app');
 const { env } = require('./config/env');
 
+/**
+ * Starts Server for this module.
+ */
 function startServer() {
   return app.listen(env.port, '0.0.0.0', () => {
     console.log(`Server running on port ${env.port}`);

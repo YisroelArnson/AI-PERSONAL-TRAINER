@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the workout schema behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const { parseWorkoutSessionState } = require('../../src/runtime/schemas/workout.schema');
 
 describe('parseWorkoutSessionState', () => {

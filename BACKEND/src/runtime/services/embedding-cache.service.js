@@ -1,8 +1,29 @@
+/**
+ * File overview:
+ * Implements runtime service logic for embedding cache.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - getDefaultEmbeddingModelKey: Gets Default embedding model key needed by this file.
+ * - getDefaultEmbeddingDimensions: Gets Default embedding dimensions needed by this file.
+ * - isEmbeddingEnabled: Handles Is embedding enabled for embedding-cache.service.js.
+ * - formatVectorLiteral: Formats Vector literal for display or logging.
+ * - toVectorLiteral: Handles To vector literal for embedding-cache.service.js.
+ * - parseVector: Parses Vector into a validated shape.
+ * - toFloat32Buffer: Handles To float32 buffer for embedding-cache.service.js.
+ * - loadCachedEmbeddings: Loads Cached embeddings for the surrounding workflow.
+ * - storeEmbeddings: Handles Store embeddings for embedding-cache.service.js.
+ * - embedTexts: Handles Embed texts for embedding-cache.service.js.
+ */
+
 const { env } = require('../../config/env');
 const { getOpenAIClient } = require('../../infra/openai/client');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { sha256Hex } = require('../../shared/hash');
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -13,18 +34,30 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Gets Default embedding model key needed by this file.
+ */
 function getDefaultEmbeddingModelKey() {
   return env.defaultOpenAiEmbeddingModel;
 }
 
+/**
+ * Gets Default embedding dimensions needed by this file.
+ */
 function getDefaultEmbeddingDimensions() {
   return env.defaultEmbeddingDimensions;
 }
 
+/**
+ * Handles Is embedding enabled for embedding-cache.service.js.
+ */
 function isEmbeddingEnabled() {
   return Boolean(env.openaiApiKey && getDefaultEmbeddingModelKey());
 }
 
+/**
+ * Formats Vector literal for display or logging.
+ */
 function formatVectorLiteral(values) {
   if (!Array.isArray(values) || values.length === 0) {
     return null;
@@ -33,6 +66,9 @@ function formatVectorLiteral(values) {
   return `[${values.map(value => Number(value)).join(',')}]`;
 }
 
+/**
+ * Handles To vector literal for embedding-cache.service.js.
+ */
 function toVectorLiteral(value) {
   if (!value) {
     return null;
@@ -45,6 +81,9 @@ function toVectorLiteral(value) {
   return String(value);
 }
 
+/**
+ * Parses Vector into a validated shape.
+ */
 function parseVector(value) {
   if (!value) {
     return null;
@@ -94,6 +133,9 @@ function parseVector(value) {
   return null;
 }
 
+/**
+ * Handles To float32 buffer for embedding-cache.service.js.
+ */
 function toFloat32Buffer(value) {
   const vector = parseVector(value);
 
@@ -105,6 +147,9 @@ function toFloat32Buffer(value) {
   return Buffer.from(typedArray.buffer);
 }
 
+/**
+ * Loads Cached embeddings for the surrounding workflow.
+ */
 async function loadCachedEmbeddings(contentHashes, modelKey) {
   const uniqueHashes = [...new Set((contentHashes || []).filter(Boolean))];
 
@@ -126,6 +171,9 @@ async function loadCachedEmbeddings(contentHashes, modelKey) {
   return new Map((data || []).map(row => [row.content_hash, row]));
 }
 
+/**
+ * Handles Store embeddings for embedding-cache.service.js.
+ */
 async function storeEmbeddings(rows) {
   if (!rows || rows.length === 0) {
     return;
@@ -149,6 +197,9 @@ async function storeEmbeddings(rows) {
   }
 }
 
+/**
+ * Handles Embed texts for embedding-cache.service.js.
+ */
 async function embedTexts(texts, options = {}) {
   const items = (texts || []).map(text => String(text || ''));
   if (items.length === 0) {

@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the chunking and session indexing service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const {
   chunkMarkdownDeterministically,
   chunkSessionEntriesDeterministically

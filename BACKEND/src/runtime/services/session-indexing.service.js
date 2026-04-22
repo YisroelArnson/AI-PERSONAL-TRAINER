@@ -1,3 +1,14 @@
+/**
+ * File overview:
+ * Implements runtime service logic for session indexing.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - toIndexableSessionEntries: Handles To indexable session entries for session-indexing.service.js.
+ * - replaceSessionChunks: Replaces Session chunks with updated content.
+ * - syncSessionIndex: Handles Sync session index for session-indexing.service.js.
+ */
+
 const { sha256Hex } = require('../../shared/hash');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { chunkSessionEntriesDeterministically } = require('./chunking.service');
@@ -13,6 +24,9 @@ const { resolveRetrievalPolicy } = require('./retrieval-policy.service');
 const { shouldIncludeSessionMemoryEvent } = require('./session-memory-flush.service');
 const { listTranscriptEventsForSession } = require('./transcript-read.service');
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -23,17 +37,23 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Handles To indexable session entries for session-indexing.service.js.
+ */
 function toIndexableSessionEntries(events) {
   return (events || [])
-    .filter(shouldIncludeSessionMemoryEvent)
+    .filter(event => shouldIncludeSessionMemoryEvent(event) || event.event_type === 'compaction.summary')
     .map(event => ({
       seqNum: event.seq_num,
       actor: event.actor,
-      text: String(event.payload && (event.payload.text || event.payload.message) || '').trim()
+      text: String(event.payload && (event.payload.text || event.payload.message || event.payload.summary) || '').trim()
     }))
     .filter(entry => entry.text);
 }
 
+/**
+ * Replaces Session chunks with updated content.
+ */
 async function replaceSessionChunks({ userId, sessionKey, sessionId, chunks }) {
   const supabase = getAdminClientOrThrow();
   const { error: deleteError } = await supabase
@@ -65,6 +85,9 @@ async function replaceSessionChunks({ userId, sessionKey, sessionId, chunks }) {
   return data || [];
 }
 
+/**
+ * Handles Sync session index for session-indexing.service.js.
+ */
 async function syncSessionIndex({
   userId,
   sessionKey,

@@ -5,6 +5,10 @@
 //  Created by ISWA on 10/6/25.
 //
 
+// Provides app-wide extensions for color+extensions.
+//
+// This file is primarily composed of types, constants, or configuration rather than standalone functions.
+
 import SwiftUI
 
 // MARK: - Color Extension for Hex Support

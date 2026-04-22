@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Provides the jest config logic used by this part of the codebase.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/__tests__'],

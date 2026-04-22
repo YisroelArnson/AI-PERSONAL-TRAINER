@@ -1,3 +1,20 @@
+/**
+ * File overview:
+ * Implements the run stream service logic that powers gateway requests.
+ *
+ * Main functions in this file:
+ * - sleep: Handles Sleep for run-stream.service.js.
+ * - coerceCursor: Coerces Cursor into the expected type.
+ * - resolveCursor: Resolves Cursor before the next step runs.
+ * - normalizeStreamEvent: Normalizes Stream event into the format this file expects.
+ * - writeSseEvent: Writes SSE event to its destination.
+ * - writeHeartbeat: Writes Heartbeat to its destination.
+ * - buildTerminalEventFromRun: Builds a Terminal event from run used by this file.
+ * - emitRowsToSse: Handles Emit rows to SSE for run-stream.service.js.
+ * - loadOwnedRun: Loads Owned run for the surrounding workflow.
+ * - streamRunEvents: Streams Run events to the caller.
+ */
+
 const { badRequest, conflict, notFound } = require('../../shared/errors');
 const { getRunById } = require('../../runtime/services/run-state.service');
 const { getStreamEventBounds, listStreamEvents } = require('../../runtime/services/stream-events.service');
@@ -18,13 +35,28 @@ const POLL_INTERVAL_MS = 120;
 const HEARTBEAT_INTERVAL_MS = 15000;
 const MAX_BATCH_SIZE = 200;
 const TERMINAL_RUN_STATUSES = new Set(['succeeded', 'failed', 'canceled']);
+const STREAM_EVENT_FIELD_ALLOWLIST = {
+  'run.started': ['phase'],
+  'assistant.delta': ['iteration', 'toolName', 'toolUseId', 'text', 'delivery', 'terminal'],
+  'tool.call.requested': ['iteration', 'toolName', 'toolUseId', 'text', 'delivery', 'terminal'],
+  'tool.call.completed': ['iteration', 'toolName', 'toolUseId', 'resultStatus', 'text', 'delivery', 'terminal', 'skipped', 'skipReason'],
+  'workout.state.updated': ['iteration', 'toolName', 'appliedStateVersion', 'workout', 'command'],
+  'run.completed': ['phase', 'provider', 'model'],
+  'run.failed': ['errorCode', 'message']
+};
 
+/**
+ * Handles Sleep for run-stream.service.js.
+ */
 function sleep(ms) {
   return new Promise(resolve => {
     setTimeout(resolve, ms);
   });
 }
 
+/**
+ * Coerces Cursor into the expected type.
+ */
 function coerceCursor(rawValue) {
   if (rawValue === undefined || rawValue === null || rawValue === '') {
     return 0;
@@ -37,6 +69,9 @@ function coerceCursor(rawValue) {
   return Number(rawValue);
 }
 
+/**
+ * Resolves Cursor before the next step runs.
+ */
 function resolveCursor(req) {
   const queryCursor = req.query && typeof req.query.since === 'string'
     ? req.query.since
@@ -46,134 +81,53 @@ function resolveCursor(req) {
   return coerceCursor(queryCursor !== undefined ? queryCursor : headerCursor);
 }
 
+/**
+ * Normalizes Stream event into the format this file expects.
+ */
 function normalizeStreamEvent(row) {
+  const allowedFields = STREAM_EVENT_FIELD_ALLOWLIST[row.event_type];
+
+  if (!allowedFields) {
+    return null;
+  }
+
   const payload = row.payload || {};
-  const base = {
+  const data = {
     runId: row.run_id,
     eventId: row.seq_num,
     seqNum: row.seq_num,
-    createdAt: row.created_at
+    createdAt: row.created_at,
+    type: row.event_type
   };
 
-  if (row.event_type === 'run.started') {
-    return {
-      id: row.seq_num,
-      event: 'run.started',
-      data: {
-        ...base,
-        type: 'run.started',
-        phase: payload.phase || null
-      }
-    };
+  for (const field of allowedFields) {
+    if (field === 'terminal') {
+      data.terminal = payload.terminal === true;
+      continue;
+    }
+
+    data[field] = payload[field] ?? null;
   }
 
-  if (row.event_type === 'assistant.commentary.delta') {
-    return {
-      id: row.seq_num,
-      event: 'assistant.commentary.delta',
-      data: {
-        ...base,
-        type: 'assistant.commentary.delta',
-        iteration: payload.iteration || null,
-        phase: payload.phase || 'commentary',
-        text: payload.text || ''
-      }
-    };
-  }
-
-  if (row.event_type === 'assistant.commentary.completed') {
-    return {
-      id: row.seq_num,
-      event: 'assistant.commentary.completed',
-      data: {
-        ...base,
-        type: 'assistant.commentary.completed',
-        iteration: payload.iteration || null,
-        phase: payload.phase || 'commentary',
-        text: payload.text || ''
-      }
-    };
-  }
-
-  if (row.event_type === 'assistant.final.delta') {
-    return {
-      id: row.seq_num,
-      event: 'assistant.final.delta',
-      data: {
-        ...base,
-        type: 'assistant.final.delta',
-        iteration: payload.iteration || null,
-        phase: payload.phase || 'final',
-        text: payload.text || ''
-      }
-    };
-  }
-
-  if (row.event_type === 'assistant.final.completed') {
-    return {
-      id: row.seq_num,
-      event: 'assistant.final.completed',
-      data: {
-        ...base,
-        type: 'assistant.final.completed',
-        iteration: payload.iteration || null,
-        phase: payload.phase || 'final',
-        text: payload.text || ''
-      }
-    };
-  }
-
-  if (row.event_type === 'workout.state.updated') {
-    return {
-      id: row.seq_num,
-      event: 'workout.state.updated',
-      data: {
-        ...base,
-        type: 'workout.state.updated',
-        iteration: payload.iteration || null,
-        toolName: payload.toolName || null,
-        appliedStateVersion: payload.appliedStateVersion || null,
-        workout: payload.workout || null
-      }
-    };
-  }
-
-  if (row.event_type === 'run.completed') {
-    return {
-      id: row.seq_num,
-      event: 'run.completed',
-      data: {
-        ...base,
-        type: 'run.completed',
-        phase: payload.phase || null,
-        provider: payload.provider || null,
-        model: payload.model || null
-      }
-    };
-  }
-
-  if (row.event_type === 'run.failed') {
-    return {
-      id: row.seq_num,
-      event: 'run.failed',
-      data: {
-        ...base,
-        type: 'run.failed',
-        errorCode: payload.errorCode || null,
-        message: payload.message || null
-      }
-    };
-  }
-
-  return null;
+  return {
+    id: row.seq_num,
+    event: row.event_type,
+    data
+  };
 }
 
+/**
+ * Writes SSE event to its destination.
+ */
 function writeSseEvent(res, event) {
   res.write(`id: ${event.id}\n`);
   res.write(`event: ${event.event}\n`);
   res.write(`data: ${JSON.stringify(event.data)}\n\n`);
 }
 
+/**
+ * Writes Heartbeat to its destination.
+ */
 function writeHeartbeat(res, runId) {
   const payload = {
     runId,
@@ -185,6 +139,9 @@ function writeHeartbeat(res, runId) {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
+/**
+ * Builds a Terminal event from run used by this file.
+ */
 function buildTerminalEventFromRun({ runId, lastSeenSeqNum, run }) {
   const seqNum = lastSeenSeqNum || 0;
   const createdAt = new Date().toISOString();
@@ -225,6 +182,9 @@ function buildTerminalEventFromRun({ runId, lastSeenSeqNum, run }) {
   return null;
 }
 
+/**
+ * Handles Emit rows to SSE for run-stream.service.js.
+ */
 function emitRowsToSse({ res, rows, lastSeenSeqNum, terminalEventSent }) {
   let nextLastSeenSeqNum = lastSeenSeqNum;
   let nextTerminalEventSent = terminalEventSent;
@@ -253,6 +213,9 @@ function emitRowsToSse({ res, rows, lastSeenSeqNum, terminalEventSent }) {
   };
 }
 
+/**
+ * Loads Owned run for the surrounding workflow.
+ */
 async function loadOwnedRun(runId, userId) {
   const run = await getRunById(runId).catch(error => {
     if (error && error.code === 'PGRST116') {
@@ -269,6 +232,9 @@ async function loadOwnedRun(runId, userId) {
   return run;
 }
 
+/**
+ * Streams Run events to the caller.
+ */
 async function streamRunEvents({ auth, req, res, params }) {
   const runId = params.runId;
   const cursor = resolveCursor(req);
@@ -529,5 +495,6 @@ async function streamRunEvents({ auth, req, res, params }) {
 }
 
 module.exports = {
+  normalizeStreamEvent,
   streamRunEvents
 };

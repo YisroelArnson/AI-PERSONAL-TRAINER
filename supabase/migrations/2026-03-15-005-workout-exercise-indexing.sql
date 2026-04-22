@@ -1,3 +1,8 @@
+-- File overview:
+-- Applies the workout-exercise-indexing database changes for the Supabase schema.
+--
+-- This file is primarily composed of schema changes, data movement, or raw SQL statements rather than database routines.
+
 ALTER TABLE public.workout_exercises
   ADD COLUMN IF NOT EXISTS exercise_key text,
   ADD COLUMN IF NOT EXISTS exercise_name_raw text,

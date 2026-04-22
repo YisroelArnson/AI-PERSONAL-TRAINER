@@ -1,3 +1,10 @@
+-- File overview:
+-- Applies the session-rotation-policy database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.gateway_ingest_message: Implements the public.gateway_ingest_message database routine used by this migration.
+-- - public.append_session_event: Implements the public.append_session_event database routine used by this migration.
+
 ALTER TABLE public.session_state
   ADD COLUMN IF NOT EXISTS current_session_started_at timestamptz;
 
@@ -14,6 +21,7 @@ ALTER TABLE public.session_state
 DROP FUNCTION IF EXISTS public.gateway_ingest_message(uuid, text, text, text, text, text, text, jsonb);
 DROP FUNCTION IF EXISTS public.gateway_ingest_message(uuid, text, text, text, text, text, text, jsonb, text, boolean, integer);
 
+-- Implements the public.gateway_ingest_message database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.gateway_ingest_message(
   p_user_id uuid,
   p_route text,
@@ -237,6 +245,7 @@ REVOKE EXECUTE ON FUNCTION public.gateway_ingest_message(uuid, text, text, text,
 REVOKE EXECUTE ON FUNCTION public.gateway_ingest_message(uuid, text, text, text, text, text, text, jsonb, text, boolean, integer) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.gateway_ingest_message(uuid, text, text, text, text, text, text, jsonb, text, boolean, integer) TO service_role;
 
+-- Implements the public.append_session_event database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.append_session_event(
   p_user_id uuid,
   p_session_key text,

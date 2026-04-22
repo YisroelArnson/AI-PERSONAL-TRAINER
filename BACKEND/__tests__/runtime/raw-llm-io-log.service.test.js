@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the raw llm io log service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');

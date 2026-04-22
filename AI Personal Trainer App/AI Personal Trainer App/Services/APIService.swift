@@ -1,3 +1,26 @@
+// Provides app-side service logic for api service.
+//
+// Main functions in this file:
+// - setBaseURL: Sets Base URL for later use.
+// - resetBaseURL: Resets Base URL back to its baseline state.
+// - healthCheck: Handles Health check for APIService.swift.
+// - fetchCoachSurface: Fetches Coach surface from the backing service.
+// - fetchLLMSettings: Fetches LLM settings from the backing service.
+// - updateLLMSettings: Updates LLM settings with the latest state.
+// - sendMessage: Sends Message to the backend or user.
+// - resetSession: Resets Session back to its baseline state.
+// - sendWorkoutCommand: Sends Workout command to the backend or user.
+// - streamRun: Streams Run to the caller.
+// - execute: Executes the main action flow.
+// - makeRequest: Builds a Request for this workflow.
+// - mapHTTPError: Maps HTTP error into the structure expected downstream.
+// - loadBaseURL: Loads Base URL for the surrounding workflow.
+// - normalizedBaseURL: Handles Normalized base URL for APIService.swift.
+// - consume: Consumes the relevant value as new input arrives.
+// - flushAtEOF: Flushes At EOF when buffered work needs to be emitted.
+// - flush: Flushes the relevant value when buffered work needs to be emitted.
+// - value: Returns the parsed value for this helper.
+
 import Foundation
 
 final class APIService: ObservableObject {
@@ -20,17 +43,20 @@ final class APIService: ObservableObject {
         baseURL = Self.loadBaseURL()
     }
 
+    /// Sets Base URL for later use.
     func setBaseURL(_ url: String) {
         guard let normalizedURL = Self.normalizedBaseURL(url) else { return }
         baseURL = normalizedURL
         UserDefaults.standard.set(normalizedURL, forKey: Self.baseURLDefaultsKey)
     }
 
+    /// Resets Base URL back to its baseline state.
     func resetBaseURL() {
         UserDefaults.standard.removeObject(forKey: Self.baseURLDefaultsKey)
         baseURL = Self.loadBaseURL()
     }
 
+    /// Handles Health check for APIService.swift.
     func healthCheck() async throws -> Bool {
         let request = try makeRequest(path: "/health")
         let (_, response) = try await session.data(for: request)
@@ -40,6 +66,7 @@ final class APIService: ObservableObject {
         return httpResponse.statusCode == 200
     }
 
+    /// Fetches Coach surface from the backing service.
     func fetchCoachSurface(accessToken: String, sessionKey: String?) async throws -> CoachSurfaceResponse {
         let request = try makeRequest(
             path: "/v1/coach-surface",
@@ -52,6 +79,7 @@ final class APIService: ObservableObject {
         return try decode(CoachSurfaceResponse.self, from: data, response: response)
     }
 
+    /// Fetches LLM settings from the backing service.
     func fetchLLMSettings(accessToken: String) async throws -> LLMSettingsResponse {
         let request = try makeRequest(
             path: "/v1/settings/llm",
@@ -63,6 +91,7 @@ final class APIService: ObservableObject {
         return try decode(LLMSettingsResponse.self, from: data, response: response)
     }
 
+    /// Updates LLM settings with the latest state.
     func updateLLMSettings(
         accessToken: String,
         requestBody: UpdateLLMSettingsRequest
@@ -78,6 +107,7 @@ final class APIService: ObservableObject {
         return try decode(LLMSettingsResponse.self, from: data, response: response)
     }
 
+    /// Sends Message to the backend or user.
     func sendMessage(
         accessToken: String,
         requestBody: MessageIngressRequest,
@@ -97,6 +127,7 @@ final class APIService: ObservableObject {
         return try decode(MessageAcceptedResponse.self, from: data, response: response)
     }
 
+    /// Resets Session back to its baseline state.
     func resetSession(
         accessToken: String,
         requestBody: SessionResetRequest,
@@ -116,13 +147,14 @@ final class APIService: ObservableObject {
         return try decode(SessionResetResponse.self, from: data, response: response)
     }
 
-    func completeCurrentSet(
+    /// Sends Workout command to the backend or user.
+    func sendWorkoutCommand(
         accessToken: String,
-        requestBody: CompleteCurrentSetRequest,
+        requestBody: WorkoutCommandRequest,
         idempotencyKey: String
-    ) async throws -> WorkoutExecutionActionResponse {
+    ) async throws -> WorkoutCommandResponse {
         let request = try makeRequest(
-            path: "/v1/workout-actions/complete-current-set",
+            path: "/v1/workout-commands",
             method: "POST",
             accessToken: accessToken,
             body: requestBody,
@@ -132,104 +164,10 @@ final class APIService: ObservableObject {
         )
 
         let (data, response) = try await execute(request)
-        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
+        return try decode(WorkoutCommandResponse.self, from: data, response: response)
     }
 
-    func startWorkout(
-        accessToken: String,
-        requestBody: WorkoutSessionControlRequest,
-        idempotencyKey: String
-    ) async throws -> WorkoutExecutionActionResponse {
-        let request = try makeRequest(
-            path: "/v1/workout-actions/start-workout",
-            method: "POST",
-            accessToken: accessToken,
-            body: requestBody,
-            additionalHeaders: [
-                "Idempotency-Key": idempotencyKey
-            ]
-        )
-
-        let (data, response) = try await execute(request)
-        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
-    }
-
-    func skipCurrentExercise(
-        accessToken: String,
-        requestBody: SkipCurrentExerciseRequest,
-        idempotencyKey: String
-    ) async throws -> WorkoutExecutionActionResponse {
-        let request = try makeRequest(
-            path: "/v1/workout-actions/skip-current-exercise",
-            method: "POST",
-            accessToken: accessToken,
-            body: requestBody,
-            additionalHeaders: [
-                "Idempotency-Key": idempotencyKey
-            ]
-        )
-
-        let (data, response) = try await execute(request)
-        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
-    }
-
-    func pauseWorkout(
-        accessToken: String,
-        requestBody: WorkoutSessionControlRequest,
-        idempotencyKey: String
-    ) async throws -> WorkoutExecutionActionResponse {
-        let request = try makeRequest(
-            path: "/v1/workout-actions/pause-workout",
-            method: "POST",
-            accessToken: accessToken,
-            body: requestBody,
-            additionalHeaders: [
-                "Idempotency-Key": idempotencyKey
-            ]
-        )
-
-        let (data, response) = try await execute(request)
-        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
-    }
-
-    func resumeWorkout(
-        accessToken: String,
-        requestBody: WorkoutSessionControlRequest,
-        idempotencyKey: String
-    ) async throws -> WorkoutExecutionActionResponse {
-        let request = try makeRequest(
-            path: "/v1/workout-actions/resume-workout",
-            method: "POST",
-            accessToken: accessToken,
-            body: requestBody,
-            additionalHeaders: [
-                "Idempotency-Key": idempotencyKey
-            ]
-        )
-
-        let (data, response) = try await execute(request)
-        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
-    }
-
-    func finishWorkout(
-        accessToken: String,
-        requestBody: WorkoutSessionControlRequest,
-        idempotencyKey: String
-    ) async throws -> WorkoutExecutionActionResponse {
-        let request = try makeRequest(
-            path: "/v1/workout-actions/finish-workout",
-            method: "POST",
-            accessToken: accessToken,
-            body: requestBody,
-            additionalHeaders: [
-                "Idempotency-Key": idempotencyKey
-            ]
-        )
-
-        let (data, response) = try await execute(request)
-        return try decode(WorkoutExecutionActionResponse.self, from: data, response: response)
-    }
-
+    /// Streams Run to the caller.
     func streamRun(
         accessToken: String,
         streamPath: String,
@@ -295,6 +233,7 @@ final class APIService: ObservableObject {
         }
     }
 
+    /// Executes the main action flow.
     private func execute(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         do {
             let (data, response) = try await session.data(for: request)
@@ -322,6 +261,7 @@ final class APIService: ObservableObject {
         }
     }
 
+    /// Builds a Request for this workflow.
     private func makeRequest(
         path: String,
         method: String = "GET",
@@ -377,6 +317,7 @@ final class APIService: ObservableObject {
         return request
     }
 
+    /// Maps HTTP error into the structure expected downstream.
     private func mapHTTPError(statusCode: Int, data: Data) -> APIError {
         let message = String(data: data, encoding: .utf8) ?? "Server error"
 
@@ -390,6 +331,7 @@ final class APIService: ObservableObject {
         }
     }
 
+    /// Loads Base URL for the surrounding workflow.
     private static func loadBaseURL() -> String {
         if let overrideURL = normalizedBaseURL(UserDefaults.standard.string(forKey: baseURLDefaultsKey)) {
             return overrideURL
@@ -408,6 +350,7 @@ final class APIService: ObservableObject {
         #endif
     }
 
+    /// Handles Normalized base URL for APIService.swift.
     private static func normalizedBaseURL(_ value: String?) -> String? {
         guard var candidate = value?.trimmingCharacters(in: .whitespacesAndNewlines), !candidate.isEmpty else {
             return nil
@@ -444,6 +387,7 @@ private struct ServerSentEventParser {
     private var currentEventID: String?
     private var currentDataLines: [String] = []
 
+    /// Consumes the relevant value as new input arrives.
     mutating func consume(_ line: String) throws -> CoachRunStreamEvent? {
         if line.isEmpty {
             return try flush()
@@ -479,10 +423,12 @@ private struct ServerSentEventParser {
         return nil
     }
 
+    /// Flushes At EOF when buffered work needs to be emitted.
     mutating func flushAtEOF() throws -> CoachRunStreamEvent? {
         try flush()
     }
 
+    /// Flushes the relevant value when buffered work needs to be emitted.
     private mutating func flush() throws -> CoachRunStreamEvent? {
         defer {
             currentEventID = nil
@@ -503,6 +449,7 @@ private struct ServerSentEventParser {
         return event
     }
 
+    /// Returns the parsed value for this helper.
     private func value(after prefix: String, in line: String) -> String {
         var value = String(line.dropFirst(prefix.count))
         if value.first == " " {

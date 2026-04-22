@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the settings schema behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const { parseUpdateLlmSettingsRequest } = require('../../src/gateway/schemas/settings.schema');
 
 describe('parseUpdateLlmSettingsRequest', () => {

@@ -1,3 +1,8 @@
+// Provides shared helpers for expanding fab menu.
+//
+// Main functions in this file:
+// - toggle: Handles Toggle for ExpandingFabMenu.swift.
+
 import SwiftUI
 
 struct FabMenuItem: Identifiable {
@@ -54,6 +59,7 @@ struct ExpandingFabMenu: View {
         .padding(.top, AppTheme.Spacing.xl)
     }
 
+    /// Handles Toggle for ExpandingFabMenu.swift.
     private func toggle() {
         withAnimation(AppTheme.Animation.gentle) {
             isExpanded.toggle()

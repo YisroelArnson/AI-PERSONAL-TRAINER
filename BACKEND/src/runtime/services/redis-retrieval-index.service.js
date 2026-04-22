@@ -1,3 +1,44 @@
+/**
+ * File overview:
+ * Implements runtime service logic for redis retrieval index.
+ *
+ * Main functions in this file:
+ * - isRedisMissingIndexError: Handles Is Redis missing index error for redis-retrieval-index.service.js.
+ * - sanitizeRedisSegment: Handles Sanitize Redis segment for redis-retrieval-index.service.js.
+ * - escapeRedisTagValue: Handles Escape Redis tag value for redis-retrieval-index.service.js.
+ * - tokenizeRedisSearchText: Handles Tokenize Redis search text for redis-retrieval-index.service.js.
+ * - getRedisRetrievalModelKey: Gets Redis retrieval model key needed by this file.
+ * - getRedisRetrievalIndexName: Gets Redis retrieval index name needed by this file.
+ * - getRedisChunkKeyPrefix: Gets Redis chunk key prefix needed by this file.
+ * - getRedisChunkKey: Gets Redis chunk key needed by this file.
+ * - getRedisSourceSetKey: Gets Redis source set key needed by this file.
+ * - buildRedisSearchFilter: Builds a Redis search filter used by this file.
+ * - buildRedisTextQuery: Builds a Redis text query used by this file.
+ * - arrayPairsToObject: Handles Array pairs to object for redis-retrieval-index.service.js.
+ * - parseRedisHybridSearchResponse: Parses Redis hybrid search response into a validated shape.
+ * - parseRedisTextSearchResponse: Parses Redis text search response into a validated shape.
+ * - mapMemoryDocTypeToSourceType: Maps Memory doc type to source type into the structure expected downstream.
+ * - getVectorDimensions: Gets Vector dimensions needed by this file.
+ * - getRedisIndexDimensions: Gets Redis index dimensions needed by this file.
+ * - normalizeWeightPair: Normalizes Weight pair into the format this file expects.
+ * - ensureRedisRetrievalIndex: Ensures Redis retrieval index is ready before work continues.
+ * - buildSessionSourceRef: Builds a Session source ref used by this file.
+ * - buildMemorySourceRef: Builds a Memory source ref used by this file.
+ * - toRedisHashFields: Handles To Redis hash fields for redis-retrieval-index.service.js.
+ * - buildRedisSessionDocuments: Builds a Redis session documents used by this file.
+ * - buildRedisMemoryDocuments: Builds a Redis memory documents used by this file.
+ * - assertRedisMultiSucceeded: Handles Assert Redis multi succeeded for redis-retrieval-index.service.js.
+ * - replaceRedisSourceDocuments: Replaces Redis source documents with updated content.
+ * - importRedisDocuments: Handles Import Redis documents for redis-retrieval-index.service.js.
+ * - replaceSessionChunksInRedis: Replaces Session chunks in Redis with updated content.
+ * - replaceMemoryChunksInRedis: Replaces Memory chunks in Redis with updated content.
+ * - searchRedisRetrievalIndex: Handles Search Redis retrieval index for redis-retrieval-index.service.js.
+ * - scanAndDeleteKeys: Handles Scan and delete keys for redis-retrieval-index.service.js.
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - fetchChunkPage: Fetches Chunk page from the backing service.
+ * - rebuildRedisRetrievalIndex: Handles Rebuild Redis retrieval index for redis-retrieval-index.service.js.
+ */
+
 const { env } = require('../../config/env');
 const { getRedisConnection } = require('../../infra/redis/connection');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
@@ -12,10 +53,16 @@ const INDEX_READY_CACHE_TTL_MS = 60 * 1000;
 const SEARCHABLE_SOURCE_TYPES = new Set(['sessions', 'memory', 'program', 'episodic_date']);
 const ensuredIndexCache = new Map();
 
+/**
+ * Handles Is Redis missing index error for redis-retrieval-index.service.js.
+ */
 function isRedisMissingIndexError(error) {
   return /Unknown Index name|no such index/i.test(error && error.message || '');
 }
 
+/**
+ * Handles Sanitize Redis segment for redis-retrieval-index.service.js.
+ */
 function sanitizeRedisSegment(value) {
   const normalized = String(value || 'default')
     .trim()
@@ -26,35 +73,59 @@ function sanitizeRedisSegment(value) {
   return normalized || 'default';
 }
 
+/**
+ * Handles Escape Redis tag value for redis-retrieval-index.service.js.
+ */
 function escapeRedisTagValue(value) {
   return String(value || '').replace(/([^A-Za-z0-9_])/g, '\\$1');
 }
 
+/**
+ * Handles Tokenize Redis search text for redis-retrieval-index.service.js.
+ */
 function tokenizeRedisSearchText(queryText) {
   const tokens = String(queryText || '').match(/[A-Za-z0-9_]+/g) || [];
   return tokens.map(token => token.trim()).filter(Boolean);
 }
 
+/**
+ * Gets Redis retrieval model key needed by this file.
+ */
 function getRedisRetrievalModelKey(modelKey) {
   return modelKey || getDefaultEmbeddingModelKey();
 }
 
+/**
+ * Gets Redis retrieval index name needed by this file.
+ */
 function getRedisRetrievalIndexName(modelKey = getRedisRetrievalModelKey()) {
   return `idx:trainer_chunks:${sanitizeRedisSegment(modelKey)}`;
 }
 
+/**
+ * Gets Redis chunk key prefix needed by this file.
+ */
 function getRedisChunkKeyPrefix(modelKey = getRedisRetrievalModelKey()) {
   return `rchunk:${sanitizeRedisSegment(modelKey)}:`;
 }
 
+/**
+ * Gets Redis chunk key needed by this file.
+ */
 function getRedisChunkKey({ modelKey, chunkId }) {
   return `${getRedisChunkKeyPrefix(modelKey)}${chunkId}`;
 }
 
+/**
+ * Gets Redis source set key needed by this file.
+ */
 function getRedisSourceSetKey({ modelKey, sourceRef }) {
   return `rchunksrc:${sanitizeRedisSegment(modelKey)}:${sourceRef}`;
 }
 
+/**
+ * Builds a Redis search filter used by this file.
+ */
 function buildRedisSearchFilter({ userId, sourceTypes }) {
   const normalizedSources = (sourceTypes || [])
     .map(sourceType => String(sourceType || '').trim().toLowerCase())
@@ -70,6 +141,9 @@ function buildRedisSearchFilter({ userId, sourceTypes }) {
   ].join(' ');
 }
 
+/**
+ * Builds a Redis text query used by this file.
+ */
 function buildRedisTextQuery({ queryText, userId, sourceTypes }) {
   const tokens = tokenizeRedisSearchText(queryText);
   const textClause = tokens.length > 0 ? tokens.join(' ') : '*';
@@ -78,6 +152,9 @@ function buildRedisTextQuery({ queryText, userId, sourceTypes }) {
   return `${textClause} ${filterExpression}`.trim();
 }
 
+/**
+ * Handles Array pairs to object for redis-retrieval-index.service.js.
+ */
 function arrayPairsToObject(entries) {
   const output = {};
 
@@ -89,6 +166,9 @@ function arrayPairsToObject(entries) {
   return output;
 }
 
+/**
+ * Parses Redis hybrid search response into a validated shape.
+ */
 function parseRedisHybridSearchResponse(response) {
   const payload = arrayPairsToObject(response);
   const results = Array.isArray(payload.results)
@@ -112,6 +192,9 @@ function parseRedisHybridSearchResponse(response) {
   };
 }
 
+/**
+ * Parses Redis text search response into a validated shape.
+ */
 function parseRedisTextSearchResponse(response) {
   const totalResults = Number(response && response[0] || 0);
   const results = [];
@@ -141,6 +224,9 @@ function parseRedisTextSearchResponse(response) {
   };
 }
 
+/**
+ * Maps Memory doc type to source type into the structure expected downstream.
+ */
 function mapMemoryDocTypeToSourceType(docType) {
   if (docType === 'MEMORY') {
     return 'memory';
@@ -157,15 +243,24 @@ function mapMemoryDocTypeToSourceType(docType) {
   return String(docType || '').trim().toLowerCase();
 }
 
+/**
+ * Gets Vector dimensions needed by this file.
+ */
 function getVectorDimensions(value) {
   const vector = parseVector(value);
   return Array.isArray(vector) && vector.length > 0 ? vector.length : null;
 }
 
+/**
+ * Gets Redis index dimensions needed by this file.
+ */
 function getRedisIndexDimensions(vectorValue) {
   return getVectorDimensions(vectorValue) || getDefaultEmbeddingDimensions();
 }
 
+/**
+ * Normalizes Weight pair into the format this file expects.
+ */
 function normalizeWeightPair() {
   const rawAlpha = Number.isFinite(env.redisRetrievalVectorAlpha)
     ? Math.max(0, env.redisRetrievalVectorAlpha)
@@ -188,6 +283,9 @@ function normalizeWeightPair() {
   };
 }
 
+/**
+ * Ensures Redis retrieval index is ready before work continues.
+ */
 async function ensureRedisRetrievalIndex({
   modelKey = getRedisRetrievalModelKey(),
   dimension = getDefaultEmbeddingDimensions()
@@ -279,18 +377,30 @@ async function ensureRedisRetrievalIndex({
   return indexName;
 }
 
+/**
+ * Builds a Session source ref used by this file.
+ */
 function buildSessionSourceRef({ userId, sessionKey, sessionId }) {
   return `session:${userId}:${sessionKey}:${sessionId}`;
 }
 
+/**
+ * Builds a Memory source ref used by this file.
+ */
 function buildMemorySourceRef({ userId, docId }) {
   return `memory:${userId}:${docId}`;
 }
 
+/**
+ * Handles To Redis hash fields for redis-retrieval-index.service.js.
+ */
 function toRedisHashFields(fields) {
   return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== null && value !== undefined && value !== ''));
 }
 
+/**
+ * Builds a Redis session documents used by this file.
+ */
 function buildRedisSessionDocuments({
   userId,
   sessionKey,
@@ -328,6 +438,9 @@ function buildRedisSessionDocuments({
   }));
 }
 
+/**
+ * Builds a Redis memory documents used by this file.
+ */
 function buildRedisMemoryDocuments({
   userId,
   docId,
@@ -363,6 +476,9 @@ function buildRedisMemoryDocuments({
   }));
 }
 
+/**
+ * Handles Assert Redis multi succeeded for redis-retrieval-index.service.js.
+ */
 async function assertRedisMultiSucceeded(results) {
   for (const result of results || []) {
     if (result && result[0]) {
@@ -371,6 +487,9 @@ async function assertRedisMultiSucceeded(results) {
   }
 }
 
+/**
+ * Replaces Redis source documents with updated content.
+ */
 async function replaceRedisSourceDocuments({
   modelKey = getRedisRetrievalModelKey(),
   sourceRef,
@@ -418,6 +537,9 @@ async function replaceRedisSourceDocuments({
   };
 }
 
+/**
+ * Handles Import Redis documents for redis-retrieval-index.service.js.
+ */
 async function importRedisDocuments({
   modelKey = getRedisRetrievalModelKey(),
   documents
@@ -457,6 +579,9 @@ async function importRedisDocuments({
   };
 }
 
+/**
+ * Replaces Session chunks in Redis with updated content.
+ */
 async function replaceSessionChunksInRedis({
   userId,
   sessionKey,
@@ -481,6 +606,9 @@ async function replaceSessionChunksInRedis({
   });
 }
 
+/**
+ * Replaces Memory chunks in Redis with updated content.
+ */
 async function replaceMemoryChunksInRedis({
   userId,
   docId,
@@ -502,6 +630,9 @@ async function replaceMemoryChunksInRedis({
   });
 }
 
+/**
+ * Handles Search Redis retrieval index for redis-retrieval-index.service.js.
+ */
 async function searchRedisRetrievalIndex({
   userId,
   queryText,
@@ -610,6 +741,9 @@ async function searchRedisRetrievalIndex({
   };
 }
 
+/**
+ * Handles Scan and delete keys for redis-retrieval-index.service.js.
+ */
 async function scanAndDeleteKeys(redis, pattern) {
   let cursor = '0';
 
@@ -623,6 +757,9 @@ async function scanAndDeleteKeys(redis, pattern) {
   } while (cursor !== '0');
 }
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -633,6 +770,9 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Fetches Chunk page from the backing service.
+ */
 async function fetchChunkPage({
   table,
   columns,
@@ -660,6 +800,9 @@ async function fetchChunkPage({
   return data || [];
 }
 
+/**
+ * Handles Rebuild Redis retrieval index for redis-retrieval-index.service.js.
+ */
 async function rebuildRedisRetrievalIndex({
   userId = null,
   batchSize = 500,

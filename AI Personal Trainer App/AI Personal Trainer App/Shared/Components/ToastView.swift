@@ -5,6 +5,14 @@
 //  Created by ISWA on 11/2/25.
 //
 
+// Provides shared helpers for toast view.
+//
+// Main functions in this file:
+// - body: Builds and returns the SwiftUI view hierarchy for this type.
+// - scheduleAutoDismiss: Schedules Auto dismiss for later execution.
+// - dismissToast: Dismisses Toast from the current UI state.
+// - toast: Handles Toast for ToastView.swift.
+
 import SwiftUI
 
 // MARK: - Toast Data Model
@@ -59,6 +67,7 @@ struct ToastModifier: ViewModifier {
     @Binding var toast: ToastData?
     @State private var workItem: DispatchWorkItem?
     
+    /// Builds and returns the SwiftUI view hierarchy for this type.
     func body(content: Content) -> some View {
         ZStack {
             content
@@ -81,6 +90,7 @@ struct ToastModifier: ViewModifier {
         }
     }
     
+    /// Schedules Auto dismiss for later execution.
     private func scheduleAutoDismiss() {
         guard let toast = toast else { return }
         
@@ -96,6 +106,7 @@ struct ToastModifier: ViewModifier {
         DispatchQueue.main.asyncAfter(deadline: .now() + toast.duration, execute: task)
     }
     
+    /// Dismisses Toast from the current UI state.
     private func dismissToast() {
         withAnimation {
             toast = nil
@@ -108,6 +119,7 @@ struct ToastModifier: ViewModifier {
 // MARK: - View Extension
 
 extension View {
+    /// Handles Toast for ToastView.swift.
     func toast(_ toast: Binding<ToastData?>) -> some View {
         modifier(ToastModifier(toast: toast))
     }

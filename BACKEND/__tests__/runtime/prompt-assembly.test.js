@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the prompt assembly behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const mockGetLatestDocVersionByDocKey = jest.fn();
 const mockGetLatestDocVersionByDocType = jest.fn();
 const mockGetPromptContextForRun = jest.fn();
@@ -131,6 +138,20 @@ describe('prompt-assembly bootstrap behavior', () => {
     })).toBe('Current Version: 1\n_not available yet_');
   });
 
+  it('includes the runtime operating loop and context hierarchy in the fallback system prompt', async () => {
+    mockGetCurrentWorkoutState.mockResolvedValue(null);
+
+    const result = await assemblePrompt({
+      user_id: 'user-123',
+      session_key: 'user:123:main',
+      trigger_type: 'user.message'
+    });
+
+    expect(result.systemPrompt).toContain('### Operating Loop');
+    expect(result.systemPrompt).toContain('### Context Hierarchy');
+    expect(result.systemPrompt).toContain('### Workout Decision Policy');
+  });
+
   it('keeps live workout context and current time in the current user turn instead of the system prompt', async () => {
     mockGetCurrentWorkoutState.mockResolvedValue({
       workoutSessionId: 'workout-1',
@@ -238,7 +259,34 @@ describe('prompt-assembly bootstrap behavior', () => {
 
     expect(result.systemPrompt).not.toContain('Workout UI Action Context');
     expect(result.messages[0].content[0].text).toContain('## Workout UI Action Context');
-    expect(result.messages[0].content[0].text).toContain('reply exactly: no_reply');
+    expect(result.messages[0].content[0].text).toContain('send it with message_notify_user');
+    expect(result.messages[0].content[0].text).toContain('end the run with idle');
+  });
+
+  it('adds start-workout guardrails to the current user turn', async () => {
+    const result = await assemblePrompt({
+      user_id: 'user-123',
+      session_key: 'user:123:main',
+      trigger_type: 'ui.action.start_workout'
+    });
+
+    expect(result.messages[0].content[0].text).toContain('## Workout Start UI Action Context');
+    expect(result.messages[0].content[0].text).toContain('already started the workout in the backend');
+    expect(result.messages[0].content[0].text).toContain('Do not call workout_session_control with action="start"');
+    expect(result.messages[0].content[0].text).toContain('end the run with idle');
+  });
+
+  it('adds finish-workout guardrails to the current user turn', async () => {
+    const result = await assemblePrompt({
+      user_id: 'user-123',
+      session_key: 'user:123:main',
+      trigger_type: 'ui.action.finish_workout'
+    });
+
+    expect(result.messages[0].content[0].text).toContain('## Workout Finish UI Action Context');
+    expect(result.messages[0].content[0].text).toContain('already finished the workout in the backend');
+    expect(result.messages[0].content[0].text).toContain('Do not call workout_finish_session');
+    expect(result.messages[0].content[0].text).toContain('end the run with idle');
   });
 
   it('creates a synthetic user turn when there is no transcript message', async () => {

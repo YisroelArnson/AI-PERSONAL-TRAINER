@@ -1,3 +1,19 @@
+/**
+ * File overview:
+ * Implements runtime service logic for coach surface read.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - canonicalSessionKey: Builds the canonical form of Session key.
+ * - mapFeedItem: Maps Feed item into the structure expected downstream.
+ * - mapRunSummary: Maps Run summary into the structure expected downstream.
+ * - getRunSurfaceVisibility: Gets Run surface visibility needed by this file.
+ * - resolveCurrentSessionState: Resolves Current session state before the next step runs.
+ * - loadFeed: Loads Feed for the surrounding workflow.
+ * - loadActiveRun: Loads Active run for the surrounding workflow.
+ * - buildCoachSurfaceView: Builds a Coach surface view used by this file.
+ */
+
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { parseCoachSurfaceResponse } = require('../../gateway/schemas/coach-surface.schema');
 const { buildWorkoutSurfaceDecorations } = require('./coach-surface-card-renderer.service');
@@ -5,6 +21,9 @@ const { getCurrentWorkoutState } = require('./workout-state.service');
 
 const DEFAULT_FEED_LIMIT = 40;
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -15,11 +34,17 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Builds the canonical form of Session key.
+ */
 function canonicalSessionKey(userId, sessionKey) {
   const raw = sessionKey && sessionKey.trim() ? sessionKey.trim() : `user:${userId}:main`;
   return raw.toLowerCase();
 }
 
+/**
+ * Maps Feed item into the structure expected downstream.
+ */
 function mapFeedItem(event) {
   const payload = event.payload || {};
   const metadata = payload.metadata || {};
@@ -41,6 +66,9 @@ function mapFeedItem(event) {
   };
 }
 
+/**
+ * Maps Run summary into the structure expected downstream.
+ */
 function mapRunSummary(run) {
   if (!run) {
     return null;
@@ -58,6 +86,9 @@ function mapRunSummary(run) {
   };
 }
 
+/**
+ * Gets Run surface visibility needed by this file.
+ */
 function getRunSurfaceVisibility(run) {
   const triggerPayload = run && typeof run.trigger_payload === 'object' ? run.trigger_payload : {};
   const metadata = triggerPayload && typeof triggerPayload.metadata === 'object'
@@ -67,6 +98,9 @@ function getRunSurfaceVisibility(run) {
   return metadata.runVisibility === 'background' ? 'background' : 'foreground';
 }
 
+/**
+ * Resolves Current session state before the next step runs.
+ */
 async function resolveCurrentSessionState({
   supabase,
   userId,
@@ -99,6 +133,9 @@ async function resolveCurrentSessionState({
   };
 }
 
+/**
+ * Loads Feed for the surrounding workflow.
+ */
 async function loadFeed({ supabase, userId, sessionKey, sessionId }) {
   if (!sessionId) {
     return [];
@@ -120,6 +157,9 @@ async function loadFeed({ supabase, userId, sessionKey, sessionId }) {
   return [...data].reverse().map(mapFeedItem).filter(Boolean);
 }
 
+/**
+ * Loads Active run for the surrounding workflow.
+ */
 async function loadActiveRun({ supabase, userId, sessionKey, sessionId }) {
   if (!sessionId) {
     return null;
@@ -144,6 +184,9 @@ async function loadActiveRun({ supabase, userId, sessionKey, sessionId }) {
   return mapRunSummary(visibleRun);
 }
 
+/**
+ * Builds a Coach surface view used by this file.
+ */
 async function buildCoachSurfaceView({ userId, sessionKey, sessionResetPolicy }) {
   const supabase = getAdminClientOrThrow();
   const resolvedSessionKey = canonicalSessionKey(userId, sessionKey);

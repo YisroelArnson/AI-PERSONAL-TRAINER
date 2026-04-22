@@ -5,6 +5,10 @@
 //  Created by ISWA on 8/21/25.
 //
 
+// Defines app-level UI and bootstrapping for supabase.
+//
+// This file is primarily composed of types, constants, or configuration rather than standalone functions.
+
 import Foundation
 import Supabase
 

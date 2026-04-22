@@ -1,3 +1,12 @@
+/**
+ * File overview:
+ * Contains automated tests for the workout state timeout service behavior.
+ *
+ * Main functions in this file:
+ * - createWorkoutSessionSelectChain: Creates a Workout session select chain used by this file.
+ * - createWorkoutSessionUpdateChain: Creates a Workout session update chain used by this file.
+ */
+
 const mockGetRedisConnection = jest.fn();
 const mockGetSupabaseAdminClient = jest.fn();
 const mockResolveSessionContinuityPolicy = jest.fn();
@@ -17,6 +26,9 @@ jest.mock('../../src/runtime/services/session-reset-policy.service', () => ({
 
 const { getCurrentWorkoutState } = require('../../src/runtime/services/workout-state.service');
 
+/**
+ * Creates a Workout session select chain used by this file.
+ */
 function createWorkoutSessionSelectChain(session) {
   return {
     select: jest.fn().mockReturnThis(),
@@ -31,6 +43,9 @@ function createWorkoutSessionSelectChain(session) {
   };
 }
 
+/**
+ * Creates a Workout session update chain used by this file.
+ */
 function createWorkoutSessionUpdateChain(updatedSession, patches) {
   return {
     update: jest.fn(patch => {

@@ -1,3 +1,7 @@
+
+/**
+ * Handles Semantic error for workout-tool.helpers.js.
+ */
 function semanticError(code, explanation, agentGuidance, suggestedFix = {}) {
   return {
     status: 'semantic_error',
@@ -11,6 +15,9 @@ function semanticError(code, explanation, agentGuidance, suggestedFix = {}) {
   };
 }
 
+/**
+ * Handles Validation error for workout-tool.helpers.js.
+ */
 function validationError(toolName, issue) {
   const path = Array.isArray(issue.path) ? issue.path.join('.') : String(issue.path || '');
   const field = path || null;
@@ -29,7 +36,21 @@ function validationError(toolName, issue) {
   };
 }
 
+function mutationBusyError(error, explanation = 'Another request is already updating this workout, so this mutation was not applied.') {
+  if (!error || error.code !== 'WORKOUT_MUTATION_LOCK_BUSY') {
+    return null;
+  }
+
+  return semanticError(
+    'WORKOUT_MUTATION_LOCK_BUSY',
+    explanation,
+    'Reload the latest workout context in the prompt and retry only if the same mutation is still appropriate.',
+    error.details || {}
+  );
+}
+
 module.exports = {
+  mutationBusyError,
   semanticError,
   validationError
 };

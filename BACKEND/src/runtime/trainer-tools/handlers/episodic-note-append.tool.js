@@ -1,3 +1,12 @@
+/**
+ * File overview:
+ * Implements the trainer tool handler for episodic note append.
+ *
+ * Main functions in this file:
+ * - semanticError: Handles Semantic error for episodic-note-append.tool.js.
+ * - execute: Executes the main action flow.
+ */
+
 const { appendEpisodicNoteBlock } = require('../../services/memory-docs.service');
 const { appendSessionEvent } = require('../../services/transcript-write.service');
 const { isValidDateKey } = require('../../services/timezone-date.service');
@@ -28,6 +37,9 @@ const definition = {
   }
 };
 
+/**
+ * Handles Semantic error for episodic-note-append.tool.js.
+ */
 function semanticError(code, explanation, suggestedFix) {
   return {
     status: 'semantic_error',
@@ -41,6 +53,9 @@ function semanticError(code, explanation, suggestedFix) {
   };
 }
 
+/**
+ * Executes the main action flow.
+ */
 async function execute({ input, userId, run }) {
   if (!isValidDateKey(input.date_key)) {
     return semanticError('INVALID_DATE_KEY', 'date_key must be formatted as YYYY-MM-DD.', {

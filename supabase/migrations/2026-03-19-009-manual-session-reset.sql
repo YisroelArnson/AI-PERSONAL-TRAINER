@@ -1,9 +1,16 @@
+-- File overview:
+-- Applies the manual-session-reset database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.manual_reset_session: Implements the public.manual_reset_session database routine used by this migration.
+
 CREATE INDEX IF NOT EXISTS idx_runs_active_user_session
   ON public.runs(user_id, session_key, session_id, created_at DESC)
   WHERE status IN ('queued', 'running');
 
 DROP FUNCTION IF EXISTS public.manual_reset_session(uuid, text, text, text, text);
 
+-- Implements the public.manual_reset_session database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.manual_reset_session(
   p_user_id uuid,
   p_route text,

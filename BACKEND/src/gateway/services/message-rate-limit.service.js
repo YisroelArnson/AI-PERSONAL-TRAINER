@@ -1,8 +1,27 @@
+/**
+ * File overview:
+ * Implements the message rate limit service logic that powers gateway requests.
+ *
+ * Main functions in this file:
+ * - normalizeHeaderValue: Normalizes Header value into the format this file expects.
+ * - normalizeDeviceId: Normalizes Device ID into the format this file expects.
+ * - normalizeIpAddress: Normalizes Ip address into the format this file expects.
+ * - encodeScopeIdentifier: Encodes Scope identifier for transport or storage.
+ * - buildScopeKey: Builds a Scope key used by this file.
+ * - buildConfiguredScopes: Builds a Configured scopes used by this file.
+ * - releaseMessageRateLimitReservation: Releases Message rate limit reservation once it is safe to do so.
+ * - releaseReservationQuietly: Releases Reservation quietly once it is safe to do so.
+ * - admitMessageRequest: Admits Message request when the request is allowed to proceed.
+ */
+
 const { refundTokenBucketTokens, takeTokenBucketTokens } = require('../../infra/redis/token-bucket');
 const { tooManyRequests } = require('../../shared/errors');
 
 const MESSAGE_ROUTE = '/v1/messages';
 
+/**
+ * Normalizes Header value into the format this file expects.
+ */
 function normalizeHeaderValue(value) {
   if (!value || !String(value).trim()) {
     return null;
@@ -11,10 +30,16 @@ function normalizeHeaderValue(value) {
   return String(value).trim();
 }
 
+/**
+ * Normalizes Device ID into the format this file expects.
+ */
 function normalizeDeviceId(headers = {}) {
   return normalizeHeaderValue(headers['x-device-id'] || headers['x-client-device-id']);
 }
 
+/**
+ * Normalizes Ip address into the format this file expects.
+ */
 function normalizeIpAddress(ipAddress) {
   if (Array.isArray(ipAddress)) {
     return normalizeIpAddress(ipAddress[0]);
@@ -29,14 +54,23 @@ function normalizeIpAddress(ipAddress) {
   return candidate.startsWith('::ffff:') ? candidate.slice('::ffff:'.length) : candidate;
 }
 
+/**
+ * Encodes Scope identifier for transport or storage.
+ */
 function encodeScopeIdentifier(value) {
   return Buffer.from(String(value), 'utf8').toString('base64url');
 }
 
+/**
+ * Builds a Scope key used by this file.
+ */
 function buildScopeKey(scope, identifier) {
   return `rl:messages:${scope}:${encodeScopeIdentifier(identifier)}`;
 }
 
+/**
+ * Builds a Configured scopes used by this file.
+ */
 function buildConfiguredScopes({ userId, headers, ipAddress, rateLimitPolicy, requestedTokens }) {
   const scopes = [
     {
@@ -84,6 +118,9 @@ function buildConfiguredScopes({ userId, headers, ipAddress, rateLimitPolicy, re
   return scopes;
 }
 
+/**
+ * Releases Message rate limit reservation once it is safe to do so.
+ */
 async function releaseMessageRateLimitReservation(reservation) {
   if (!reservation || !Array.isArray(reservation.scopes) || reservation.scopes.length === 0) {
     return;
@@ -99,6 +136,9 @@ async function releaseMessageRateLimitReservation(reservation) {
   }
 }
 
+/**
+ * Releases Reservation quietly once it is safe to do so.
+ */
 async function releaseReservationQuietly(reservation) {
   try {
     await releaseMessageRateLimitReservation({
@@ -109,6 +149,9 @@ async function releaseReservationQuietly(reservation) {
   }
 }
 
+/**
+ * Admits Message request when the request is allowed to proceed.
+ */
 async function admitMessageRequest({
   userId,
   headers,

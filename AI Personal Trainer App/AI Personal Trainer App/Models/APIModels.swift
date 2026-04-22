@@ -1,3 +1,7 @@
+// Defines app models used by api models.
+//
+// This file is primarily composed of types, constants, or configuration rather than standalone functions.
+
 import Foundation
 
 enum CoachTriggerType: String, Codable {
@@ -65,79 +69,57 @@ struct SessionResetRequest: Codable {
     let sessionKey: String?
 }
 
-struct CompleteCurrentSetRequest: Codable {
-    let sessionKey: String?
-    let workoutSessionId: String
-    let workoutExerciseId: String
-    let setIndex: Int
-    let expectedStateVersion: Int?
+struct WorkoutCommandOrigin: Codable {
+    let actor: String
+    let deviceId: String?
+    let runId: String?
+    let occurredAt: String?
+}
+
+struct WorkoutFinishSummary: Codable {
+    let coachSummary: String?
+    let agentSummary: String?
+    let adaptationSummary: String?
+}
+
+struct WorkoutCommandPayload: Codable {
+    let workoutExerciseId: String?
+    let setIndex: Int?
     let workoutSetId: String?
     let actual: WorkoutSetActual?
     let userNote: String?
-    let llm: LLMSelection?
+    let finalStatus: String?
+    let summary: WorkoutFinishSummary?
 
     init(
-        sessionKey: String? = nil,
-        workoutSessionId: String,
-        workoutExerciseId: String,
-        setIndex: Int,
-        expectedStateVersion: Int? = nil,
+        workoutExerciseId: String? = nil,
+        setIndex: Int? = nil,
         workoutSetId: String? = nil,
         actual: WorkoutSetActual? = nil,
         userNote: String? = nil,
-        llm: LLMSelection? = nil
+        finalStatus: String? = nil,
+        summary: WorkoutFinishSummary? = nil
     ) {
-        self.sessionKey = sessionKey
-        self.workoutSessionId = workoutSessionId
         self.workoutExerciseId = workoutExerciseId
         self.setIndex = setIndex
-        self.expectedStateVersion = expectedStateVersion
         self.workoutSetId = workoutSetId
         self.actual = actual
         self.userNote = userNote
-        self.llm = llm
+        self.finalStatus = finalStatus
+        self.summary = summary
     }
 }
 
-struct WorkoutSessionControlRequest: Codable {
+struct WorkoutCommandRequest: Codable {
+    let commandId: String
     let sessionKey: String?
     let workoutSessionId: String
-    let expectedStateVersion: Int?
+    let commandType: String
+    let origin: WorkoutCommandOrigin
+    let baseStateVersion: Int?
+    let clientSequence: Int?
+    let payload: WorkoutCommandPayload
     let llm: LLMSelection?
-
-    init(
-        sessionKey: String? = nil,
-        workoutSessionId: String,
-        expectedStateVersion: Int? = nil,
-        llm: LLMSelection? = nil
-    ) {
-        self.sessionKey = sessionKey
-        self.workoutSessionId = workoutSessionId
-        self.expectedStateVersion = expectedStateVersion
-        self.llm = llm
-    }
-}
-
-struct SkipCurrentExerciseRequest: Codable {
-    let sessionKey: String?
-    let workoutSessionId: String
-    let workoutExerciseId: String
-    let expectedStateVersion: Int?
-    let llm: LLMSelection?
-
-    init(
-        sessionKey: String? = nil,
-        workoutSessionId: String,
-        workoutExerciseId: String,
-        expectedStateVersion: Int? = nil,
-        llm: LLMSelection? = nil
-    ) {
-        self.sessionKey = sessionKey
-        self.workoutSessionId = workoutSessionId
-        self.workoutExerciseId = workoutExerciseId
-        self.expectedStateVersion = expectedStateVersion
-        self.llm = llm
-    }
 }
 
 struct LLMSettingsResponse: Codable {
@@ -165,7 +147,7 @@ struct MessageAcceptedResponse: Codable {
     let streamUrl: String?
 }
 
-struct WorkoutActionFollowUp: Codable {
+struct WorkoutCommandFollowUp: Codable {
     let status: String
     let deliveryMode: String?
     let runId: String?
@@ -173,11 +155,33 @@ struct WorkoutActionFollowUp: Codable {
     let jobId: String?
 }
 
-struct WorkoutExecutionActionResponse: Codable {
+struct WorkoutCommandConflict: Codable {
+    let code: String
+    let message: String
+    let winner: String?
+    let latestStateVersion: Int?
+    let latestServerSequence: Int?
+}
+
+struct WorkoutCommandResult: Codable {
+    let commandId: String
+    let commandType: String
+    let actor: String
+    let clientSequence: Int?
+    let serverSequence: Int
     let status: String
+    let resolution: String
+    let appliedStateVersion: Int?
+    let conflict: WorkoutCommandConflict?
+    let isUndoable: Bool
+}
+
+struct WorkoutCommandResponse: Codable {
+    let status: String
+    let command: WorkoutCommandResult
     let workout: WorkoutSessionState
     let appliedStateVersion: Int
-    let agentFollowUp: WorkoutActionFollowUp
+    let agentFollowUp: WorkoutCommandFollowUp
 }
 
 struct CoachRunStreamEvent: Codable {
@@ -190,6 +194,9 @@ struct CoachRunStreamEvent: Codable {
     let text: String?
     let phase: String?
     let toolName: String?
+    let toolUseId: String?
+    let delivery: String?
+    let terminal: Bool?
     let status: String?
     let resultStatus: String?
     let provider: String?
@@ -198,6 +205,7 @@ struct CoachRunStreamEvent: Codable {
     let message: String?
     let appliedStateVersion: Int?
     let workout: WorkoutSessionState?
+    let command: WorkoutCommandResult?
 }
 
 struct SessionResetResponse: Codable {

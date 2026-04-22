@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the retrieval policy service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const {
   buildEffectiveRetrievalPolicy
 } = require('../../src/runtime/services/retrieval-policy.service');

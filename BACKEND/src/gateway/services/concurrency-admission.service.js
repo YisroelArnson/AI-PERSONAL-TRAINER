@@ -1,3 +1,27 @@
+/**
+ * File overview:
+ * Implements the concurrency admission service logic that powers gateway requests.
+ *
+ * Main functions in this file:
+ * - normalizeHeaderValue: Normalizes Header value into the format this file expects.
+ * - normalizeDeviceId: Normalizes Device ID into the format this file expects.
+ * - encodeScopeIdentifier: Encodes Scope identifier for transport or storage.
+ * - buildActiveRunScope: Builds an Active run scope used by this file.
+ * - buildActiveStreamUserScope: Builds an Active stream user scope used by this file.
+ * - buildActiveStreamDeviceScope: Builds an Active stream device scope used by this file.
+ * - buildRunReservationMember: Builds a Run reservation member used by this file.
+ * - buildRunReservationMappingKey: Builds a Run reservation mapping key used by this file.
+ * - throwConcurrency429: Handles Throw concurrency429 for concurrency-admission.service.js.
+ * - admitActiveRun: Admits Active run when the request is allowed to proceed.
+ * - releaseActiveRunReservation: Releases Active run reservation once it is safe to do so.
+ * - bindRunConcurrencyReservation: Binds Run concurrency reservation together for later lookup.
+ * - refreshActiveRunLease: Refreshes Active run lease so it stays current.
+ * - releaseActiveRunLease: Releases Active run lease once it is safe to do so.
+ * - admitActiveStream: Admits Active stream when the request is allowed to proceed.
+ * - refreshActiveStreamLease: Refreshes Active stream lease so it stays current.
+ * - releaseActiveStreamLease: Releases Active stream lease once it is safe to do so.
+ */
+
 const { randomUUID } = require('node:crypto');
 
 const { getRedisConnection } = require('../../infra/redis/connection');
@@ -12,6 +36,9 @@ const ACTIVE_RUN_LEASE_TTL_MS = 15 * 60 * 1000;
 const ACTIVE_STREAM_LEASE_TTL_MS = 45 * 1000;
 const RUN_MEMBER_MAPPING_TTL_SEC = Math.ceil(ACTIVE_RUN_LEASE_TTL_MS / 1000);
 
+/**
+ * Normalizes Header value into the format this file expects.
+ */
 function normalizeHeaderValue(value) {
   if (!value || !String(value).trim()) {
     return null;
@@ -20,14 +47,23 @@ function normalizeHeaderValue(value) {
   return String(value).trim();
 }
 
+/**
+ * Normalizes Device ID into the format this file expects.
+ */
 function normalizeDeviceId(headers = {}) {
   return normalizeHeaderValue(headers['x-device-id'] || headers['x-client-device-id']);
 }
 
+/**
+ * Encodes Scope identifier for transport or storage.
+ */
 function encodeScopeIdentifier(value) {
   return Buffer.from(String(value), 'utf8').toString('base64url');
 }
 
+/**
+ * Builds an Active run scope used by this file.
+ */
 function buildActiveRunScope(userId) {
   return {
     scope: 'concurrency_active_runs',
@@ -35,6 +71,9 @@ function buildActiveRunScope(userId) {
   };
 }
 
+/**
+ * Builds an Active stream user scope used by this file.
+ */
 function buildActiveStreamUserScope(userId) {
   return {
     scope: 'concurrency_active_streams',
@@ -42,6 +81,9 @@ function buildActiveStreamUserScope(userId) {
   };
 }
 
+/**
+ * Builds an Active stream device scope used by this file.
+ */
 function buildActiveStreamDeviceScope(userId, deviceId) {
   return {
     scope: 'concurrency_active_streams_per_device',
@@ -49,14 +91,23 @@ function buildActiveStreamDeviceScope(userId, deviceId) {
   };
 }
 
+/**
+ * Builds a Run reservation member used by this file.
+ */
 function buildRunReservationMember({ userId, idempotencyKey }) {
   return `run-reservation:${sha256Hex(`${userId}:${idempotencyKey}`)}`;
 }
 
+/**
+ * Builds a Run reservation mapping key used by this file.
+ */
 function buildRunReservationMappingKey(runId) {
   return `conc:run-member:${runId}`;
 }
 
+/**
+ * Handles Throw concurrency429 for concurrency-admission.service.js.
+ */
 async function throwConcurrency429({ rejectedScope, retryHintSeconds, route, activeCount = null }) {
   throw tooManyRequests('Concurrency admission limit exceeded', {
     scope: rejectedScope.scope,
@@ -70,6 +121,9 @@ async function throwConcurrency429({ rejectedScope, retryHintSeconds, route, act
   });
 }
 
+/**
+ * Admits Active run when the request is allowed to proceed.
+ */
 async function admitActiveRun({
   userId,
   idempotencyKey,
@@ -110,6 +164,9 @@ async function admitActiveRun({
   };
 }
 
+/**
+ * Releases Active run reservation once it is safe to do so.
+ */
 async function releaseActiveRunReservation(reservation) {
   if (!reservation) {
     return;
@@ -121,6 +178,9 @@ async function releaseActiveRunReservation(reservation) {
   });
 }
 
+/**
+ * Binds Run concurrency reservation together for later lookup.
+ */
 async function bindRunConcurrencyReservation({ runId, reservation }) {
   if (!runId || !reservation || !reservation.member) {
     return;
@@ -139,6 +199,9 @@ async function bindRunConcurrencyReservation({ runId, reservation }) {
   );
 }
 
+/**
+ * Refreshes Active run lease so it stays current.
+ */
 async function refreshActiveRunLease({ runId, userId, concurrencyPolicy }) {
   if (!runId || !userId) {
     return {
@@ -186,6 +249,9 @@ async function refreshActiveRunLease({ runId, userId, concurrencyPolicy }) {
   };
 }
 
+/**
+ * Releases Active run lease once it is safe to do so.
+ */
 async function releaseActiveRunLease({ runId, userId }) {
   if (!runId || !userId) {
     return;
@@ -216,6 +282,9 @@ async function releaseActiveRunLease({ runId, userId }) {
   await redis.del(mappingKey);
 }
 
+/**
+ * Admits Active stream when the request is allowed to proceed.
+ */
 async function admitActiveStream({
   userId,
   headers,
@@ -261,6 +330,9 @@ async function admitActiveStream({
   return lease;
 }
 
+/**
+ * Refreshes Active stream lease so it stays current.
+ */
 async function refreshActiveStreamLease({ lease, concurrencyPolicy }) {
   if (!lease) {
     return {
@@ -294,6 +366,9 @@ async function refreshActiveStreamLease({ lease, concurrencyPolicy }) {
   };
 }
 
+/**
+ * Releases Active stream lease once it is safe to do so.
+ */
 async function releaseActiveStreamLease(lease) {
   if (!lease) {
     return;

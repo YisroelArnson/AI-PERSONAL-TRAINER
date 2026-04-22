@@ -1,3 +1,15 @@
+/**
+ * File overview:
+ * Provides infrastructure helpers for token bucket.
+ *
+ * Main functions in this file:
+ * - assertPositiveFinite: Handles Assert positive finite for token-bucket.js.
+ * - parseWholeNumber: Parses Whole number into a validated shape.
+ * - parseTokenCount: Parses Token count into a validated shape.
+ * - takeTokenBucketTokens: Handles Take token bucket tokens for token-bucket.js.
+ * - refundTokenBucketTokens: Handles Refund token bucket tokens for token-bucket.js.
+ */
+
 const { getRedisConnection } = require('./connection');
 
 const TAKE_TOKENS_SCRIPT = `
@@ -107,12 +119,18 @@ redis.call('PEXPIRE', key, ttl_ms)
 return { tostring(tokens), tostring(ttl_ms) }
 `;
 
+/**
+ * Handles Assert positive finite for token-bucket.js.
+ */
 function assertPositiveFinite(value, label) {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`${label} must be a positive number`);
   }
 }
 
+/**
+ * Parses Whole number into a validated shape.
+ */
 function parseWholeNumber(value, fallback = 0) {
   const coerced = Number(value);
 
@@ -123,6 +141,9 @@ function parseWholeNumber(value, fallback = 0) {
   return Math.max(0, Math.ceil(coerced));
 }
 
+/**
+ * Parses Token count into a validated shape.
+ */
 function parseTokenCount(value, fallback = 0) {
   const coerced = Number(value);
 
@@ -133,6 +154,9 @@ function parseTokenCount(value, fallback = 0) {
   return Math.max(0, coerced);
 }
 
+/**
+ * Handles Take token bucket tokens for token-bucket.js.
+ */
 async function takeTokenBucketTokens({
   key,
   capacity,
@@ -183,6 +207,9 @@ async function takeTokenBucketTokens({
   };
 }
 
+/**
+ * Handles Refund token bucket tokens for token-bucket.js.
+ */
 async function refundTokenBucketTokens({
   key,
   capacity,

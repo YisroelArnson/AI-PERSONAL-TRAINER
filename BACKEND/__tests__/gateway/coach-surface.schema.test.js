@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the coach surface schema behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const { parseCoachSurfaceResponse } = require('../../src/gateway/schemas/coach-surface.schema');
 
 describe('parseCoachSurfaceResponse', () => {
@@ -19,7 +26,7 @@ describe('parseCoachSurfaceResponse', () => {
           kind: 'message',
           role: 'assistant',
           text: 'Ready when you are.',
-          eventType: 'assistant.message',
+          eventType: 'assistant.notify',
           runId: null,
           seqNum: 1,
           occurredAt: '2026-03-23T12:00:00.000Z'
@@ -98,7 +105,7 @@ describe('parseCoachSurfaceResponse', () => {
           kind: 'message',
           role: 'assistant',
           text: 'Let’s get moving.',
-          eventType: 'assistant.message',
+          eventType: 'assistant.notify',
           runId: 'run-123',
           seqNum: 2,
           occurredAt: '2026-03-23T12:09:30.000Z'

@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the session memory flush service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const {
   buildSessionExcerptMarkdown,
   buildSessionMemoryMarker,
@@ -25,7 +32,7 @@ describe('session-memory-flush.service', () => {
 
     expect(shouldIncludeSessionMemoryEvent({
       actor: 'assistant',
-      event_type: 'assistant.message',
+      event_type: 'assistant.notify',
       payload: {
         text: 'Absolutely.'
       }
@@ -33,7 +40,7 @@ describe('session-memory-flush.service', () => {
 
     expect(shouldIncludeSessionMemoryEvent({
       actor: 'assistant',
-      event_type: 'assistant.message',
+      event_type: 'assistant.ask',
       payload: {
         text: 'hidden',
         metadata: {

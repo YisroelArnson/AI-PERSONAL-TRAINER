@@ -1,3 +1,9 @@
+// Provides shared helpers for waveform view.
+//
+// Main functions in this file:
+// - startAnimating: Starts Animating for this module.
+// - stopAnimating: Stops Animating when it is no longer needed.
+
 import SwiftUI
 
 struct WaveformView: View {
@@ -36,6 +42,7 @@ struct WaveformView: View {
         }
     }
 
+    /// Starts Animating for this module.
     private func startAnimating() {
         Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { timer in
             guard active else {
@@ -50,6 +57,7 @@ struct WaveformView: View {
         }
     }
 
+    /// Stops Animating when it is no longer needed.
     private func stopAnimating() {
         withAnimation {
             barHeights = Array(repeating: 4, count: barCount)

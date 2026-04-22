@@ -1,3 +1,11 @@
+/**
+ * File overview:
+ * Defines parsing and validation helpers for the coach surface payloads.
+ *
+ * Main functions in this file:
+ * - parseCoachSurfaceResponse: Parses Coach surface response into a validated shape.
+ */
+
 const { z } = require('zod');
 
 const {
@@ -149,6 +157,9 @@ const coachSurfaceResponseSchema = z.object({
   quickActions: z.array(coachQuickActionSchema).default([])
 });
 
+/**
+ * Parses Coach surface response into a validated shape.
+ */
 function parseCoachSurfaceResponse(input) {
   return coachSurfaceResponseSchema.parse(input);
 }

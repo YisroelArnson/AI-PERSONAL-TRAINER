@@ -1,5 +1,16 @@
+/**
+ * File overview:
+ * Handles queued worker jobs for index sync session.
+ *
+ * Main functions in this file:
+ * - handleIndexSyncSession: Handles Index sync session for this module.
+ */
+
 const { syncSessionIndex } = require('../../runtime/services/session-indexing.service');
 
+/**
+ * Handles Index sync session for this module.
+ */
 async function handleIndexSyncSession(job) {
   const {
     userId,

@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the message ingress service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const mockEnqueueAgentRunTurn = jest.fn();
 const mockLookupIdempotencyResponse = jest.fn();
 const mockPersistInboundMessage = jest.fn();
@@ -8,6 +15,7 @@ const mockResolveRateLimitPolicy = jest.fn();
 const mockResolveConcurrencyPolicy = jest.fn();
 const mockEnqueueSessionMemoryFlushIfNeeded = jest.fn();
 const mockEnqueueSessionIndexSyncIfNeeded = jest.fn();
+const mockEnqueueSessionCompactionIfNeeded = jest.fn();
 const mockAdmitMessageRequest = jest.fn();
 const mockReleaseMessageRateLimitReservation = jest.fn();
 const mockAdmitActiveRun = jest.fn();
@@ -57,6 +65,10 @@ jest.mock('../../src/runtime/services/session-memory-queue.service', () => ({
 
 jest.mock('../../src/runtime/services/indexing-queue.service', () => ({
   enqueueSessionIndexSyncIfNeeded: mockEnqueueSessionIndexSyncIfNeeded
+}));
+
+jest.mock('../../src/runtime/services/session-compaction.service', () => ({
+  enqueueSessionCompactionIfNeeded: mockEnqueueSessionCompactionIfNeeded
 }));
 
 jest.mock('../../src/gateway/services/message-rate-limit.service', () => ({
@@ -135,6 +147,7 @@ describe('processInboundMessage admission integration', () => {
     mockAdmitActiveRun.mockResolvedValue(activeRunReservation);
     mockEnqueueSessionMemoryFlushIfNeeded.mockResolvedValue();
     mockEnqueueSessionIndexSyncIfNeeded.mockResolvedValue();
+    mockEnqueueSessionCompactionIfNeeded.mockResolvedValue();
     mockReleaseMessageRateLimitReservation.mockResolvedValue();
     mockReleaseActiveRunReservation.mockResolvedValue();
     mockBindRunConcurrencyReservation.mockResolvedValue();

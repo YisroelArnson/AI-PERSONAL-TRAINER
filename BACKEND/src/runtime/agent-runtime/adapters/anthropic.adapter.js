@@ -1,3 +1,20 @@
+/**
+ * File overview:
+ * Supports the agent runtime flow for anthropic.
+ *
+ * Main functions in this file:
+ * - providerName: Handles Provider name for anthropic.adapter.js.
+ * - validateCapabilities: Validates Capabilities before it is used.
+ * - buildRequest: Builds a Request used by this file.
+ * - buildProviderContentBlock: Builds a Provider content block used by this file.
+ * - buildProviderMessage: Builds a Provider message used by this file.
+ * - createStream: Creates a Stream used by this file.
+ * - normalizeStreamEvent: Normalizes Stream event into the format this file expects.
+ * - extractTextFromMessage: Handles Extract text from message for anthropic.adapter.js.
+ * - extractFinalOutput: Handles Extract final output for anthropic.adapter.js.
+ * - classifyError: Handles Classify error for anthropic.adapter.js.
+ */
+
 const { getAnthropicClient } = require('../../../infra/anthropic/client');
 const { ERROR_CLASSES, NORMALIZED_STREAM_EVENT_TYPES } = require('../types');
 const {
@@ -5,16 +22,25 @@ const {
   normalizeAnthropicOutput
 } = require('../output-normalization.adapter');
 
+/**
+ * Handles Provider name for anthropic.adapter.js.
+ */
 function providerName() {
   return 'anthropic';
 }
 
+/**
+ * Validates Capabilities before it is used.
+ */
 function validateCapabilities(runtimeInput, caps) {
   if (runtimeInput.tools && runtimeInput.tools.length > 0 && !caps.supportsTools) {
     throw new Error(`Model ${caps.model} does not support tools`);
   }
 }
 
+/**
+ * Builds a Request used by this file.
+ */
 function buildRequest(runtimeInput) {
   const request = {
     model: runtimeInput.model,
@@ -46,6 +72,9 @@ function buildRequest(runtimeInput) {
   return request;
 }
 
+/**
+ * Builds a Provider content block used by this file.
+ */
 function buildProviderContentBlock(block) {
   if (typeof block === 'string') {
     return {
@@ -87,6 +116,9 @@ function buildProviderContentBlock(block) {
   throw new Error(`Unsupported message content block: ${block.type}`);
 }
 
+/**
+ * Builds a Provider message used by this file.
+ */
 function buildProviderMessage(message) {
   if (typeof message.content === 'string') {
     return {
@@ -101,11 +133,17 @@ function buildProviderMessage(message) {
   };
 }
 
+/**
+ * Creates a Stream used by this file.
+ */
 function createStream(providerRequest) {
   const client = getAnthropicClient();
   return client.messages.stream(providerRequest);
 }
 
+/**
+ * Normalizes Stream event into the format this file expects.
+ */
 function normalizeStreamEvent(providerEvent) {
   if (providerEvent.type === 'message_start') {
     return {
@@ -119,6 +157,23 @@ function normalizeStreamEvent(providerEvent) {
   }
 
   if (
+    providerEvent.type === 'content_block_start'
+    && providerEvent.content_block
+    && providerEvent.content_block.type === 'tool_use'
+  ) {
+    return {
+      type: NORMALIZED_STREAM_EVENT_TYPES.toolUseStart,
+      payload: {
+        streamKey: `content_block:${providerEvent.index}`,
+        blockIndex: providerEvent.index,
+        toolUseId: providerEvent.content_block.id,
+        toolName: providerEvent.content_block.name,
+        input: providerEvent.content_block.input || {}
+      }
+    };
+  }
+
+  if (
     providerEvent.type === 'content_block_delta' &&
     providerEvent.delta &&
     providerEvent.delta.type === 'text_delta'
@@ -127,6 +182,21 @@ function normalizeStreamEvent(providerEvent) {
       type: NORMALIZED_STREAM_EVENT_TYPES.textDelta,
       payload: {
         text: providerEvent.delta.text
+      }
+    };
+  }
+
+  if (
+    providerEvent.type === 'content_block_delta'
+    && providerEvent.delta
+    && providerEvent.delta.type === 'input_json_delta'
+  ) {
+    return {
+      type: NORMALIZED_STREAM_EVENT_TYPES.toolInputDelta,
+      payload: {
+        streamKey: `content_block:${providerEvent.index}`,
+        blockIndex: providerEvent.index,
+        partialJson: providerEvent.delta.partial_json || ''
       }
     };
   }
@@ -152,6 +222,9 @@ function normalizeStreamEvent(providerEvent) {
   return null;
 }
 
+/**
+ * Handles Extract text from message for anthropic.adapter.js.
+ */
 function extractTextFromMessage(message) {
   return (message.content || [])
     .filter(block => block.type === 'text')
@@ -159,6 +232,9 @@ function extractTextFromMessage(message) {
     .join('');
 }
 
+/**
+ * Handles Extract final output for anthropic.adapter.js.
+ */
 async function extractFinalOutput(stream, textBuffer) {
   const finalMessage = await stream.finalMessage();
 
@@ -170,6 +246,9 @@ async function extractFinalOutput(stream, textBuffer) {
   };
 }
 
+/**
+ * Handles Classify error for anthropic.adapter.js.
+ */
 function classifyError(error) {
   const status = error && error.status ? error.status : null;
 

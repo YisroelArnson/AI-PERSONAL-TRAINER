@@ -1,12 +1,19 @@
+/**
+ * File overview:
+ * Implements the trainer tool handler for workout adjust set targets.
+ *
+ * Main functions in this file:
+ * - execute: Executes the main action flow.
+ */
+
 const { ZodError } = require('zod');
 
-const { appendSessionEvent } = require('../../services/transcript-write.service');
-const { adjustWorkoutSetTargets } = require('../../services/workout-state.service');
+const { executeWorkoutCommand } = require('../../services/workout-command.service');
 const {
   workoutAdjustSetTargetsToolInputSchema,
   workoutAdjustSetTargetsToolInputJsonSchema
 } = require('../../schemas/workout-tool-contracts.schema');
-const { semanticError, validationError } = require('./workout-tool.helpers');
+const { mutationBusyError, semanticError, validationError } = require('./workout-tool.helpers');
 
 const definition = {
   name: 'workout_adjust_set_targets',
@@ -16,6 +23,9 @@ const definition = {
   inputSchema: workoutAdjustSetTargetsToolInputJsonSchema
 };
 
+/**
+ * Executes the main action flow.
+ */
 async function execute({ input, userId, run }) {
   let parsedInput;
 
@@ -30,38 +40,61 @@ async function execute({ input, userId, run }) {
   }
 
   try {
-    const workout = await adjustWorkoutSetTargets({
+    const result = await executeWorkoutCommand({
       userId,
-      input: parsedInput
+      command: {
+        commandId: `${definition.name}:${run.run_id}:${parsedInput.workoutExerciseId}`,
+        sessionKey: run.session_key,
+        workoutSessionId: parsedInput.workoutSessionId,
+        commandType: 'set.targets.adjust',
+        origin: {
+          actor: 'agent',
+          runId: run.run_id,
+          occurredAt: run.started_at || run.created_at || new Date().toISOString()
+        },
+        payload: {
+          workoutExerciseId: parsedInput.workoutExerciseId,
+          decision: parsedInput.decision,
+          setUpdates: parsedInput.setUpdates,
+          flow: parsedInput.flow || {}
+        }
+      },
+      runContext: {
+        runId: run.run_id,
+        sessionId: run.session_id,
+        sessionKey: run.session_key,
+        createdAt: run.created_at,
+        startedAt: run.started_at
+      }
     });
 
-    try {
-      await appendSessionEvent({
-        userId,
-        sessionKey: run.session_key,
-        sessionId: run.session_id,
-        eventType: 'workout.targets.adjusted',
-        actor: 'tool',
-        runId: run.run_id,
-        payload: {
-          workoutSessionId: parsedInput.workoutSessionId,
-          workoutExerciseId: parsedInput.workoutExerciseId,
-          setCount: parsedInput.setUpdates.length,
-          decision: parsedInput.decision
-        },
-        idempotencyKey: `${definition.name}:${run.run_id}:${parsedInput.workoutExerciseId}`
-      });
-    } catch (error) {
-      console.warn('Unable to append workout.targets.adjusted audit event:', error.message);
+    if (result.command.status === 'rejected') {
+      return semanticError(
+        result.command.conflict && result.command.conflict.code
+          ? result.command.conflict.code
+          : 'WORKOUT_COMMAND_REJECTED',
+        result.command.conflict && result.command.conflict.message
+          ? result.command.conflict.message
+          : 'The workout command could not be applied.',
+        'Use the latest workout context in the prompt before choosing the next action.',
+        result.command.conflict || {}
+      );
     }
 
     return {
       status: 'ok',
       output: {
-        workout
+        workout: result.workout,
+        command: result.command
       }
     };
   } catch (error) {
+    const busyError = mutationBusyError(error);
+
+    if (busyError) {
+      return busyError;
+    }
+
     if (error && error.code === 'WORKOUT_NOT_FOUND') {
       return semanticError(
         'WORKOUT_NOT_FOUND',

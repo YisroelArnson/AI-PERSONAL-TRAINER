@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Defines parsing and validation helpers for the llm payloads.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const { z } = require('zod');
 
 const llmProviderSchema = z.enum(['anthropic', 'xai']);

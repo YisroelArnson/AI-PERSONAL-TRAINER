@@ -1,3 +1,10 @@
+-- File overview:
+-- Applies the stream-event-counter-and-append-rpc database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.append_stream_event: Implements the public.append_stream_event database routine used by this migration.
+-- - public.append_stream_events_bulk: Implements the public.append_stream_events_bulk database routine used by this migration.
+
 CREATE TABLE IF NOT EXISTS public.stream_event_counters (
   run_id uuid PRIMARY KEY REFERENCES public.runs(run_id) ON DELETE CASCADE,
   last_seq_num integer NOT NULL DEFAULT 0,
@@ -17,6 +24,7 @@ CREATE POLICY "stream_event_counters_service_role_all"
 
 DROP FUNCTION IF EXISTS public.append_stream_event(uuid, text, jsonb);
 
+-- Implements the public.append_stream_event database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.append_stream_event(
   p_run_id uuid,
   p_event_type text,
@@ -86,6 +94,7 @@ GRANT EXECUTE ON FUNCTION public.append_stream_event(uuid, text, jsonb) TO servi
 
 DROP FUNCTION IF EXISTS public.append_stream_events_bulk(uuid, jsonb);
 
+-- Implements the public.append_stream_events_bulk database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.append_stream_events_bulk(
   p_run_id uuid,
   p_events jsonb DEFAULT '[]'::jsonb

@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Provides the env logic used by this part of the codebase.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const os = require('node:os');
 const path = require('node:path');
 const dotenv = require('dotenv');
@@ -63,12 +70,18 @@ const env = {
   performanceLogFormat: process.env.PERFORMANCE_LOG_FORMAT || 'pretty',
   performanceLogSampleRate: Number(process.env.PERFORMANCE_LOG_SAMPLE_RATE || 1),
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY || 5),
+  queueRetryMaxAttempts: Number(process.env.QUEUE_RETRY_MAX_ATTEMPTS || 8),
+  queueRetryBaseDelayMs: Number(process.env.QUEUE_RETRY_BASE_DELAY_MS || 1000),
+  queueRetryMaxDelayMs: Number(process.env.QUEUE_RETRY_MAX_DELAY_MS || 300000),
   promptContextCacheTtlSec: Number(process.env.PROMPT_CONTEXT_CACHE_TTL_SEC || 60),
   sessionResetPolicyCacheTtlSec: Number(process.env.SESSION_RESET_POLICY_CACHE_TTL_SEC || 60),
   indexingPolicyCacheTtlSec: Number(process.env.INDEXING_POLICY_CACHE_TTL_SEC || 60),
   rateLimitPolicyCacheTtlSec: Number(process.env.RATE_LIMIT_POLICY_CACHE_TTL_SEC || 60),
   concurrencyPolicyCacheTtlSec: Number(process.env.CONCURRENCY_POLICY_CACHE_TTL_SEC || 60),
   indexingDebounceMs: Number(process.env.INDEXING_DEBOUNCE_MS || 15000),
+  sessionCompactionMinEventCount: Number(process.env.SESSION_COMPACTION_MIN_EVENT_COUNT || 80),
+  sessionCompactionMinMessageCount: Number(process.env.SESSION_COMPACTION_MIN_MESSAGE_COUNT || 24),
+  sessionCompactionDebounceMs: Number(process.env.SESSION_COMPACTION_DEBOUNCE_MS || 60000),
   retrievalMinScore: Number(process.env.RETRIEVAL_MIN_SCORE || 0.05),
   redisRetrievalVectorAlpha: Number(process.env.REDIS_RETRIEVAL_VECTOR_ALPHA || 0.65),
   redisRetrievalTextBeta: Number(process.env.REDIS_RETRIEVAL_TEXT_BETA || 0.35),

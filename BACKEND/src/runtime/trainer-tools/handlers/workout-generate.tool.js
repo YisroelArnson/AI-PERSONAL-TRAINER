@@ -1,3 +1,11 @@
+/**
+ * File overview:
+ * Implements the trainer tool handler for workout generate.
+ *
+ * Main functions in this file:
+ * - execute: Executes the main action flow.
+ */
+
 const { ZodError } = require('zod');
 
 const { appendSessionEvent } = require('../../services/transcript-write.service');
@@ -16,6 +24,9 @@ const definition = {
   inputSchema: workoutGenerateToolInputJsonSchema
 };
 
+/**
+ * Executes the main action flow.
+ */
 async function execute({ input, userId, run }) {
   let parsedInput;
 

@@ -1,7 +1,23 @@
+/**
+ * File overview:
+ * Implements runtime service logic for transcript write.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - mapRpcError: Maps RPC error into the structure expected downstream.
+ * - appendSessionEvent: Appends Session event to the existing record.
+ * - appendAssistantEvent: Appends Assistant event to the existing record.
+ * - appendAssistantEventFallback: Appends Assistant event fallback to the existing record.
+ */
+
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { badRequest } = require('../../shared/errors');
 const { enqueueSessionIndexSyncIfNeeded } = require('./indexing-queue.service');
+const { enqueueSessionCompactionIfNeeded } = require('./session-compaction.service');
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -12,6 +28,9 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Maps RPC error into the structure expected downstream.
+ */
 function mapRpcError(error) {
   const message = error && error.message ? error.message : 'append_session_event failed';
 
@@ -19,6 +38,7 @@ function mapRpcError(error) {
     message.includes('MISSING_USER_ID') ||
     message.includes('MISSING_SESSION_KEY') ||
     message.includes('MISSING_SESSION_ID') ||
+    message.includes('MISSING_RUN_ID') ||
     message.includes('MISSING_EVENT_TYPE') ||
     message.includes('MISSING_ACTOR')
   ) {
@@ -28,6 +48,126 @@ function mapRpcError(error) {
   return error;
 }
 
+function buildSkippedAssistantAppendResult({ run, reason, triggerSeqNum = null, latestUserSeqNum = null, mode = 'guarded' }) {
+  return {
+    skipped: true,
+    reason,
+    sessionKey: run.session_key,
+    sessionId: run.session_id,
+    sessionVersion: null,
+    seqNum: null,
+    triggerSeqNum,
+    latestUserSeqNum,
+    mode
+  };
+}
+
+function normalizeSeqNum(value) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : null;
+}
+
+async function enqueuePostAppendMaintenance({ userId, sessionKey, sessionId, sourceLabel }) {
+  try {
+    await enqueueSessionIndexSyncIfNeeded({
+      userId,
+      sessionKey,
+      sessionId
+    });
+  } catch (queueError) {
+    console.warn(`Unable to enqueue session indexing job after ${sourceLabel}:`, queueError.message);
+  }
+
+  try {
+    await enqueueSessionCompactionIfNeeded({
+      userId,
+      sessionKey,
+      sessionId
+    });
+  } catch (queueError) {
+    console.warn(`Unable to enqueue session compaction job after ${sourceLabel}:`, queueError.message);
+  }
+}
+
+async function loadAssistantReplyGuardState({ supabase, run }) {
+  const { data: triggerEvent, error: triggerEventError } = await supabase
+    .from('session_events')
+    .select('seq_num')
+    .eq('user_id', run.user_id)
+    .eq('session_key', run.session_key)
+    .eq('session_id', run.session_id)
+    .eq('run_id', run.run_id)
+    .eq('actor', 'user')
+    .order('seq_num', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (triggerEventError) {
+    throw triggerEventError;
+  }
+
+  const triggerSeqNum = normalizeSeqNum(triggerEvent && triggerEvent.seq_num);
+
+  if (triggerSeqNum === null) {
+    return {
+      triggerSeqNum: null,
+      latestUserSeqNum: null,
+      hasNewerUserEvent: false
+    };
+  }
+
+  const { data: newerUserEvent, error: newerUserEventError } = await supabase
+    .from('session_events')
+    .select('seq_num')
+    .eq('user_id', run.user_id)
+    .eq('session_key', run.session_key)
+    .eq('session_id', run.session_id)
+    .eq('actor', 'user')
+    .gt('seq_num', triggerSeqNum)
+    .order('seq_num', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (newerUserEventError) {
+    throw newerUserEventError;
+  }
+
+  const latestUserSeqNum = normalizeSeqNum(newerUserEvent && newerUserEvent.seq_num);
+
+  return {
+    triggerSeqNum,
+    latestUserSeqNum,
+    hasNewerUserEvent: latestUserSeqNum !== null
+  };
+}
+
+async function appendAssistantEventIfLatestTurn({
+  supabase,
+  run,
+  eventType,
+  payload
+}) {
+  const { data, error } = await supabase.rpc('append_assistant_event_if_latest_turn', {
+    p_user_id: run.user_id,
+    p_session_key: run.session_key,
+    p_session_id: run.session_id,
+    p_run_id: run.run_id,
+    p_event_type: eventType,
+    p_payload: payload || {},
+    p_occurred_at: new Date().toISOString(),
+    p_idempotency_key: null
+  });
+
+  if (error) {
+    throw mapRpcError(error);
+  }
+
+  return data;
+}
+
+/**
+ * Appends Session event to the existing record.
+ */
 async function appendSessionEvent({
   userId,
   sessionKey,
@@ -56,49 +196,97 @@ async function appendSessionEvent({
     throw mapRpcError(error);
   }
 
-  try {
-    await enqueueSessionIndexSyncIfNeeded({
-      userId,
-      sessionKey,
-      sessionId
-    });
-  } catch (queueError) {
-    console.warn('Unable to enqueue session indexing job after append_session_event:', queueError.message);
-  }
+  await enqueuePostAppendMaintenance({
+    userId,
+    sessionKey,
+    sessionId,
+    sourceLabel: 'append_session_event'
+  });
 
   return data;
 }
 
-async function appendAssistantMessageEvent({ run, text, provider, model, usage, stopReason }) {
+/**
+ * Appends Assistant event to the existing record.
+ */
+async function appendAssistantEvent({
+  run,
+  eventType,
+  text,
+  provider,
+  model,
+  usage,
+  stopReason,
+  extraPayload = {},
+  requireLatestUserTurn = false
+}) {
+  if (!eventType) {
+    throw badRequest('appendAssistantEvent requires an explicit eventType');
+  }
+
   const payload = {
     text,
     provider,
     model,
     usage: usage || {},
-    stopReason: stopReason || null
+    stopReason: stopReason || null,
+    ...extraPayload
   };
-  try {
-    return await appendSessionEvent({
+
+  if (!requireLatestUserTurn) {
+    return appendSessionEvent({
       userId: run.user_id,
       sessionKey: run.session_key,
       sessionId: run.session_id,
-      eventType: 'assistant.message',
+      eventType,
       actor: 'assistant',
       runId: run.run_id,
       payload
     });
-  } catch (error) {
-    console.warn('append_session_event RPC failed, falling back to app-side transcript append:', error.message);
+  }
+
+  try {
     const supabase = getAdminClientOrThrow();
-    return appendAssistantMessageEventFallback({
+    const result = await appendAssistantEventIfLatestTurn({
       supabase,
       run,
+      eventType,
       payload
+    });
+
+    if (!result || !result.skipped) {
+      await enqueuePostAppendMaintenance({
+        userId: run.user_id,
+        sessionKey: run.session_key,
+        sessionId: run.session_id,
+        sourceLabel: 'append_assistant_event_if_latest_turn'
+      });
+    }
+
+    return result;
+  } catch (error) {
+    console.warn(`Assistant transcript RPC failed for ${eventType}, falling back to app-side transcript append:`, error.message);
+    const supabase = getAdminClientOrThrow();
+    return appendAssistantEventFallback({
+      supabase,
+      run,
+      payload,
+      eventType,
+      requireLatestUserTurn
     });
   }
 }
 
-async function appendAssistantMessageEventFallback({ supabase, run, payload }) {
+/**
+ * Appends Assistant event fallback to the existing record.
+ */
+async function appendAssistantEventFallback({
+  supabase,
+  run,
+  payload,
+  eventType,
+  requireLatestUserTurn = false
+}) {
   const { data: state, error: stateError } = await supabase
     .from('session_state')
     .select('*')
@@ -111,7 +299,32 @@ async function appendAssistantMessageEventFallback({ supabase, run, payload }) {
   }
 
   if (state.current_session_id !== run.session_id) {
+    if (requireLatestUserTurn) {
+      return buildSkippedAssistantAppendResult({
+        run,
+        reason: 'session_rotated',
+        mode: 'guarded_fallback'
+      });
+    }
+
     throw badRequest('Session rotated before assistant output could be appended');
+  }
+
+  if (requireLatestUserTurn) {
+    const guardState = await loadAssistantReplyGuardState({
+      supabase,
+      run
+    });
+
+    if (guardState.hasNewerUserEvent) {
+      return buildSkippedAssistantAppendResult({
+        run,
+        reason: 'stale_user_turn',
+        triggerSeqNum: guardState.triggerSeqNum,
+        latestUserSeqNum: guardState.latestUserSeqNum,
+        mode: 'guarded_fallback'
+      });
+    }
   }
 
   const { data: latestEvent, error: latestError } = await supabase
@@ -138,7 +351,7 @@ async function appendAssistantMessageEventFallback({ supabase, run, payload }) {
       session_id: run.session_id,
       parent_event_id: state.leaf_event_id,
       seq_num: nextSeqNum,
-      event_type: 'assistant.message',
+      event_type: eventType,
       actor: 'assistant',
       run_id: run.run_id,
       payload
@@ -164,15 +377,12 @@ async function appendAssistantMessageEventFallback({ supabase, run, payload }) {
     throw updateError;
   }
 
-  try {
-    await enqueueSessionIndexSyncIfNeeded({
-      userId: run.user_id,
-      sessionKey: run.session_key,
-      sessionId: run.session_id
-    });
-  } catch (queueError) {
-    console.warn('Unable to enqueue session indexing job after fallback transcript append:', queueError.message);
-  }
+  await enqueuePostAppendMaintenance({
+    userId: run.user_id,
+    sessionKey: run.session_key,
+    sessionId: run.session_id,
+    sourceLabel: 'fallback transcript append'
+  });
 
   return {
     eventId: event.event_id,
@@ -185,6 +395,6 @@ async function appendAssistantMessageEventFallback({ supabase, run, payload }) {
 }
 
 module.exports = {
-  appendAssistantMessageEvent,
+  appendAssistantEvent,
   appendSessionEvent
 };

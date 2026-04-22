@@ -1,9 +1,20 @@
+/**
+ * File overview:
+ * Implements the session reset service logic that powers gateway requests.
+ *
+ * Main functions in this file:
+ * - processSessionReset: Processes Session reset through this file's workflow.
+ */
+
 const { hashRequestPayload } = require('../../shared/hash');
 const { requireIdempotencyKey } = require('../../runtime/services/idempotency.service');
 const { resetSessionHead } = require('../../runtime/services/manual-session-reset.service');
 const { resolveSessionContinuityPolicy } = require('../../runtime/services/session-reset-policy.service');
 const { enqueueSessionMemoryFlushIfNeeded } = require('../../runtime/services/session-memory-queue.service');
 
+/**
+ * Processes Session reset through this file's workflow.
+ */
 async function processSessionReset({ auth, headers, body }) {
   const idempotencyKey = requireIdempotencyKey(headers);
   const requestHash = hashRequestPayload(body);

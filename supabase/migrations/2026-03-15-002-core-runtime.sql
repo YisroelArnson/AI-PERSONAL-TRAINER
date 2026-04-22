@@ -1,6 +1,13 @@
+-- File overview:
+-- Applies the core-runtime database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.set_updated_at: Implements the public.set_updated_at database routine used by this migration.
+
 CREATE EXTENSION IF NOT EXISTS pgcrypto;
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- Implements the public.set_updated_at database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.set_updated_at()
 RETURNS trigger
 LANGUAGE plpgsql

@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the rate limit policy service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const {
   buildEffectiveRateLimitPolicy
 } = require('../../src/runtime/services/rate-limit-policy.service');

@@ -1,3 +1,8 @@
+-- File overview:
+-- Applies the feed-and-workouts database changes for the Supabase schema.
+--
+-- This file is primarily composed of schema changes, data movement, or raw SQL statements rather than database routines.
+
 CREATE TABLE IF NOT EXISTS public.feed_items (
   feed_item_id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,

@@ -6,6 +6,12 @@
 //  Used for skeleton loading placeholders.
 //
 
+// Defines theme-related UI helpers for shimmer effect.
+//
+// Main functions in this file:
+// - body: Builds and returns the SwiftUI view hierarchy for this type.
+// - shimmer: Handles Shimmer for ShimmerEffect.swift.
+
 import SwiftUI
 
 /// A view modifier that applies a glossy shimmer animation
@@ -20,6 +26,7 @@ struct ShimmerEffect: ViewModifier {
         self.delay = delay
     }
 
+    /// Builds and returns the SwiftUI view hierarchy for this type.
     func body(content: Content) -> some View {
         content
             .overlay(
@@ -60,7 +67,7 @@ struct ShimmerEffect: ViewModifier {
 // MARK: - View Extension
 
 extension View {
-    /// Applies a shimmer loading animation effect
+    /// Handles Shimmer for ShimmerEffect.swift.
     func shimmer(duration: Double = 1.5, delay: Double = 0) -> some View {
         modifier(ShimmerEffect(duration: duration, delay: delay))
     }

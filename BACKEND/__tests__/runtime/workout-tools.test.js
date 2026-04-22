@@ -1,11 +1,250 @@
+/**
+ * File overview:
+ * Contains automated tests for the workout tools behavior.
+ *
+ * Main functions in this file:
+ * - buildWorkoutState: Builds a Workout state used by this file.
+ * - applyFilters: Applies Filters to the current data.
+ * - mockCreateSupabaseBuilder: Handles Mock create Supabase builder for workout-tools.test.js.
+ */
+
 const mockAppendSessionEvent = jest.fn().mockResolvedValue();
 const mockAdjustWorkoutSetTargets = jest.fn();
 const mockCreateWorkoutSessionFromDraft = jest.fn();
 const mockFinishWorkoutSession = jest.fn();
+const mockGetCurrentWorkoutState = jest.fn();
 const mockGetWorkoutHistory = jest.fn();
 const mockRecordWorkoutSetResult = jest.fn();
 const mockReplaceWorkoutExerciseFromDraft = jest.fn();
 const mockRewriteRemainingWorkoutFromDraft = jest.fn();
+const mockResolveSessionContinuityPolicy = jest.fn();
+const mockAcquireWorkoutMutationLock = jest.fn();
+const mockReleaseSessionMutationLock = jest.fn();
+const mockResolveEffectiveLlmSelection = jest.fn().mockResolvedValue({
+  provider: 'anthropic',
+  model: 'claude-sonnet-4-6'
+});
+
+let mockSupabaseState;
+let mockRpc;
+
+/**
+ * Builds a Workout state used by this file.
+ */
+function buildWorkoutState(overrides = {}) {
+  return {
+    workoutSessionId: 'workout-1',
+    sessionKey: 'user:123:main',
+    stateVersion: 7,
+    status: 'in_progress',
+    currentPhase: 'exercise',
+    title: 'Training Session',
+    guidance: {
+      origin: 'agent_generated',
+      equipment: [],
+      focusAreas: [],
+      constraints: [],
+      painFlags: [],
+      readiness: {},
+      source: {}
+    },
+    summary: {},
+    currentExerciseIndex: 0,
+    currentSetIndex: 0,
+    startedAt: '2026-03-25T10:00:00.000Z',
+    completedAt: null,
+    updatedAt: '2026-03-25T10:02:00.000Z',
+    currentExerciseId: 'exercise-1',
+    progress: {
+      completedExercises: 0,
+      totalExercises: 1,
+      completedSets: 0,
+      totalSets: 1,
+      remainingExercises: 1
+    },
+    exercises: [
+      {
+        workoutExerciseId: 'exercise-1',
+        workoutSessionId: 'workout-1',
+        orderIndex: 0,
+        exerciseId: null,
+        exerciseKey: 'db_row',
+        exerciseName: 'DB Row',
+        displayName: 'DB Row',
+        status: 'active',
+        prescription: {
+          trackingMode: 'reps_load',
+          equipment: [],
+          tags: [],
+          coachingCues: [],
+          substitutionTags: []
+        },
+        coachMessage: null,
+        startedAt: '2026-03-25T10:00:00.000Z',
+        completedAt: null,
+        adjustments: [],
+        sets: [
+          {
+            workoutSetId: 'set-1',
+            setIndex: 0,
+            status: 'active',
+            target: {
+              reps: 8
+            },
+            actual: {},
+            notes: null,
+            startedAt: '2026-03-25T10:00:00.000Z',
+            completedAt: null
+          }
+        ]
+      }
+    ],
+    ...overrides
+  };
+}
+
+/**
+ * Applies Filters to the current data.
+ */
+function applyFilters(rows, ctx) {
+  let result = rows;
+
+  for (const predicate of ctx.filters) {
+    result = result.filter(predicate);
+  }
+
+  if (ctx.order) {
+    result = [...result].sort((left, right) => {
+      const leftValue = left[ctx.order.column];
+      const rightValue = right[ctx.order.column];
+
+      if (leftValue === rightValue) {
+        return 0;
+      }
+
+      const comparison = leftValue > rightValue ? 1 : -1;
+      return ctx.order.ascending ? comparison : -comparison;
+    });
+  }
+
+  if (Number.isInteger(ctx.limit)) {
+    result = result.slice(0, ctx.limit);
+  }
+
+  return result;
+}
+
+/**
+ * Handles Mock create Supabase builder for workout-tools.test.js.
+ */
+function mockCreateSupabaseBuilder(table) {
+  const ctx = {
+    filters: [],
+    limit: null,
+    order: null,
+    mode: 'select',
+    insertRows: null,
+    updateValues: null
+  };
+
+  const builder = {
+    select() {
+      return builder;
+    },
+    eq(column, value) {
+      ctx.filters.push(row => row[column] === value);
+      return builder;
+    },
+    in(column, values) {
+      ctx.filters.push(row => values.includes(row[column]));
+      return builder;
+    },
+    order(column, { ascending }) {
+      ctx.order = {
+        column,
+        ascending
+      };
+      return builder;
+    },
+    limit(count) {
+      ctx.limit = count;
+      return builder;
+    },
+    insert(rows) {
+      ctx.mode = 'insert';
+      ctx.insertRows = Array.isArray(rows) ? rows : [rows];
+      return builder;
+    },
+    update(values) {
+      ctx.mode = 'update';
+      ctx.updateValues = values;
+      return builder;
+    },
+    async maybeSingle() {
+      const result = await builder._execute();
+      return {
+        data: Array.isArray(result.data) ? (result.data[0] || null) : (result.data || null),
+        error: result.error
+      };
+    },
+    async single() {
+      const result = await builder._execute();
+      return {
+        data: Array.isArray(result.data) ? result.data[0] : result.data,
+        error: result.error
+      };
+    },
+    async _execute() {
+      if (table === 'workout_commands') {
+        if (ctx.mode === 'insert') {
+          const insertedRows = ctx.insertRows.map(row => ({
+            ...row
+          }));
+          mockSupabaseState.workoutCommands.push(...insertedRows);
+          return {
+            data: insertedRows,
+            error: null
+          };
+        }
+
+        return {
+          data: applyFilters(mockSupabaseState.workoutCommands, ctx),
+          error: null
+        };
+      }
+
+      if (table === 'workout_sessions') {
+        if (ctx.mode === 'update') {
+          const rows = applyFilters(mockSupabaseState.workoutSessions, ctx);
+          rows.forEach(row => Object.assign(row, ctx.updateValues));
+          return {
+            data: rows,
+            error: null
+          };
+        }
+
+        return {
+          data: applyFilters(mockSupabaseState.workoutSessions, ctx),
+          error: null
+        };
+      }
+
+      if (table === 'runs') {
+        return {
+          data: applyFilters(mockSupabaseState.runs, ctx),
+          error: null
+        };
+      }
+
+      throw new Error(`Unexpected Supabase table: ${table}`);
+    },
+    then(resolve, reject) {
+      return builder._execute().then(resolve, reject);
+    }
+  };
+
+  return builder;
+}
 
 jest.mock('../../src/runtime/services/transcript-write.service', () => ({
   appendSessionEvent: mockAppendSessionEvent
@@ -15,10 +254,37 @@ jest.mock('../../src/runtime/services/workout-state.service', () => ({
   adjustWorkoutSetTargets: mockAdjustWorkoutSetTargets,
   createWorkoutSessionFromDraft: mockCreateWorkoutSessionFromDraft,
   finishWorkoutSession: mockFinishWorkoutSession,
+  getCurrentWorkoutState: mockGetCurrentWorkoutState,
   getWorkoutHistory: mockGetWorkoutHistory,
   recordWorkoutSetResult: mockRecordWorkoutSetResult,
   replaceWorkoutExerciseFromDraft: mockReplaceWorkoutExerciseFromDraft,
   rewriteRemainingWorkoutFromDraft: mockRewriteRemainingWorkoutFromDraft
+}));
+
+jest.mock('../../src/runtime/services/session-reset-policy.service', () => ({
+  resolveSessionContinuityPolicy: mockResolveSessionContinuityPolicy
+}));
+
+jest.mock('../../src/runtime/services/session-mutation-lock.service', () => ({
+  WorkoutMutationLockBusyError: class WorkoutMutationLockBusyError extends Error {
+    constructor(message = 'busy') {
+      super(message);
+      this.code = 'WORKOUT_MUTATION_LOCK_BUSY';
+    }
+  },
+  acquireWorkoutMutationLock: mockAcquireWorkoutMutationLock,
+  releaseSessionMutationLock: mockReleaseSessionMutationLock
+}));
+
+jest.mock('../../src/infra/supabase/client', () => ({
+  getSupabaseAdminClient: jest.fn(() => ({
+    rpc: (...args) => mockRpc(...args),
+    from: table => mockCreateSupabaseBuilder(table)
+  }))
+}));
+
+jest.mock('../../src/runtime/services/llm-config.service', () => ({
+  resolveEffectiveLlmSelection: mockResolveEffectiveLlmSelection
 }));
 
 const workoutAdjustSetTargetsTool = require('../../src/runtime/trainer-tools/handlers/workout-adjust-set-targets.tool');
@@ -32,6 +298,36 @@ const workoutRewriteRemainingTool = require('../../src/runtime/trainer-tools/han
 describe('workout tool handlers', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockSupabaseState = {
+      workoutCommands: [],
+      runs: [],
+      workoutSessions: [
+        {
+          user_id: 'user-123',
+          workout_session_id: 'workout-1',
+          last_command_sequence: 0
+        }
+      ]
+    };
+    mockRpc = jest.fn().mockResolvedValue({
+      data: {
+        sessionId: 'session-123',
+        sessionKey: 'user:123:main'
+      },
+      error: null
+    });
+    mockResolveSessionContinuityPolicy.mockResolvedValue({
+      timezone: 'America/New_York',
+      dayBoundaryEnabled: true,
+      idleExpiryMinutes: 240
+    });
+    mockGetCurrentWorkoutState.mockResolvedValue(buildWorkoutState());
+    mockAcquireWorkoutMutationLock.mockResolvedValue({
+      acquired: true,
+      enforced: false
+    });
+    mockReleaseSessionMutationLock.mockResolvedValue();
   });
 
   it('creates a workout from an agent-authored draft', async () => {
@@ -125,11 +421,9 @@ describe('workout tool handlers', () => {
 
   it('records a set result and returns the updated workout', async () => {
     mockRecordWorkoutSetResult.mockResolvedValue({
-      workout: {
-        workoutSessionId: 'workout-1',
-        currentPhase: 'exercise',
-        currentExerciseId: 'exercise-1'
-      }
+      workout: buildWorkoutState({
+        stateVersion: 8
+      })
     });
 
     const result = await workoutRecordSetResultTool.execute({
@@ -154,7 +448,7 @@ describe('workout tool handlers', () => {
     expect(result.status).toBe('ok');
     expect(result.output.workout.workoutSessionId).toBe('workout-1');
     expect(mockAppendSessionEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'workout.set.completed'
+      eventType: 'workout.command.applied'
     }));
   });
 
@@ -232,15 +526,18 @@ describe('workout tool handlers', () => {
   });
 
   it('rewrites the remaining workout with a new agent-authored plan', async () => {
-    mockRewriteRemainingWorkoutFromDraft.mockResolvedValue({
-      workoutSessionId: 'workout-1',
-      currentPhase: 'exercise',
+    mockRewriteRemainingWorkoutFromDraft.mockResolvedValue(buildWorkoutState({
+      stateVersion: 8,
       exercises: [
         {
-          workoutExerciseId: 'exercise-2'
+          ...buildWorkoutState().exercises[0],
+          workoutExerciseId: 'exercise-2',
+          workoutSessionId: 'workout-1',
+          exerciseName: 'Goblet Squat',
+          displayName: 'Goblet Squat'
         }
       ]
-    });
+    }));
 
     const result = await workoutRewriteRemainingTool.execute({
       input: {
@@ -276,20 +573,14 @@ describe('workout tool handlers', () => {
     expect(result.output.workout.workoutSessionId).toBe('workout-1');
     expect(mockRewriteRemainingWorkoutFromDraft).toHaveBeenCalled();
     expect(mockAppendSessionEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'workout.rewritten'
+      eventType: 'workout.command.applied'
     }));
   });
 
   it('replaces one unfinished exercise in place', async () => {
-    mockReplaceWorkoutExerciseFromDraft.mockResolvedValue({
-      workoutSessionId: 'workout-1',
-      currentPhase: 'exercise',
-      exercises: [
-        {
-          workoutExerciseId: 'exercise-1'
-        }
-      ]
-    });
+    mockReplaceWorkoutExerciseFromDraft.mockResolvedValue(buildWorkoutState({
+      stateVersion: 8
+    }));
 
     const result = await workoutReplaceExerciseTool.execute({
       input: {
@@ -323,7 +614,7 @@ describe('workout tool handlers', () => {
     expect(result.status).toBe('ok');
     expect(result.output.workout.workoutSessionId).toBe('workout-1');
     expect(mockAppendSessionEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'workout.exercise.replaced'
+      eventType: 'workout.command.applied'
     }));
   });
 
@@ -369,11 +660,9 @@ describe('workout tool handlers', () => {
   });
 
   it('adjusts the stored targets for unfinished sets', async () => {
-    mockAdjustWorkoutSetTargets.mockResolvedValue({
-      workoutSessionId: 'workout-1',
-      currentPhase: 'exercise',
-      currentExerciseId: 'exercise-1'
-    });
+    mockAdjustWorkoutSetTargets.mockResolvedValue(buildWorkoutState({
+      stateVersion: 8
+    }));
 
     const result = await workoutAdjustSetTargetsTool.execute({
       input: {
@@ -404,16 +693,41 @@ describe('workout tool handlers', () => {
     expect(result.status).toBe('ok');
     expect(result.output.workout.workoutSessionId).toBe('workout-1');
     expect(mockAppendSessionEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'workout.targets.adjusted'
+      eventType: 'workout.command.applied'
     }));
   });
 
   it('finishes a workout session and returns the final state', async () => {
-    mockFinishWorkoutSession.mockResolvedValue({
-      workoutSessionId: 'workout-1',
+    mockFinishWorkoutSession.mockResolvedValue(buildWorkoutState({
+      stateVersion: 8,
       status: 'completed',
-      currentPhase: 'finished'
-    });
+      currentPhase: 'finished',
+      currentExerciseIndex: null,
+      currentSetIndex: null,
+      currentExerciseId: null,
+      completedAt: '2026-03-25T10:10:00.000Z',
+      progress: {
+        completedExercises: 1,
+        totalExercises: 1,
+        completedSets: 1,
+        totalSets: 1,
+        remainingExercises: 0
+      },
+      exercises: [
+        {
+          ...buildWorkoutState().exercises[0],
+          status: 'completed',
+          completedAt: '2026-03-25T10:10:00.000Z',
+          sets: [
+            {
+              ...buildWorkoutState().exercises[0].sets[0],
+              status: 'completed',
+              completedAt: '2026-03-25T10:09:00.000Z'
+            }
+          ]
+        }
+      ]
+    }));
 
     const result = await workoutFinishSessionTool.execute({
       input: {
@@ -438,7 +752,7 @@ describe('workout tool handlers', () => {
     expect(result.status).toBe('ok');
     expect(result.output.workout.status).toBe('completed');
     expect(mockAppendSessionEvent).toHaveBeenCalledWith(expect.objectContaining({
-      eventType: 'workout.finished'
+      eventType: 'workout.command.applied'
     }));
   });
 });

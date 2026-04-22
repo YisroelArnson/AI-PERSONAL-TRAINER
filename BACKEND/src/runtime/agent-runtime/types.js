@@ -1,6 +1,15 @@
+/**
+ * File overview:
+ * Supports the agent runtime flow for types.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const NORMALIZED_STREAM_EVENT_TYPES = {
   messageStart: 'message_start',
   textDelta: 'text_delta',
+  toolUseStart: 'tool_use_start',
+  toolInputDelta: 'tool_input_delta',
   messageDelta: 'message_delta',
   messageStop: 'message_stop'
 };

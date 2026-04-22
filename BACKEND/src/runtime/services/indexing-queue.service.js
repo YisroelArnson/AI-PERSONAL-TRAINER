@@ -1,3 +1,15 @@
+/**
+ * File overview:
+ * Implements runtime service logic for indexing queue.
+ *
+ * Main functions in this file:
+ * - readInMemoryDebounce: Reads In memory debounce from its source.
+ * - writeInMemoryDebounce: Writes In memory debounce to its destination.
+ * - shouldSuppressEnqueue: Handles Should suppress enqueue for indexing-queue.service.js.
+ * - enqueueSessionIndexSyncIfNeeded: Enqueues Session index sync if needed for asynchronous work.
+ * - enqueueMemoryDocIndexSyncIfNeeded: Enqueues Memory doc index sync if needed for asynchronous work.
+ */
+
 const { env } = require('../../config/env');
 const { enqueueMemoryDocIndexSync, enqueueSessionIndexSync } = require('../../infra/queue/agent.queue');
 const { getRedisConnection } = require('../../infra/redis/connection');
@@ -6,6 +18,9 @@ const { resolveRetrievalPolicy } = require('./retrieval-policy.service');
 
 const inMemoryDebounceCache = new Map();
 
+/**
+ * Reads In memory debounce from its source.
+ */
 function readInMemoryDebounce(key) {
   const cached = inMemoryDebounceCache.get(key);
 
@@ -21,6 +36,9 @@ function readInMemoryDebounce(key) {
   return true;
 }
 
+/**
+ * Writes In memory debounce to its destination.
+ */
 function writeInMemoryDebounce(key, ttlMs) {
   if (ttlMs <= 0) {
     return;
@@ -31,6 +49,9 @@ function writeInMemoryDebounce(key, ttlMs) {
   });
 }
 
+/**
+ * Handles Should suppress enqueue for indexing-queue.service.js.
+ */
 async function shouldSuppressEnqueue(key, ttlMs) {
   const redis = getRedisConnection();
 
@@ -56,6 +77,9 @@ async function shouldSuppressEnqueue(key, ttlMs) {
   return false;
 }
 
+/**
+ * Enqueues Session index sync if needed for asynchronous work.
+ */
 async function enqueueSessionIndexSyncIfNeeded({
   userId,
   sessionKey,
@@ -103,6 +127,9 @@ async function enqueueSessionIndexSyncIfNeeded({
   });
 }
 
+/**
+ * Enqueues Memory doc index sync if needed for asynchronous work.
+ */
 async function enqueueMemoryDocIndexSyncIfNeeded({
   userId,
   docId

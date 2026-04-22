@@ -1,3 +1,14 @@
+/**
+ * File overview:
+ * Provides trainer tool infrastructure for tool registry.
+ *
+ * Main functions in this file:
+ * - listToolDefinitions: Lists Tool definitions for the caller.
+ * - getToolDefinition: Gets Tool definition needed by this file.
+ * - resolveToolCallBehavior: Resolves Tool call behavior before the next step runs.
+ * - executeToolCall: Executes the main Tool call flow.
+ */
+
 const memorySearchTool = require('./handlers/memory-search.tool');
 const documentReplaceTextTool = require('./handlers/document-replace-text.tool');
 const documentReplaceEntireTool = require('./handlers/document-replace-entire.tool');
@@ -11,9 +22,15 @@ const workoutRewriteRemainingTool = require('./handlers/workout-rewrite-remainin
 const workoutReplaceExerciseTool = require('./handlers/workout-replace-exercise.tool');
 const workoutAdjustSetTargetsTool = require('./handlers/workout-adjust-set-targets.tool');
 const workoutFinishSessionTool = require('./handlers/workout-finish-session.tool');
+const messageNotifyUserTool = require('./handlers/message-notify-user.tool');
+const messageAskUserTool = require('./handlers/message-ask-user.tool');
+const idleTool = require('./handlers/idle.tool');
 const { validateToolInput, buildToolValidationError } = require('./tool-input-validation');
 
 const REGISTERED_TOOLS = [
+  messageNotifyUserTool,
+  messageAskUserTool,
+  idleTool,
   memorySearchTool,
   workoutHistoryFetchTool,
   workoutGenerateTool,
@@ -33,10 +50,16 @@ const TOOL_HANDLERS = Object.fromEntries(
   REGISTERED_TOOLS.map(tool => [tool.definition.name, tool])
 );
 
+/**
+ * Lists Tool definitions for the caller.
+ */
 function listToolDefinitions() {
   return REGISTERED_TOOLS.map(entry => entry.definition);
 }
 
+/**
+ * Gets Tool definition needed by this file.
+ */
 function getToolDefinition(toolName) {
   const tool = TOOL_HANDLERS[toolName];
 
@@ -47,6 +70,32 @@ function getToolDefinition(toolName) {
   return tool.definition;
 }
 
+/**
+ * Resolves Tool call behavior before the next step runs.
+ */
+function resolveToolCallBehavior({ toolName, input }) {
+  const tool = TOOL_HANDLERS[toolName];
+
+  if (!tool) {
+    return {
+      exists: false,
+      terminal: false,
+      mutating: false
+    };
+  }
+
+  return {
+    exists: true,
+    terminal: typeof tool.isTerminalCall === 'function'
+      ? tool.isTerminalCall(input || {})
+      : Boolean(tool.definition.terminal),
+    mutating: Boolean(tool.definition.mutating)
+  };
+}
+
+/**
+ * Executes the main Tool call flow.
+ */
 async function executeToolCall({ toolName, input, run }) {
   const tool = TOOL_HANDLERS[toolName];
 
@@ -107,5 +156,6 @@ async function executeToolCall({ toolName, input, run }) {
 module.exports = {
   listToolDefinitions,
   getToolDefinition,
+  resolveToolCallBehavior,
   executeToolCall
 };

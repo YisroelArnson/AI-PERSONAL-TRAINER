@@ -1,3 +1,11 @@
+/**
+ * File overview:
+ * Implements the trainer tool handler for workout history fetch.
+ *
+ * Main functions in this file:
+ * - execute: Executes the main action flow.
+ */
+
 const { ZodError } = require('zod');
 
 const { getWorkoutHistory } = require('../../services/workout-state.service');
@@ -15,6 +23,9 @@ const definition = {
   inputSchema: workoutHistoryFetchToolInputJsonSchema
 };
 
+/**
+ * Executes the main action flow.
+ */
 async function execute({ input, userId }) {
   let parsedInput;
 

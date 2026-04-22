@@ -1,3 +1,11 @@
+/**
+ * File overview:
+ * Defines parsing and validation helpers for the message payloads.
+ *
+ * Main functions in this file:
+ * - parseMessageRequest: Parses Message request into a validated shape.
+ */
+
 const { z } = require('zod');
 const { llmSelectionSchema } = require('./llm.schema');
 
@@ -14,6 +22,9 @@ const messageSchema = z.object({
   llm: llmSelectionSchema.optional()
 });
 
+/**
+ * Parses Message request into a validated shape.
+ */
 function parseMessageRequest(body) {
   return messageSchema.parse(body);
 }

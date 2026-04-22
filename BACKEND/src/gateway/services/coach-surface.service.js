@@ -1,8 +1,19 @@
+/**
+ * File overview:
+ * Implements the coach surface service logic that powers gateway requests.
+ *
+ * Main functions in this file:
+ * - getCoachSurface: Gets Coach surface needed by this file.
+ */
+
 const { buildCoachSurfaceView } = require('../../runtime/services/coach-surface-read.service');
 const { resolveSessionContinuityPolicy } = require('../../runtime/services/session-reset-policy.service');
 const { enqueueSessionMemoryFlushIfNeeded } = require('../../runtime/services/session-memory-queue.service');
 const { startTimer } = require('../../runtime/services/performance-log.service');
 
+/**
+ * Gets Coach surface needed by this file.
+ */
 async function getCoachSurface({ auth, query, requestId }) {
   const finish = startTimer({
     requestId: requestId || null,

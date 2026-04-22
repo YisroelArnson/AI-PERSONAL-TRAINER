@@ -1,3 +1,7 @@
+
+/**
+ * Handles To date or throw for timezone-date.service.js.
+ */
 function toDateOrThrow(value) {
   const date = value instanceof Date ? value : new Date(value);
 
@@ -8,6 +12,9 @@ function toDateOrThrow(value) {
   return date;
 }
 
+/**
+ * Gets Date parts in timezone needed by this file.
+ */
 function getDatePartsInTimezone(value, timezone) {
   const date = toDateOrThrow(value);
   const formatter = new Intl.DateTimeFormat('en-CA', {
@@ -26,6 +33,9 @@ function getDatePartsInTimezone(value, timezone) {
   };
 }
 
+/**
+ * Formats Date key for display or logging.
+ */
 function formatDateKey(parts) {
   return [
     String(parts.year).padStart(4, '0'),
@@ -34,10 +44,16 @@ function formatDateKey(parts) {
   ].join('-');
 }
 
+/**
+ * Gets Date key in timezone needed by this file.
+ */
 function getDateKeyInTimezone(value, timezone) {
   return formatDateKey(getDatePartsInTimezone(value, timezone));
 }
 
+/**
+ * Handles Shift date key for timezone-date.service.js.
+ */
 function shiftDateKey(dateKey, deltaDays) {
   const [year, month, day] = String(dateKey).split('-').map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -55,6 +71,9 @@ function shiftDateKey(dateKey, deltaDays) {
   });
 }
 
+/**
+ * Handles Is valid date key for timezone-date.service.js.
+ */
 function isValidDateKey(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
 }

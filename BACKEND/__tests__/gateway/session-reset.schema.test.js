@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the session reset schema behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const { parseSessionResetRequest } = require('../../src/gateway/schemas/session-reset.schema');
 
 describe('parseSessionResetRequest', () => {

@@ -1,3 +1,12 @@
+// Provides voice and audio support for speech manager.
+//
+// Main functions in this file:
+// - requestAuthorization: Handles Request authorization for SpeechManager.swift.
+// - requestMicrophonePermission: Handles Request microphone permission for SpeechManager.swift.
+// - startListening: Starts Listening for this module.
+// - stopListening: Stops Listening when it is no longer needed.
+// - configureAudioSession: Handles Configure audio session for SpeechManager.swift.
+
 import Foundation
 import AVFoundation
 import Speech
@@ -16,6 +25,7 @@ final class SpeechManager: NSObject, ObservableObject {
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
 
+    /// Handles Request authorization for SpeechManager.swift.
     func requestAuthorization() async -> Bool {
         await withCheckedContinuation { continuation in
             SFSpeechRecognizer.requestAuthorization { status in
@@ -24,6 +34,7 @@ final class SpeechManager: NSObject, ObservableObject {
         }
     }
 
+    /// Handles Request microphone permission for SpeechManager.swift.
     private func requestMicrophonePermission() async -> Bool {
         let session = AVAudioSession.sharedInstance()
 
@@ -44,6 +55,7 @@ final class SpeechManager: NSObject, ObservableObject {
         }
     }
 
+    /// Starts Listening for this module.
     func startListening() async {
         guard !isListening else { return }
         guard let speechRecognizer else {
@@ -108,6 +120,7 @@ final class SpeechManager: NSObject, ObservableObject {
         }
     }
 
+    /// Stops Listening when it is no longer needed.
     func stopListening() {
         guard isListening else { return }
         audioEngine.stop()
@@ -120,6 +133,7 @@ final class SpeechManager: NSObject, ObservableObject {
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 
+    /// Handles Configure audio session for SpeechManager.swift.
     private func configureAudioSession() throws {
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.record, mode: .measurement, options: [.duckOthers])

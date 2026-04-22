@@ -1,3 +1,12 @@
+-- File overview:
+-- Applies the session-idle-default-4h database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.gateway_ingest_message: Implements the public.gateway_ingest_message database routine used by this migration.
+-- - public.resolve_session_surface_state: Implements the public.resolve_session_surface_state database routine used by this migration.
+
+-- Implements the public.gateway_ingest_message database routine used by this migration.
+
 CREATE OR REPLACE FUNCTION public.gateway_ingest_message(
   p_user_id uuid,
   p_route text,
@@ -221,6 +230,7 @@ REVOKE EXECUTE ON FUNCTION public.gateway_ingest_message(uuid, text, text, text,
 REVOKE EXECUTE ON FUNCTION public.gateway_ingest_message(uuid, text, text, text, text, text, text, jsonb, text, boolean, integer) FROM authenticated;
 GRANT EXECUTE ON FUNCTION public.gateway_ingest_message(uuid, text, text, text, text, text, text, jsonb, text, boolean, integer) TO service_role;
 
+-- Implements the public.resolve_session_surface_state database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.resolve_session_surface_state(
   p_user_id uuid,
   p_session_key text DEFAULT NULL,

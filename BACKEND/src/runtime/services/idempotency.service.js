@@ -1,6 +1,18 @@
+/**
+ * File overview:
+ * Implements runtime service logic for idempotency.
+ *
+ * Main functions in this file:
+ * - requireIdempotencyKey: Handles Require idempotency key for idempotency.service.js.
+ * - lookupIdempotencyResponse: Handles Lookup idempotency response for idempotency.service.js.
+ */
+
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { badRequest, conflict } = require('../../shared/errors');
 
+/**
+ * Handles Require idempotency key for idempotency.service.js.
+ */
 function requireIdempotencyKey(headers) {
   const idempotencyKey = headers['idempotency-key'] || headers['x-idempotency-key'];
 
@@ -11,6 +23,9 @@ function requireIdempotencyKey(headers) {
   return String(idempotencyKey).trim();
 }
 
+/**
+ * Handles Lookup idempotency response for idempotency.service.js.
+ */
 async function lookupIdempotencyResponse({ userId, route, idempotencyKey, requestHash }) {
   const supabase = getSupabaseAdminClient();
 

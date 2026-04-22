@@ -1,3 +1,13 @@
+/**
+ * File overview:
+ * Implements the trainer tool handler for document replace entire.
+ *
+ * Main functions in this file:
+ * - semanticError: Handles Semantic error for document-replace-entire.tool.js.
+ * - appendAuditEvent: Appends Audit event to the existing record.
+ * - execute: Executes the main action flow.
+ */
+
 const { COACH_SOUL_DOC_KEY, replaceMutableDocument } = require('../../services/memory-docs.service');
 const { appendSessionEvent } = require('../../services/transcript-write.service');
 
@@ -30,6 +40,9 @@ const definition = {
   }
 };
 
+/**
+ * Handles Semantic error for document-replace-entire.tool.js.
+ */
 function semanticError(code, explanation, suggestedFix) {
   return {
     status: 'semantic_error',
@@ -43,6 +56,9 @@ function semanticError(code, explanation, suggestedFix) {
   };
 }
 
+/**
+ * Appends Audit event to the existing record.
+ */
 async function appendAuditEvent({ userId, run, docKey, reason, result }) {
   const eventType = docKey === 'PROGRAM'
     ? 'program.updated'
@@ -71,6 +87,9 @@ async function appendAuditEvent({ userId, run, docKey, reason, result }) {
   }
 }
 
+/**
+ * Executes the main action flow.
+ */
 async function execute({ input, userId, run }) {
   try {
     const result = await replaceMutableDocument({

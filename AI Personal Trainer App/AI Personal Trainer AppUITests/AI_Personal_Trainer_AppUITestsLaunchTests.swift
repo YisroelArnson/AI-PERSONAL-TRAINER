@@ -5,6 +5,12 @@
 //  Created by ISWA on 8/21/25.
 //
 
+// Contains automated tests for the ai personal trainer app ui tests launch tests behavior.
+//
+// Main functions in this file:
+// - setUpWithError: Sets Up with error for later use.
+// - testLaunch: Verifies that Launch behaves as expected.
+
 import XCTest
 
 final class AI_Personal_Trainer_AppUITestsLaunchTests: XCTestCase {
@@ -13,10 +19,12 @@ final class AI_Personal_Trainer_AppUITestsLaunchTests: XCTestCase {
         true
     }
 
+    /// Sets Up with error for later use.
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
+    /// Verifies that Launch behaves as expected.
     func testLaunch() throws {
         let app = XCUIApplication()
         app.launch()

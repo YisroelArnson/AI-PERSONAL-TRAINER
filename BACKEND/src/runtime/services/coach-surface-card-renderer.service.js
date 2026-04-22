@@ -1,3 +1,7 @@
+
+/**
+ * Formats Number for display or logging.
+ */
 function formatNumber(value) {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return null;
@@ -6,6 +10,9 @@ function formatNumber(value) {
   return Number.isInteger(value) ? String(value) : String(Number(value.toFixed(2)));
 }
 
+/**
+ * Formats Load for display or logging.
+ */
 function formatLoad(load) {
   if (!load || typeof load.value !== 'number') {
     return null;
@@ -15,6 +22,9 @@ function formatLoad(load) {
   return load.unit ? `${numberText} ${load.unit}` : numberText;
 }
 
+/**
+ * Formats Target for display or logging.
+ */
 function formatTarget(target) {
   if (!target || typeof target !== 'object') {
     return null;
@@ -50,6 +60,9 @@ function formatTarget(target) {
   return parts.length > 0 ? parts.join(' • ') : null;
 }
 
+/**
+ * Builds a Metric used by this file.
+ */
 function buildMetric(id, label, value, tone = 'neutral') {
   if (!value) {
     return null;
@@ -63,6 +76,9 @@ function buildMetric(id, label, value, tone = 'neutral') {
   };
 }
 
+/**
+ * Builds a Card action used by this file.
+ */
 function buildCardAction({
   id,
   label,
@@ -90,6 +106,9 @@ function buildCardAction({
   };
 }
 
+/**
+ * Handles Find current exercise for coach-surface-card-renderer.service.js.
+ */
 function findCurrentExercise(workout) {
   if (!workout || !Array.isArray(workout.exercises)) {
     return null;
@@ -104,6 +123,9 @@ function findCurrentExercise(workout) {
   );
 }
 
+/**
+ * Handles Find current set for coach-surface-card-renderer.service.js.
+ */
 function findCurrentSet(workout, exercise) {
   if (!workout || !exercise || !Array.isArray(exercise.sets)) {
     return null;
@@ -117,6 +139,9 @@ function findCurrentSet(workout, exercise) {
   );
 }
 
+/**
+ * Builds a Current workout actions used by this file.
+ */
 function buildCurrentWorkoutActions(workout) {
   if (!workout) {
     return [];
@@ -209,6 +234,9 @@ function buildCurrentWorkoutActions(workout) {
   ];
 }
 
+/**
+ * Builds a Summary workout actions used by this file.
+ */
 function buildSummaryWorkoutActions() {
   return [
     buildCardAction({
@@ -222,6 +250,9 @@ function buildSummaryWorkoutActions() {
   ];
 }
 
+/**
+ * Builds a Current workout card used by this file.
+ */
 function buildCurrentWorkoutCard(workout) {
   const currentExercise = findCurrentExercise(workout);
   const currentSet = findCurrentSet(workout, currentExercise);
@@ -284,6 +315,9 @@ function buildCurrentWorkoutCard(workout) {
   };
 }
 
+/**
+ * Builds a Workout summary card used by this file.
+ */
 function buildWorkoutSummaryCard(workout) {
   const progress = workout.progress || {
     completedExercises: 0,
@@ -323,6 +357,9 @@ function buildWorkoutSummaryCard(workout) {
   };
 }
 
+/**
+ * Builds a Workout feed card used by this file.
+ */
 function buildWorkoutFeedCard(workout) {
   if (
     !workout ||
@@ -358,6 +395,9 @@ function buildWorkoutFeedCard(workout) {
   };
 }
 
+/**
+ * Builds a Workout surface decorations used by this file.
+ */
 function buildWorkoutSurfaceDecorations({ workout, activeRun }) {
   const feedCard = buildWorkoutFeedCard(workout);
 

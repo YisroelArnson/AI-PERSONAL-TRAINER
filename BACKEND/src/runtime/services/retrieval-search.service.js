@@ -1,3 +1,16 @@
+/**
+ * File overview:
+ * Implements runtime service logic for retrieval search.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - normalizeSources: Normalizes Sources into the format this file expects.
+ * - createRetrievalQuery: Creates a Retrieval query used by this file.
+ * - searchPostgresFallback: Handles Search postgres fallback for retrieval-search.service.js.
+ * - writeRetrievalAuditResults: Writes Retrieval audit results to its destination.
+ * - retrievalSearch: Handles Retrieval search for retrieval-search.service.js.
+ */
+
 const { env } = require('../../config/env');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { embedTexts, parseVector, toVectorLiteral } = require('./embedding-cache.service');
@@ -6,6 +19,9 @@ const { resolveRetrievalPolicy } = require('./retrieval-policy.service');
 
 const ALLOWED_SOURCES = new Set(['sessions', 'memory', 'program', 'episodic_date']);
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -16,6 +32,9 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Normalizes Sources into the format this file expects.
+ */
 function normalizeSources(inputSources, fallbackSources) {
   const values = Array.isArray(inputSources) ? inputSources : fallbackSources;
   const normalized = [...new Set((values || [])
@@ -25,6 +44,9 @@ function normalizeSources(inputSources, fallbackSources) {
   return normalized.length > 0 ? normalized : fallbackSources;
 }
 
+/**
+ * Creates a Retrieval query used by this file.
+ */
 async function createRetrievalQuery({
   userId,
   sessionKey,
@@ -52,6 +74,9 @@ async function createRetrievalQuery({
   return data;
 }
 
+/**
+ * Handles Search postgres fallback for retrieval-search.service.js.
+ */
 async function searchPostgresFallback({
   userId,
   normalizedQuery,
@@ -94,6 +119,9 @@ async function searchPostgresFallback({
   };
 }
 
+/**
+ * Writes Retrieval audit results to its destination.
+ */
 async function writeRetrievalAuditResults(queryId, results) {
   if (!results || results.length === 0) {
     return;
@@ -118,6 +146,9 @@ async function writeRetrievalAuditResults(queryId, results) {
   }
 }
 
+/**
+ * Handles Retrieval search for retrieval-search.service.js.
+ */
 async function retrievalSearch({
   userId,
   sessionKey,

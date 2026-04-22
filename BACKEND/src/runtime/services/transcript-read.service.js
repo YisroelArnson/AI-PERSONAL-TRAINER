@@ -1,5 +1,19 @@
+/**
+ * File overview:
+ * Implements runtime service logic for transcript read.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - listRecentTranscriptEventsForRun: Lists Recent transcript events for run for the caller.
+ * - listTranscriptEventsForSession: Lists Transcript events for session for the caller.
+ * - toRuntimeMessages: Handles To runtime messages for transcript-read.service.js.
+ */
+
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -10,6 +24,9 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Lists Recent transcript events for run for the caller.
+ */
 async function listRecentTranscriptEventsForRun(run, limit = 12) {
   const supabase = getAdminClientOrThrow();
   const { data: triggerEvent, error: triggerEventError } = await supabase
@@ -50,6 +67,9 @@ async function listRecentTranscriptEventsForRun(run, limit = 12) {
   return [...data].reverse();
 }
 
+/**
+ * Lists Transcript events for session for the caller.
+ */
 async function listTranscriptEventsForSession({ userId, sessionKey, sessionId }) {
   const supabase = getAdminClientOrThrow();
   let from = 0;
@@ -86,6 +106,9 @@ async function listTranscriptEventsForSession({ userId, sessionKey, sessionId })
   return events;
 }
 
+/**
+ * Handles To runtime messages for transcript-read.service.js.
+ */
 function toRuntimeMessages(events) {
   return events
     .map(event => {
@@ -115,6 +138,18 @@ function toRuntimeMessages(events) {
             {
               type: 'text',
               text: content
+            }
+          ]
+        };
+      }
+
+      if (event.event_type === 'compaction.summary' && payload.summary) {
+        return {
+          role: 'assistant',
+          content: [
+            {
+              type: 'text',
+              text: `System summary:\n${payload.summary}`
             }
           ]
         };

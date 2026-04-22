@@ -1,20 +1,52 @@
+/**
+ * File overview:
+ * Implements runtime service logic for run stream redis.
+ *
+ * Main functions in this file:
+ * - buildRunStreamKey: Builds a Run stream key used by this file.
+ * - buildRunStreamMetaKey: Builds a Run stream meta key used by this file.
+ * - buildRunStreamSeqKey: Builds a Run stream seq key used by this file.
+ * - pairsToObject: Handles Pairs to object for run-stream-redis.service.js.
+ * - parseRedisStreamEntry: Parses Redis stream entry into a validated shape.
+ * - getRedisOrNull: Gets Redis or null needed by this file.
+ * - mirrorStreamEvent: Handles Mirror stream event for run-stream-redis.service.js.
+ * - publishHotStreamEvent: Handles Publish hot stream event for run-stream-redis.service.js.
+ * - listAllHotRunStreamEvents: Lists All hot run stream events for the caller.
+ * - markHotRunStreamFlushed: Marks Hot run stream flushed with the appropriate status.
+ * - getRunStreamWindow: Gets Run stream window needed by this file.
+ * - listHotRunStreamEvents: Lists Hot run stream events for the caller.
+ * - waitForHotRunStreamEvents: Handles Wait for hot run stream events for run-stream-redis.service.js.
+ */
+
 const { env } = require('../../config/env');
 const { getRedisConnection } = require('../../infra/redis/connection');
 
 const TERMINAL_STREAM_EVENT_TYPES = new Set(['run.completed', 'run.failed']);
 
+/**
+ * Builds a Run stream key used by this file.
+ */
 function buildRunStreamKey(runId) {
   return `run-stream:${runId}:events`;
 }
 
+/**
+ * Builds a Run stream meta key used by this file.
+ */
 function buildRunStreamMetaKey(runId) {
   return `run-stream:${runId}:meta`;
 }
 
+/**
+ * Builds a Run stream seq key used by this file.
+ */
 function buildRunStreamSeqKey(runId) {
   return `run-stream:${runId}:seq`;
 }
 
+/**
+ * Handles Pairs to object for run-stream-redis.service.js.
+ */
 function pairsToObject(pairs) {
   const object = {};
 
@@ -25,6 +57,9 @@ function pairsToObject(pairs) {
   return object;
 }
 
+/**
+ * Parses Redis stream entry into a validated shape.
+ */
 function parseRedisStreamEntry(runId, entry) {
   if (!Array.isArray(entry) || entry.length < 2) {
     return null;
@@ -46,10 +81,16 @@ function parseRedisStreamEntry(runId, entry) {
   };
 }
 
+/**
+ * Gets Redis or null needed by this file.
+ */
 function getRedisOrNull() {
   return getRedisConnection();
 }
 
+/**
+ * Handles Mirror stream event for run-stream-redis.service.js.
+ */
 async function mirrorStreamEvent(row) {
   const redis = getRedisOrNull();
 
@@ -112,6 +153,9 @@ async function mirrorStreamEvent(row) {
   };
 }
 
+/**
+ * Handles Publish hot stream event for run-stream-redis.service.js.
+ */
 async function publishHotStreamEvent({ runId, eventType, payload, createdAt = null }) {
   const redis = getRedisOrNull();
 
@@ -186,6 +230,9 @@ async function publishHotStreamEvent({ runId, eventType, payload, createdAt = nu
   };
 }
 
+/**
+ * Lists All hot run stream events for the caller.
+ */
 async function listAllHotRunStreamEvents(runId) {
   const redis = getRedisOrNull();
 
@@ -210,6 +257,9 @@ async function listAllHotRunStreamEvents(runId) {
   };
 }
 
+/**
+ * Marks Hot run stream flushed with the appropriate status.
+ */
 async function markHotRunStreamFlushed({ runId, flushedAt = null, lastSeqNum = null }) {
   const redis = getRedisOrNull();
 
@@ -248,6 +298,9 @@ async function markHotRunStreamFlushed({ runId, flushedAt = null, lastSeqNum = n
   };
 }
 
+/**
+ * Gets Run stream window needed by this file.
+ */
 async function getRunStreamWindow(runId) {
   const redis = getRedisOrNull();
 
@@ -292,6 +345,9 @@ async function getRunStreamWindow(runId) {
   };
 }
 
+/**
+ * Lists Hot run stream events for the caller.
+ */
 async function listHotRunStreamEvents({ runId, afterSeqNum = 0, limit = 200 }) {
   const redis = getRedisOrNull();
 
@@ -325,6 +381,9 @@ async function listHotRunStreamEvents({ runId, afterSeqNum = 0, limit = 200 }) {
   };
 }
 
+/**
+ * Handles Wait for hot run stream events for run-stream-redis.service.js.
+ */
 async function waitForHotRunStreamEvents({ runId, lastRedisId = '$', limit = 200, blockMs = 15000 }) {
   const redis = getRedisOrNull();
 

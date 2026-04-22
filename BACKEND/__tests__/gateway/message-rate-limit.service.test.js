@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the message rate limit service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const mockTakeTokenBucketTokens = jest.fn();
 const mockRefundTokenBucketTokens = jest.fn();
 

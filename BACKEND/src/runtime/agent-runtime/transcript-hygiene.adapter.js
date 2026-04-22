@@ -1,3 +1,7 @@
+
+/**
+ * Normalizes Message into the format this file expects.
+ */
 function normalizeMessage(message) {
   if (!message || !message.role || !message.content) {
     return null;
@@ -14,6 +18,9 @@ function normalizeMessage(message) {
   return message;
 }
 
+/**
+ * Trims Trailing assistant messages to the supported shape.
+ */
 function trimTrailingAssistantMessages(messages, policy = {}) {
   if (policy.provider !== 'anthropic') {
     return messages;
@@ -28,6 +35,9 @@ function trimTrailingAssistantMessages(messages, policy = {}) {
   return messages;
 }
 
+/**
+ * Applies Hygiene to the current data.
+ */
 function applyHygiene(messages, policy = {}) {
   const maxMessages = policy.maxMessages || messages.length;
 

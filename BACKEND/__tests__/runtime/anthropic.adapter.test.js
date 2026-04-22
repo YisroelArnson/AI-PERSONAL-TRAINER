@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the anthropic adapter behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const { buildRequest } = require('../../src/runtime/agent-runtime/adapters/anthropic.adapter');
 
 describe('anthropic.adapter buildRequest', () => {

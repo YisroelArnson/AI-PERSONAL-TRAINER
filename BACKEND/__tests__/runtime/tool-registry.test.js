@@ -1,3 +1,12 @@
+/**
+ * File overview:
+ * Contains automated tests for the tool registry behavior.
+ *
+ * Main functions in this file:
+ * - getToolDefinitionByName: Gets Tool definition by name needed by this file.
+ * - findAnyOfVariant: Handles Find any of variant for tool-registry.test.js.
+ */
+
 jest.mock('../../src/runtime/services/memory-docs.service', () => ({
   COACH_SOUL_DOC_KEY: 'COACH_SOUL',
   getLatestDocVersionByDocType: jest.fn(),
@@ -7,7 +16,8 @@ jest.mock('../../src/runtime/services/memory-docs.service', () => ({
 }));
 
 jest.mock('../../src/runtime/services/transcript-write.service', () => ({
-  appendSessionEvent: jest.fn()
+  appendSessionEvent: jest.fn(),
+  appendAssistantEvent: jest.fn()
 }));
 
 jest.mock('../../src/runtime/services/retrieval-search.service', () => ({
@@ -27,11 +37,20 @@ const {
 const {
   replaceMutableDocument
 } = require('../../src/runtime/services/memory-docs.service');
+const {
+  appendAssistantEvent
+} = require('../../src/runtime/services/transcript-write.service');
 
+/**
+ * Gets Tool definition by name needed by this file.
+ */
 function getToolDefinitionByName(toolName) {
   return listToolDefinitions().find(definition => definition.name === toolName);
 }
 
+/**
+ * Handles Find any of variant for tool-registry.test.js.
+ */
 function findAnyOfVariant(schema, expectedType) {
   return (schema.anyOf || []).find(candidate => candidate.type === expectedType);
 }
@@ -210,5 +229,172 @@ describe('tool-registry', () => {
         retryable_in_run: true
       }
     });
+  });
+
+  it('persists durable notify messages as assistant.notify events', async () => {
+    appendAssistantEvent.mockResolvedValue({
+      eventId: 'evt-notify'
+    });
+
+    const result = await executeToolCall({
+      toolName: 'message_notify_user',
+      input: {
+        text: 'Plan is ready.',
+        delivery: 'feed'
+      },
+      run: {
+        user_id: 'user-123',
+        run_id: 'run-123',
+        session_key: 'user:user-123:main',
+        session_id: 'session-123'
+      }
+    });
+
+    expect(result).toEqual({
+      toolName: 'message_notify_user',
+      mutating: true,
+      status: 'ok',
+      output: {
+        kind: 'notify',
+        text: 'Plan is ready.',
+        delivery: 'feed'
+      }
+    });
+    expect(appendAssistantEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'assistant.notify',
+      text: 'Plan is ready.',
+      requireLatestUserTurn: true,
+      extraPayload: {
+        kind: 'notify',
+        delivery: 'feed'
+      }
+    }));
+  });
+
+  it('suppresses stale durable notify messages instead of appending them', async () => {
+    appendAssistantEvent.mockResolvedValue({
+      skipped: true,
+      reason: 'stale_user_turn'
+    });
+
+    const result = await executeToolCall({
+      toolName: 'message_notify_user',
+      input: {
+        text: 'Outdated reply.',
+        delivery: 'feed'
+      },
+      run: {
+        user_id: 'user-123',
+        run_id: 'run-123',
+        session_key: 'user:user-123:main',
+        session_id: 'session-123'
+      }
+    });
+
+    expect(result).toEqual({
+      toolName: 'message_notify_user',
+      mutating: true,
+      status: 'ok',
+      output: {
+        kind: 'notify',
+        text: 'Outdated reply.',
+        delivery: 'suppressed',
+        skipped: true,
+        skipReason: 'stale_user_turn'
+      }
+    });
+    expect(appendAssistantEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'assistant.notify',
+      text: 'Outdated reply.',
+      requireLatestUserTurn: true
+    }));
+  });
+
+  it('keeps transient notify messages stream-only', async () => {
+    const result = await executeToolCall({
+      toolName: 'message_notify_user',
+      input: {
+        text: 'Working through the next step.',
+        delivery: 'transient'
+      },
+      run: {
+        user_id: 'user-123',
+        run_id: 'run-123'
+      }
+    });
+
+    expect(result).toEqual({
+      toolName: 'message_notify_user',
+      mutating: true,
+      status: 'ok',
+      output: {
+        kind: 'notify',
+        text: 'Working through the next step.',
+        delivery: 'transient'
+      }
+    });
+    expect(appendAssistantEvent).not.toHaveBeenCalled();
+  });
+
+  it('persists assistant questions as assistant.ask events', async () => {
+    appendAssistantEvent.mockResolvedValue({
+      eventId: 'evt-ask'
+    });
+
+    const result = await executeToolCall({
+      toolName: 'message_ask_user',
+      input: {
+        text: 'Do you want a short session or a full one?'
+      },
+      run: {
+        user_id: 'user-123',
+        run_id: 'run-123',
+        session_key: 'user:user-123:main',
+        session_id: 'session-123'
+      }
+    });
+
+    expect(result).toEqual({
+      toolName: 'message_ask_user',
+      mutating: true,
+      status: 'ok',
+      output: {
+        kind: 'ask',
+        text: 'Do you want a short session or a full one?',
+        delivery: 'feed'
+      }
+    });
+    expect(appendAssistantEvent).toHaveBeenCalledWith(expect.objectContaining({
+      eventType: 'assistant.ask',
+      text: 'Do you want a short session or a full one?',
+      requireLatestUserTurn: true,
+      extraPayload: {
+        kind: 'ask',
+        delivery: 'feed'
+      }
+    }));
+  });
+
+  it('lets idle end a run without appending a transcript message', async () => {
+    const result = await executeToolCall({
+      toolName: 'idle',
+      input: {
+        reason: 'silent follow-up not needed'
+      },
+      run: {
+        user_id: 'user-123',
+        run_id: 'run-123'
+      }
+    });
+
+    expect(result).toEqual({
+      toolName: 'idle',
+      mutating: false,
+      status: 'ok',
+      output: {
+        reason: 'silent follow-up not needed'
+      }
+    });
+    expect(appendAssistantEvent).not.toHaveBeenCalled();
   });
 });

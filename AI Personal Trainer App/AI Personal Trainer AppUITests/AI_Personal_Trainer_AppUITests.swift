@@ -5,10 +5,19 @@
 //  Created by ISWA on 8/21/25.
 //
 
+// Contains automated tests for the ai personal trainer app ui tests behavior.
+//
+// Main functions in this file:
+// - setUpWithError: Sets Up with error for later use.
+// - tearDownWithError: Handles Tear down with error for AI_Personal_Trainer_AppUITests.swift.
+// - testExample: Verifies that Example behaves as expected.
+// - testLaunchPerformance: Verifies that Launch performance behaves as expected.
+
 import XCTest
 
 final class AI_Personal_Trainer_AppUITests: XCTestCase {
 
+    /// Sets Up with error for later use.
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.
 
@@ -18,10 +27,12 @@ final class AI_Personal_Trainer_AppUITests: XCTestCase {
         // In UI tests it’s important to set the initial state - such as interface orientation - required for your tests before they run. The setUp method is a good place to do this.
     }
 
+    /// Handles Tear down with error for AI_Personal_Trainer_AppUITests.swift.
     override func tearDownWithError() throws {
         // Put teardown code here. This method is called after the invocation of each test method in the class.
     }
 
+    /// Verifies that Example behaves as expected.
     func testExample() throws {
         // UI tests must launch the application that they test.
         let app = XCUIApplication()
@@ -30,6 +41,7 @@ final class AI_Personal_Trainer_AppUITests: XCTestCase {
         // Use XCTAssert and related functions to verify your tests produce the correct results.
     }
 
+    /// Verifies that Launch performance behaves as expected.
     func testLaunchPerformance() throws {
         if #available(macOS 10.15, iOS 13.0, tvOS 13.0, watchOS 7.0, *) {
             // This measures how long it takes to launch your application.

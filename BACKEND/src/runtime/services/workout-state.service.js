@@ -1,3 +1,89 @@
+/**
+ * File overview:
+ * Implements runtime service logic for workout state.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - getRedisOrNull: Gets Redis or null needed by this file.
+ * - buildWorkoutStateSessionCacheKey: Builds a Workout state session cache key used by this file.
+ * - buildWorkoutStateIdCacheKey: Builds a Workout state ID cache key used by this file.
+ * - getCachedWorkoutState: Gets Cached workout state needed by this file.
+ * - evictWorkoutStateCache: Handles Evict workout state cache for workout-state.service.js.
+ * - cacheWorkoutState: Handles Cache workout state for workout-state.service.js.
+ * - buildError: Builds an Error used by this file.
+ * - coerceStateVersion: Coerces State version into the expected type.
+ * - buildNextStateVersion: Builds a Next state version used by this file.
+ * - normalizeIdleExpiryMinutes: Normalizes Idle expiry minutes into the format this file expects.
+ * - resolveWorkoutIdleExpiryMinutes: Resolves Workout idle expiry minutes before the next step runs.
+ * - getWorkoutSessionLastTouchedAt: Gets Workout session last touched at needed by this file.
+ * - isWorkoutSessionExpired: Handles Is workout session expired for workout-state.service.js.
+ * - buildAbandonedWorkoutSummary: Builds an Abandoned workout summary used by this file.
+ * - expireStaleWorkoutSessionIfNeeded: Handles Expire stale workout session if needed for workout-state.service.js.
+ * - assertExpectedStateVersion: Handles Assert expected state version for workout-state.service.js.
+ * - normalizeExerciseName: Normalizes Exercise name into the format this file expects.
+ * - isUuid: Handles Is UUID for workout-state.service.js.
+ * - isCurrentReference: Handles Is current reference for workout-state.service.js.
+ * - normalizeReferenceToken: Normalizes Reference token into the format this file expects.
+ * - resolveExerciseDefinitionId: Resolves Exercise definition ID before the next step runs.
+ * - buildExerciseKey: Builds an Exercise key used by this file.
+ * - buildSessionGuidancePayload: Builds a Session guidance payload used by this file.
+ * - buildSessionSummaryPayload: Builds a Session summary payload used by this file.
+ * - buildExercisePrescriptionPayload: Builds an Exercise prescription payload used by this file.
+ * - buildSetNotes: Builds a Set notes used by this file.
+ * - buildPrescribedLoad: Builds a Prescribed load used by this file.
+ * - buildSetInsertRow: Builds a Set insert row used by this file.
+ * - buildSetTarget: Builds a Set target used by this file.
+ * - buildSetActual: Builds a Set actual used by this file.
+ * - computeProgress: Handles Compute progress for workout-state.service.js.
+ * - buildWorkoutState: Builds a Workout state used by this file.
+ * - stripIsoMilliseconds: Handles Strip iso milliseconds for workout-state.service.js.
+ * - getWorkoutHistoryReferenceTimestamp: Gets Workout history reference timestamp needed by this file.
+ * - getUtcOffsetMsForTimezone: Gets Utc offset ms for timezone needed by this file.
+ * - getUtcInstantForDateKey: Gets Utc instant for date key needed by this file.
+ * - buildUtcRangeForDateKeys: Builds an Utc range for date keys used by this file.
+ * - normalizeWorkoutHistoryWindow: Normalizes Workout history window into the format this file expects.
+ * - loadWorkoutSessionRowsForHistoryRange: Loads Workout session rows for history range for the surrounding workflow.
+ * - loadWorkoutGraphsForSessions: Loads Workout graphs for sessions for the surrounding workflow.
+ * - buildWorkoutHistorySummary: Builds a Workout history summary used by this file.
+ * - getWorkoutSessionRow: Gets Workout session row needed by this file.
+ * - getLiveWorkoutSessionRow: Gets Live workout session row needed by this file.
+ * - resolveWorkoutSessionRow: Resolves Workout session row before the next step runs.
+ * - loadWorkoutGraph: Loads Workout graph for the surrounding workflow.
+ * - loadResolvedWorkoutGraph: Loads Resolved workout graph for the surrounding workflow.
+ * - findWorkoutExerciseRow: Handles Find workout exercise row for workout-state.service.js.
+ * - findWorkoutSetRow: Handles Find workout set row for workout-state.service.js.
+ * - findFirstLiveExercise: Handles Find first live exercise for workout-state.service.js.
+ * - getCurrentWorkoutState: Gets Current workout state needed by this file.
+ * - getWorkoutHistory: Gets Workout history needed by this file.
+ * - createWorkoutSessionFromDraft: Creates a Workout session from draft used by this file.
+ * - updateWorkoutExerciseRow: Updates Workout exercise row with the latest state.
+ * - updateWorkoutSetRow: Updates Workout set row with the latest state.
+ * - updateWorkoutSessionRow: Updates Workout session row with the latest state.
+ * - deleteWorkoutSessionRow: Handles Delete workout session row for workout-state.service.js.
+ * - workoutSessionHasExercises: Handles Workout session has exercises for workout-state.service.js.
+ * - insertWorkoutAdjustmentRows: Handles Insert workout adjustment rows for workout-state.service.js.
+ * - deleteWorkoutSetsByExerciseId: Handles Delete workout sets by exercise ID for workout-state.service.js.
+ * - insertDraftExercisesAndSets: Handles Insert draft exercises and sets for workout-state.service.js.
+ * - combineNotes: Handles Combine notes for workout-state.service.js.
+ * - resolveExerciseTerminalStatus: Resolves Exercise terminal status before the next step runs.
+ * - findFirstPendingSetIndex: Handles Find first pending set index for workout-state.service.js.
+ * - resolveAutomaticFlow: Resolves Automatic flow before the next step runs.
+ * - resolveFlowDirective: Resolves Flow directive before the next step runs.
+ * - markFutureNodeActiveIfNeeded: Marks Future node active if needed with the appropriate status.
+ * - recordWorkoutSetResult: Records Workout set result for later use.
+ * - hasExplicitFlow: Handles Has explicit flow for workout-state.service.js.
+ * - normalizeDraftOrderIndexes: Normalizes Draft order indexes into the format this file expects.
+ * - inferAdjustmentTypeFromTarget: Infers Adjustment type from target from the available inputs.
+ * - rewriteRemainingWorkoutFromDraft: Handles Rewrite remaining workout from draft for workout-state.service.js.
+ * - replaceWorkoutExerciseFromDraft: Replaces Workout exercise from draft with updated content.
+ * - adjustWorkoutSetTargets: Handles Adjust workout set targets for workout-state.service.js.
+ * - finishWorkoutSession: Finishes Workout session and closes out the workflow.
+ * - startWorkoutSession: Starts Workout session for this module.
+ * - pauseWorkoutSession: Handles Pause workout session for workout-state.service.js.
+ * - resumeWorkoutSession: Handles Resume workout session for workout-state.service.js.
+ * - skipWorkoutExercise: Handles Skip workout exercise for workout-state.service.js.
+ */
+
 const { env } = require('../../config/env');
 const { getRedisConnection } = require('../../infra/redis/connection');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
@@ -13,6 +99,9 @@ const DEFAULT_WORKOUT_HISTORY_MAX_SESSIONS = 10;
 const MAX_WORKOUT_HISTORY_MAX_SESSIONS = 31;
 const DEFAULT_WORKOUT_IDLE_EXPIRY_MINUTES = 240;
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -23,18 +112,30 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Gets Redis or null needed by this file.
+ */
 function getRedisOrNull() {
   return getRedisConnection();
 }
 
+/**
+ * Builds a Workout state session cache key used by this file.
+ */
 function buildWorkoutStateSessionCacheKey(userId, sessionKey) {
   return `workout-state:session:${userId}:${sessionKey}`;
 }
 
+/**
+ * Builds a Workout state ID cache key used by this file.
+ */
 function buildWorkoutStateIdCacheKey(userId, workoutSessionId) {
   return `workout-state:id:${userId}:${workoutSessionId}`;
 }
 
+/**
+ * Gets Cached workout state needed by this file.
+ */
 async function getCachedWorkoutState({ userId, sessionKey, workoutSessionId }) {
   const redis = getRedisOrNull();
   const cacheKey = workoutSessionId
@@ -62,6 +163,9 @@ async function getCachedWorkoutState({ userId, sessionKey, workoutSessionId }) {
   return state;
 }
 
+/**
+ * Handles Evict workout state cache for workout-state.service.js.
+ */
 async function evictWorkoutStateCache({ userId, sessionKey, workoutSessionId }) {
   const redis = getRedisOrNull();
   if (!redis) {
@@ -83,6 +187,9 @@ async function evictWorkoutStateCache({ userId, sessionKey, workoutSessionId }) 
   }
 }
 
+/**
+ * Handles Cache workout state for workout-state.service.js.
+ */
 async function cacheWorkoutState(state, userIdOverride = null) {
   if (!state || !LIVE_WORKOUT_STATUSES.includes(state.status)) {
     await evictWorkoutStateCache({
@@ -115,6 +222,9 @@ async function cacheWorkoutState(state, userIdOverride = null) {
   await multi.exec();
 }
 
+/**
+ * Builds an Error used by this file.
+ */
 function buildError(code, details = {}) {
   const error = new Error(code);
   error.code = code;
@@ -122,14 +232,23 @@ function buildError(code, details = {}) {
   return error;
 }
 
+/**
+ * Coerces State version into the expected type.
+ */
 function coerceStateVersion(value) {
   return Number.isInteger(value) && value >= 1 ? value : 1;
 }
 
+/**
+ * Builds a Next state version used by this file.
+ */
 function buildNextStateVersion(session) {
   return coerceStateVersion(session && session.state_version) + 1;
 }
 
+/**
+ * Normalizes Idle expiry minutes into the format this file expects.
+ */
 function normalizeIdleExpiryMinutes(value, fallback = DEFAULT_WORKOUT_IDLE_EXPIRY_MINUTES) {
   const coerced = Number(value);
 
@@ -140,6 +259,9 @@ function normalizeIdleExpiryMinutes(value, fallback = DEFAULT_WORKOUT_IDLE_EXPIR
   return Math.max(0, Math.floor(coerced));
 }
 
+/**
+ * Resolves Workout idle expiry minutes before the next step runs.
+ */
 async function resolveWorkoutIdleExpiryMinutes(userId) {
   if (!userId) {
     return DEFAULT_WORKOUT_IDLE_EXPIRY_MINUTES;
@@ -154,6 +276,9 @@ async function resolveWorkoutIdleExpiryMinutes(userId) {
   }
 }
 
+/**
+ * Gets Workout session last touched at needed by this file.
+ */
 function getWorkoutSessionLastTouchedAt(session) {
   return (
     (session && (session.updated_at || session.updatedAt)) ||
@@ -163,6 +288,9 @@ function getWorkoutSessionLastTouchedAt(session) {
   );
 }
 
+/**
+ * Handles Is workout session expired for workout-state.service.js.
+ */
 function isWorkoutSessionExpired({ session, idleExpiryMinutes, now = new Date() }) {
   if (!session || !LIVE_WORKOUT_STATUSES.includes(session.status)) {
     return false;
@@ -188,6 +316,9 @@ function isWorkoutSessionExpired({ session, idleExpiryMinutes, now = new Date() 
   return lastTouchedMs <= nowMs - (normalizedIdleExpiryMinutes * 60 * 1000);
 }
 
+/**
+ * Builds an Abandoned workout summary used by this file.
+ */
 function buildAbandonedWorkoutSummary(summary, { abandonedAt, idleExpiryMinutes, lastTouchedAt }) {
   return {
     ...(summary && typeof summary === 'object' ? summary : {}),
@@ -200,6 +331,9 @@ function buildAbandonedWorkoutSummary(summary, { abandonedAt, idleExpiryMinutes,
   };
 }
 
+/**
+ * Handles Expire stale workout session if needed for workout-state.service.js.
+ */
 async function expireStaleWorkoutSessionIfNeeded({
   userId,
   session,
@@ -247,6 +381,9 @@ async function expireStaleWorkoutSessionIfNeeded({
   return returnNullWhenExpired ? null : updatedSession;
 }
 
+/**
+ * Handles Assert expected state version for workout-state.service.js.
+ */
 function assertExpectedStateVersion(session, expectedStateVersion) {
   if (expectedStateVersion == null) {
     return;
@@ -263,6 +400,9 @@ function assertExpectedStateVersion(session, expectedStateVersion) {
   }
 }
 
+/**
+ * Normalizes Exercise name into the format this file expects.
+ */
 function normalizeExerciseName(value) {
   return String(value || '')
     .trim()
@@ -271,15 +411,24 @@ function normalizeExerciseName(value) {
     .trim();
 }
 
+/**
+ * Handles Is UUID for workout-state.service.js.
+ */
 function isUuid(value) {
   return UUID_PATTERN.test(String(value || '').trim());
 }
 
+/**
+ * Handles Is current reference for workout-state.service.js.
+ */
 function isCurrentReference(value) {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'current' || normalized === 'active';
 }
 
+/**
+ * Normalizes Reference token into the format this file expects.
+ */
 function normalizeReferenceToken(value) {
   return String(value || '')
     .trim()
@@ -288,10 +437,16 @@ function normalizeReferenceToken(value) {
     .replace(/^_+|_+$/g, '');
 }
 
+/**
+ * Resolves Exercise definition ID before the next step runs.
+ */
 function resolveExerciseDefinitionId(value) {
   return isUuid(value) ? String(value).trim() : null;
 }
 
+/**
+ * Builds an Exercise key used by this file.
+ */
 function buildExerciseKey(draft) {
   if (draft.exerciseKey && String(draft.exerciseKey).trim()) {
     return String(draft.exerciseKey).trim().toLowerCase();
@@ -308,6 +463,9 @@ function buildExerciseKey(draft) {
   return normalizeExerciseName(draft.exerciseName).replace(/\s+/g, '-');
 }
 
+/**
+ * Builds a Session guidance payload used by this file.
+ */
 function buildSessionGuidancePayload(input) {
   return {
     ...(input.guidance || {}),
@@ -316,12 +474,18 @@ function buildSessionGuidancePayload(input) {
   };
 }
 
+/**
+ * Builds a Session summary payload used by this file.
+ */
 function buildSessionSummaryPayload(input) {
   return {
     ...(input.summary || {})
   };
 }
 
+/**
+ * Builds an Exercise prescription payload used by this file.
+ */
 function buildExercisePrescriptionPayload(draft) {
   return {
     ...(draft.prescription || {}),
@@ -335,6 +499,9 @@ function buildExercisePrescriptionPayload(draft) {
   };
 }
 
+/**
+ * Builds a Set notes used by this file.
+ */
 function buildSetNotes(draftSet) {
   const noteParts = [];
 
@@ -350,6 +517,9 @@ function buildSetNotes(draftSet) {
   return joined || null;
 }
 
+/**
+ * Builds a Prescribed load used by this file.
+ */
 function buildPrescribedLoad(target) {
   if (target.load && typeof target.load.value === 'number') {
     return target.load.value;
@@ -366,6 +536,9 @@ function buildPrescribedLoad(target) {
   return null;
 }
 
+/**
+ * Builds a Set insert row used by this file.
+ */
 function buildSetInsertRow({ workoutExerciseId, draftSet, status, startedAt }) {
   const target = draftSet.target || {};
 
@@ -384,6 +557,9 @@ function buildSetInsertRow({ workoutExerciseId, draftSet, status, startedAt }) {
   };
 }
 
+/**
+ * Builds a Set target used by this file.
+ */
 function buildSetTarget(row, authoredSet, exercise, session) {
   const authoredTarget = (authoredSet && authoredSet.target) || {};
   const loadUnit = (
@@ -410,6 +586,9 @@ function buildSetTarget(row, authoredSet, exercise, session) {
   };
 }
 
+/**
+ * Builds a Set actual used by this file.
+ */
 function buildSetActual(row, target) {
   return {
     reps: row.actual_reps ?? null,
@@ -426,6 +605,9 @@ function buildSetActual(row, target) {
   };
 }
 
+/**
+ * Handles Compute progress for workout-state.service.js.
+ */
 function computeProgress(exercises) {
   const totalExercises = exercises.length;
   const completedExercises = exercises.filter(exercise => TERMINAL_EXERCISE_STATUSES.has(exercise.status)).length;
@@ -442,6 +624,9 @@ function computeProgress(exercises) {
   };
 }
 
+/**
+ * Builds a Workout state used by this file.
+ */
 function buildWorkoutState({ session, exercises, sets, adjustments }) {
   const setsByExerciseId = new Map();
   for (const row of sets) {
@@ -533,14 +718,23 @@ function buildWorkoutState({ session, exercises, sets, adjustments }) {
   });
 }
 
+/**
+ * Handles Strip iso milliseconds for workout-state.service.js.
+ */
 function stripIsoMilliseconds(value) {
   return String(value || '').replace(/\.\d{3}Z$/, 'Z');
 }
 
+/**
+ * Gets Workout history reference timestamp needed by this file.
+ */
 function getWorkoutHistoryReferenceTimestamp(session) {
   return session.completed_at || session.started_at || session.created_at || null;
 }
 
+/**
+ * Gets Utc offset ms for timezone needed by this file.
+ */
 function getUtcOffsetMsForTimezone(value, timezone) {
   const formatter = new Intl.DateTimeFormat('en-US', {
     timeZone: timezone,
@@ -585,6 +779,9 @@ function getUtcOffsetMsForTimezone(value, timezone) {
   return asUtcTime - value.getTime();
 }
 
+/**
+ * Gets Utc instant for date key needed by this file.
+ */
 function getUtcInstantForDateKey(dateKey, timezone) {
   if (!isValidDateKey(dateKey)) {
     throw buildError('INVALID_WORKOUT_HISTORY_DATE', {
@@ -605,6 +802,9 @@ function getUtcInstantForDateKey(dateKey, timezone) {
   return new Date(resolvedTime);
 }
 
+/**
+ * Builds an Utc range for date keys used by this file.
+ */
 function buildUtcRangeForDateKeys({ startDateKey, endDateKey, timezone }) {
   return {
     startIso: stripIsoMilliseconds(getUtcInstantForDateKey(startDateKey, timezone).toISOString()),
@@ -614,6 +814,9 @@ function buildUtcRangeForDateKeys({ startDateKey, endDateKey, timezone }) {
   };
 }
 
+/**
+ * Normalizes Workout history window into the format this file expects.
+ */
 function normalizeWorkoutHistoryWindow(input = {}) {
   const hasDate = typeof input.date === 'string' && String(input.date).trim().length > 0;
   const hasStartDate = typeof input.startDate === 'string' && String(input.startDate).trim().length > 0;
@@ -660,6 +863,9 @@ function normalizeWorkoutHistoryWindow(input = {}) {
   };
 }
 
+/**
+ * Loads Workout session rows for history range for the surrounding workflow.
+ */
 async function loadWorkoutSessionRowsForHistoryRange({ userId, startIso, endExclusiveIso }) {
   const supabase = getAdminClientOrThrow();
   const [
@@ -717,6 +923,9 @@ async function loadWorkoutSessionRowsForHistoryRange({ userId, startIso, endExcl
   return [...rowsById.values()];
 }
 
+/**
+ * Loads Workout graphs for sessions for the surrounding workflow.
+ */
 async function loadWorkoutGraphsForSessions(sessionRows) {
   if (!Array.isArray(sessionRows) || sessionRows.length === 0) {
     return [];
@@ -803,6 +1012,9 @@ async function loadWorkoutGraphsForSessions(sessionRows) {
   });
 }
 
+/**
+ * Builds a Workout history summary used by this file.
+ */
 function buildWorkoutHistorySummary(sessions) {
   const statusCounts = {};
   let totalExercises = 0;
@@ -829,6 +1041,9 @@ function buildWorkoutHistorySummary(sessions) {
   };
 }
 
+/**
+ * Gets Workout session row needed by this file.
+ */
 async function getWorkoutSessionRow({ userId, workoutSessionId, liveOnly = false }) {
   const supabase = getAdminClientOrThrow();
   let query = supabase
@@ -854,6 +1069,9 @@ async function getWorkoutSessionRow({ userId, workoutSessionId, liveOnly = false
   });
 }
 
+/**
+ * Gets Live workout session row needed by this file.
+ */
 async function getLiveWorkoutSessionRow({ userId, sessionKey }) {
   const supabase = getAdminClientOrThrow();
   let query = supabase
@@ -881,6 +1099,9 @@ async function getLiveWorkoutSessionRow({ userId, sessionKey }) {
   });
 }
 
+/**
+ * Resolves Workout session row before the next step runs.
+ */
 async function resolveWorkoutSessionRow({ userId, sessionKey, workoutSessionId, liveOnly = false }) {
   if (!workoutSessionId || isCurrentReference(workoutSessionId)) {
     return getLiveWorkoutSessionRow({
@@ -900,6 +1121,9 @@ async function resolveWorkoutSessionRow({ userId, sessionKey, workoutSessionId, 
   });
 }
 
+/**
+ * Loads Workout graph for the surrounding workflow.
+ */
 async function loadWorkoutGraph({ userId, workoutSessionId }) {
   const supabase = getAdminClientOrThrow();
   const session = await getWorkoutSessionRow({
@@ -960,6 +1184,9 @@ async function loadWorkoutGraph({ userId, workoutSessionId }) {
   };
 }
 
+/**
+ * Loads Resolved workout graph for the surrounding workflow.
+ */
 async function loadResolvedWorkoutGraph({ userId, sessionKey, workoutSessionId, liveOnly = false }) {
   const session = await resolveWorkoutSessionRow({
     userId,
@@ -995,6 +1222,9 @@ async function loadResolvedWorkoutGraph({ userId, sessionKey, workoutSessionId, 
   return graph;
 }
 
+/**
+ * Handles Find workout exercise row for workout-state.service.js.
+ */
 function findWorkoutExerciseRow(graph, workoutExerciseRef) {
   if (!graph || !Array.isArray(graph.exercises) || !workoutExerciseRef) {
     return null;
@@ -1024,6 +1254,9 @@ function findWorkoutExerciseRow(graph, workoutExerciseRef) {
   );
 }
 
+/**
+ * Handles Find workout set row for workout-state.service.js.
+ */
 function findWorkoutSetRow(graph, workoutExerciseId, setIndex) {
   if (!graph || !Array.isArray(graph.sets)) {
     return null;
@@ -1035,6 +1268,9 @@ function findWorkoutSetRow(graph, workoutExerciseId, setIndex) {
   )) || null;
 }
 
+/**
+ * Handles Find first live exercise for workout-state.service.js.
+ */
 function findFirstLiveExercise(graph) {
   if (!graph || !Array.isArray(graph.exercises)) {
     return null;
@@ -1048,6 +1284,9 @@ function findFirstLiveExercise(graph) {
   );
 }
 
+/**
+ * Gets Current workout state needed by this file.
+ */
 async function getCurrentWorkoutState({ userId, sessionKey, workoutSessionId, bypassCache = false }) {
   if (!bypassCache) {
     try {
@@ -1105,6 +1344,9 @@ async function getCurrentWorkoutState({ userId, sessionKey, workoutSessionId, by
   return state;
 }
 
+/**
+ * Gets Workout history needed by this file.
+ */
 async function getWorkoutHistory({ userId, input }) {
   const normalizedWindow = normalizeWorkoutHistoryWindow(input || {});
   const continuityPolicy = await resolveSessionContinuityPolicy(userId);
@@ -1189,6 +1431,9 @@ async function getWorkoutHistory({ userId, input }) {
   };
 }
 
+/**
+ * Creates a Workout session from draft used by this file.
+ */
 async function createWorkoutSessionFromDraft({ userId, sessionKey, runId, input }) {
   const supabase = getAdminClientOrThrow();
   let existingLiveWorkout = await getLiveWorkoutSessionRow({
@@ -1315,6 +1560,9 @@ async function createWorkoutSessionFromDraft({ userId, sessionKey, runId, input 
   }
 }
 
+/**
+ * Updates Workout exercise row with the latest state.
+ */
 async function updateWorkoutExerciseRow(workoutExerciseId, patch) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase
@@ -1331,6 +1579,9 @@ async function updateWorkoutExerciseRow(workoutExerciseId, patch) {
   return data;
 }
 
+/**
+ * Updates Workout set row with the latest state.
+ */
 async function updateWorkoutSetRow(workoutSetId, patch) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase
@@ -1347,6 +1598,9 @@ async function updateWorkoutSetRow(workoutSetId, patch) {
   return data;
 }
 
+/**
+ * Updates Workout session row with the latest state.
+ */
 async function updateWorkoutSessionRow(workoutSessionId, patch) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase
@@ -1363,6 +1617,9 @@ async function updateWorkoutSessionRow(workoutSessionId, patch) {
   return data;
 }
 
+/**
+ * Handles Delete workout session row for workout-state.service.js.
+ */
 async function deleteWorkoutSessionRow(workoutSessionId) {
   const supabase = getAdminClientOrThrow();
   const { error } = await supabase
@@ -1375,6 +1632,9 @@ async function deleteWorkoutSessionRow(workoutSessionId) {
   }
 }
 
+/**
+ * Handles Workout session has exercises for workout-state.service.js.
+ */
 async function workoutSessionHasExercises(workoutSessionId) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase
@@ -1391,6 +1651,9 @@ async function workoutSessionHasExercises(workoutSessionId) {
   return Boolean(data && data.workout_exercise_id);
 }
 
+/**
+ * Handles Insert workout adjustment rows for workout-state.service.js.
+ */
 async function insertWorkoutAdjustmentRows(rows) {
   if (!rows || rows.length === 0) {
     return [];
@@ -1409,6 +1672,9 @@ async function insertWorkoutAdjustmentRows(rows) {
   return data || [];
 }
 
+/**
+ * Handles Delete workout sets by exercise ID for workout-state.service.js.
+ */
 async function deleteWorkoutSetsByExerciseId(workoutExerciseId) {
   const supabase = getAdminClientOrThrow();
   const { error } = await supabase
@@ -1421,6 +1687,9 @@ async function deleteWorkoutSetsByExerciseId(workoutExerciseId) {
   }
 }
 
+/**
+ * Handles Insert draft exercises and sets for workout-state.service.js.
+ */
 async function insertDraftExercisesAndSets({
   workoutSessionId,
   drafts,
@@ -1484,6 +1753,9 @@ async function insertDraftExercisesAndSets({
   return insertedExercises || [];
 }
 
+/**
+ * Handles Combine notes for workout-state.service.js.
+ */
 function combineNotes(existingNotes, userNote) {
   const notes = [existingNotes, userNote]
     .map(value => (value ? String(value).trim() : ''))
@@ -1492,6 +1764,9 @@ function combineNotes(existingNotes, userNote) {
   return notes.length > 0 ? notes.join('\n') : null;
 }
 
+/**
+ * Resolves Exercise terminal status before the next step runs.
+ */
 function resolveExerciseTerminalStatus(setRows) {
   if (setRows.length === 0) {
     return 'pending';
@@ -1516,6 +1791,9 @@ function resolveExerciseTerminalStatus(setRows) {
   return 'pending';
 }
 
+/**
+ * Handles Find first pending set index for workout-state.service.js.
+ */
 function findFirstPendingSetIndex(setRows) {
   const nextSet = setRows
     .filter(row => !TERMINAL_SET_STATUSES.has(row.status))
@@ -1524,6 +1802,9 @@ function findFirstPendingSetIndex(setRows) {
   return nextSet ? nextSet.set_index : null;
 }
 
+/**
+ * Resolves Automatic flow before the next step runs.
+ */
 function resolveAutomaticFlow({ session, exercises, sets, currentExerciseOrderIndex }) {
   const currentExercise = exercises.find(entry => entry.order_index === currentExerciseOrderIndex) || null;
   const currentExerciseSets = sets
@@ -1567,6 +1848,9 @@ function resolveAutomaticFlow({ session, exercises, sets, currentExerciseOrderIn
   };
 }
 
+/**
+ * Resolves Flow directive before the next step runs.
+ */
 function resolveFlowDirective({ input, session, exercises, sets, currentExerciseOrderIndex }) {
   const flow = input.flow || {};
   const hasExplicitFlow = (
@@ -1613,6 +1897,9 @@ function resolveFlowDirective({ input, session, exercises, sets, currentExercise
   };
 }
 
+/**
+ * Marks Future node active if needed with the appropriate status.
+ */
 async function markFutureNodeActiveIfNeeded({ flow, exercises, sets, timestamp }) {
   if (flow.currentPhase === 'finished' || flow.currentExerciseIndex == null) {
     return;
@@ -1646,6 +1933,9 @@ async function markFutureNodeActiveIfNeeded({ flow, exercises, sets, timestamp }
   }
 }
 
+/**
+ * Records Workout set result for later use.
+ */
 async function recordWorkoutSetResult({ userId, input }) {
   const graph = await loadResolvedWorkoutGraph({
     userId,
@@ -1784,6 +2074,9 @@ async function recordWorkoutSetResult({ userId, input }) {
   };
 }
 
+/**
+ * Handles Has explicit flow for workout-state.service.js.
+ */
 function hasExplicitFlow(flow) {
   return Boolean(flow) && (
     flow.currentPhase != null ||
@@ -1792,6 +2085,9 @@ function hasExplicitFlow(flow) {
   );
 }
 
+/**
+ * Normalizes Draft order indexes into the format this file expects.
+ */
 function normalizeDraftOrderIndexes(drafts, startingOrderIndex) {
   return [...drafts]
     .sort((left, right) => left.orderIndex - right.orderIndex)
@@ -1801,6 +2097,9 @@ function normalizeDraftOrderIndexes(drafts, startingOrderIndex) {
     }));
 }
 
+/**
+ * Infers Adjustment type from target from the available inputs.
+ */
 function inferAdjustmentTypeFromTarget(target) {
   if (!target || typeof target !== 'object') {
     return 'note';
@@ -1821,6 +2120,9 @@ function inferAdjustmentTypeFromTarget(target) {
   return 'note';
 }
 
+/**
+ * Handles Rewrite remaining workout from draft for workout-state.service.js.
+ */
 async function rewriteRemainingWorkoutFromDraft({ userId, input }) {
   const graph = await loadResolvedWorkoutGraph({
     userId,
@@ -1946,6 +2248,9 @@ async function rewriteRemainingWorkoutFromDraft({ userId, input }) {
   });
 }
 
+/**
+ * Replaces Workout exercise from draft with updated content.
+ */
 async function replaceWorkoutExerciseFromDraft({ userId, input }) {
   const graph = await loadResolvedWorkoutGraph({
     userId,
@@ -2085,6 +2390,9 @@ async function replaceWorkoutExerciseFromDraft({ userId, input }) {
   });
 }
 
+/**
+ * Handles Adjust workout set targets for workout-state.service.js.
+ */
 async function adjustWorkoutSetTargets({ userId, input }) {
   const graph = await loadResolvedWorkoutGraph({
     userId,
@@ -2198,6 +2506,9 @@ async function adjustWorkoutSetTargets({ userId, input }) {
   });
 }
 
+/**
+ * Finishes Workout session and closes out the workflow.
+ */
 async function finishWorkoutSession({ userId, input }) {
   const graph = await loadResolvedWorkoutGraph({
     userId,
@@ -2260,6 +2571,9 @@ async function finishWorkoutSession({ userId, input }) {
   });
 }
 
+/**
+ * Starts Workout session for this module.
+ */
 async function startWorkoutSession({ userId, input }) {
   const graph = await loadResolvedWorkoutGraph({
     userId,
@@ -2328,6 +2642,9 @@ async function startWorkoutSession({ userId, input }) {
   });
 }
 
+/**
+ * Handles Pause workout session for workout-state.service.js.
+ */
 async function pauseWorkoutSession({ userId, input }) {
   const graph = await loadResolvedWorkoutGraph({
     userId,
@@ -2370,6 +2687,9 @@ async function pauseWorkoutSession({ userId, input }) {
   });
 }
 
+/**
+ * Handles Resume workout session for workout-state.service.js.
+ */
 async function resumeWorkoutSession({ userId, input }) {
   const graph = await loadResolvedWorkoutGraph({
     userId,
@@ -2436,6 +2756,9 @@ async function resumeWorkoutSession({ userId, input }) {
   });
 }
 
+/**
+ * Handles Skip workout exercise for workout-state.service.js.
+ */
 async function skipWorkoutExercise({ userId, input }) {
   const graph = await loadResolvedWorkoutGraph({
     userId,

@@ -1,3 +1,11 @@
+/**
+ * File overview:
+ * Implements the trainer tool handler for memory search.
+ *
+ * Main functions in this file:
+ * - execute: Executes the main action flow.
+ */
+
 const { retrievalSearch } = require('../../services/retrieval-search.service');
 
 const definition = {
@@ -32,6 +40,9 @@ const definition = {
   }
 };
 
+/**
+ * Executes the main action flow.
+ */
 async function execute({ input, userId, run }) {
   const normalizedQuery = String(input.query || '').trim();
 

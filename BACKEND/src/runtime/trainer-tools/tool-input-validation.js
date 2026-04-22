@@ -1,15 +1,28 @@
+
+/**
+ * Handles Is plain object for tool-input-validation.js.
+ */
 function isPlainObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Handles Has own for tool-input-validation.js.
+ */
 function hasOwn(object, key) {
   return Object.prototype.hasOwnProperty.call(object, key);
 }
 
+/**
+ * Formats Field for display or logging.
+ */
 function formatField(path) {
   return path ? `Field "${path}"` : 'Tool input';
 }
 
+/**
+ * Builds an Issue for this workflow.
+ */
 function makeIssue(path, code, message, meta = {}) {
   return {
     path,
@@ -19,6 +32,9 @@ function makeIssue(path, code, message, meta = {}) {
   };
 }
 
+/**
+ * Validates String before it is used.
+ */
 function validateString(value, schema, path) {
   if (typeof value !== 'string') {
     return makeIssue(path, 'invalid_type', `${formatField(path)} must be a string.`);
@@ -51,6 +67,9 @@ function validateString(value, schema, path) {
   return null;
 }
 
+/**
+ * Validates Integer before it is used.
+ */
 function validateInteger(value, schema, path) {
   if (!Number.isInteger(value)) {
     return makeIssue(path, 'invalid_type', `${formatField(path)} must be an integer.`);
@@ -75,6 +94,9 @@ function validateInteger(value, schema, path) {
   return null;
 }
 
+/**
+ * Validates Number before it is used.
+ */
 function validateNumber(value, schema, path) {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return makeIssue(path, 'invalid_type', `${formatField(path)} must be a number.`);
@@ -99,6 +121,9 @@ function validateNumber(value, schema, path) {
   return null;
 }
 
+/**
+ * Validates Boolean before it is used.
+ */
 function validateBoolean(value, path) {
   if (typeof value !== 'boolean') {
     return makeIssue(path, 'invalid_type', `${formatField(path)} must be a boolean.`);
@@ -107,6 +132,9 @@ function validateBoolean(value, path) {
   return null;
 }
 
+/**
+ * Validates Null before it is used.
+ */
 function validateNull(value, path) {
   if (value !== null) {
     return makeIssue(path, 'invalid_type', `${formatField(path)} must be null.`);
@@ -115,6 +143,9 @@ function validateNull(value, path) {
   return null;
 }
 
+/**
+ * Validates Array before it is used.
+ */
 function validateArray(value, schema, path) {
   if (!Array.isArray(value)) {
     return makeIssue(path, 'invalid_type', `${formatField(path)} must be an array.`);
@@ -152,6 +183,9 @@ function validateArray(value, schema, path) {
   return null;
 }
 
+/**
+ * Validates Object before it is used.
+ */
 function validateObject(value, schema, path) {
   if (!isPlainObject(value)) {
     return makeIssue(path, 'invalid_type', `${formatField(path)} must be an object.`);
@@ -198,6 +232,9 @@ function validateObject(value, schema, path) {
   return null;
 }
 
+/**
+ * Validates Any of before it is used.
+ */
 function validateAnyOf(value, schemas, path) {
   let firstIssue = null;
 
@@ -216,6 +253,9 @@ function validateAnyOf(value, schemas, path) {
   return firstIssue || makeIssue(path, 'any_of', `${formatField(path)} must match one of the allowed shapes.`);
 }
 
+/**
+ * Validates Value before it is used.
+ */
 function validateValue(value, schema, path = '') {
   if (!schema || typeof schema !== 'object') {
     return null;
@@ -260,10 +300,16 @@ function validateValue(value, schema, path = '') {
   return null;
 }
 
+/**
+ * Validates Tool input before it is used.
+ */
 function validateToolInput(schema, input) {
   return validateValue(input, schema, '');
 }
 
+/**
+ * Builds a Tool validation error used by this file.
+ */
 function buildToolValidationError(toolDefinition, issue) {
   return {
     status: 'validation_error',

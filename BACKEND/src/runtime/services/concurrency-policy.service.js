@@ -1,3 +1,23 @@
+/**
+ * File overview:
+ * Implements runtime service logic for concurrency policy.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - buildCacheKey: Builds a Cache key used by this file.
+ * - isPlainObject: Handles Is plain object for concurrency-policy.service.js.
+ * - getNestedValue: Gets Nested value needed by this file.
+ * - firstDefinedValue: Handles First defined value for concurrency-policy.service.js.
+ * - normalizeNonNegativeInteger: Normalizes Non negative integer into the format this file expects.
+ * - buildEffectiveConcurrencyPolicy: Builds an Effective concurrency policy used by this file.
+ * - readInMemoryCache: Reads In memory cache from its source.
+ * - writeInMemoryCache: Writes In memory cache to its destination.
+ * - readCachedPolicy: Reads Cached policy from its source.
+ * - writeCachedPolicy: Writes Cached policy to its destination.
+ * - loadPolicyInputs: Loads Policy inputs for the surrounding workflow.
+ * - resolveConcurrencyPolicy: Resolves Concurrency policy before the next step runs.
+ */
+
 const { env } = require('../../config/env');
 const { getRedisConnection } = require('../../infra/redis/connection');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
@@ -18,6 +38,9 @@ const PLAN_CONCURRENCY_POLICY_DEFAULTS = Object.freeze({
 
 const inMemoryPolicyCache = new Map();
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -28,14 +51,23 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Builds a Cache key used by this file.
+ */
 function buildCacheKey(userId) {
   return `concurrency-policy:user:${userId}`;
 }
 
+/**
+ * Handles Is plain object for concurrency-policy.service.js.
+ */
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 }
 
+/**
+ * Gets Nested value needed by this file.
+ */
 function getNestedValue(source, path) {
   let current = source;
 
@@ -50,6 +82,9 @@ function getNestedValue(source, path) {
   return current;
 }
 
+/**
+ * Handles First defined value for concurrency-policy.service.js.
+ */
 function firstDefinedValue(source, paths) {
   for (const path of paths) {
     const value = getNestedValue(source, path);
@@ -62,6 +97,9 @@ function firstDefinedValue(source, paths) {
   return undefined;
 }
 
+/**
+ * Normalizes Non negative integer into the format this file expects.
+ */
 function normalizeNonNegativeInteger(rawValue, fallback) {
   if (rawValue === undefined || rawValue === null || rawValue === '') {
     return fallback;
@@ -75,6 +113,9 @@ function normalizeNonNegativeInteger(rawValue, fallback) {
   return Math.max(0, Math.floor(coerced));
 }
 
+/**
+ * Builds an Effective concurrency policy used by this file.
+ */
 function buildEffectiveConcurrencyPolicy({ planTier, policyOverrides }) {
   const normalizedPlanTier = planTier || GLOBAL_CONCURRENCY_POLICY_DEFAULTS.planTier;
   const planDefaults = PLAN_CONCURRENCY_POLICY_DEFAULTS[normalizedPlanTier] || {};
@@ -132,6 +173,9 @@ function buildEffectiveConcurrencyPolicy({ planTier, policyOverrides }) {
   };
 }
 
+/**
+ * Reads In memory cache from its source.
+ */
 function readInMemoryCache(cacheKey) {
   const cached = inMemoryPolicyCache.get(cacheKey);
 
@@ -147,6 +191,9 @@ function readInMemoryCache(cacheKey) {
   return cached.value;
 }
 
+/**
+ * Writes In memory cache to its destination.
+ */
 function writeInMemoryCache(cacheKey, value, ttlSec) {
   if (ttlSec <= 0) {
     return;
@@ -158,6 +205,9 @@ function writeInMemoryCache(cacheKey, value, ttlSec) {
   });
 }
 
+/**
+ * Reads Cached policy from its source.
+ */
 async function readCachedPolicy(cacheKey) {
   const redis = getRedisConnection();
 
@@ -172,6 +222,9 @@ async function readCachedPolicy(cacheKey) {
   return readInMemoryCache(cacheKey);
 }
 
+/**
+ * Writes Cached policy to its destination.
+ */
 async function writeCachedPolicy(cacheKey, value, ttlSec) {
   const redis = getRedisConnection();
 
@@ -182,6 +235,9 @@ async function writeCachedPolicy(cacheKey, value, ttlSec) {
   writeInMemoryCache(cacheKey, value, ttlSec);
 }
 
+/**
+ * Loads Policy inputs for the surrounding workflow.
+ */
 async function loadPolicyInputs(userId) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase
@@ -200,6 +256,9 @@ async function loadPolicyInputs(userId) {
   };
 }
 
+/**
+ * Resolves Concurrency policy before the next step runs.
+ */
 async function resolveConcurrencyPolicy(userId, options = {}) {
   const cacheTtlSec = Math.max(0, env.concurrencyPolicyCacheTtlSec || 0);
   const cacheKey = buildCacheKey(userId);

@@ -1,5 +1,12 @@
+-- File overview:
+-- Applies the memory-doc-write-rpc-index-dirty database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.write_memory_doc_version: Implements the public.write_memory_doc_version database routine used by this migration.
+
 DROP FUNCTION IF EXISTS public.write_memory_doc_version(uuid, text, text, text, text, integer, text, uuid);
 
+-- Implements the public.write_memory_doc_version database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.write_memory_doc_version(
   p_user_id uuid,
   p_doc_type text,

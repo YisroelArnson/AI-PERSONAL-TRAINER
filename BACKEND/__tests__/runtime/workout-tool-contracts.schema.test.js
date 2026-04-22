@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the workout tool contracts schema behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const {
   parseWorkoutGenerateToolInput,
   workoutRewriteRemainingToolInputSchema

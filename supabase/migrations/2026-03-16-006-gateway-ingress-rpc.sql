@@ -1,3 +1,11 @@
+-- File overview:
+-- Applies the gateway-ingress-rpc database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.gateway_ingest_message: Implements the public.gateway_ingest_message database routine used by this migration.
+
+-- Implements the public.gateway_ingest_message database routine used by this migration.
+
 CREATE OR REPLACE FUNCTION public.gateway_ingest_message(
   p_user_id uuid,
   p_route text,

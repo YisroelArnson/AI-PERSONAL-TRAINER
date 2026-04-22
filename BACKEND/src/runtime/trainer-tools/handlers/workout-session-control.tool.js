@@ -1,29 +1,29 @@
+/**
+ * File overview:
+ * Implements the trainer tool handler for workout session control.
+ *
+ * Main functions in this file:
+ * - execute: Executes the main action flow.
+ */
+
 const { ZodError } = require('zod');
 
-const { appendSessionEvent } = require('../../services/transcript-write.service');
-const {
-  pauseWorkoutSession,
-  resumeWorkoutSession,
-  startWorkoutSession
-} = require('../../services/workout-state.service');
+const { executeWorkoutCommand } = require('../../services/workout-command.service');
 const {
   workoutSessionControlToolInputSchema,
   workoutSessionControlToolInputJsonSchema
 } = require('../../schemas/workout-tool-contracts.schema');
-const { semanticError, validationError } = require('./workout-tool.helpers');
+const { mutationBusyError, semanticError, validationError } = require('./workout-tool.helpers');
 
 const ACTION_HANDLERS = {
   start: {
-    eventType: 'workout.started',
-    execute: startWorkoutSession
+    commandType: 'session.start'
   },
   pause: {
-    eventType: 'workout.paused',
-    execute: pauseWorkoutSession
+    commandType: 'session.pause'
   },
   resume: {
-    eventType: 'workout.resumed',
-    execute: resumeWorkoutSession
+    commandType: 'session.resume'
   }
 };
 
@@ -35,6 +35,9 @@ const definition = {
   inputSchema: workoutSessionControlToolInputJsonSchema
 };
 
+/**
+ * Executes the main action flow.
+ */
 async function execute({ input, userId, run }) {
   let parsedInput;
 
@@ -51,36 +54,57 @@ async function execute({ input, userId, run }) {
   const actionHandler = ACTION_HANDLERS[parsedInput.action];
 
   try {
-    const workout = await actionHandler.execute({
+    const result = await executeWorkoutCommand({
       userId,
-      input: parsedInput
+      command: {
+        commandId: `${definition.name}:${run.run_id}:${parsedInput.workoutSessionId}:${parsedInput.action}`,
+        sessionKey: run.session_key,
+        workoutSessionId: parsedInput.workoutSessionId,
+        commandType: actionHandler.commandType,
+        origin: {
+          actor: 'agent',
+          runId: run.run_id,
+          occurredAt: run.started_at || run.created_at || new Date().toISOString()
+        },
+        baseStateVersion: parsedInput.expectedStateVersion,
+        payload: {}
+      },
+      runContext: {
+        runId: run.run_id,
+        sessionId: run.session_id,
+        sessionKey: run.session_key,
+        createdAt: run.created_at,
+        startedAt: run.started_at
+      }
     });
 
-    try {
-      await appendSessionEvent({
-        userId,
-        sessionKey: run.session_key,
-        sessionId: run.session_id,
-        eventType: actionHandler.eventType,
-        actor: 'tool',
-        runId: run.run_id,
-        payload: {
-          workoutSessionId: parsedInput.workoutSessionId,
-          action: parsedInput.action
-        },
-        idempotencyKey: `${definition.name}:${run.run_id}:${parsedInput.workoutSessionId}:${parsedInput.action}`
-      });
-    } catch (error) {
-      console.warn('Unable to append workout session control audit event:', error.message);
+    if (result.command.status === 'rejected') {
+      return semanticError(
+        result.command.conflict && result.command.conflict.code
+          ? result.command.conflict.code
+          : 'WORKOUT_COMMAND_REJECTED',
+        result.command.conflict && result.command.conflict.message
+          ? result.command.conflict.message
+          : 'The workout command could not be applied.',
+        'Use the latest workout context in the prompt before choosing the next action.',
+        result.command.conflict || {}
+      );
     }
 
     return {
       status: 'ok',
       output: {
-        workout
+        workout: result.workout,
+        command: result.command
       }
     };
   } catch (error) {
+    const busyError = mutationBusyError(error);
+
+    if (busyError) {
+      return busyError;
+    }
+
     if (error && error.code === 'WORKOUT_NOT_FOUND') {
       return semanticError(
         'WORKOUT_NOT_FOUND',

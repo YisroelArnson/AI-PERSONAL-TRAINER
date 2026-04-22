@@ -1,3 +1,13 @@
+/**
+ * File overview:
+ * Implements runtime service logic for memory doc indexing.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - replaceMemoryChunks: Replaces Memory chunks with updated content.
+ * - syncMemoryDocIndex: Handles Sync memory doc index for memory-doc-indexing.service.js.
+ */
+
 const { sha256Hex } = require('../../shared/hash');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { chunkMarkdownDeterministically } = require('./chunking.service');
@@ -11,6 +21,9 @@ const {
 const { getLatestDocVersionByDocId } = require('./memory-docs.service');
 const { replaceMemoryChunksInRedis } = require('./redis-retrieval-index.service');
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -21,6 +34,9 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Replaces Memory chunks with updated content.
+ */
 async function replaceMemoryChunks({ userId, docId, chunks }) {
   const supabase = getAdminClientOrThrow();
   const { error: deleteError } = await supabase
@@ -49,6 +65,9 @@ async function replaceMemoryChunks({ userId, docId, chunks }) {
   return data || [];
 }
 
+/**
+ * Handles Sync memory doc index for memory-doc-indexing.service.js.
+ */
 async function syncMemoryDocIndex({
   userId,
   docId

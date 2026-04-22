@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the xai adapter behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const {
   accumulateToolResultState,
   buildRequest,
@@ -127,7 +134,7 @@ describe('xai.adapter', () => {
     });
   });
 
-  it('normalizes text-only responses into the internal assistant/final text shape', () => {
+  it('preserves raw text-only responses so the runtime can reject them', () => {
     const normalized = normalizeOutput({
       responseId: 'resp_text_123',
       outputText: '',
@@ -152,9 +159,7 @@ describe('xai.adapter', () => {
       }
     });
 
-    expect(normalized.outputText).toBe('Done.');
-    expect(normalized.commentaryText).toBe('Thinking.');
-    expect(normalized.finalText).toBe('Done.');
+    expect(normalized.rawText).toBe('<commentary>Thinking.</commentary><final>Done.</final>');
     expect(normalized.toolCalls).toEqual([]);
     expect(normalized.assistantMessage).toEqual({
       role: 'assistant',
@@ -200,7 +205,7 @@ describe('xai.adapter', () => {
         }
       }
     ]);
-    expect(normalized.outputText).toBe('');
+    expect(normalized.rawText).toBe('');
 
     const nextState = accumulateToolResultState({
       currentState: normalized.providerState,

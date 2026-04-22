@@ -1,3 +1,11 @@
+-- File overview:
+-- Applies the append-session-event-rpc database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.append_session_event: Implements the public.append_session_event database routine used by this migration.
+
+-- Implements the public.append_session_event database routine used by this migration.
+
 CREATE OR REPLACE FUNCTION public.append_session_event(
   p_user_id uuid,
   p_session_key text,

@@ -1,3 +1,12 @@
+/**
+ * File overview:
+ * Contains automated tests for the llm config service behavior.
+ *
+ * Main functions in this file:
+ * - createUserPlanSettingsQuery: Creates an User plan settings query used by this file.
+ * - createUpsertQuery: Creates an Upsert query used by this file.
+ */
+
 const mockGetSupabaseAdminClient = jest.fn();
 
 jest.mock('../../src/config/env', () => ({
@@ -20,6 +29,9 @@ const {
   updateUserDefaultLlmSelection
 } = require('../../src/runtime/services/llm-config.service');
 
+/**
+ * Creates an User plan settings query used by this file.
+ */
 function createUserPlanSettingsQuery(result) {
   const builder = {
     select: jest.fn(() => builder),
@@ -30,6 +42,9 @@ function createUserPlanSettingsQuery(result) {
   return builder;
 }
 
+/**
+ * Creates an Upsert query used by this file.
+ */
 function createUpsertQuery(result) {
   const builder = {
     upsert: jest.fn(() => builder),

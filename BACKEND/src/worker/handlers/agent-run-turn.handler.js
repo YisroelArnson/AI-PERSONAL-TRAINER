@@ -1,3 +1,24 @@
+/**
+ * File overview:
+ * Handles queued worker jobs for agent run turn.
+ *
+ * Main functions in this file:
+ * - startHeartbeat: Starts Heartbeat for this module.
+ * - normalizeDelayMs: Normalizes Delay ms into the format this file expects.
+ * - getJobAttemptState: Gets Job attempt state needed by this file.
+ * - moveJobToDelayedOrThrow: Handles Move job to delayed or throw for agent-run-turn.handler.js.
+ * - enqueueFinalRunDelivery: Enqueues Final run delivery for asynchronous work.
+ * - readHeaderValue: Reads Header value from its source.
+ * - parseRetryAfterMs: Parses Retry after ms into a validated shape.
+ * - parseResetDelayMs: Parses Reset delay ms into a validated shape.
+ * - resolveAnthropicResetDelayMs: Resolves Anthropic reset delay ms before the next step runs.
+ * - resolveRateLimitDelayMs: Resolves Rate limit delay ms before the next step runs.
+ * - deferRateLimitedRun: Handles Defer rate limited run for agent-run-turn.handler.js.
+ * - deferRetryableFailure: Handles Defer retryable failure for agent-run-turn.handler.js.
+ * - handleAgentRunTurn: Handles Agent run turn for this module.
+ * - emitStreamEvent: Handles Emit stream event for agent-run-turn.handler.js.
+ */
+
 const { performance } = require('node:perf_hooks');
 const { DelayedError } = require('bullmq');
 
@@ -13,12 +34,6 @@ const {
   refreshActiveRunLease,
   releaseActiveRunLease
 } = require('../../gateway/services/concurrency-admission.service');
-const {
-  SessionMutationLockBusyError,
-  acquireSessionMutationLock,
-  renewSessionMutationLock,
-  releaseSessionMutationLock
-} = require('../../runtime/services/session-mutation-lock.service');
 const { ERROR_CLASSES } = require('../../runtime/agent-runtime/types');
 const {
   getRunById,
@@ -26,13 +41,23 @@ const {
   markRunRunning,
   markRunSucceeded
 } = require('../../runtime/services/run-state.service');
+const {
+  buildNormalizedRunDeliveryPayload,
+  upsertRunDeliveryOutbox
+} = require('../../runtime/services/delivery-outbox.service');
+const { enqueueDeliverySend } = require('../../infra/queue/agent.queue');
+const {
+  annotateErrorForQueue,
+  classifyJobError
+} = require('../../runtime/services/job-failure.service');
 
 const RUN_LEASE_HEARTBEAT_INTERVAL_MS = 60 * 1000;
-const SESSION_LOCK_HEARTBEAT_INTERVAL_MS = 30 * 1000;
-const SESSION_LOCK_RETRY_DELAY_MS = 1000;
 const RATE_LIMIT_RETRY_FALLBACK_MS = 60 * 1000;
 const RATE_LIMIT_RETRY_BUFFER_MS = 1000;
 
+/**
+ * Starts Heartbeat for this module.
+ */
 function startHeartbeat(fn, intervalMs, label) {
   const timer = setInterval(async () => {
     try {
@@ -49,6 +74,9 @@ function startHeartbeat(fn, intervalMs, label) {
   return timer;
 }
 
+/**
+ * Normalizes Delay ms into the format this file expects.
+ */
 function normalizeDelayMs(delayMs, fallbackMs) {
   const normalizedFallbackMs = Math.max(1000, Math.floor(Number(fallbackMs) || 1000));
   const normalizedDelayMs = Number(delayMs);
@@ -60,6 +88,23 @@ function normalizeDelayMs(delayMs, fallbackMs) {
   return Math.max(1000, Math.floor(normalizedDelayMs));
 }
 
+/**
+ * Gets Job attempt state needed by this file.
+ */
+function getJobAttemptState(job) {
+  const currentAttempt = Math.max(1, Number(job && job.attemptsMade != null ? job.attemptsMade : 0) + 1);
+  const maxAttempts = Math.max(1, Number(job && job.opts && job.opts.attempts ? job.opts.attempts : 1));
+
+  return {
+    currentAttempt,
+    maxAttempts,
+    isFinalAttempt: currentAttempt >= maxAttempts
+  };
+}
+
+/**
+ * Handles Move job to delayed or throw for agent-run-turn.handler.js.
+ */
 async function moveJobToDelayedOrThrow(job, token, delayMs, fallbackMs) {
   if (token && typeof job.moveToDelayed === 'function') {
     await job.moveToDelayed(
@@ -70,22 +115,33 @@ async function moveJobToDelayedOrThrow(job, token, delayMs, fallbackMs) {
   }
 }
 
-async function acquireSessionMutationLockOrDelay(job, token, run) {
-  const lock = await acquireSessionMutationLock({
-    userId: run.user_id,
-    sessionKey: run.session_key,
-    sessionId: run.session_id
+/**
+ * Enqueues Final run delivery for asynchronous work.
+ */
+async function enqueueFinalRunDelivery({ run, outputText = null, error = null }) {
+  const payload = await buildNormalizedRunDeliveryPayload({
+    run,
+    outputText,
+    error
+  });
+  const deliveryRecord = await upsertRunDeliveryOutbox({
+    run,
+    payload,
+    status: 'pending'
   });
 
-  if (lock.acquired) {
-    return lock;
-  }
+  await enqueueDeliverySend({
+    deliveryId: deliveryRecord.delivery_id,
+    runId: run.run_id,
+    userId: run.user_id
+  });
 
-  await moveJobToDelayedOrThrow(job, token, SESSION_LOCK_RETRY_DELAY_MS, SESSION_LOCK_RETRY_DELAY_MS);
-
-  throw new SessionMutationLockBusyError('Unable to defer run while session mutation lock is busy');
+  return deliveryRecord;
 }
 
+/**
+ * Reads Header value from its source.
+ */
 function readHeaderValue(headers, headerName) {
   if (!headers || !headerName) {
     return null;
@@ -106,6 +162,9 @@ function readHeaderValue(headers, headerName) {
   return null;
 }
 
+/**
+ * Parses Retry after ms into a validated shape.
+ */
 function parseRetryAfterMs(headers) {
   const rawValue = readHeaderValue(headers, 'retry-after');
 
@@ -128,6 +187,9 @@ function parseRetryAfterMs(headers) {
   return Math.max(0, retryAt - Date.now());
 }
 
+/**
+ * Parses Reset delay ms into a validated shape.
+ */
 function parseResetDelayMs(headers, headerName) {
   const rawValue = readHeaderValue(headers, headerName);
 
@@ -144,6 +206,9 @@ function parseResetDelayMs(headers, headerName) {
   return Math.max(0, resetAt - Date.now());
 }
 
+/**
+ * Resolves Anthropic reset delay ms before the next step runs.
+ */
 function resolveAnthropicResetDelayMs(error) {
   const message = String(error && error.message ? error.message : '').toLowerCase();
   const headers = error && error.headers ? error.headers : null;
@@ -174,6 +239,9 @@ function resolveAnthropicResetDelayMs(error) {
   return null;
 }
 
+/**
+ * Resolves Rate limit delay ms before the next step runs.
+ */
 function resolveRateLimitDelayMs(error) {
   const headers = error && error.headers ? error.headers : null;
   const retryAfterMs = parseRetryAfterMs(headers);
@@ -191,6 +259,9 @@ function resolveRateLimitDelayMs(error) {
   return RATE_LIMIT_RETRY_FALLBACK_MS;
 }
 
+/**
+ * Handles Defer rate limited run for agent-run-turn.handler.js.
+ */
 async function deferRateLimitedRun(job, token, runId, error, appendEvent = null) {
   const retryDelayMs = resolveRateLimitDelayMs(error);
   const retryAt = new Date(Date.now() + retryDelayMs).toISOString();
@@ -217,11 +288,33 @@ async function deferRateLimitedRun(job, token, runId, error, appendEvent = null)
   return false;
 }
 
+/**
+ * Handles Defer retryable failure for agent-run-turn.handler.js.
+ */
+async function deferRetryableFailure({ runId, error, currentAttempt, maxAttempts }) {
+  try {
+    await publishHotStreamEvent({
+      runId,
+      eventType: 'run.deferred',
+      payload: {
+        phase: 'worker',
+        reason: 'retryable_failure',
+        currentAttempt,
+        maxAttempts,
+        message: error && error.message ? String(error.message).slice(0, 1000) : 'Retryable worker failure'
+      }
+    });
+  } catch (streamError) {
+    console.warn(`Unable to append run.deferred stream event for ${runId}:`, streamError.message);
+  }
+}
+
+/**
+ * Handles Agent run turn for this module.
+ */
 async function handleAgentRunTurn(job, token) {
   const { runId } = job.data;
-  let lock = null;
   let runLeaseHeartbeat = null;
-  let sessionLockHeartbeat = null;
   let run = null;
   let concurrencyPolicy = null;
   let llmSelection = null;
@@ -239,6 +332,9 @@ async function handleAgentRunTurn(job, token) {
       durationMs: Math.max(0, Date.now() - Number(job.timestamp || Date.now()))
     });
     concurrencyPolicy = await resolveConcurrencyPolicy(run.user_id);
+/**
+ * Handles Emit stream event for agent-run-turn.handler.js.
+ */
     const emitStreamEvent = async ({ eventType, payload }) => {
       const startedAt = performance.now();
 
@@ -281,14 +377,6 @@ async function handleAgentRunTurn(job, token) {
       console.warn(`Unable to refresh active-run lease before processing ${runId}:`, error.message);
     }
 
-    lock = await acquireSessionMutationLockOrDelay(job, token, run);
-    sessionLockHeartbeat = startHeartbeat(async () => {
-      const renewed = await renewSessionMutationLock(lock);
-
-      if (!renewed) {
-        throw new Error('SESSION_MUTATION_LOCK_LOST');
-      }
-    }, SESSION_LOCK_HEARTBEAT_INTERVAL_MS, 'Session mutation lock heartbeat');
     runLeaseHeartbeat = startHeartbeat(async () => {
       await refreshActiveRunLease({
         runId,
@@ -317,6 +405,8 @@ async function handleAgentRunTurn(job, token) {
       llm: llmSelection
     });
 
+    await markRunSucceeded(runId);
+
     await emitStreamEvent({
       eventType: 'run.completed',
       payload: {
@@ -327,7 +417,16 @@ async function handleAgentRunTurn(job, token) {
       }
     });
 
-    await markRunSucceeded(runId);
+    try {
+      const refreshedRun = await getRunById(runId).catch(() => run);
+      await enqueueFinalRunDelivery({
+        run: refreshedRun,
+        outputText: result.outputText
+      });
+    } catch (deliveryError) {
+      console.error(`Unable to enqueue final delivery for succeeded run ${runId}:`, deliveryError);
+    }
+
     try {
       await releaseActiveRunLease({
         runId,
@@ -346,16 +445,32 @@ async function handleAgentRunTurn(job, token) {
       throw error;
     }
 
-    if (error instanceof SessionMutationLockBusyError) {
-      throw error;
-    }
-
     if (error && error.errorClass === ERROR_CLASSES.rateLimited) {
       const deferred = await deferRateLimitedRun(job, token, runId, error, payload => publishHotStreamEvent(payload));
 
       if (!deferred) {
         throw error;
       }
+    }
+
+    const failure = classifyJobError(error);
+    const attemptState = getJobAttemptState(job);
+    const isTerminalFailure = failure.failureClass === 'permanent' || attemptState.isFinalAttempt;
+
+    if (!isTerminalFailure) {
+      await deferRetryableFailure({
+        runId,
+        error,
+        currentAttempt: attemptState.currentAttempt,
+        maxAttempts: attemptState.maxAttempts
+      });
+      throw annotateErrorForQueue(error, failure.failureClass);
+    }
+
+    try {
+      await markRunFailed(runId, error);
+    } catch (markFailedError) {
+      console.error(`Unable to mark run ${runId} as failed:`, markFailedError);
     }
 
     try {
@@ -379,13 +494,17 @@ async function handleAgentRunTurn(job, token) {
       console.error(`Unable to append run.failed stream event for ${runId}:`, streamError);
     }
 
-    try {
-      await markRunFailed(runId, error);
-    } catch (markFailedError) {
-      console.error(`Unable to mark run ${runId} as failed:`, markFailedError);
-    }
-
     if (run) {
+      try {
+        const refreshedRun = await getRunById(runId).catch(() => run);
+        await enqueueFinalRunDelivery({
+          run: refreshedRun,
+          error
+        });
+      } catch (deliveryError) {
+        console.error(`Unable to enqueue final delivery for failed run ${runId}:`, deliveryError);
+      }
+
       try {
         await releaseActiveRunLease({
           runId,
@@ -396,22 +515,10 @@ async function handleAgentRunTurn(job, token) {
       }
     }
 
-    throw error;
+    throw annotateErrorForQueue(error, failure.failureClass);
   } finally {
     if (runLeaseHeartbeat) {
       clearInterval(runLeaseHeartbeat);
-    }
-
-    if (sessionLockHeartbeat) {
-      clearInterval(sessionLockHeartbeat);
-    }
-
-    if (lock) {
-      try {
-        await releaseSessionMutationLock(lock);
-      } catch (error) {
-        console.warn(`Unable to release session mutation lock for ${runId}:`, error.message);
-      }
     }
 
     if (run) {

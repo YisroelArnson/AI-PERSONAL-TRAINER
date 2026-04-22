@@ -1,6 +1,18 @@
+/**
+ * File overview:
+ * Implements runtime service logic for gateway ingest.
+ *
+ * Main functions in this file:
+ * - mapRpcError: Maps RPC error into the structure expected downstream.
+ * - persistInboundMessage: Persists Inbound message for later use.
+ */
+
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { badRequest, conflict } = require('../../shared/errors');
 
+/**
+ * Maps RPC error into the structure expected downstream.
+ */
 function mapRpcError(error) {
   const message = error && error.message ? error.message : 'Gateway ingest failed';
 
@@ -23,6 +35,9 @@ function mapRpcError(error) {
   return error;
 }
 
+/**
+ * Persists Inbound message for later use.
+ */
 async function persistInboundMessage({
   userId,
   route,

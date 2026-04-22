@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the redis retrieval index service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const {
   buildRedisSearchFilter,
   buildRedisTextQuery,

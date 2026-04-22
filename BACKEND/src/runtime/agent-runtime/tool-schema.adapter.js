@@ -1,3 +1,7 @@
+
+/**
+ * Handles To anthropic tool for tool-schema.adapter.js.
+ */
 function toAnthropicTool(tool, options = {}) {
   const anthropicTool = {
     name: tool.name,
@@ -12,6 +16,9 @@ function toAnthropicTool(tool, options = {}) {
   return anthropicTool;
 }
 
+/**
+ * Handles To xAI tool for tool-schema.adapter.js.
+ */
 function toXaiTool(tool) {
   return {
     type: 'function',
@@ -21,10 +28,16 @@ function toXaiTool(tool) {
   };
 }
 
+/**
+ * Builds a Cache control used by this file.
+ */
 function buildCacheControl(ttl) {
   return ttl ? { type: 'ephemeral', ttl } : { type: 'ephemeral' };
 }
 
+/**
+ * Handles To provider tools for tool-schema.adapter.js.
+ */
 function toProviderTools(tools, caps, options = {}) {
   if (!tools || tools.length === 0) {
     return [];

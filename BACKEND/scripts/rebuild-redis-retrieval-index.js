@@ -1,8 +1,27 @@
 #!/usr/bin/env node
+/**
+ * File overview:
+ * Provides a maintenance script for rebuild redis retrieval index.
+ *
+ * Main functions in this file:
+ * - main: Handles Main for rebuild-redis-retrieval-index.js.
+ */
+
+/**
+ * File overview:
+ * Provides a maintenance script for rebuild redis retrieval index.
+ *
+ * Main functions in this file:
+ * - main: Handles main for rebuild-redis-retrieval-index.js.
+ */
+
 
 const { getRedisConnection } = require('../src/infra/redis/connection');
 const { rebuildRedisRetrievalIndex } = require('../src/runtime/services/redis-retrieval-index.service');
 
+/**
+ * Handles Main for rebuild-redis-retrieval-index.js.
+ */
 async function main() {
   const rawArg = process.argv[2] || null;
 

@@ -1,52 +1,98 @@
+/**
+ * File overview:
+ * Provides infrastructure helpers for agent queue.
+ *
+ * Main functions in this file:
+ * - getQueue: Gets Queue needed by this file.
+ * - getQueueByJobName: Gets Queue by job name needed by this file.
+ * - getAgentQueue: Gets Agent queue needed by this file.
+ * - enqueueJob: Enqueues Job for asynchronous work.
+ * - enqueueAgentRunTurn: Enqueues Agent run turn for asynchronous work.
+ * - enqueueSessionMemoryFlush: Enqueues Session memory flush for asynchronous work.
+ * - enqueuePreCompactionMemoryFlush: Enqueues Pre compaction memory flush for asynchronous work.
+ * - enqueueSessionIndexSync: Enqueues Session index sync for asynchronous work.
+ * - enqueueMemoryDocIndexSync: Enqueues Memory doc index sync for asynchronous work.
+ * - enqueueSessionCompaction: Enqueues Session compaction for asynchronous work.
+ * - enqueueDeliverySend: Enqueues Delivery send for asynchronous work.
+ * - enqueueDeliveryRetry: Enqueues Delivery retry for asynchronous work.
+ */
+
 const { Queue } = require('bullmq');
 
+const { createSharedJobOptions } = require('./queue.config');
 const { getRedisConnection } = require('../redis/connection');
 const {
   JOB_NAMES,
   QUEUE_NAMES,
   buildAgentRunTurnJobId,
-  buildSessionMemoryFlushJobId,
+  buildDeliveryRetryJobId,
+  buildDeliverySendJobId,
+  buildJobEnvelope,
+  buildMemoryDocIndexSyncJobId,
+  buildSessionCompactionJobId,
   buildSessionIndexSyncJobId,
-  buildMemoryDocIndexSyncJobId
+  buildSessionMemoryFlushJobId,
+  resolveQueueNameForJobName
 } = require('./queue.constants');
 
-let agentQueue;
+const queuesByName = new Map();
 
-function getAgentQueue() {
+/**
+ * Gets Queue needed by this file.
+ */
+function getQueue(queueName) {
   const connection = getRedisConnection();
 
   if (!connection) {
     throw new Error('REDIS_URL is not configured');
   }
 
-  if (!agentQueue) {
-    agentQueue = new Queue(QUEUE_NAMES.agent, {
+  if (!queuesByName.has(queueName)) {
+    queuesByName.set(queueName, new Queue(queueName, {
       connection,
-      defaultJobOptions: {
-        attempts: 5,
-        backoff: {
-          type: 'exponential',
-          delay: 1000
-        },
-        removeOnComplete: {
-          age: 60 * 60 * 24,
-          count: 1000
-        },
-        removeOnFail: {
-          age: 60 * 60 * 24 * 7,
-          count: 5000
-        }
-      }
-    });
+      defaultJobOptions: createSharedJobOptions()
+    }));
   }
 
-  return agentQueue;
+  return queuesByName.get(queueName);
 }
 
+/**
+ * Gets Queue by job name needed by this file.
+ */
+function getQueueByJobName(jobName) {
+  return getQueue(resolveQueueNameForJobName(jobName));
+}
+
+/**
+ * Gets Agent queue needed by this file.
+ */
+function getAgentQueue() {
+  return getQueue(QUEUE_NAMES.agentRuns);
+}
+
+/**
+ * Enqueues Job for asynchronous work.
+ */
+async function enqueueJob(jobName, payload, options = {}) {
+  const queueName = resolveQueueNameForJobName(jobName);
+  const queue = getQueueByJobName(jobName);
+  const job = await queue.add(jobName, buildJobEnvelope(payload), options);
+
+  return {
+    jobId: job.id,
+    queueName,
+    jobName,
+    payload: job.data,
+    mode: 'bullmq'
+  };
+}
+
+/**
+ * Enqueues Agent run turn for asynchronous work.
+ */
 async function enqueueAgentRunTurn({ runId, userId, sessionKey, sessionId }) {
-  const queue = getAgentQueue();
-  const jobId = buildAgentRunTurnJobId(runId);
-  const job = await queue.add(
+  return enqueueJob(
     JOB_NAMES.agentRunTurn,
     {
       runId,
@@ -55,19 +101,14 @@ async function enqueueAgentRunTurn({ runId, userId, sessionKey, sessionId }) {
       sessionId
     },
     {
-      jobId
+      jobId: buildAgentRunTurnJobId(runId)
     }
   );
-
-  return {
-    jobId: job.id,
-    queueName: QUEUE_NAMES.agent,
-    jobName: JOB_NAMES.agentRunTurn,
-    payload: job.data,
-    mode: 'bullmq'
-  };
 }
 
+/**
+ * Enqueues Session memory flush for asynchronous work.
+ */
 async function enqueueSessionMemoryFlush({
   userId,
   sessionKey,
@@ -76,14 +117,10 @@ async function enqueueSessionMemoryFlush({
   timezone,
   messageCount
 }) {
-  const queue = getAgentQueue();
-  const jobId = buildSessionMemoryFlushJobId({
-    sessionKey,
-    previousSessionId
-  });
-  const job = await queue.add(
+  return enqueueJob(
     JOB_NAMES.memoryFlushSessionEnd,
     {
+      flushKind: 'session_end',
       userId,
       sessionKey,
       previousSessionId,
@@ -92,20 +129,53 @@ async function enqueueSessionMemoryFlush({
       messageCount
     },
     {
-      jobId,
+      jobId: buildSessionMemoryFlushJobId({
+        sessionKey,
+        previousSessionId,
+        flushKind: 'session_end'
+      }),
+      priority: 2
+    }
+  );
+}
+
+/**
+ * Enqueues Pre compaction memory flush for asynchronous work.
+ */
+async function enqueuePreCompactionMemoryFlush({
+  userId,
+  sessionKey,
+  sessionId,
+  timezone,
+  messageCount,
+  currentCompactionCount
+}) {
+  return enqueueJob(
+    JOB_NAMES.memoryFlushPreCompaction,
+    {
+      flushKind: 'pre_compaction',
+      userId,
+      sessionKey,
+      sessionId,
+      timezone,
+      messageCount,
+      currentCompactionCount
+    },
+    {
+      jobId: buildSessionMemoryFlushJobId({
+        sessionKey,
+        sessionId,
+        flushKind: 'pre_compaction',
+        compactionCount: currentCompactionCount
+      }),
       priority: 1
     }
   );
-
-  return {
-    jobId: job.id,
-    queueName: QUEUE_NAMES.agent,
-    jobName: JOB_NAMES.memoryFlushSessionEnd,
-    payload: job.data,
-    mode: 'bullmq'
-  };
 }
 
+/**
+ * Enqueues Session index sync for asynchronous work.
+ */
 async function enqueueSessionIndexSync({
   userId,
   sessionKey,
@@ -113,70 +183,143 @@ async function enqueueSessionIndexSync({
   mode = 'default',
   delayMs = 0
 }) {
-  const queue = getAgentQueue();
-  const jobId = buildSessionIndexSyncJobId({
-    sessionKey,
-    sessionId,
-    mode
-  });
-  const job = await queue.add(
-    JOB_NAMES.indexSyncSession,
+  return enqueueJob(
+    JOB_NAMES.memoryIndexSessionDelta,
     {
       userId,
       sessionKey,
-      sessionId
+      sessionId,
+      mode
     },
     {
-      jobId,
+      jobId: buildSessionIndexSyncJobId({
+        sessionKey,
+        sessionId,
+        mode
+      }),
       priority: mode === 'immediate' ? 2 : 5,
       delay: Math.max(0, delayMs || 0)
     }
   );
-
-  return {
-    jobId: job.id,
-    queueName: QUEUE_NAMES.agent,
-    jobName: JOB_NAMES.indexSyncSession,
-    payload: job.data,
-    mode: 'bullmq'
-  };
 }
 
+/**
+ * Enqueues Memory doc index sync for asynchronous work.
+ */
 async function enqueueMemoryDocIndexSync({
   userId,
   docId,
   delayMs = 0
 }) {
-  const queue = getAgentQueue();
-  const jobId = buildMemoryDocIndexSyncJobId({
-    docId
-  });
-  const job = await queue.add(
-    JOB_NAMES.indexSyncMemoryDoc,
+  return enqueueJob(
+    JOB_NAMES.memoryIndexDoc,
     {
       userId,
       docId
     },
     {
-      jobId,
+      jobId: buildMemoryDocIndexSyncJobId({
+        docId
+      }),
       priority: 4,
       delay: Math.max(0, delayMs || 0)
     }
   );
+}
 
-  return {
-    jobId: job.id,
-    queueName: QUEUE_NAMES.agent,
-    jobName: JOB_NAMES.indexSyncMemoryDoc,
-    payload: job.data,
-    mode: 'bullmq'
-  };
+/**
+ * Enqueues Session compaction for asynchronous work.
+ */
+async function enqueueSessionCompaction({
+  userId,
+  sessionKey,
+  sessionId,
+  nextCompactionCount,
+  delayMs = 0
+}) {
+  return enqueueJob(
+    JOB_NAMES.sessionCompact,
+    {
+      userId,
+      sessionKey,
+      sessionId,
+      nextCompactionCount
+    },
+    {
+      jobId: buildSessionCompactionJobId({
+        sessionKey,
+        sessionId,
+        nextCompactionCount
+      }),
+      priority: 3,
+      delay: Math.max(0, delayMs || 0)
+    }
+  );
+}
+
+/**
+ * Enqueues Delivery send for asynchronous work.
+ */
+async function enqueueDeliverySend({
+  deliveryId,
+  runId,
+  userId
+}) {
+  return enqueueJob(
+    JOB_NAMES.deliverySend,
+    {
+      deliveryId,
+      runId,
+      userId
+    },
+    {
+      jobId: buildDeliverySendJobId({
+        deliveryId
+      }),
+      priority: 1
+    }
+  );
+}
+
+/**
+ * Enqueues Delivery retry for asynchronous work.
+ */
+async function enqueueDeliveryRetry({
+  deliveryId,
+  runId,
+  userId,
+  attemptCount,
+  delayMs = 0
+}) {
+  return enqueueJob(
+    JOB_NAMES.deliveryRetry,
+    {
+      deliveryId,
+      runId,
+      userId,
+      attemptCount
+    },
+    {
+      jobId: buildDeliveryRetryJobId({
+        deliveryId,
+        attemptCount
+      }),
+      priority: 1,
+      delay: Math.max(0, delayMs || 0)
+    }
+  );
 }
 
 module.exports = {
-  getAgentQueue,
   enqueueAgentRunTurn,
-  enqueueSessionMemoryFlush,
+  enqueueDeliveryRetry,
+  enqueueDeliverySend,
+  enqueueMemoryDocIndexSync,
+  enqueuePreCompactionMemoryFlush,
+  enqueueSessionCompaction,
   enqueueSessionIndexSync,
-  enqueueMemoryDocIndexSync
+  enqueueSessionMemoryFlush,
+  getAgentQueue,
+  getQueue,
+  getQueueByJobName
 };

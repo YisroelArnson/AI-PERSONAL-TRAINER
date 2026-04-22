@@ -1,3 +1,13 @@
+/**
+ * File overview:
+ * Provides the workout tool contracts logic used by this part of the codebase.
+ *
+ * Main functions in this file:
+ * - stripJsonSchemaMetadata: Handles Strip JSON schema metadata for workout-tool-contracts.schema.js.
+ * - toProviderInputSchema: Handles To provider input schema for workout-tool-contracts.schema.js.
+ * - parseWorkoutGenerateToolInput: Parses Workout generate tool input into a validated shape.
+ */
+
 const { z } = require('zod');
 
 const {
@@ -174,6 +184,9 @@ const workoutHistoryFetchToolInputSchema = z.object({
   }
 });
 
+/**
+ * Handles Strip JSON schema metadata for workout-tool-contracts.schema.js.
+ */
 function stripJsonSchemaMetadata(value) {
   if (Array.isArray(value)) {
     return value.map(stripJsonSchemaMetadata);
@@ -190,6 +203,9 @@ function stripJsonSchemaMetadata(value) {
   return value;
 }
 
+/**
+ * Handles To provider input schema for workout-tool-contracts.schema.js.
+ */
 function toProviderInputSchema(schema) {
   return stripJsonSchemaMetadata(z.toJSONSchema(schema, { io: 'input' }));
 }
@@ -204,6 +220,9 @@ const workoutRecordSetResultToolInputJsonSchema = toProviderInputSchema(workoutR
 const workoutFinishSessionToolInputJsonSchema = toProviderInputSchema(workoutFinishSessionToolInputSchema);
 const workoutHistoryFetchToolInputJsonSchema = toProviderInputSchema(workoutHistoryFetchToolInputSchema);
 
+/**
+ * Parses Workout generate tool input into a validated shape.
+ */
 function parseWorkoutGenerateToolInput(input) {
   return workoutGenerateToolInputSchema.parse(input);
 }

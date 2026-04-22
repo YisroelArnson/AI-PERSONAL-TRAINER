@@ -1,3 +1,12 @@
+/**
+ * File overview:
+ * Implements the message ingress service logic that powers gateway requests.
+ *
+ * Main functions in this file:
+ * - buildAcceptedResponse: Builds an Accepted response used by this file.
+ * - processInboundMessage: Processes Inbound message through this file's workflow.
+ */
+
 const { hashRequestPayload } = require('../../shared/hash');
 const { enqueueAgentRunTurn } = require('../../infra/queue/agent.queue');
 const { requireIdempotencyKey, lookupIdempotencyResponse } = require('../../runtime/services/idempotency.service');
@@ -9,6 +18,7 @@ const { resolveRateLimitPolicy } = require('../../runtime/services/rate-limit-po
 const { resolveConcurrencyPolicy } = require('../../runtime/services/concurrency-policy.service');
 const { enqueueSessionMemoryFlushIfNeeded } = require('../../runtime/services/session-memory-queue.service');
 const { enqueueSessionIndexSyncIfNeeded } = require('../../runtime/services/indexing-queue.service');
+const { enqueueSessionCompactionIfNeeded } = require('../../runtime/services/session-compaction.service');
 const { resolveEffectiveLlmSelection } = require('../../runtime/services/llm-config.service');
 const { startTimer } = require('../../runtime/services/performance-log.service');
 const {
@@ -23,6 +33,9 @@ const {
 
 const MESSAGE_ROUTE = '/v1/messages';
 
+/**
+ * Builds an Accepted response used by this file.
+ */
 async function buildAcceptedResponse({
   persisted,
   userId,
@@ -102,6 +115,7 @@ async function buildAcceptedResponse({
   });
 
   try {
+    console.log('enqueueing agent run turn');
     job = await enqueueAgentRunTurn({
       runId: persisted.runId,
       userId,
@@ -142,7 +156,11 @@ async function buildAcceptedResponse({
   };
 }
 
+/**
+ * Processes Inbound message through this file's workflow.
+ */
 async function processInboundMessage({ auth, headers, body, ipAddress, requestId }) {
+  console.log('top of processInboundMessage');
   const idempotencyKey = requireIdempotencyKey(headers);
   const requestHash = hashRequestPayload(body);
   const replayedResponse = await lookupIdempotencyResponse({
@@ -293,6 +311,16 @@ async function processInboundMessage({ auth, headers, body, ipAddress, requestId
     });
   } catch (error) {
     console.warn('Unable to enqueue session indexing job after ingress append:', error.message);
+  }
+
+  try {
+    await enqueueSessionCompactionIfNeeded({
+      userId: auth.userId,
+      sessionKey: persisted.sessionKey,
+      sessionId: persisted.sessionId
+    });
+  } catch (error) {
+    console.warn('Unable to enqueue session compaction job after ingress append:', error.message);
   }
 
   let rateLimitTokensRefunded = false;

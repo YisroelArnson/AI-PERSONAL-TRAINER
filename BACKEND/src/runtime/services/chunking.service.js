@@ -1,7 +1,14 @@
+
+/**
+ * Normalizes Text into the format this file expects.
+ */
 function normalizeText(value) {
   return String(value || '').replace(/\r\n/g, '\n');
 }
 
+/**
+ * Handles Chunk markdown deterministically for chunking.service.js.
+ */
 function chunkMarkdownDeterministically(markdown, options = {}) {
   const normalized = normalizeText(markdown);
   const maxChars = Math.max(200, Number(options.maxChars) || 1200);
@@ -49,12 +56,18 @@ function chunkMarkdownDeterministically(markdown, options = {}) {
   return chunks;
 }
 
+/**
+ * Handles Chunk session entries deterministically for chunking.service.js.
+ */
 function chunkSessionEntriesDeterministically(entries, options = {}) {
   const maxChars = Math.max(200, Number(options.maxChars) || 1200);
   const chunks = [];
   let currentEntries = [];
   let currentLength = 0;
 
+/**
+ * Handles Push current chunk for chunking.service.js.
+ */
   function pushCurrentChunk() {
     if (currentEntries.length === 0) {
       return;

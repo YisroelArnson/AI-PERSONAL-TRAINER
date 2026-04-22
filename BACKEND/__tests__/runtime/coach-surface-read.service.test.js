@@ -1,3 +1,11 @@
+/**
+ * File overview:
+ * Contains automated tests for the coach surface read service behavior.
+ *
+ * Main functions in this file:
+ * - createSelectChain: Creates a Select chain used by this file.
+ */
+
 const mockRpc = jest.fn();
 const mockFrom = jest.fn();
 const mockGetCurrentWorkoutState = jest.fn();
@@ -15,6 +23,9 @@ jest.mock('../../src/runtime/services/workout-state.service', () => ({
 
 const { buildCoachSurfaceView } = require('../../src/runtime/services/coach-surface-read.service');
 
+/**
+ * Creates a Select chain used by this file.
+ */
 function createSelectChain(result) {
   return {
     select: jest.fn().mockReturnThis(),
@@ -151,5 +162,85 @@ describe('buildCoachSurfaceView active run visibility', () => {
 
     expect(result.view.activeRun).toBeNull();
     expect(result.view.header.subtitle).toBe('One calm surface for training, planning, and check-ins');
+  });
+
+  it('maps assistant notify and ask transcript events into visible feed items', async () => {
+    const feedChain = createSelectChain([
+      {
+        event_id: 'evt-user',
+        event_type: 'user.message',
+        actor: 'user',
+        run_id: 'run-user',
+        seq_num: 1,
+        occurred_at: '2026-03-31T09:58:00.000Z',
+        payload: {
+          text: 'Help me plan today.'
+        }
+      },
+      {
+        event_id: 'evt-notify',
+        event_type: 'assistant.notify',
+        actor: 'assistant',
+        run_id: 'run-notify',
+        seq_num: 2,
+        occurred_at: '2026-03-31T09:58:10.000Z',
+        payload: {
+          text: 'I mapped out a plan for today.',
+          kind: 'notify',
+          delivery: 'feed'
+        }
+      },
+      {
+        event_id: 'evt-ask',
+        event_type: 'assistant.ask',
+        actor: 'assistant',
+        run_id: 'run-ask',
+        seq_num: 3,
+        occurred_at: '2026-03-31T09:58:20.000Z',
+        payload: {
+          text: 'Do you want a short session or a full workout?',
+          kind: 'ask',
+          delivery: 'feed'
+        }
+      }
+    ]);
+    const runsChain = createSelectChain([]);
+
+    mockFrom.mockImplementation(table => {
+      if (table === 'session_events') {
+        return feedChain;
+      }
+
+      if (table === 'runs') {
+        return runsChain;
+      }
+
+      throw new Error(`Unexpected table lookup: ${table}`);
+    });
+
+    const result = await buildCoachSurfaceView({
+      userId: 'user-123',
+      sessionKey: 'user:user-123:main',
+      sessionResetPolicy: {
+        timezone: 'America/New_York',
+        dayBoundaryEnabled: true,
+        idleExpiryMinutes: 240
+      }
+    });
+
+    expect(result.view.feed).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: 'evt-notify',
+        role: 'assistant',
+        text: 'I mapped out a plan for today.',
+        eventType: 'assistant.notify'
+      }),
+      expect.objectContaining({
+        id: 'evt-ask',
+        role: 'assistant',
+        text: 'Do you want a short session or a full workout?',
+        eventType: 'assistant.ask'
+      })
+    ]));
   });
 });

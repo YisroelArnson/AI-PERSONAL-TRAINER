@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the transcript hygiene adapter behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const { applyHygiene } = require('../../src/runtime/agent-runtime/transcript-hygiene.adapter');
 
 describe('applyHygiene', () => {

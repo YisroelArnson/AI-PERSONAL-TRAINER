@@ -1,3 +1,36 @@
+/**
+ * File overview:
+ * Implements runtime service logic for memory docs.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - buildEpisodicDateDocKey: Builds an Episodic date doc key used by this file.
+ * - isCacheableDocKey: Handles Is cacheable doc key for memory-docs.service.js.
+ * - buildLatestDocCacheKey: Builds a Latest doc cache key used by this file.
+ * - buildLatestDocByIdCacheKey: Builds a Latest doc by ID cache key used by this file.
+ * - getRedisOrNull: Gets Redis or null needed by this file.
+ * - normalizeCachedRecord: Normalizes Cached record into the format this file expects.
+ * - getCachedLatestDocRecordByKey: Gets Cached latest doc record by key needed by this file.
+ * - getCachedLatestDocRecordById: Gets Cached latest doc record by ID needed by this file.
+ * - cacheLatestDocRecord: Handles Cache latest doc record for memory-docs.service.js.
+ * - loadLatestDocVersionByDocTypeFromDb: Loads Latest doc version by doc type from DB for the surrounding workflow.
+ * - loadLatestDocVersionByDocKeyFromDb: Loads Latest doc version by doc key from DB for the surrounding workflow.
+ * - loadLatestDocVersionByDocIdFromDb: Loads Latest doc version by doc ID from DB for the surrounding workflow.
+ * - loadLatestDocVersionsByDocKeysFromDb: Loads Latest doc versions by doc keys from DB for the surrounding workflow.
+ * - getMutableDocTypeForDocKey: Gets Mutable doc type for doc key needed by this file.
+ * - getEntireDocumentDocKey: Gets Entire document doc key needed by this file.
+ * - replaceSingleOccurrence: Replaces Single occurrence with updated content.
+ * - buildAppendedMarkdown: Builds an Appended markdown used by this file.
+ * - getLatestDocVersionByDocType: Gets Latest doc version by doc type needed by this file.
+ * - getLatestDocVersionByDocKey: Gets Latest doc version by doc key needed by this file.
+ * - getLatestDocVersionByDocId: Gets Latest doc version by doc ID needed by this file.
+ * - getLatestDocVersionsByDocKeys: Gets Latest doc versions by doc keys needed by this file.
+ * - writeMemoryDocVersion: Writes Memory doc version to its destination.
+ * - replaceMutableDocument: Replaces Mutable document with updated content.
+ * - replaceMutableDocumentText: Replaces Mutable document text with updated content.
+ * - appendEpisodicNoteBlock: Appends Episodic note block to the existing record.
+ */
+
 const { env } = require('../../config/env');
 const { getRedisConnection } = require('../../infra/redis/connection');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
@@ -11,6 +44,9 @@ const ENTIRE_DOCUMENT_DOC_KEYS = new Set(['MEMORY', 'PROGRAM', COACH_SOUL_DOC_KE
 const EPISODIC_DATE_PREFIX = 'EPISODIC_DATE:';
 const CACHEABLE_DOC_KEYS = new Set([COACH_SOUL_DOC_KEY, 'MEMORY', 'PROGRAM']);
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -21,6 +57,9 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Builds an Episodic date doc key used by this file.
+ */
 function buildEpisodicDateDocKey(dateKey) {
   if (!isValidDateKey(dateKey)) {
     throw new Error('Invalid episodic date key');
@@ -29,23 +68,38 @@ function buildEpisodicDateDocKey(dateKey) {
   return `${EPISODIC_DATE_PREFIX}${dateKey}`;
 }
 
+/**
+ * Handles Is cacheable doc key for memory-docs.service.js.
+ */
 function isCacheableDocKey(docKey) {
   const normalizedDocKey = String(docKey || '').trim().toUpperCase();
   return CACHEABLE_DOC_KEYS.has(normalizedDocKey) || normalizedDocKey.startsWith(EPISODIC_DATE_PREFIX);
 }
 
+/**
+ * Builds a Latest doc cache key used by this file.
+ */
 function buildLatestDocCacheKey(userId, docKey) {
   return `memory-doc:latest:${userId}:${String(docKey || '').trim().toUpperCase()}`;
 }
 
+/**
+ * Builds a Latest doc by ID cache key used by this file.
+ */
 function buildLatestDocByIdCacheKey(userId, docId) {
   return `memory-doc:latest-by-id:${userId}:${docId}`;
 }
 
+/**
+ * Gets Redis or null needed by this file.
+ */
 function getRedisOrNull() {
   return getRedisConnection();
 }
 
+/**
+ * Normalizes Cached record into the format this file expects.
+ */
 function normalizeCachedRecord(record) {
   if (!record || !record.doc || !record.version) {
     return null;
@@ -57,6 +111,9 @@ function normalizeCachedRecord(record) {
   };
 }
 
+/**
+ * Gets Cached latest doc record by key needed by this file.
+ */
 async function getCachedLatestDocRecordByKey(userId, docKey) {
   if (!isCacheableDocKey(docKey)) {
     return null;
@@ -75,6 +132,9 @@ async function getCachedLatestDocRecordByKey(userId, docKey) {
   return normalizeCachedRecord(JSON.parse(raw));
 }
 
+/**
+ * Gets Cached latest doc record by ID needed by this file.
+ */
 async function getCachedLatestDocRecordById(userId, docId) {
   const redis = getRedisOrNull();
   if (!redis || !docId) {
@@ -89,6 +149,9 @@ async function getCachedLatestDocRecordById(userId, docId) {
   return normalizeCachedRecord(JSON.parse(raw));
 }
 
+/**
+ * Handles Cache latest doc record for memory-docs.service.js.
+ */
 async function cacheLatestDocRecord(record) {
   const normalized = normalizeCachedRecord(record);
   if (!normalized || !normalized.doc || !isCacheableDocKey(normalized.doc.doc_key)) {
@@ -112,6 +175,9 @@ async function cacheLatestDocRecord(record) {
   await multi.exec();
 }
 
+/**
+ * Loads Latest doc version by doc type from DB for the surrounding workflow.
+ */
 async function loadLatestDocVersionByDocTypeFromDb(userId, docType) {
   const supabase = getAdminClientOrThrow();
   const { data: doc, error: docError } = await supabase
@@ -152,6 +218,9 @@ async function loadLatestDocVersionByDocTypeFromDb(userId, docType) {
   };
 }
 
+/**
+ * Loads Latest doc version by doc key from DB for the surrounding workflow.
+ */
 async function loadLatestDocVersionByDocKeyFromDb(userId, docKey) {
   const supabase = getAdminClientOrThrow();
   const { data: doc, error: docError } = await supabase
@@ -190,6 +259,9 @@ async function loadLatestDocVersionByDocKeyFromDb(userId, docKey) {
   };
 }
 
+/**
+ * Loads Latest doc version by doc ID from DB for the surrounding workflow.
+ */
 async function loadLatestDocVersionByDocIdFromDb(userId, docId) {
   const supabase = getAdminClientOrThrow();
   const { data: doc, error: docError } = await supabase
@@ -228,6 +300,9 @@ async function loadLatestDocVersionByDocIdFromDb(userId, docId) {
   };
 }
 
+/**
+ * Loads Latest doc versions by doc keys from DB for the surrounding workflow.
+ */
 async function loadLatestDocVersionsByDocKeysFromDb(userId, docKeys) {
   const uniqueDocKeys = [...new Set((docKeys || []).filter(Boolean))];
 
@@ -274,6 +349,9 @@ async function loadLatestDocVersionsByDocKeysFromDb(userId, docKeys) {
     .filter(record => Boolean(record.version));
 }
 
+/**
+ * Gets Mutable doc type for doc key needed by this file.
+ */
 function getMutableDocTypeForDocKey(docKey) {
   const normalizedDocKey = String(docKey || '').trim().toUpperCase();
 
@@ -284,6 +362,9 @@ function getMutableDocTypeForDocKey(docKey) {
   return normalizedDocKey;
 }
 
+/**
+ * Gets Entire document doc key needed by this file.
+ */
 function getEntireDocumentDocKey(docKey) {
   const normalizedDocKey = String(docKey || '').trim().toUpperCase();
 
@@ -294,6 +375,9 @@ function getEntireDocumentDocKey(docKey) {
   return normalizedDocKey;
 }
 
+/**
+ * Replaces Single occurrence with updated content.
+ */
 function replaceSingleOccurrence(haystack, oldText, newText) {
   const source = String(haystack || '');
   const needle = String(oldText || '');
@@ -336,6 +420,9 @@ function replaceSingleOccurrence(haystack, oldText, newText) {
   };
 }
 
+/**
+ * Builds an Appended markdown used by this file.
+ */
 function buildAppendedMarkdown(existingContent, markdownBlock) {
   const current = String(existingContent || '').trimEnd();
   const block = String(markdownBlock || '').trim();
@@ -351,6 +438,9 @@ function buildAppendedMarkdown(existingContent, markdownBlock) {
   return `${current}\n\n${block}\n`;
 }
 
+/**
+ * Gets Latest doc version by doc type needed by this file.
+ */
 async function getLatestDocVersionByDocType(userId, docType) {
   const normalizedDocType = String(docType || '').trim().toUpperCase();
 
@@ -371,6 +461,9 @@ async function getLatestDocVersionByDocType(userId, docType) {
   return record;
 }
 
+/**
+ * Gets Latest doc version by doc key needed by this file.
+ */
 async function getLatestDocVersionByDocKey(userId, docKey) {
   try {
     const cached = await getCachedLatestDocRecordByKey(userId, docKey);
@@ -395,6 +488,9 @@ async function getLatestDocVersionByDocKey(userId, docKey) {
   return record;
 }
 
+/**
+ * Gets Latest doc version by doc ID needed by this file.
+ */
 async function getLatestDocVersionByDocId(userId, docId) {
   try {
     const cached = await getCachedLatestDocRecordById(userId, docId);
@@ -419,6 +515,9 @@ async function getLatestDocVersionByDocId(userId, docId) {
   return record;
 }
 
+/**
+ * Gets Latest doc versions by doc keys needed by this file.
+ */
 async function getLatestDocVersionsByDocKeys(userId, docKeys) {
   const uniqueDocKeys = [...new Set((docKeys || []).filter(Boolean))];
 
@@ -463,6 +562,9 @@ async function getLatestDocVersionsByDocKeys(userId, docKeys) {
     .filter(Boolean);
 }
 
+/**
+ * Writes Memory doc version to its destination.
+ */
 async function writeMemoryDocVersion({
   userId,
   docType,
@@ -529,6 +631,9 @@ async function writeMemoryDocVersion({
   return data;
 }
 
+/**
+ * Replaces Mutable document with updated content.
+ */
 async function replaceMutableDocument({
   userId,
   docKey,
@@ -554,6 +659,9 @@ async function replaceMutableDocument({
   });
 }
 
+/**
+ * Replaces Mutable document text with updated content.
+ */
 async function replaceMutableDocumentText({
   userId,
   docKey,
@@ -599,6 +707,9 @@ async function replaceMutableDocumentText({
   });
 }
 
+/**
+ * Appends Episodic note block to the existing record.
+ */
 async function appendEpisodicNoteBlock({
   userId,
   dateKey,

@@ -1,3 +1,13 @@
+/**
+ * File overview:
+ * Provides infrastructure helpers for concurrency leases.
+ *
+ * Main functions in this file:
+ * - normalizeScopeList: Normalizes Scope list into the format this file expects.
+ * - reserveConcurrencyLease: Handles Reserve concurrency lease for concurrency-leases.js.
+ * - releaseConcurrencyLease: Releases Concurrency lease once it is safe to do so.
+ */
+
 const { getRedisConnection } = require('./connection');
 
 const RESERVE_CONCURRENCY_SCRIPT = `
@@ -41,6 +51,9 @@ end
 return { 1 }
 `;
 
+/**
+ * Normalizes Scope list into the format this file expects.
+ */
 function normalizeScopeList(scopes) {
   return (scopes || []).filter(scope => (
     scope
@@ -51,6 +64,9 @@ function normalizeScopeList(scopes) {
   ));
 }
 
+/**
+ * Handles Reserve concurrency lease for concurrency-leases.js.
+ */
 async function reserveConcurrencyLease({
   member,
   scopes,
@@ -109,6 +125,9 @@ async function reserveConcurrencyLease({
   };
 }
 
+/**
+ * Releases Concurrency lease once it is safe to do so.
+ */
 async function releaseConcurrencyLease({
   member,
   scopes

@@ -1,3 +1,28 @@
+/**
+ * File overview:
+ * Implements runtime service logic for performance log.
+ *
+ * Main functions in this file:
+ * - isLoggingEnabled: Handles Is logging enabled for performance-log.service.js.
+ * - shouldSample: Handles Should sample for performance-log.service.js.
+ * - shouldUsePrettyLogs: Handles Should use pretty logs for performance-log.service.js.
+ * - roundDuration: Handles Round duration for performance-log.service.js.
+ * - trimTrailingZeros: Trims Trailing zeros to the supported shape.
+ * - formatDuration: Formats Duration for display or logging.
+ * - shortenValue: Handles Shorten value for performance-log.service.js.
+ * - formatYesNo: Formats Yes no for display or logging.
+ * - formatOutcome: Formats Outcome for display or logging.
+ * - getOrCreateRunMetrics: Gets Or create run metrics needed by this file.
+ * - getOrCreateIterationMetrics: Gets Or create iteration metrics needed by this file.
+ * - updateRunMetrics: Updates Run metrics with the latest state.
+ * - buildRunSummaryLines: Builds a Run summary lines used by this file.
+ * - formatGenericLine: Formats Generic line for display or logging.
+ * - printPrettyRecord: Handles Print pretty record for performance-log.service.js.
+ * - logPerformance: Handles Log performance for performance-log.service.js.
+ * - startTimer: Starts Timer for this module.
+ * - measureAsync: Handles Measure async for performance-log.service.js.
+ */
+
 const { performance } = require('node:perf_hooks');
 
 const { env } = require('../../config/env');
@@ -5,6 +30,9 @@ const { env } = require('../../config/env');
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const runMetricsByRunId = new Map();
 
+/**
+ * Handles Is logging enabled for performance-log.service.js.
+ */
 function isLoggingEnabled() {
   if (typeof env.performanceLoggingEnabled === 'boolean') {
     return env.performanceLoggingEnabled;
@@ -13,6 +41,9 @@ function isLoggingEnabled() {
   return process.env.NODE_ENV !== 'test';
 }
 
+/**
+ * Handles Should sample for performance-log.service.js.
+ */
 function shouldSample() {
   const sampleRate = Number.isFinite(Number(env.performanceLogSampleRate))
     ? Math.max(0, Math.min(1, Number(env.performanceLogSampleRate)))
@@ -25,20 +56,32 @@ function shouldSample() {
   return Math.random() <= sampleRate;
 }
 
+/**
+ * Handles Should use pretty logs for performance-log.service.js.
+ */
 function shouldUsePrettyLogs() {
   return String(env.performanceLogFormat || 'pretty').trim().toLowerCase() !== 'json';
 }
 
+/**
+ * Handles Round duration for performance-log.service.js.
+ */
 function roundDuration(durationMs) {
   return Math.round(Number(durationMs) * 1000) / 1000;
 }
 
+/**
+ * Trims Trailing zeros to the supported shape.
+ */
 function trimTrailingZeros(value) {
   return String(value)
     .replace(/(\.\d*?[1-9])0+$/, '$1')
     .replace(/\.0+$/, '');
 }
 
+/**
+ * Formats Duration for display or logging.
+ */
 function formatDuration(value) {
   const durationMs = Number(value);
 
@@ -57,6 +100,9 @@ function formatDuration(value) {
   return `${trimTrailingZeros(durationMs.toFixed(3))}ms`;
 }
 
+/**
+ * Handles Shorten value for performance-log.service.js.
+ */
 function shortenValue(value, maxLength = 48) {
   const stringValue = String(value || '');
 
@@ -75,14 +121,23 @@ function shortenValue(value, maxLength = 48) {
   return `${stringValue.slice(0, maxLength - 1)}…`;
 }
 
+/**
+ * Formats Yes no for display or logging.
+ */
 function formatYesNo(value) {
   return value ? 'yes' : 'no';
 }
 
+/**
+ * Formats Outcome for display or logging.
+ */
 function formatOutcome(value) {
   return value || 'ok';
 }
 
+/**
+ * Gets Or create run metrics needed by this file.
+ */
 function getOrCreateRunMetrics(record) {
   const runId = String(record.runId || '').trim();
 
@@ -115,6 +170,9 @@ function getOrCreateRunMetrics(record) {
   return metrics;
 }
 
+/**
+ * Gets Or create iteration metrics needed by this file.
+ */
 function getOrCreateIterationMetrics(metrics, iteration) {
   const iterationKey = Number(iteration);
 
@@ -136,6 +194,9 @@ function getOrCreateIterationMetrics(metrics, iteration) {
   return metrics.iterations.get(iterationKey);
 }
 
+/**
+ * Updates Run metrics with the latest state.
+ */
 function updateRunMetrics(record) {
   const metrics = getOrCreateRunMetrics(record);
 
@@ -209,6 +270,9 @@ function updateRunMetrics(record) {
   return metrics;
 }
 
+/**
+ * Builds a Run summary lines used by this file.
+ */
 function buildRunSummaryLines(record) {
   const metrics = updateRunMetrics(record);
 
@@ -287,6 +351,9 @@ function buildRunSummaryLines(record) {
   return lines;
 }
 
+/**
+ * Formats Generic line for display or logging.
+ */
 function formatGenericLine(record) {
   const baseLabel = record.runId
     ? `[run ${shortenValue(record.runId)}]`
@@ -377,6 +444,9 @@ function formatGenericLine(record) {
   }
 }
 
+/**
+ * Handles Print pretty record for performance-log.service.js.
+ */
 function printPrettyRecord(record) {
   const summaryLines = buildRunSummaryLines(record);
 
@@ -392,6 +462,9 @@ function printPrettyRecord(record) {
   }
 }
 
+/**
+ * Handles Log performance for performance-log.service.js.
+ */
 function logPerformance(payload) {
   if (!isLoggingEnabled() || !shouldSample()) {
     return;
@@ -411,6 +484,9 @@ function logPerformance(payload) {
   console.log(JSON.stringify(record));
 }
 
+/**
+ * Starts Timer for this module.
+ */
 function startTimer(basePayload = {}) {
   const startedAt = performance.now();
 
@@ -423,6 +499,9 @@ function startTimer(basePayload = {}) {
   };
 }
 
+/**
+ * Handles Measure async for performance-log.service.js.
+ */
 async function measureAsync(basePayload, fn, extraPayloadFactory) {
   const finish = startTimer(basePayload);
 

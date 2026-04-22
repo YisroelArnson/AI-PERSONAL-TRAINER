@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the workout state service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const {
   __testUtils
 } = require('../../src/runtime/services/workout-state.service');

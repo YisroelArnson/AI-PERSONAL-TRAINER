@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the token bucket behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const mockGetRedisConnection = jest.fn();
 
 jest.mock('../../src/infra/redis/connection', () => ({

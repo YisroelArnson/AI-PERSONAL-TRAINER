@@ -7,9 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		12541A072F2C59B90020EF78 /* AI Personal Trainer AppTests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */; };
-		12541A0B2F2C59D30020EF78 /* AI Personal Trainer AppUITests in Resources */ = {isa = PBXBuildFile; fileRef = 12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */; };
 		12761C732E579CEF00C4F8FE /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 12761C722E579CEF00C4F8FE /* Supabase */; };
+		F3E653862F6C4BB200833FD4 /* AI_Personal_Trainer_AppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E653872F6C4BB200833FD4 /* AI_Personal_Trainer_AppTests.swift */; };
+		F3E653882F6C4BB200833FD4 /* AI_Personal_Trainer_AppUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E653892F6C4BB200833FD4 /* AI_Personal_Trainer_AppUITests.swift */; };
+		F3E6538A2F6C4BB200833FD4 /* AI_Personal_Trainer_AppUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6538B2F6C4BB200833FD4 /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */; };
 		F3E653762F6C4BB200833FD4 /* ExpandingFabMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6536E2F6C4BB200833FD4 /* ExpandingFabMenu.swift */; };
 		F3E653772F6C4BB200833FD4 /* AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6535A2F6C4BB200833FD4 /* AppView.swift */; };
 		F3E653782F6C4BB200833FD4 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E6536C2F6C4BB200833FD4 /* APIService.swift */; };
@@ -51,6 +52,9 @@
 		12761C412E57953800C4F8FE /* AI Personal Trainer App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "AI Personal Trainer App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		12761C512E57953B00C4F8FE /* AI Personal Trainer AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		12761C5B2E57953B00C4F8FE /* AI Personal Trainer AppUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "AI Personal Trainer AppUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		F3E653872F6C4BB200833FD4 /* AI_Personal_Trainer_AppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AI Personal Trainer AppTests/AI_Personal_Trainer_AppTests.swift"; sourceTree = "<group>"; };
+		F3E653892F6C4BB200833FD4 /* AI_Personal_Trainer_AppUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AI Personal Trainer AppUITests/AI_Personal_Trainer_AppUITests.swift"; sourceTree = "<group>"; };
+		F3E6538B2F6C4BB200833FD4 /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AI Personal Trainer AppUITests/AI_Personal_Trainer_AppUITestsLaunchTests.swift"; sourceTree = "<group>"; };
 		F3E6535A2F6C4BB200833FD4 /* AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppView.swift; sourceTree = "<group>"; };
 		F3E6535B2F6C4BB200833FD4 /* supabase.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = supabase.swift; sourceTree = "<group>"; };
 		F3E6535D2F6C4BB200833FD4 /* Color+Extensions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Extensions.swift"; sourceTree = "<group>"; };
@@ -101,6 +105,9 @@
 				F3E653752F6C4BB200833FD4 /* AI Personal Trainer App */,
 				12541A0A2F2C59D30020EF78 /* AI Personal Trainer AppUITests */,
 				12541A062F2C59B90020EF78 /* AI Personal Trainer AppTests */,
+				F3E653892F6C4BB200833FD4 /* AI_Personal_Trainer_AppUITests.swift */,
+				F3E6538B2F6C4BB200833FD4 /* AI_Personal_Trainer_AppUITestsLaunchTests.swift */,
+				F3E653872F6C4BB200833FD4 /* AI_Personal_Trainer_AppTests.swift */,
 				12761C422E57953800C4F8FE /* Products */,
 				12761C712E579CEF00C4F8FE /* Frameworks */,
 			);
@@ -353,7 +360,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				12541A072F2C59B90020EF78 /* AI Personal Trainer AppTests in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -361,7 +367,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				12541A0B2F2C59D30020EF78 /* AI Personal Trainer AppUITests in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -393,6 +398,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F3E653862F6C4BB200833FD4 /* AI_Personal_Trainer_AppTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -400,6 +406,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F3E653882F6C4BB200833FD4 /* AI_Personal_Trainer_AppUITests.swift in Sources */,
+				F3E6538A2F6C4BB200833FD4 /* AI_Personal_Trainer_AppUITestsLaunchTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

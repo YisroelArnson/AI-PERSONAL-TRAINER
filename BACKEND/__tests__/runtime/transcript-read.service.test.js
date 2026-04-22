@@ -1,3 +1,11 @@
+/**
+ * File overview:
+ * Contains automated tests for the transcript read service behavior.
+ *
+ * Main functions in this file:
+ * - createQueryBuilder: Creates a Query builder used by this file.
+ */
+
 const mockGetSupabaseAdminClient = jest.fn();
 
 jest.mock('../../src/infra/supabase/client', () => ({
@@ -8,6 +16,9 @@ const {
   listRecentTranscriptEventsForRun
 } = require('../../src/runtime/services/transcript-read.service');
 
+/**
+ * Creates a Query builder used by this file.
+ */
 function createQueryBuilder({ maybeSingleResult, limitResult }) {
   const builder = {
     select: jest.fn(() => builder),

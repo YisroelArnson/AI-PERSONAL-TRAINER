@@ -1,20 +1,52 @@
+/**
+ * File overview:
+ * Supports the agent runtime flow for xai.
+ *
+ * Main functions in this file:
+ * - providerName: Handles Provider name for xai.adapter.js.
+ * - validateCapabilities: Validates Capabilities before it is used.
+ * - toInputText: Handles To input text for xai.adapter.js.
+ * - toXaiInputMessage: Handles To xAI input message for xai.adapter.js.
+ * - buildInitialRequest: Builds an Initial request used by this file.
+ * - buildContinuationRequest: Builds a Continuation request used by this file.
+ * - buildRequest: Builds a Request used by this file.
+ * - createStream: Creates a Stream used by this file.
+ * - normalizeStreamEvent: Normalizes Stream event into the format this file expects.
+ * - extractTextFromResponse: Handles Extract text from response for xai.adapter.js.
+ * - extractFinalOutput: Handles Extract final output for xai.adapter.js.
+ * - parseToolCallArguments: Parses Tool call arguments into a validated shape.
+ * - toInternalAssistantContent: Handles To internal assistant content for xai.adapter.js.
+ * - normalizeOutput: Normalizes Output into the format this file expects.
+ * - accumulateToolResultState: Handles Accumulate tool result state for xai.adapter.js.
+ * - buildToolResultMessage: Builds a Tool result message used by this file.
+ * - classifyError: Handles Classify error for xai.adapter.js.
+ */
+
 const { getXAIClient } = require('../../../infra/xai/client');
 const { ERROR_CLASSES, NORMALIZED_STREAM_EVENT_TYPES } = require('../types');
 const {
-  extractDisplayText,
   normalizeVisibleText
 } = require('../output-normalization.adapter');
 
+/**
+ * Handles Provider name for xai.adapter.js.
+ */
 function providerName() {
   return 'xai';
 }
 
+/**
+ * Validates Capabilities before it is used.
+ */
 function validateCapabilities(runtimeInput, caps) {
   if (runtimeInput.tools && runtimeInput.tools.length > 0 && !caps.supportsTools) {
     throw new Error(`Model ${caps.model} does not support tools`);
   }
 }
 
+/**
+ * Handles To input text for xai.adapter.js.
+ */
 function toInputText(text) {
   return {
     type: 'input_text',
@@ -22,6 +54,9 @@ function toInputText(text) {
   };
 }
 
+/**
+ * Handles To xAI input message for xai.adapter.js.
+ */
 function toXaiInputMessage(message) {
   const contentBlocks = Array.isArray(message.content)
     ? message.content
@@ -52,6 +87,9 @@ function toXaiInputMessage(message) {
   };
 }
 
+/**
+ * Builds an Initial request used by this file.
+ */
 function buildInitialRequest(runtimeInput) {
   const input = [];
 
@@ -86,6 +124,9 @@ function buildInitialRequest(runtimeInput) {
   return request;
 }
 
+/**
+ * Builds a Continuation request used by this file.
+ */
 function buildContinuationRequest(runtimeInput) {
   const state = runtimeInput.providerState || {};
   const request = {
@@ -108,6 +149,9 @@ function buildContinuationRequest(runtimeInput) {
   return request;
 }
 
+/**
+ * Builds a Request used by this file.
+ */
 function buildRequest(runtimeInput) {
   if (
     runtimeInput.providerState
@@ -121,11 +165,17 @@ function buildRequest(runtimeInput) {
   return buildInitialRequest(runtimeInput);
 }
 
+/**
+ * Creates a Stream used by this file.
+ */
 function createStream(providerRequest) {
   const client = getXAIClient();
   return client.responses.stream(providerRequest);
 }
 
+/**
+ * Normalizes Stream event into the format this file expects.
+ */
 function normalizeStreamEvent(providerEvent) {
   if (providerEvent.type === 'response.created') {
     return {
@@ -138,11 +188,40 @@ function normalizeStreamEvent(providerEvent) {
     };
   }
 
+  if (
+    providerEvent.type === 'response.output_item.added'
+    && providerEvent.item
+    && providerEvent.item.type === 'function_call'
+  ) {
+    return {
+      type: NORMALIZED_STREAM_EVENT_TYPES.toolUseStart,
+      payload: {
+        streamKey: `output_index:${providerEvent.output_index}`,
+        outputIndex: providerEvent.output_index,
+        toolUseId: providerEvent.item.call_id || providerEvent.item.id,
+        toolName: providerEvent.item.name,
+        input: parseToolCallArguments(providerEvent.item.arguments)
+      }
+    };
+  }
+
   if (providerEvent.type === 'response.output_text.delta') {
     return {
       type: NORMALIZED_STREAM_EVENT_TYPES.textDelta,
       payload: {
         text: providerEvent.delta
+      }
+    };
+  }
+
+  if (providerEvent.type === 'response.function_call_arguments.delta') {
+    return {
+      type: NORMALIZED_STREAM_EVENT_TYPES.toolInputDelta,
+      payload: {
+        streamKey: `output_index:${providerEvent.output_index}`,
+        outputIndex: providerEvent.output_index,
+        partialJson: providerEvent.delta || '',
+        snapshot: typeof providerEvent.snapshot === 'string' ? providerEvent.snapshot : null
       }
     };
   }
@@ -161,6 +240,9 @@ function normalizeStreamEvent(providerEvent) {
   return null;
 }
 
+/**
+ * Handles Extract text from response for xai.adapter.js.
+ */
 function extractTextFromResponse(response) {
   if (response && typeof response.output_text === 'string' && response.output_text) {
     return response.output_text;
@@ -176,6 +258,9 @@ function extractTextFromResponse(response) {
     .join('');
 }
 
+/**
+ * Handles Extract final output for xai.adapter.js.
+ */
 async function extractFinalOutput(stream, textBuffer) {
   const finalResponse = await stream.finalResponse();
 
@@ -190,6 +275,9 @@ async function extractFinalOutput(stream, textBuffer) {
   };
 }
 
+/**
+ * Parses Tool call arguments into a validated shape.
+ */
 function parseToolCallArguments(argumentsValue) {
   if (!argumentsValue || typeof argumentsValue !== 'string') {
     return {};
@@ -202,6 +290,9 @@ function parseToolCallArguments(argumentsValue) {
   }
 }
 
+/**
+ * Handles To internal assistant content for xai.adapter.js.
+ */
 function toInternalAssistantContent(item) {
   if (!item) {
     return [];
@@ -228,6 +319,9 @@ function toInternalAssistantContent(item) {
   return [];
 }
 
+/**
+ * Normalizes Output into the format this file expects.
+ */
 function normalizeOutput(finalOutput) {
   const rawResponse = finalOutput.rawResponse || finalOutput.rawMessage || {};
   const outputItems = Array.isArray(rawResponse.output) ? rawResponse.output : [];
@@ -236,21 +330,11 @@ function normalizeOutput(finalOutput) {
     .filter(Boolean);
   const toolCalls = assistantMessageContent.filter(block => block.type === 'tool_use');
   const textBlocks = assistantMessageContent.filter(block => block.type === 'text');
-  const rawText = textBlocks.map(block => block.text).join('') || finalOutput.outputText || '';
-  const extractedDisplayText = extractDisplayText(rawText, {
-    preferCommentaryAsFinal: toolCalls.length === 0
-  });
-  const fallbackOutputText = extractedDisplayText.hasExplicitPhase && toolCalls.length > 0
-    ? ''
-    : normalizeVisibleText(rawText);
-  const outputText = extractedDisplayText.finalText
-    || (toolCalls.length === 0 ? extractedDisplayText.commentaryText : '')
-    || fallbackOutputText;
+  const rawText = normalizeVisibleText(
+    textBlocks.map(block => String(block.text || '')).join('') || finalOutput.outputText || ''
+  );
 
   return {
-    outputText,
-    commentaryText: extractedDisplayText.commentaryText,
-    finalText: extractedDisplayText.finalText || outputText,
     toolCalls,
     assistantMessage: assistantMessageContent.length > 0
       ? {
@@ -268,6 +352,9 @@ function normalizeOutput(finalOutput) {
   };
 }
 
+/**
+ * Handles Accumulate tool result state for xai.adapter.js.
+ */
 function accumulateToolResultState({ currentState, finalOutput, toolCall, toolResult }) {
   const previousResponseId = finalOutput.responseId
     || (currentState && currentState.previousResponseId)
@@ -290,10 +377,16 @@ function accumulateToolResultState({ currentState, finalOutput, toolCall, toolRe
   };
 }
 
+/**
+ * Builds a Tool result message used by this file.
+ */
 function buildToolResultMessage() {
   return null;
 }
 
+/**
+ * Handles Classify error for xai.adapter.js.
+ */
 function classifyError(error) {
   const status = error && error.status ? error.status : null;
 

@@ -11,7 +11,13 @@
     "dev": "nodemon index.js",
     "worker": "node src/worker/index.js",
     "dev:worker": "nodemon src/worker/index.js",
+    "worker:agent-runs": "node src/worker/roles/agent-runs.js",
+    "worker:memory-index": "node src/worker/roles/memory-index.js",
+    "worker:session-maintenance": "node src/worker/roles/session-maintenance.js",
+    "worker:delivery": "node src/worker/roles/delivery.js",
     "rebuild:redis-retrieval-index": "node scripts/rebuild-redis-retrieval-index.js",
+    "reconcile:queue-state": "node scripts/reconcile-queue-state.js",
+    "replay:dead-letter": "node scripts/replay-dead-letter.js",
     "test": "jest",
     "test:watch": "jest --watch"
   },

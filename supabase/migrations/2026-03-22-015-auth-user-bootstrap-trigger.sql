@@ -1,3 +1,9 @@
+-- File overview:
+-- Applies the auth-user-bootstrap-trigger database changes for the Supabase schema.
+--
+-- Main database routines in this file:
+-- - public.handle_new_auth_user: Implements the public.handle_new_auth_user database routine used by this migration.
+
 DO $$
 DECLARE
   trigger_record record;
@@ -33,6 +39,7 @@ $$;
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 DROP FUNCTION IF EXISTS public.handle_new_auth_user() CASCADE;
 
+-- Implements the public.handle_new_auth_user database routine used by this migration.
 CREATE OR REPLACE FUNCTION public.handle_new_auth_user()
 RETURNS trigger
 LANGUAGE plpgsql

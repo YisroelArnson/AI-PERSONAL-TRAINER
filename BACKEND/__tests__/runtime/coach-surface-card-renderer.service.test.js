@@ -1,5 +1,16 @@
+/**
+ * File overview:
+ * Contains automated tests for the coach surface card renderer service behavior.
+ *
+ * Main functions in this file:
+ * - buildBaseWorkout: Builds a Base workout used by this file.
+ */
+
 const { buildWorkoutSurfaceDecorations } = require('../../src/runtime/services/coach-surface-card-renderer.service');
 
+/**
+ * Builds a Base workout used by this file.
+ */
 function buildBaseWorkout(overrides = {}) {
   return {
     workoutSessionId: 'workout-1',

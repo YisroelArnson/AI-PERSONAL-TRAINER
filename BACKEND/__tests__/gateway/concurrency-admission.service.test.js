@@ -1,3 +1,10 @@
+/**
+ * File overview:
+ * Contains automated tests for the concurrency admission service behavior.
+ *
+ * This file is primarily composed of types, constants, or configuration rather than standalone functions.
+ */
+
 const mockReserveConcurrencyLease = jest.fn();
 const mockReleaseConcurrencyLease = jest.fn();
 const mockGetRedisConnection = jest.fn();

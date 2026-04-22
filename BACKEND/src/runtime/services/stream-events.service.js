@@ -1,3 +1,15 @@
+/**
+ * File overview:
+ * Implements runtime service logic for stream events.
+ *
+ * Main functions in this file:
+ * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
+ * - appendStreamEvent: Appends Stream event to the existing record.
+ * - flushBufferedRunStreamEvents: Flushes Buffered run stream events when buffered work needs to be emitted.
+ * - listStreamEvents: Lists Stream events for the caller.
+ * - getStreamEventBounds: Gets Stream event bounds needed by this file.
+ */
+
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const {
   listAllHotRunStreamEvents,
@@ -6,6 +18,9 @@ const {
   publishHotStreamEvent
 } = require('./run-stream-redis.service');
 
+/**
+ * Gets Admin client or throw needed by this file.
+ */
 function getAdminClientOrThrow() {
   const supabase = getSupabaseAdminClient();
 
@@ -16,6 +31,9 @@ function getAdminClientOrThrow() {
   return supabase;
 }
 
+/**
+ * Appends Stream event to the existing record.
+ */
 async function appendStreamEvent({ runId, eventType, payload }) {
   const supabase = getAdminClientOrThrow();
   const { data, error } = await supabase.rpc('append_stream_event', {
@@ -52,6 +70,9 @@ async function appendStreamEvent({ runId, eventType, payload }) {
   return row;
 }
 
+/**
+ * Flushes Buffered run stream events when buffered work needs to be emitted.
+ */
 async function flushBufferedRunStreamEvents(runId) {
   const supabase = getAdminClientOrThrow();
   const hotResult = await listAllHotRunStreamEvents(runId);
@@ -112,6 +133,9 @@ async function flushBufferedRunStreamEvents(runId) {
   };
 }
 
+/**
+ * Lists Stream events for the caller.
+ */
 async function listStreamEvents({ runId, afterSeqNum = 0, limit = 200 }) {
   const supabase = getAdminClientOrThrow();
   let query = supabase
@@ -134,6 +158,9 @@ async function listStreamEvents({ runId, afterSeqNum = 0, limit = 200 }) {
   return data || [];
 }
 
+/**
+ * Gets Stream event bounds needed by this file.
+ */
 async function getStreamEventBounds(runId) {
   const supabase = getAdminClientOrThrow();
   const [firstResult, lastResult] = await Promise.all([

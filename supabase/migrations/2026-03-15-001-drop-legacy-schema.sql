@@ -1,3 +1,8 @@
+-- File overview:
+-- Applies the drop-legacy-schema database changes for the Supabase schema.
+--
+-- This file is primarily composed of schema changes, data movement, or raw SQL statements rather than database routines.
+
 -- Destructive reset for the legacy trainer app schema.
 -- This migration is intended for a pre-launch greenfield rebuild.
 

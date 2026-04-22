@@ -5,6 +5,13 @@
 //  Created by ISWA on 8/22/25.
 //
 
+// Provides app-side service logic for auth view.
+//
+// Main functions in this file:
+// - primaryButtonTapped: Handles Primary button tapped for AuthView.swift.
+// - sendCode: Sends Code to the backend or user.
+// - verifyCode: Handles Verify code for AuthView.swift.
+
 import SwiftUI
 import Supabase
 
@@ -160,6 +167,7 @@ struct AuthView: View {
     verificationCode.filter(\.isNumber)
   }
 
+  /// Handles Primary button tapped for AuthView.swift.
   private func primaryButtonTapped() {
     Task {
       switch authStep {
@@ -171,6 +179,7 @@ struct AuthView: View {
     }
   }
 
+  /// Sends Code to the backend or user.
   private func sendCode() async {
     let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmedEmail.isEmpty else { return }
@@ -194,6 +203,7 @@ struct AuthView: View {
     }
   }
 
+  /// Handles Verify code for AuthView.swift.
   private func verifyCode() async {
     guard let submittedEmail else { return }
 

@@ -1,3 +1,25 @@
+/**
+ * File overview:
+ * Supports the agent runtime flow for prompt assembly.
+ *
+ * Main functions in this file:
+ * - buildVersionedDocumentMarkdown: Builds a Versioned document markdown used by this file.
+ * - formatCurrentDateTime: Formats Current date time for display or logging.
+ * - buildRuntimeContextMarkdown: Builds a Runtime context markdown used by this file.
+ * - buildTurnContextMarkdown: Builds a Turn context markdown used by this file.
+ * - formatLayer: Formats Layer for display or logging.
+ * - buildCacheControl: Builds a Cache control used by this file.
+ * - hasNonEmptyMarkdown: Handles Has non empty markdown for prompt-assembly.js.
+ * - shouldLoadBootstrapInstructions: Handles Should load bootstrap instructions for prompt-assembly.js.
+ * - cloneMessage: Handles Clone message for prompt-assembly.js.
+ * - normalizeMessageContentToBlocks: Normalizes Message content to blocks into the format this file expects.
+ * - applyCacheControlToLastTextBlock: Applies Cache control to last text block to the current data.
+ * - findLastUserMessageIndex: Handles Find last user message index for prompt-assembly.js.
+ * - buildPromptMessages: Builds a Prompt messages used by this file.
+ * - buildSystemBlocks: Builds a System blocks used by this file.
+ * - assemblePrompt: Handles Assemble prompt for prompt-assembly.js.
+ */
+
 const { getLatestDocVersionByDocKey, getLatestDocVersionByDocType } = require('../services/memory-docs.service');
 const { getPromptContextForRun } = require('../services/prompt-context-cache.service');
 const { listBootstrapEpisodicNotes, formatBootstrapEpisodicNotes } = require('../services/episodic-notes.service');
@@ -49,27 +71,61 @@ const DEFAULT_SYSTEM_PROMPT = [
   '- You are the runtime for an AI personal trainer product.',
   '- Act like a thoughtful, realistic coach, not a generic assistant.',
   '',
+  '### Mission',
+  '- Help the user train safely, stay consistent, and make practical progress over time.',
+  '- Optimize for good decisions, not impressive-sounding ones.',
+  '- Reduce confusion, unnecessary questions, and avoidable workout friction.',
+  '',
   '### Truthfulness',
   '- Do not invent workout history, injuries, program state, readiness state, or tool side effects.',
   '- If something is unknown, say so briefly and either ask the smallest useful follow-up or use a read-only tool.',
+  '- Do not treat older memory or episodic notes as more authoritative than the latest user message or current runtime state.',
+  '',
+  '### Operating Loop',
+  '- Run the turn as a disciplined loop: read the latest user message and turn context, identify the immediate coaching job or smallest blocking uncertainty, check whether the prompt already contains enough information, choose the smallest useful tool call if needed, reassess after every tool result, and end with exactly one terminal tool when the answer or question is ready.',
+  '- Prefer one tool call at a time when later actions depend on earlier results.',
+  '- Do not batch dependent actions together just because they seem likely.',
+  '- Use transient progress messages sparingly and only when the user benefits from knowing you are working.',
+  '',
+  '### Runtime Modules And Boundaries',
+  '- The application owns the runtime rules and coaching standards.',
+  '- COACH_SOUL defines who the coach is, how the coach behaves, and how the coach speaks to this user.',
+  '- MEMORY is blank-slate long-term memory for durable facts, preferences, and patterns.',
+  '- PROGRAM is the current training plan and progression state, and it may begin empty.',
+  '- EPISODIC_DATE notes are append-only continuity notes and session carry-over context.',
+  '- Turn Context is run-local state for this specific moment and request.',
+  '- Current Workout State is run-local canonical state for live workout execution.',
+  '- Do not blur identity, policy, user facts, plan state, and day-level notes together.',
+  '',
+  '### Context Hierarchy',
+  '- Use the most specific and current source of truth available.',
+  '- The latest user message can update or override older memory.',
+  '- Current Workout State is canonical for live workout progress, current exercise, current set, and state version.',
+  '- Fresh tool results are canonical for the facts they returned during this run.',
+  '- PROGRAM is canonical for the intended training plan when no live workout state overrides it.',
+  '- MEMORY is durable background context, not a replacement for current user intent.',
+  '- EPISODIC_DATE is recent carry-over context, not a polished profile or guaranteed ground truth.',
   '',
   '### Tool Use',
-  '- MEMORY, PROGRAM, COACH_SOUL, and live workout context are already injected into the prompt when available.',
+  '- MEMORY, PROGRAM, COACH_SOUL, turn context, and live workout context are already injected into the prompt when available.',
+  '- Prefer prompt context over retrieval, retrieval over asking, and asking over guessing.',
   '- Use the provided tool registry when you need targeted retrieval, durable writes, or live workout mutations.',
   '- Prefer read-only tools before mutating tools when more context is needed.',
-  '- Use memory_search when targeted historical context beyond the prompt would help.',
+  '- Use memory_search for targeted historical context beyond the prompt, not broad fishing.',
   '- Use workout_history_fetch when you need structured workout history for one date or an inclusive date range.',
-  '- When a turn is non-trivial or may require tools, first emit a brief <commentary> block with 1-3 short <step> items.',
-  '- Do not skip commentary on tool turns. A tool-only response is incomplete.',
-  '- Commentary should explain what you are checking or adjusting in user-friendly language.',
-  '- Do not mention tool names, APIs, JSON, schemas, or internal mechanics in commentary.',
-  '- After any tool results, emit the actual user-facing answer in a <final> block.',
-  '- For trivial replies, you may skip <commentary> and emit only <final>.',
-  '- Never express tool calls in XML. Use the provider native tool-calling mechanism directly.',
-  '- Example tool turn shape: <commentary><step>Checking what you already have saved.</step></commentary> then the native tool call.',
-  '- When you decide to call a tool, emit the tool call directly after any brief commentary and with complete arguments.',
-  '- If you use a tool, incorporate the result and continue the run.',
+  '- If the current prompt already contains the needed workout or program context, do not fetch redundant history.',
+  '- Every response must contain at least one native tool call.',
+  '- Plain text outside native tool calls is forbidden.',
+  '- Communicate with the user only through message_notify_user or message_ask_user.',
+  '- Use message_notify_user with delivery="transient" for non-terminal progress updates that should not be written durably.',
+  '- Use message_notify_user with delivery="feed" when you want to send a durable assistant reply and end the run.',
+  '- Use message_ask_user when you need user input; it writes a durable assistant question and ends the run.',
+  '- Use idle when no user-facing reply is needed and the run should end silently.',
+  '- Never express tool calls in XML or text wrappers. Use the provider native tool-calling mechanism directly.',
+  '- If you use a non-terminal tool, incorporate the result and continue the run until you choose a terminal tool or idle.',
   '- If runtime context says there is no active workout, do not behave as though one exists. Generate one first if appropriate.',
+  '- When a tool returns a semantic error, use the returned guidance and current runtime state to choose the next action.',
+  '- Do not say you are checking memory, updating a plan, or changing a workout unless the corresponding tool succeeds.',
   '',
   '### Document Lifecycle',
   '- COACH_SOUL defines how the coach behaves, sounds, and relates to the user. Start from the default coach soul and personalize it over time.',
@@ -78,8 +134,23 @@ const DEFAULT_SYSTEM_PROMPT = [
   '- PROGRAM is the current training plan and progression state. It may begin empty. Create it only when enough information exists to make a credible plan.',
   '- EPISODIC_DATE notes are append-only continuity blocks for recent events and session carry-over.',
   '- Do not blur identity, long-term memory, plan state, and day-level continuity together.',
+  '- Do not write to durable documents just because something was mentioned once. Write when the information is likely to matter again.',
+  '- If the user shares a one-off detail about today, prefer EPISODIC_DATE over MEMORY.',
+  '- If a live workout needs a one-time change, fix the live workout first. Update PROGRAM only if the change should persist beyond today.',
   '- Never guess expected_version for document mutations. Use the current version shown in prompt context.',
   '- Do not claim you updated memory, program, or coach soul unless a mutating tool actually succeeded.',
+  '',
+  '### Document Mutation Rules',
+  '- Use targeted replacement only when you can identify one exact unique span.',
+  '- Prefer full-document replacement when the intended change is broad, structural, or the document is still taking shape.',
+  '- Do not rewrite a durable document unless you can explain what changed and why it belongs there.',
+  '',
+  '### Workout Decision Policy',
+  '- If a live workout exists, treat helping with that workout as the default foreground task unless the user clearly changes direction.',
+  '- Do not generate a new workout when the runtime context already shows a live workout.',
+  '- For live workout mutations, use the exact IDs and state version from the current workout context or from a fresh tool result.',
+  '- For pain, readiness, or equipment issues during a live workout, prefer the smallest safe adjustment that preserves momentum.',
+  '- When context is incomplete and risk is non-trivial, slow down and clarify before mutating the workout.',
   '',
   '### Communication',
   '- Stay concise, concrete, and coach-like.',
@@ -87,6 +158,9 @@ const DEFAULT_SYSTEM_PROMPT = [
   '- Avoid filler praise, hype, or corporate assistant language.'
 ].join('\n');
 
+/**
+ * Builds a Versioned document markdown used by this file.
+ */
 function buildVersionedDocumentMarkdown(record, options = {}) {
   const currentVersion = record && record.doc
     ? record.doc.current_version
@@ -103,6 +177,9 @@ function buildVersionedDocumentMarkdown(record, options = {}) {
   ].join('\n');
 }
 
+/**
+ * Formats Current date time for display or logging.
+ */
 function formatCurrentDateTime({ now = new Date(), timezone = 'UTC' } = {}) {
   const safeTimezone = String(timezone || 'UTC').trim() || 'UTC';
   const formatter = new Intl.DateTimeFormat('en-US', {
@@ -118,6 +195,9 @@ function formatCurrentDateTime({ now = new Date(), timezone = 'UTC' } = {}) {
   ].join('\n');
 }
 
+/**
+ * Builds a Runtime context markdown used by this file.
+ */
 function buildRuntimeContextMarkdown({ currentWorkout, timezone }) {
   const workoutSection = currentWorkout
     ? [
@@ -142,6 +222,9 @@ function buildRuntimeContextMarkdown({ currentWorkout, timezone }) {
   ].join('\n');
 }
 
+/**
+ * Builds a Turn context markdown used by this file.
+ */
 function buildTurnContextMarkdown({
   episodicBootstrapMarkdown,
   triggerType,
@@ -180,8 +263,35 @@ function buildTurnContextMarkdown({
         'A workout card button already recorded the current set as completed in the backend before this run started.',
         'Do not call workout_record_set_result again for that same set unless you are intentionally correcting history.',
         'If you need more context, use the current workout context already included below and continue from there.',
-        'If you have a useful brief coaching follow-up, send it.',
-        'If no response is needed, reply exactly: no_reply'
+        'If you have a useful brief coaching follow-up, send it with message_notify_user.',
+        'If no response is needed, end the run with idle.'
+      ].join('\n')
+    ));
+  }
+
+  if (triggerType === 'ui.action.start_workout') {
+    sections.push(formatLayer(
+      'Workout Start UI Action Context',
+      [
+        'A workout card button already started the workout in the backend before this run began.',
+        'Do not call workout_session_control with action="start" for this same workout unless you are intentionally correcting state.',
+        'Do not call other mutating workout tools unless the runtime context shows a separate correction is still needed.',
+        'Use the current workout context already included below and decide whether a brief coaching follow-up is useful.',
+        'If you have a useful brief follow-up, send it with message_notify_user.',
+        'If no response is needed, end the run with idle.'
+      ].join('\n')
+    ));
+  }
+
+  if (triggerType === 'ui.action.finish_workout') {
+    sections.push(formatLayer(
+      'Workout Finish UI Action Context',
+      [
+        'A workout card button already finished the workout in the backend before this run began.',
+        'Do not call workout_finish_session, workout_session_control, or other mutating workout tools for that same finish action unless you are intentionally correcting state.',
+        'Treat the workout state in the runtime context as canonical for this turn.',
+        'If you have a useful brief closing message, send it with message_notify_user.',
+        'If no response is needed, end the run with idle.'
       ].join('\n')
     ));
   }
@@ -240,22 +350,37 @@ const DEFAULT_BOOTSTRAP_PROMPT = [
   '  - Recent Changes'
 ].join('\n');
 
+/**
+ * Formats Layer for display or logging.
+ */
 function formatLayer(title, body) {
   return [`## ${title}`, body && String(body).trim() ? String(body).trim() : '_not available yet_'].join('\n');
 }
 
+/**
+ * Builds a Cache control used by this file.
+ */
 function buildCacheControl(ttl) {
   return ttl ? { type: 'ephemeral', ttl } : { type: 'ephemeral' };
 }
 
+/**
+ * Handles Has non empty markdown for prompt-assembly.js.
+ */
 function hasNonEmptyMarkdown(record) {
   return Boolean(record && record.version && String(record.version.content || '').trim());
 }
 
+/**
+ * Handles Should load bootstrap instructions for prompt-assembly.js.
+ */
 function shouldLoadBootstrapInstructions(programRecord) {
   return !hasNonEmptyMarkdown(programRecord);
 }
 
+/**
+ * Handles Clone message for prompt-assembly.js.
+ */
 function cloneMessage(message) {
   return {
     ...message,
@@ -265,6 +390,9 @@ function cloneMessage(message) {
   };
 }
 
+/**
+ * Normalizes Message content to blocks into the format this file expects.
+ */
 function normalizeMessageContentToBlocks(content) {
   if (typeof content === 'string') {
     return content.trim()
@@ -284,6 +412,9 @@ function normalizeMessageContentToBlocks(content) {
   return content.map(block => ({ ...block }));
 }
 
+/**
+ * Applies Cache control to last text block to the current data.
+ */
 function applyCacheControlToLastTextBlock(message, ttl) {
   const contentBlocks = normalizeMessageContentToBlocks(message && message.content);
 
@@ -300,6 +431,9 @@ function applyCacheControlToLastTextBlock(message, ttl) {
   };
 }
 
+/**
+ * Handles Find last user message index for prompt-assembly.js.
+ */
 function findLastUserMessageIndex(messages) {
   for (let index = messages.length - 1; index >= 0; index -= 1) {
     if (messages[index] && messages[index].role === 'user') {
@@ -310,6 +444,9 @@ function findLastUserMessageIndex(messages) {
   return -1;
 }
 
+/**
+ * Builds a Prompt messages used by this file.
+ */
 function buildPromptMessages({ promptMessages, turnContextMarkdown, provider }) {
   const clonedMessages = Array.isArray(promptMessages)
     ? promptMessages.map(cloneMessage)
@@ -354,6 +491,9 @@ function buildPromptMessages({ promptMessages, turnContextMarkdown, provider }) 
   return assembledMessages;
 }
 
+/**
+ * Builds a System blocks used by this file.
+ */
 function buildSystemBlocks({
   systemPromptMarkdown,
   coachPrinciplesMarkdown,
@@ -405,6 +545,9 @@ function buildSystemBlocks({
   return blocks;
 }
 
+/**
+ * Handles Assemble prompt for prompt-assembly.js.
+ */
 async function assemblePrompt(run, options = {}) {
   const messageLimit = options.messageLimit || 12;
   const provider = options.provider || 'anthropic';

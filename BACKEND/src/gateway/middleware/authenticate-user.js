@@ -1,8 +1,20 @@
+/**
+ * File overview:
+ * Provides middleware used by the gateway request pipeline.
+ *
+ * Main functions in this file:
+ * - ensureDevUserExists: Ensures Dev user exists is ready before work continues.
+ * - authenticateUser: Handles Authenticate user for authenticate-user.js.
+ */
+
 const { getSupabaseAuthClient, getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { env } = require('../../config/env');
 const { startTimer } = require('../../runtime/services/performance-log.service');
 const { unauthorized } = require('../../shared/errors');
 
+/**
+ * Ensures Dev user exists is ready before work continues.
+ */
 async function ensureDevUserExists(userId) {
   const supabase = getSupabaseAdminClient();
 
@@ -25,6 +37,9 @@ async function ensureDevUserExists(userId) {
   return Boolean(data && data.user);
 }
 
+/**
+ * Handles Authenticate user for authenticate-user.js.
+ */
 async function authenticateUser(req, res, next) {
   const finish = startTimer({
     requestId: req.requestId || null,
