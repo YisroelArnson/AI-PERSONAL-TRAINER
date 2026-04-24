@@ -138,7 +138,7 @@ describe('prompt-assembly bootstrap behavior', () => {
     })).toBe('Current Version: 1\n_not available yet_');
   });
 
-  it('includes the runtime operating loop and context hierarchy in the fallback system prompt', async () => {
+  it('includes the runtime loop and source-of-truth sections in the fallback system prompt', async () => {
     mockGetCurrentWorkoutState.mockResolvedValue(null);
 
     const result = await assemblePrompt({
@@ -147,9 +147,9 @@ describe('prompt-assembly bootstrap behavior', () => {
       trigger_type: 'user.message'
     });
 
-    expect(result.systemPrompt).toContain('### Operating Loop');
-    expect(result.systemPrompt).toContain('### Context Hierarchy');
-    expect(result.systemPrompt).toContain('### Workout Decision Policy');
+    expect(result.systemPrompt).toContain('<agent_loop>');
+    expect(result.systemPrompt).toContain('<context_hierarchy>');
+    expect(result.systemPrompt).toContain('<workout_decision_policy>');
   });
 
   it('keeps live workout context and current time in the current user turn instead of the system prompt', async () => {

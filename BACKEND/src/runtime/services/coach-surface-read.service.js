@@ -67,6 +67,61 @@ function mapFeedItem(event) {
 }
 
 /**
+ * Builds the earliest user event seq number for each run in the loaded window.
+ */
+function buildRunTriggerSeqMap(events) {
+  const triggerSeqByRunId = new Map();
+
+  for (const event of events) {
+    if (
+      event
+      && event.actor === 'user'
+      && event.run_id
+      && Number.isFinite(Number(event.seq_num))
+    ) {
+      const runId = event.run_id;
+      const seqNum = Number(event.seq_num);
+      const existingSeqNum = triggerSeqByRunId.get(runId);
+
+      if (!Number.isFinite(existingSeqNum) || seqNum < existingSeqNum) {
+        triggerSeqByRunId.set(runId, seqNum);
+      }
+    }
+  }
+
+  return triggerSeqByRunId;
+}
+
+/**
+ * Returns true when an assistant event was appended after a newer user turn superseded its run.
+ */
+function isStaleAssistantFeedEvent(event, events, triggerSeqByRunId) {
+  if (
+    !event
+    || event.actor !== 'assistant'
+    || !event.run_id
+    || !Number.isFinite(Number(event.seq_num))
+  ) {
+    return false;
+  }
+
+  const triggerSeqNum = triggerSeqByRunId.get(event.run_id);
+
+  if (!Number.isFinite(triggerSeqNum)) {
+    return false;
+  }
+
+  const assistantSeqNum = Number(event.seq_num);
+  return events.some(candidate => (
+    candidate
+    && candidate.actor === 'user'
+    && Number.isFinite(Number(candidate.seq_num))
+    && Number(candidate.seq_num) > triggerSeqNum
+    && Number(candidate.seq_num) < assistantSeqNum
+  ));
+}
+
+/**
  * Maps Run summary into the structure expected downstream.
  */
 function mapRunSummary(run) {
@@ -154,7 +209,13 @@ async function loadFeed({ supabase, userId, sessionKey, sessionId }) {
     throw error;
   }
 
-  return [...data].reverse().map(mapFeedItem).filter(Boolean);
+  const orderedEvents = [...data].reverse();
+  const triggerSeqByRunId = buildRunTriggerSeqMap(orderedEvents);
+
+  return orderedEvents
+    .filter(event => !isStaleAssistantFeedEvent(event, orderedEvents, triggerSeqByRunId))
+    .map(mapFeedItem)
+    .filter(Boolean);
 }
 
 /**

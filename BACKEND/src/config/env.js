@@ -45,7 +45,7 @@ const env = {
   anthropicStaticCacheTtl: process.env.ANTHROPIC_STATIC_CACHE_TTL || '5m',
   anthropicDynamicContextCacheTtl: process.env.ANTHROPIC_DYNAMIC_CONTEXT_CACHE_TTL || '5m',
   xaiPromptCachingEnabled: process.env.XAI_PROMPT_CACHING_ENABLED !== 'false',
-  defaultLlmProvider: process.env.DEFAULT_LLM_PROVIDER || 'xai',
+  defaultLlmProvider: process.env.DEFAULT_LLM_PROVIDER || 'anthropic',
   defaultAnthropicModel: process.env.DEFAULT_ANTHROPIC_MODEL || 'claude-sonnet-4-6',
   defaultXaiModel: process.env.DEFAULT_XAI_MODEL || 'grok-4-1-fast-reasoning',
   defaultEmbeddingProvider: process.env.DEFAULT_EMBEDDING_PROVIDER || 'openai',

@@ -243,4 +243,78 @@ describe('buildCoachSurfaceView active run visibility', () => {
       })
     ]));
   });
+
+  it('filters assistant events from runs superseded by a newer user turn', async () => {
+    const feedChain = createSelectChain([
+      {
+        event_id: 'evt-stale-assistant',
+        event_type: 'assistant.notify',
+        actor: 'assistant',
+        run_id: 'run-app-open',
+        seq_num: 3,
+        occurred_at: '2026-03-31T09:58:08.000Z',
+        payload: {
+          text: 'Welcome back. Want me to build your workout?',
+          kind: 'notify',
+          delivery: 'feed'
+        }
+      },
+      {
+        event_id: 'evt-user-visible',
+        event_type: 'user.message',
+        actor: 'user',
+        run_id: 'run-user-message',
+        seq_num: 2,
+        occurred_at: '2026-03-31T09:58:05.000Z',
+        payload: {
+          text: 'Hey how are you'
+        }
+      },
+      {
+        event_id: 'evt-app-open',
+        event_type: 'app.opened',
+        actor: 'user',
+        run_id: 'run-app-open',
+        seq_num: 1,
+        occurred_at: '2026-03-31T09:58:00.000Z',
+        payload: {
+          text: 'app_opened',
+          metadata: {
+            hiddenInFeed: true
+          }
+        }
+      }
+    ]);
+    const runsChain = createSelectChain([]);
+
+    mockFrom.mockImplementation(table => {
+      if (table === 'session_events') {
+        return feedChain;
+      }
+
+      if (table === 'runs') {
+        return runsChain;
+      }
+
+      throw new Error(`Unexpected table lookup: ${table}`);
+    });
+
+    const result = await buildCoachSurfaceView({
+      userId: 'user-123',
+      sessionKey: 'user:user-123:main',
+      sessionResetPolicy: {
+        timezone: 'America/New_York',
+        dayBoundaryEnabled: true,
+        idleExpiryMinutes: 240
+      }
+    });
+
+    expect(result.view.feed).toEqual([
+      expect.objectContaining({
+        id: 'evt-user-visible',
+        role: 'user',
+        text: 'Hey how are you'
+      })
+    ]);
+  });
 });

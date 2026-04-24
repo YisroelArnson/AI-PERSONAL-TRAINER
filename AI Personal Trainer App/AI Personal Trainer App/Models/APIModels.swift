@@ -196,6 +196,8 @@ struct CoachRunStreamEvent: Codable {
     let toolName: String?
     let toolUseId: String?
     let delivery: String?
+    let skipped: Bool?
+    let skipReason: String?
     let terminal: Bool?
     let status: String?
     let resultStatus: String?

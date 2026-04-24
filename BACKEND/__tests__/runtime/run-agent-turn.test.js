@@ -15,6 +15,7 @@ const mockCreateStream = jest.fn(() => ({
 }));
 const mockNormalizeStreamEvent = jest.fn(() => null);
 const mockAppendRawLlmPayload = jest.fn().mockResolvedValue(null);
+const mockAppendToolObservationEvent = jest.fn().mockResolvedValue(null);
 const mockExtractFinalOutput = jest.fn();
 const mockNormalizeOutput = jest.fn();
 const mockBuildToolResultMessage = jest.fn();
@@ -48,6 +49,10 @@ jest.mock('../../src/runtime/services/stream-events.service', () => ({
 
 jest.mock('../../src/runtime/services/raw-llm-io-log.service', () => ({
   appendRawLlmPayload: mockAppendRawLlmPayload
+}));
+
+jest.mock('../../src/runtime/services/tool-observation.service', () => ({
+  appendToolObservationEvent: mockAppendToolObservationEvent
 }));
 
 jest.mock('../../src/runtime/agent-runtime/provider-registry', () => ({
@@ -139,6 +144,7 @@ describe('run-agent-turn tool-only runtime', () => {
     env.llmRawIoLoggingEnabled = false;
     env.anthropicPromptCachingEnabled = false;
     env.xaiPromptCachingEnabled = false;
+    mockAppendToolObservationEvent.mockResolvedValue(null);
     mockNormalizeStreamEvent.mockReset();
     mockNormalizeStreamEvent.mockReturnValue(null);
     mockCreateStream.mockImplementation(() => ({
@@ -243,6 +249,16 @@ describe('run-agent-turn tool-only runtime', () => {
 
     expect(result.outputText).toBe('Saved cleanly.');
     expect(mockExecuteToolCall).toHaveBeenCalledTimes(1);
+    expect(mockAppendToolObservationEvent).toHaveBeenCalledWith(expect.objectContaining({
+      iteration: 2,
+      toolCall: expect.objectContaining({
+        id: 'tool-2',
+        name: 'message_notify_user'
+      }),
+      toolResult: expect.objectContaining({
+        status: 'ok'
+      })
+    }));
     expect(mockBuildRequest).toHaveBeenNthCalledWith(1, expect.objectContaining({
       maxOutputTokens: 4000
     }));

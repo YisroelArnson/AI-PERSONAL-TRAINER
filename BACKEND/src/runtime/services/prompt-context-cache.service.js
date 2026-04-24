@@ -70,7 +70,9 @@ async function getPromptContextForRun(run, options = {}) {
   const events = await listRecentTranscriptEventsForRun(run, messageLimit);
   const context = {
     messages: toRuntimeMessages(events),
-    sourceEventIds: events.map(event => event.event_id)
+    sourceEventIds: events
+      .filter(event => event && event.synthetic !== true && event.event_id)
+      .map(event => event.event_id)
   };
 
   try {

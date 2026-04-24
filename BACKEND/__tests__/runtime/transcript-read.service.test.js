@@ -13,7 +13,8 @@ jest.mock('../../src/infra/supabase/client', () => ({
 }));
 
 const {
-  listRecentTranscriptEventsForRun
+  listRecentTranscriptEventsForRun,
+  toRuntimeMessages
 } = require('../../src/runtime/services/transcript-read.service');
 
 /**
@@ -34,6 +35,17 @@ function createQueryBuilder({ maybeSingleResult, limitResult }) {
   } else {
     builder.limit.mockResolvedValue(limitResult);
   }
+
+  return builder;
+}
+
+function createStreamEventsQueryBuilder(result) {
+  const builder = {
+    select: jest.fn(() => builder),
+    in: jest.fn(() => builder),
+    eq: jest.fn(() => builder),
+    order: jest.fn().mockResolvedValue(result)
+  };
 
   return builder;
 }
@@ -80,6 +92,216 @@ describe('listRecentTranscriptEventsForRun', () => {
     expect(events).toEqual([
       { event_id: 'event-41', seq_num: 41 },
       { event_id: 'event-42', seq_num: 42 }
+    ]);
+  });
+
+  it('hydrates missing assistant turns from streamed assistant deltas', async () => {
+    const triggerLookupQuery = createQueryBuilder({
+      maybeSingleResult: {
+        data: {
+          seq_num: 4
+        },
+        error: null
+      }
+    });
+    const transcriptQuery = createQueryBuilder({
+      limitResult: {
+        data: [
+          {
+            event_id: 'event-4',
+            seq_num: 4,
+            actor: 'user',
+            run_id: 'run-current',
+            payload: {
+              message: 'How are you today?'
+            }
+          },
+          {
+            event_id: 'event-3',
+            seq_num: 3,
+            actor: 'user',
+            run_id: 'run-previous',
+            payload: {
+              message: 'When was my last workout?'
+            }
+          }
+        ],
+        error: null
+      }
+    });
+    const streamEventsQuery = createStreamEventsQueryBuilder({
+      data: [
+        {
+          run_id: 'run-previous',
+          seq_num: 12,
+          payload: {
+            text: 'Your last completed workout was April 13.'
+          }
+        }
+      ],
+      error: null
+    });
+    const from = jest.fn()
+      .mockReturnValueOnce(triggerLookupQuery)
+      .mockReturnValueOnce(transcriptQuery)
+      .mockReturnValueOnce(streamEventsQuery);
+
+    mockGetSupabaseAdminClient.mockReturnValue({
+      from
+    });
+
+    const events = await listRecentTranscriptEventsForRun({
+      run_id: 'run-current',
+      user_id: 'user-123',
+      session_key: 'session-key',
+      session_id: 'session-id'
+    }, 12);
+    const messages = toRuntimeMessages(events);
+
+    expect(streamEventsQuery.in).toHaveBeenCalledWith('run_id', ['run-previous']);
+    expect(messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'When was my last workout?'
+          }
+        ]
+      },
+      {
+        role: 'assistant',
+        content: [
+          {
+            type: 'text',
+            text: 'Your last completed workout was April 13.'
+          }
+        ]
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'How are you today?'
+          }
+        ]
+      }
+    ]);
+  });
+
+  it('renders compact tool result events into prompt messages', () => {
+    expect(toRuntimeMessages([
+      {
+        event_type: 'user.message',
+        actor: 'user',
+        payload: {
+          message: 'When was my last workout?'
+        }
+      },
+      {
+        event_type: 'tool.result',
+        actor: 'tool',
+        payload: {
+          toolName: 'workout_history_fetch',
+          resultStatus: 'ok',
+          observation: 'Window: 2026-04-01 to 2026-04-24; returned 2.'
+        }
+      }
+    ])).toEqual([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'When was my last workout?'
+          }
+        ]
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: 'Tool result - workout_history_fetch (ok):\nWindow: 2026-04-01 to 2026-04-24; returned 2.'
+          }
+        ]
+      }
+    ]);
+  });
+
+  it('places late-arriving tool result rows next to their triggering user turn', async () => {
+    const triggerLookupQuery = createQueryBuilder({
+      maybeSingleResult: {
+        data: {
+          seq_num: 3
+        },
+        error: null
+      }
+    });
+    const transcriptQuery = createQueryBuilder({
+      limitResult: {
+        data: [
+          {
+            event_id: 'tool-event-late',
+            seq_num: 3,
+            event_type: 'tool.result',
+            actor: 'tool',
+            run_id: 'run-previous',
+            payload: {
+              toolName: 'workout_history_fetch',
+              resultStatus: 'ok',
+              observation: 'Window: 2026-04-01 to 2026-04-24; returned 2.'
+            }
+          },
+          {
+            event_id: 'event-current',
+            seq_num: 2,
+            event_type: 'user.message',
+            actor: 'user',
+            run_id: 'run-current',
+            payload: {
+              message: 'How are you today?'
+            }
+          },
+          {
+            event_id: 'event-previous',
+            seq_num: 1,
+            event_type: 'user.message',
+            actor: 'user',
+            run_id: 'run-previous',
+            payload: {
+              message: 'When was my last workout?'
+            }
+          }
+        ],
+        error: null
+      }
+    });
+    const streamEventsQuery = createStreamEventsQueryBuilder({
+      data: [],
+      error: null
+    });
+    const from = jest.fn()
+      .mockReturnValueOnce(triggerLookupQuery)
+      .mockReturnValueOnce(transcriptQuery)
+      .mockReturnValueOnce(streamEventsQuery);
+
+    mockGetSupabaseAdminClient.mockReturnValue({
+      from
+    });
+
+    const messages = toRuntimeMessages(await listRecentTranscriptEventsForRun({
+      run_id: 'run-current',
+      user_id: 'user-123',
+      session_key: 'session-key',
+      session_id: 'session-id'
+    }, 12));
+
+    expect(messages.map(message => message.content[0].text)).toEqual([
+      'When was my last workout?',
+      'Tool result - workout_history_fetch (ok):\nWindow: 2026-04-01 to 2026-04-24; returned 2.',
+      'How are you today?'
     ]);
   });
 });

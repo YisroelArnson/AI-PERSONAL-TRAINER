@@ -24,26 +24,26 @@ enum AppTheme {
             })
         }
 
-        static let background = dynamic(light: UIColor(hex: "F7F7F4"), dark: UIColor(hex: "060606"))
+        static let background = dynamic(light: UIColor(hex: "F6F6F3"), dark: UIColor(hex: "060606"))
         static let surface = dynamic(
-            light: UIColor(hex: "FFFFFF").withAlphaComponent(0.74),
+            light: UIColor(hex: "F4F4F1").withAlphaComponent(0.82),
             dark: UIColor(hex: "181818").withAlphaComponent(0.72)
         )
         static let surfaceHover = dynamic(
-            light: UIColor(hex: "FFFFFF").withAlphaComponent(0.88),
+            light: UIColor(hex: "FFFFFF").withAlphaComponent(0.9),
             dark: UIColor(hex: "202020").withAlphaComponent(0.86)
         )
         static let glassFill = dynamic(
-            light: UIColor(hex: "FFFFFF").withAlphaComponent(0.58),
-            dark: UIColor(hex: "171717").withAlphaComponent(0.6)
+            light: UIColor(hex: "F7F7F4").withAlphaComponent(0.76),
+            dark: UIColor(hex: "171717").withAlphaComponent(0.64)
         )
         static let glassStroke = dynamic(
-            light: UIColor(hex: "FFFFFF").withAlphaComponent(0.62),
-            dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.16)
+            light: UIColor(hex: "FFFFFF").withAlphaComponent(0.92),
+            dark: UIColor(hex: "FFFFFF").withAlphaComponent(0.2)
         )
         static let floatingShadow = dynamic(
-            light: UIColor(hex: "000000").withAlphaComponent(0.08),
-            dark: UIColor(hex: "000000").withAlphaComponent(0.28)
+            light: UIColor(hex: "000000").withAlphaComponent(0.13),
+            dark: UIColor(hex: "000000").withAlphaComponent(0.34)
         )
 
         static let primaryText = dynamic(light: UIColor(hex: "000000"), dark: UIColor(hex: "FFFFFF"))

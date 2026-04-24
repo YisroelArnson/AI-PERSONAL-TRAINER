@@ -47,6 +47,7 @@ const {
   executeToolCall
 } = require('../trainer-tools/tool-registry');
 const { appendRawLlmPayload } = require('../services/raw-llm-io-log.service');
+const { appendToolObservationEvent } = require('../services/tool-observation.service');
 
 const STREAM_TEXT_CHUNK_WORDS = 5;
 
@@ -215,6 +216,24 @@ function buildDurableReplyRetryMessage(triggerType) {
     'Retry with exactly one terminal user-facing tool call.',
     'Use message_notify_user with delivery="feed" for a normal reply, or message_ask_user if you genuinely need clarification.'
   ].join(' ');
+}
+
+/**
+ * Builds provider-specific tool choice for the runtime's tool-only contract.
+ */
+function buildRuntimeToolChoice({ provider, hasTools, parallelToolCalls }) {
+  if (!hasTools) {
+    return undefined;
+  }
+
+  if (provider === 'anthropic') {
+    return {
+      type: 'any',
+      disable_parallel_tool_use: parallelToolCalls !== true
+    };
+  }
+
+  return 'auto';
 }
 
 /**
@@ -848,6 +867,7 @@ async function runAgentTurn(run, options = {}) {
         enablePromptCaching: provider === 'anthropic' && env.anthropicPromptCachingEnabled,
         staticCacheTtl: env.anthropicStaticCacheTtl
       });
+      const parallelToolCalls = false;
       const runtimeInput = {
         provider,
         model,
@@ -862,10 +882,12 @@ async function runAgentTurn(run, options = {}) {
         promptCacheKey: provider === 'xai' && env.xaiPromptCachingEnabled
           ? `session:${run.session_id}`
           : null,
-        toolChoice: providerTools.length > 0
-          ? 'auto'
-          : undefined,
-        parallelToolCalls: false
+        toolChoice: buildRuntimeToolChoice({
+          provider,
+          hasTools: providerTools.length > 0,
+          parallelToolCalls
+        }),
+        parallelToolCalls
       };
 
       adapter.validateCapabilities(runtimeInput, caps);
@@ -1216,6 +1238,17 @@ async function runAgentTurn(run, options = {}) {
             input: toolCall.input,
             toolResult
           });
+
+          try {
+            await appendToolObservationEvent({
+              run,
+              iteration,
+              toolCall,
+              toolResult
+            });
+          } catch (error) {
+            console.warn(`Unable to append tool observation for ${toolCall.name}:`, error.message);
+          }
 
           await emitStreamEvent({
             eventType: 'tool.call.completed',
