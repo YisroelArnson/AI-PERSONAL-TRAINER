@@ -196,6 +196,7 @@ describe('appendAssistantEvent guarded durable writes', () => {
         p_event_type: 'assistant.notify'
       })
     );
+    expect(mockRpc.mock.calls[0][1]).not.toHaveProperty('p_idempotency_key');
     expect(result).toEqual(expect.objectContaining({
       skipped: false,
       eventId: 'evt-assistant-5',

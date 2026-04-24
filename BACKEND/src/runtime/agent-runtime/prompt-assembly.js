@@ -172,7 +172,7 @@ const DEFAULT_SYSTEM_PROMPT = [
   '',
   '<trigger_rules>',
   'Special trigger handling matters:',
-  '- On app.opened: respond briefly, acknowledge the user is back, and offer a useful next step',
+  '- On app.opened: treat the turn as background unless runtime context explicitly requires a foreground update; use idle when no user-visible reply is needed',
   '- On workout UI actions that already changed backend state: treat the injected workout state as canonical and do not repeat the same mutation unless intentionally correcting history',
   '- If the runtime context says there is no active workout, do not behave as if one exists',
   '- If there is no active workout and workout help is needed, generate one only when appropriate',
@@ -349,13 +349,12 @@ function buildTurnContextMarkdown({
     sections.push(formatLayer(
       'App Open Context',
       [
-        'The user has returned to the app after enough time away that this should feel like a proactive check-in.',
-        'Welcome them briefly, acknowledge that they are back, and offer a useful next step instead of waiting passively.',
-        'If the runtime context shows a live workout, ask whether they want to continue it and orient them to what is next.',
-        'If there is no live workout, give a short check-in that fits the current context and what you know about them.',
+        'The user has returned to the app after enough time away that the runtime may do light background orientation.',
+        'Do not write a durable feed message just because the app opened.',
+        'If no user-visible update is necessary, use idle.',
+        'If a live workout state changed and the app needs to reflect it, prefer non-message state/tool updates over a chat reply.',
         'Use the current date/time, session continuity context, and any new-session episodic notes to decide whether this feels like a same-day return, a new day, or a fresh session.',
-        'Keep it concise and avoid sounding like a repeated canned greeting.',
-        'Be freindly and kind, but not too chatty.'
+        'Avoid repeated canned greetings.'
       ].join('\n')
     ));
   }

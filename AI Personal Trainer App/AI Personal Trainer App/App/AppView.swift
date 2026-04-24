@@ -12,8 +12,7 @@
 // - updateRunTrace: Updates Run trace with the latest state.
 // - clearRunTraces: Handles Clear run traces for AppView.swift.
 // - didSessionBoundaryChange: Handles Did session boundary change for AppView.swift.
-// - makeRunTraceItem: Builds a Run trace item for this workflow.
-// - makeProvisionalAssistantMessageItem: Builds a Provisional assistant message item for this workflow.
+// - makeAssistantTurnItem: Builds a stable live assistant turn row.
 // - tracePresentation: Handles Trace presentation for AppView.swift.
 // - activate: Handles Activate for AppView.swift.
 // - manualRefresh: Handles Manual refresh for AppView.swift.
@@ -238,7 +237,7 @@ private struct CoachRunTraceState {
         isStreaming
             || !commentaryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || !transientText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || (isStreaming && !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            || !finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             || errorMessage != nil
     }
 }
@@ -254,6 +253,23 @@ struct CoachRenderedFeedItem: Identifiable {
     let badgeLabel: String
     let isAssistant: Bool
     let isProvisional: Bool
+}
+
+private extension CoachRenderedFeedItem {
+    func mergingLiveTurnState(from liveItem: CoachRenderedFeedItem) -> CoachRenderedFeedItem {
+        CoachRenderedFeedItem(
+            id: id,
+            kind: kind,
+            role: role,
+            text: text.isEmpty ? liveItem.text : text,
+            card: card,
+            trace: liveItem.trace,
+            runId: runId,
+            badgeLabel: badgeLabel,
+            isAssistant: isAssistant,
+            isProvisional: isProvisional
+        )
+    }
 }
 
 private struct PendingUserFeedMessage: Identifiable {
@@ -447,18 +463,14 @@ final class CoachSurfaceViewModel: ObservableObject {
                 ?? lastRunItemIndex.map { $0 + 1 }
                 ?? items.count
 
-            guard let traceItem = makeRunTraceItem(runID: runID) else {
-                if assistantRunItemIndex == nil, let provisionalMessage = makeProvisionalAssistantMessageItem(runID: runID) {
-                    items.insert(provisionalMessage, at: insertIndex)
-                }
+            guard let assistantTurnItem = makeAssistantTurnItem(runID: runID) else {
                 continue
             }
 
-            items.insert(traceItem, at: min(insertIndex, items.count))
-
-            if assistantRunItemIndex == nil, let provisionalMessage = makeProvisionalAssistantMessageItem(runID: runID) {
-                let provisionalIndex = min(insertIndex + 1, items.count)
-                items.insert(provisionalMessage, at: provisionalIndex)
+            if let assistantRunItemIndex {
+                items[assistantRunItemIndex] = items[assistantRunItemIndex].mergingLiveTurnState(from: assistantTurnItem)
+            } else {
+                items.insert(assistantTurnItem, at: min(insertIndex, items.count))
             }
         }
 
@@ -580,22 +592,26 @@ final class CoachSurfaceViewModel: ObservableObject {
 
     /// Handles Stable feed item ID for AppView.swift.
     private func stableFeedItemID(for item: CoachFeedItem) -> String {
-        guard item.kind == "message", item.role == "assistant", let itemRunID = item.runId else {
+        guard item.kind == "message", item.role == "assistant", let itemTurnID = item.turnId ?? item.runId else {
             return item.id
         }
 
-        return "run:\(itemRunID)"
+        return "assistant:\(itemTurnID)"
     }
 
     /// Builds a rendered feed item while keeping IDs stable for live-to-final assistant transitions.
     private func makeRenderedFeedItem(from item: CoachFeedItem) -> CoachRenderedFeedItem {
-        CoachRenderedFeedItem(
+        let liveTrace = item.role == "assistant"
+            ? item.runId.flatMap { tracePresentation(for: $0) }
+            : nil
+
+        return CoachRenderedFeedItem(
             id: stableFeedItemID(for: item),
             kind: item.kind,
             role: item.role,
             text: item.text,
             card: item.card,
-            trace: nil,
+            trace: liveTrace,
             runId: item.runId,
             badgeLabel: item.role == "assistant" ? "Coach" : "You",
             isAssistant: item.role == "assistant",
@@ -783,26 +799,6 @@ final class CoachSurfaceViewModel: ObservableObject {
             || currentSurface.sessionId != latestSurface.sessionId
     }
 
-    /// Builds a Run trace item for this workflow.
-    private func makeRunTraceItem(runID: String) -> CoachRenderedFeedItem? {
-        guard let trace = tracePresentation(for: runID) else {
-            return nil
-        }
-
-        return CoachRenderedFeedItem(
-            id: "trace:\(runID)",
-            kind: "run_trace",
-            role: "assistant",
-            text: "",
-            card: nil,
-            trace: trace,
-            runId: runID,
-            badgeLabel: "Coach",
-            isAssistant: true,
-            isProvisional: false
-        )
-    }
-
     /// Inserts a temporary assistant activity row while the message is still being accepted.
     private func insertPendingAssistantActivityIfNeeded(in items: inout [CoachRenderedFeedItem]) {
         guard isSending,
@@ -823,8 +819,8 @@ final class CoachSurfaceViewModel: ObservableObject {
             errorMessage: nil
         )
         let pendingTraceItem = CoachRenderedFeedItem(
-            id: "trace:pending-send",
-            kind: "run_trace",
+            id: "assistant:pending-send",
+            kind: "message",
             role: "assistant",
             text: "",
             card: nil,
@@ -838,24 +834,20 @@ final class CoachSurfaceViewModel: ObservableObject {
         items.insert(pendingTraceItem, at: min(pendingMessageIndex + 1, items.count))
     }
 
-    /// Builds a Provisional assistant message item for this workflow.
-    private func makeProvisionalAssistantMessageItem(runID: String) -> CoachRenderedFeedItem? {
-        guard let trace = runTraces[runID] else {
-            return nil
-        }
-
-        let finalText = trace.finalText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !finalText.isEmpty else {
-            return nil
-        }
+    /// Builds a live assistant turn row that remains stable from orb to streaming text to final text.
+    private func makeAssistantTurnItem(runID: String) -> CoachRenderedFeedItem? {
+        guard let presentation = tracePresentation(for: runID) else { return nil }
+        let trace = runTraces[runID]
+        let transientText = trace?.transientText.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let text = presentation.isStreaming ? "" : transientText
 
         return CoachRenderedFeedItem(
-            id: "run:\(runID)",
+            id: "assistant:\(runID)",
             kind: "message",
             role: "assistant",
-            text: finalText,
+            text: text,
             card: nil,
-            trace: nil,
+            trace: presentation,
             runId: runID,
             badgeLabel: "Coach",
             isAssistant: true,
@@ -893,7 +885,9 @@ final class CoachSurfaceViewModel: ObservableObject {
             detail: nil,
             startedAt: trace.startedAt,
             commentaryText: trace.commentaryText,
-            streamingText: trace.transientText,
+            streamingText: trace.finalText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                ? trace.transientText
+                : trace.finalText,
             errorMessage: trace.errorMessage
         )
     }
@@ -1439,7 +1433,11 @@ final class CoachSurfaceViewModel: ObservableObject {
                 _ = await submitMessage(
                     message: "app_opened",
                     triggerType: .appOpened,
-                    metadata: MessageMetadata(hiddenInFeed: true, source: "ios_app_open")
+                    metadata: MessageMetadata(
+                        hiddenInFeed: true,
+                        source: "ios_app_open",
+                        runVisibility: "background"
+                    )
                 )
             }
         } catch {
@@ -1492,6 +1490,7 @@ final class CoachSurfaceViewModel: ObservableObject {
         let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         let shouldRenderPendingMessage = shouldRenderPendingUserMessage(metadata: metadata)
+        let shouldObserveForegroundRun = shouldRenderPendingMessage
 
         if shouldRenderPendingMessage {
             cancelRunObservation(resetStreamState: true)
@@ -1505,7 +1504,9 @@ final class CoachSurfaceViewModel: ObservableObject {
             : nil
 
         do {
-            isSending = true
+            if shouldRenderPendingMessage {
+                isSending = true
+            }
             let accessToken = try await freshAccessToken()
             let accepted = try await APIService.shared.sendMessage(
                 accessToken: accessToken,
@@ -1529,14 +1530,22 @@ final class CoachSurfaceViewModel: ObservableObject {
                 )
             }
 
-            if accepted.replayed {
+            if accepted.replayed && shouldRenderPendingMessage {
                 toast = ToastData(message: "Recovered your existing run.", icon: "arrow.clockwise.circle.fill")
             }
 
-            startRunObservation(
-                runID: accepted.runId,
-                streamPath: accepted.streamUrl ?? "/v1/runs/\(accepted.runId)/stream"
-            )
+            let streamPath = accepted.streamUrl ?? "/v1/runs/\(accepted.runId)/stream"
+            if shouldObserveForegroundRun {
+                startRunObservation(
+                    runID: accepted.runId,
+                    streamPath: streamPath
+                )
+            } else {
+                startBackgroundRunObservation(
+                    runID: accepted.runId,
+                    streamPath: streamPath
+                )
+            }
             isSending = false
 
             Task { @MainActor [weak self] in
@@ -3056,18 +3065,17 @@ private struct CoachFeedRow: View {
                     .padding(.trailing, 40)
                     .transition(.opacity.combined(with: .move(edge: .bottom)))
             } else if isAssistant {
-                assistantMessageContent
+                assistantTurnContent
             } else {
                 userMessageContent
             }
         }
     }
 
-    private var assistantMessageContent: some View {
-        CoachMessageText(
+    private var assistantTurnContent: some View {
+        CoachAssistantTurnView(
             text: item.text,
-            rendersMarkdown: true,
-            foregroundColor: AppTheme.Colors.primaryText,
+            trace: item.trace,
             isProvisional: item.isProvisional
         )
         .frame(maxWidth: 650, alignment: .leading)
@@ -3340,8 +3348,50 @@ private struct CoachPinnedFeedCard: View {
     }
 }
 
+private struct CoachAssistantTurnView: View {
+    let text: String
+    let trace: CoachRunTracePresentation?
+    let isProvisional: Bool
+
+    private var trimmedText: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var shouldShowActivity: Bool {
+        guard let trace else { return false }
+
+        return trace.isStreaming
+            || !trace.commentaryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || (isProvisional && trimmedText.isEmpty && !trace.streamingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            || trace.errorMessage != nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if shouldShowActivity, let trace {
+                CoachRunTraceView(
+                    trace: trace,
+                    showsArchivedStreamingText: trimmedText.isEmpty,
+                    keepsStreamingTextVisible: isProvisional && trimmedText.isEmpty
+                )
+            }
+
+            if !trimmedText.isEmpty {
+                CoachMessageText(
+                    text: trimmedText,
+                    rendersMarkdown: true,
+                    foregroundColor: AppTheme.Colors.primaryText,
+                    isProvisional: isProvisional
+                )
+            }
+        }
+    }
+}
+
 private struct CoachRunTraceView: View {
     let trace: CoachRunTracePresentation
+    var showsArchivedStreamingText = true
+    var keepsStreamingTextVisible = false
 
     @State private var isExpanded = false
     @State private var now = Date()
@@ -3350,7 +3400,7 @@ private struct CoachRunTraceView: View {
 
     var body: some View {
         Group {
-            if trace.isStreaming {
+            if trace.isStreaming || (keepsStreamingTextVisible && !streamingText.isEmpty) {
                 liveTraceBody
             } else {
                 archivedTraceBody
@@ -3450,7 +3500,7 @@ private struct CoachRunTraceView: View {
                         }
                     }
 
-                    if !streamingText.isEmpty {
+                    if showsArchivedStreamingText && !streamingText.isEmpty {
                         Text(streamingText)
                             .font(.system(size: 15, weight: .regular))
                             .foregroundStyle(AppTheme.Colors.primaryText)

@@ -50,6 +50,19 @@ function resolveDelivery(input) {
     : 'feed';
 }
 
+function isBackgroundRun(run) {
+  const triggerPayload = run && typeof run.trigger_payload === 'object' ? run.trigger_payload : {};
+  const metadata = triggerPayload && typeof triggerPayload.metadata === 'object'
+    ? triggerPayload.metadata
+    : {};
+
+  if (metadata.runVisibility === 'foreground') {
+    return false;
+  }
+
+  return metadata.runVisibility === 'background' || (run && run.trigger_type === 'app.opened');
+}
+
 /**
  * Executes the main action flow.
  */
@@ -70,6 +83,19 @@ async function execute({ input, run }) {
   }
 
   if (delivery === 'feed') {
+    if (isBackgroundRun(run)) {
+      return {
+        status: 'ok',
+        output: {
+          kind: 'notify',
+          text,
+          delivery: 'suppressed',
+          skipped: true,
+          skipReason: 'background_run'
+        }
+      };
+    }
+
     const appendResult = await appendAssistantEvent({
       run,
       eventType: 'assistant.notify',

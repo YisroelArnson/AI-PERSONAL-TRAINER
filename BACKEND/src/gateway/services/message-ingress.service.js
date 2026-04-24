@@ -33,6 +33,22 @@ const {
 
 const MESSAGE_ROUTE = '/v1/messages';
 
+function normalizeMessageMetadataForRun(body, effectiveLlm) {
+  const metadata = {
+    ...(body.metadata || {}),
+    llm: effectiveLlm
+  };
+
+  if (
+    body.triggerType === 'app.opened'
+    && typeof metadata.runVisibility !== 'string'
+  ) {
+    metadata.runVisibility = 'background';
+  }
+
+  return metadata;
+}
+
 /**
  * Builds an Accepted response used by this file.
  */
@@ -88,6 +104,9 @@ async function buildAcceptedResponse({
 
     return {
       ...persisted,
+      turnId: persisted.runId,
+      userMessageId: persisted.eventId || null,
+      assistantMessageId: persisted.runId ? `assistant:${persisted.runId}` : null,
       jobId: job ? job.jobId : null,
       streamUrl: `/v1/runs/${persisted.runId}/stream`,
       debug: {
@@ -139,6 +158,9 @@ async function buildAcceptedResponse({
 
   return {
     ...persisted,
+    turnId: persisted.runId,
+    userMessageId: persisted.eventId || null,
+    assistantMessageId: persisted.runId ? `assistant:${persisted.runId}` : null,
     jobId: job.jobId,
     streamUrl: `/v1/runs/${persisted.runId}/stream`,
     debug: {
@@ -251,10 +273,7 @@ async function processInboundMessage({ auth, headers, body, ipAddress, requestId
         sessionKey: body.sessionKey,
         triggerType: body.triggerType,
         message: body.message,
-        metadata: {
-          ...(body.metadata || {}),
-          llm: effectiveLlm
-        },
+        metadata: normalizeMessageMetadataForRun(body, effectiveLlm),
         sessionResetPolicy: continuityPolicy
       });
       finishIngest({

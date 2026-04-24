@@ -200,7 +200,7 @@ function buildToolBatchRetryMessage(validation) {
  */
 function requiresDurableUserReply(triggerType) {
   const normalized = String(triggerType || '').trim().toLowerCase();
-  return normalized === 'user.message' || normalized === 'app.opened';
+  return normalized === 'user.message';
 }
 
 /**

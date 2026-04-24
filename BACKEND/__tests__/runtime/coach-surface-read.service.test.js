@@ -164,6 +164,51 @@ describe('buildCoachSurfaceView active run visibility', () => {
     expect(result.view.header.subtitle).toBe('One calm surface for training, planning, and check-ins');
   });
 
+  it('treats app-opened runs as background even without explicit visibility metadata', async () => {
+    const feedChain = createSelectChain([]);
+    const runsChain = createSelectChain([
+      {
+        run_id: 'run-app-open',
+        status: 'running',
+        trigger_type: 'app.opened',
+        trigger_payload: {
+          metadata: {
+            hiddenInFeed: true
+          }
+        },
+        created_at: '2026-03-31T10:00:00.000Z',
+        started_at: '2026-03-31T10:00:01.000Z',
+        finished_at: null,
+        provider_key: 'anthropic',
+        model_key: 'claude'
+      }
+    ]);
+
+    mockFrom.mockImplementation(table => {
+      if (table === 'session_events') {
+        return feedChain;
+      }
+
+      if (table === 'runs') {
+        return runsChain;
+      }
+
+      throw new Error(`Unexpected table lookup: ${table}`);
+    });
+
+    const result = await buildCoachSurfaceView({
+      userId: 'user-123',
+      sessionKey: 'user:user-123:main',
+      sessionResetPolicy: {
+        timezone: 'America/New_York',
+        dayBoundaryEnabled: true,
+        idleExpiryMinutes: 240
+      }
+    });
+
+    expect(result.view.activeRun).toBeNull();
+  });
+
   it('maps assistant notify and ask transcript events into visible feed items', async () => {
     const feedChain = createSelectChain([
       {

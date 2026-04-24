@@ -39,17 +39,6 @@ function createQueryBuilder({ maybeSingleResult, limitResult }) {
   return builder;
 }
 
-function createStreamEventsQueryBuilder(result) {
-  const builder = {
-    select: jest.fn(() => builder),
-    in: jest.fn(() => builder),
-    eq: jest.fn(() => builder),
-    order: jest.fn().mockResolvedValue(result)
-  };
-
-  return builder;
-}
-
 describe('listRecentTranscriptEventsForRun', () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -95,7 +84,7 @@ describe('listRecentTranscriptEventsForRun', () => {
     ]);
   });
 
-  it('hydrates missing assistant turns from streamed assistant deltas', async () => {
+  it('does not promote streamed assistant deltas into durable prompt history', async () => {
     const triggerLookupQuery = createQueryBuilder({
       maybeSingleResult: {
         data: {
@@ -129,22 +118,9 @@ describe('listRecentTranscriptEventsForRun', () => {
         error: null
       }
     });
-    const streamEventsQuery = createStreamEventsQueryBuilder({
-      data: [
-        {
-          run_id: 'run-previous',
-          seq_num: 12,
-          payload: {
-            text: 'Your last completed workout was April 13.'
-          }
-        }
-      ],
-      error: null
-    });
     const from = jest.fn()
       .mockReturnValueOnce(triggerLookupQuery)
-      .mockReturnValueOnce(transcriptQuery)
-      .mockReturnValueOnce(streamEventsQuery);
+      .mockReturnValueOnce(transcriptQuery);
 
     mockGetSupabaseAdminClient.mockReturnValue({
       from
@@ -158,7 +134,7 @@ describe('listRecentTranscriptEventsForRun', () => {
     }, 12);
     const messages = toRuntimeMessages(events);
 
-    expect(streamEventsQuery.in).toHaveBeenCalledWith('run_id', ['run-previous']);
+    expect(from).toHaveBeenCalledTimes(2);
     expect(messages).toEqual([
       {
         role: 'user',
@@ -166,15 +142,6 @@ describe('listRecentTranscriptEventsForRun', () => {
           {
             type: 'text',
             text: 'When was my last workout?'
-          }
-        ]
-      },
-      {
-        role: 'assistant',
-        content: [
-          {
-            type: 'text',
-            text: 'Your last completed workout was April 13.'
           }
         ]
       },
@@ -278,14 +245,9 @@ describe('listRecentTranscriptEventsForRun', () => {
         error: null
       }
     });
-    const streamEventsQuery = createStreamEventsQueryBuilder({
-      data: [],
-      error: null
-    });
     const from = jest.fn()
       .mockReturnValueOnce(triggerLookupQuery)
-      .mockReturnValueOnce(transcriptQuery)
-      .mockReturnValueOnce(streamEventsQuery);
+      .mockReturnValueOnce(transcriptQuery);
 
     mockGetSupabaseAdminClient.mockReturnValue({
       from

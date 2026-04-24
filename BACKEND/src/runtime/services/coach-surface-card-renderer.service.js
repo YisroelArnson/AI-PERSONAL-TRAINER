@@ -412,6 +412,8 @@ function buildWorkoutSurfaceDecorations({ workout, activeRun }) {
     feedItems: [
       {
         id: feedCard.id,
+        messageId: feedCard.id,
+        turnId: activeRun ? activeRun.runId : feedCard.id,
         kind: 'card',
         role: 'assistant',
         text: feedCard.text,

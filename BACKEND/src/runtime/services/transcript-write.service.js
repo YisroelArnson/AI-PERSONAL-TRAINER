@@ -154,8 +154,7 @@ async function appendAssistantEventIfLatestTurn({
     p_run_id: run.run_id,
     p_event_type: eventType,
     p_payload: payload || {},
-    p_occurred_at: new Date().toISOString(),
-    p_idempotency_key: null
+    p_occurred_at: new Date().toISOString()
   });
 
   if (error) {

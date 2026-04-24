@@ -85,6 +85,8 @@ const coachCardPayloadSchema = z.discriminatedUnion('type', [
 
 const coachFeedItemBaseSchema = z.object({
   id: nonEmptyStringSchema,
+  messageId: nullableStringSchema,
+  turnId: nullableStringSchema,
   role: z.enum(['assistant', 'user', 'system']),
   eventType: nonEmptyStringSchema,
   runId: nullableStringSchema,

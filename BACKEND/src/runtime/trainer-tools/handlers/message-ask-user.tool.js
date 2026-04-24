@@ -36,6 +36,19 @@ function normalizeText(value) {
   return String(value || '').trim();
 }
 
+function isBackgroundRun(run) {
+  const triggerPayload = run && typeof run.trigger_payload === 'object' ? run.trigger_payload : {};
+  const metadata = triggerPayload && typeof triggerPayload.metadata === 'object'
+    ? triggerPayload.metadata
+    : {};
+
+  if (metadata.runVisibility === 'foreground') {
+    return false;
+  }
+
+  return metadata.runVisibility === 'background' || (run && run.trigger_type === 'app.opened');
+}
+
 /**
  * Executes the main action flow.
  */
@@ -50,6 +63,19 @@ async function execute({ input, run }) {
         explanation: 'text must be a non-empty string.',
         agent_guidance: 'Provide the exact question to send to the user.',
         retryable_in_run: true
+      }
+    };
+  }
+
+  if (isBackgroundRun(run)) {
+    return {
+      status: 'ok',
+      output: {
+        kind: 'ask',
+        text,
+        delivery: 'suppressed',
+        skipped: true,
+        skipReason: 'background_run'
       }
     };
   }

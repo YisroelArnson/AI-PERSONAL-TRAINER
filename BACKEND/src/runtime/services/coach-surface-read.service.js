@@ -56,6 +56,8 @@ function mapFeedItem(event) {
 
   return {
     id: event.event_id,
+    messageId: event.event_id,
+    turnId: event.run_id || event.event_id,
     kind: 'message',
     role: event.actor === 'assistant' ? 'assistant' : 'user',
     text,
@@ -149,6 +151,14 @@ function getRunSurfaceVisibility(run) {
   const metadata = triggerPayload && typeof triggerPayload.metadata === 'object'
     ? triggerPayload.metadata
     : {};
+
+  if (metadata.runVisibility === 'foreground') {
+    return 'foreground';
+  }
+
+  if (run && run.trigger_type === 'app.opened') {
+    return 'background';
+  }
 
   return metadata.runVisibility === 'background' ? 'background' : 'foreground';
 }

@@ -326,4 +326,56 @@ describe('processInboundMessage admission integration', () => {
     expect(result.debug.concurrencyPolicyCacheHit).toBe(false);
     expect(result.jobId).toBe('job-123');
   });
+
+  it('marks app-opened runs as background by default and returns stable turn identifiers', async () => {
+    mockLookupIdempotencyResponse.mockResolvedValue(null);
+    mockPersistInboundMessage.mockResolvedValue({
+      status: 'accepted',
+      sessionKey: 'session-key',
+      sessionId: 'session-id',
+      sessionVersion: 8,
+      eventId: 'event-app-open',
+      runId: 'run-app-open',
+      replayed: false
+    });
+    mockEnqueueAgentRunTurn.mockResolvedValue({
+      jobId: 'job-app-open'
+    });
+
+    const result = await processInboundMessage({
+      auth: {
+        userId: 'user-123'
+      },
+      headers: {
+        'idempotency-key': 'idem-123'
+      },
+      body: {
+        message: 'app_opened',
+        triggerType: 'app.opened',
+        metadata: {
+          hiddenInFeed: true,
+          source: 'ios_app_open'
+        }
+      },
+      ipAddress: '127.0.0.1'
+    });
+
+    expect(mockPersistInboundMessage).toHaveBeenCalledWith(expect.objectContaining({
+      metadata: expect.objectContaining({
+        hiddenInFeed: true,
+        source: 'ios_app_open',
+        runVisibility: 'background',
+        llm: {
+          provider: 'anthropic',
+          model: 'claude-sonnet-4-6'
+        }
+      })
+    }));
+    expect(result).toEqual(expect.objectContaining({
+      turnId: 'run-app-open',
+      userMessageId: 'event-app-open',
+      assistantMessageId: 'assistant:run-app-open',
+      streamUrl: '/v1/runs/run-app-open/stream'
+    }));
+  });
 });

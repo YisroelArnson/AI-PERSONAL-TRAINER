@@ -310,6 +310,41 @@ describe('tool-registry', () => {
     }));
   });
 
+  it('suppresses durable notify messages from background app-open runs', async () => {
+    const result = await executeToolCall({
+      toolName: 'message_notify_user',
+      input: {
+        text: 'Welcome back.',
+        delivery: 'feed'
+      },
+      run: {
+        user_id: 'user-123',
+        run_id: 'run-app-open',
+        trigger_type: 'app.opened',
+        trigger_payload: {
+          metadata: {
+            hiddenInFeed: true,
+            runVisibility: 'background'
+          }
+        }
+      }
+    });
+
+    expect(result).toEqual({
+      toolName: 'message_notify_user',
+      mutating: true,
+      status: 'ok',
+      output: {
+        kind: 'notify',
+        text: 'Welcome back.',
+        delivery: 'suppressed',
+        skipped: true,
+        skipReason: 'background_run'
+      }
+    });
+    expect(appendAssistantEvent).not.toHaveBeenCalled();
+  });
+
   it('keeps transient notify messages stream-only', async () => {
     const result = await executeToolCall({
       toolName: 'message_notify_user',
@@ -373,6 +408,39 @@ describe('tool-registry', () => {
         delivery: 'feed'
       }
     }));
+  });
+
+  it('suppresses assistant questions from background app-open runs', async () => {
+    const result = await executeToolCall({
+      toolName: 'message_ask_user',
+      input: {
+        text: 'Want to keep going?'
+      },
+      run: {
+        user_id: 'user-123',
+        run_id: 'run-app-open',
+        trigger_type: 'app.opened',
+        trigger_payload: {
+          metadata: {
+            runVisibility: 'background'
+          }
+        }
+      }
+    });
+
+    expect(result).toEqual({
+      toolName: 'message_ask_user',
+      mutating: true,
+      status: 'ok',
+      output: {
+        kind: 'ask',
+        text: 'Want to keep going?',
+        delivery: 'suppressed',
+        skipped: true,
+        skipReason: 'background_run'
+      }
+    });
+    expect(appendAssistantEvent).not.toHaveBeenCalled();
   });
 
   it('lets idle end a run without appending a transcript message', async () => {

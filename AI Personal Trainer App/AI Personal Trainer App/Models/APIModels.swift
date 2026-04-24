@@ -25,11 +25,18 @@ struct MessageMetadata: Codable {
     let hiddenInFeed: Bool?
     let source: String?
     let actionId: String?
+    let runVisibility: String?
 
-    init(hiddenInFeed: Bool? = nil, source: String? = nil, actionId: String? = nil) {
+    init(
+        hiddenInFeed: Bool? = nil,
+        source: String? = nil,
+        actionId: String? = nil,
+        runVisibility: String? = nil
+    ) {
         self.hiddenInFeed = hiddenInFeed
         self.source = source
         self.actionId = actionId
+        self.runVisibility = runVisibility
     }
 }
 
@@ -142,6 +149,9 @@ struct MessageAcceptedResponse: Codable {
     let sessionVersion: Int
     let eventId: String
     let runId: String
+    let turnId: String?
+    let userMessageId: String?
+    let assistantMessageId: String?
     let replayed: Bool
     let jobId: String?
     let streamUrl: String?
@@ -258,6 +268,8 @@ struct CoachPinnedCard: Codable {
 
 struct CoachFeedItem: Codable, Identifiable {
     let id: String
+    let messageId: String?
+    let turnId: String?
     let kind: String
     let role: String
     let text: String

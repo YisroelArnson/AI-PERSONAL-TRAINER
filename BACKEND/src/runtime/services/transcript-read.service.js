@@ -4,10 +4,8 @@
  *
  * Main functions in this file:
  * - getAdminClientOrThrow: Gets Admin client or throw needed by this file.
- * - hasAssistantEventForRun: Handles Has assistant event for run for transcript-read.service.js.
  * - reorderRunAttachedToolResults: Reorders Run attached tool results into transcript position.
- * - loadStreamedAssistantTextByRunId: Loads Streamed assistant text by run ID for the surrounding workflow.
- * - hydrateMissingAssistantTurns: Hydrates Missing assistant turns before prompt context is built.
+ * - hydrateMissingAssistantTurns: Keeps transcript context bound to durable assistant events.
  * - listRecentTranscriptEventsForRun: Lists Recent transcript events for run for the caller.
  * - listTranscriptEventsForSession: Lists Transcript events for session for the caller.
  * - toRuntimeMessages: Handles To runtime messages for transcript-read.service.js.
@@ -26,17 +24,6 @@ function getAdminClientOrThrow() {
   }
 
   return supabase;
-}
-
-/**
- * Handles Has assistant event for run for transcript-read.service.js.
- */
-function hasAssistantEventForRun(events, runId) {
-  return events.some(event => (
-    event
-    && event.actor === 'assistant'
-    && event.run_id === runId
-  ));
 }
 
 /**
@@ -102,108 +89,10 @@ function reorderRunAttachedToolResults(events) {
 }
 
 /**
- * Loads Streamed assistant text by run ID for the surrounding workflow.
+ * Keeps prompt context bound to durable assistant events.
  */
-async function loadStreamedAssistantTextByRunId(supabase, runIds) {
-  const uniqueRunIds = [...new Set((runIds || []).filter(Boolean))];
-
-  if (uniqueRunIds.length === 0) {
-    return new Map();
-  }
-
-  const { data, error } = await supabase
-    .from('stream_events')
-    .select('run_id, seq_num, payload')
-    .in('run_id', uniqueRunIds)
-    .eq('event_type', 'assistant.delta')
-    .order('seq_num', { ascending: true });
-
-  if (error) {
-    throw error;
-  }
-
-  const textByRunId = new Map();
-
-  for (const row of data || []) {
-    const text = row && row.payload && typeof row.payload.text === 'string'
-      ? row.payload.text
-      : '';
-
-    if (!text) {
-      continue;
-    }
-
-    textByRunId.set(row.run_id, `${textByRunId.get(row.run_id) || ''}${text}`);
-  }
-
-  return textByRunId;
-}
-
-/**
- * Hydrates Missing assistant turns before prompt context is built.
- */
-async function hydrateMissingAssistantTurns(supabase, events, options = {}) {
-  const orderedEvents = Array.isArray(events) ? events : [];
-  const excludedRunId = options.excludeRunId || null;
-  const missingAssistantRunIds = orderedEvents
-    .filter(event => (
-      event
-      && event.actor === 'user'
-      && event.run_id
-      && event.run_id !== excludedRunId
-      && !hasAssistantEventForRun(orderedEvents, event.run_id)
-    ))
-    .map(event => event.run_id);
-  const streamedTextByRunId = await loadStreamedAssistantTextByRunId(supabase, missingAssistantRunIds);
-
-  if (streamedTextByRunId.size === 0) {
-    return orderedEvents;
-  }
-
-  const hydratedEvents = [];
-
-  for (let index = 0; index < orderedEvents.length; index += 1) {
-    const event = orderedEvents[index];
-    hydratedEvents.push(event);
-
-    if (!event || !event.run_id) {
-      continue;
-    }
-
-    const streamedText = streamedTextByRunId.get(event.run_id);
-    const nextEvent = orderedEvents[index + 1];
-
-    if (
-      !streamedText
-      || (
-        nextEvent
-        && nextEvent.run_id === event.run_id
-        && nextEvent.actor !== 'assistant'
-      )
-    ) {
-      continue;
-    }
-
-    hydratedEvents.push({
-      event_id: `streamed-assistant:${event.run_id}`,
-      user_id: event.user_id,
-      session_key: event.session_key,
-      session_id: event.session_id,
-      parent_event_id: event.event_id || null,
-      seq_num: event.seq_num,
-      event_type: 'assistant.streamed_reply',
-      actor: 'assistant',
-      run_id: event.run_id,
-      synthetic: true,
-      payload: {
-        text: streamedText,
-        source: 'stream_events',
-        hiddenInFeed: true
-      }
-    });
-  }
-
-  return hydratedEvents;
+async function hydrateMissingAssistantTurns(_supabase, events) {
+  return Array.isArray(events) ? events : [];
 }
 
 /**
