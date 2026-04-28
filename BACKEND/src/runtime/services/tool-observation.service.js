@@ -61,12 +61,14 @@ function formatErrorObservation(toolResult) {
   return lines.join('\n');
 }
 
-function formatMemorySearch(output) {
+function formatMemorySearch(output, input = {}) {
   const results = Array.isArray(output && output.results) ? output.results : [];
+  const query = clipText(input.query || (output && output.query) || '', 500);
   const lines = [
+    query ? `Query: ${query}` : null,
     `Search backend: ${output && output.backend ? output.backend : 'unknown'}`,
     `Results returned: ${results.length}`
-  ];
+  ].filter(Boolean);
 
   for (const [index, result] of results.slice(0, 4).entries()) {
     const source = result.sourceType || 'unknown';
@@ -144,17 +146,26 @@ function formatMessageOutput(toolName, output) {
 /**
  * Formats Tool observation for prompt context.
  */
-function formatToolObservation({ toolName, toolResult }) {
+function formatToolObservation({ toolName, toolResult, toolInput }) {
   const result = toolResult && typeof toolResult === 'object' ? toolResult : {};
   const output = result.output && typeof result.output === 'object' ? result.output : {};
+  const input = toolInput && typeof toolInput === 'object' ? toolInput : {};
 
   if (result.status && result.status !== 'ok') {
+    if (toolName === 'memory_search') {
+      const query = clipText(input.query || (output && output.query) || '', 500);
+      return clipText([
+        query ? `Query: ${query}` : null,
+        formatErrorObservation(result)
+      ].filter(Boolean).join('\n'), MAX_OBSERVATION_CHARS);
+    }
+
     return clipText(formatErrorObservation(result), MAX_OBSERVATION_CHARS);
   }
 
   switch (toolName) {
     case 'memory_search':
-      return clipText(formatMemorySearch(output), MAX_OBSERVATION_CHARS);
+      return clipText(formatMemorySearch(output, input), MAX_OBSERVATION_CHARS);
     case 'workout_history_fetch':
       return clipText(formatWorkoutHistory(output), MAX_OBSERVATION_CHARS);
     case 'workout_generate':
@@ -195,11 +206,24 @@ async function appendToolObservationEvent({
 
   const observation = formatToolObservation({
     toolName: toolCall.name,
-    toolResult
+    toolResult,
+    toolInput: toolCall.input
   });
 
   if (!observation) {
     return null;
+  }
+
+  const payload = {
+    toolName: toolCall.name,
+    toolUseId: toolCall.id || null,
+    iteration,
+    resultStatus: toolResult && toolResult.status ? toolResult.status : null,
+    observation
+  };
+
+  if (toolCall.name === 'memory_search') {
+    payload.searchQuery = clipText(toolCall.input && toolCall.input.query ? toolCall.input.query : '', 500);
   }
 
   return appendSessionEvent({
@@ -209,13 +233,7 @@ async function appendToolObservationEvent({
     eventType: 'tool.result',
     actor: 'tool',
     runId: run.run_id,
-    payload: {
-      toolName: toolCall.name,
-      toolUseId: toolCall.id || null,
-      iteration,
-      resultStatus: toolResult && toolResult.status ? toolResult.status : null,
-      observation
-    },
+    payload,
     idempotencyKey: `tool.result:${run.run_id}:${toolCall.id || `${iteration}:${toolCall.name}`}`
   });
 }

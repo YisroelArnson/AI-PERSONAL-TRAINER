@@ -81,4 +81,96 @@ describe('session-memory-flush.service', () => {
     expect(normalizeSessionMemoryMessageCount('15')).toBe(15);
     expect(normalizeSessionMemoryMessageCount(undefined)).toBe(15);
   });
+
+  it('appends a pre-compaction audit event to the active session id', async () => {
+    let flushSessionMemoryToEpisodicDate;
+    const mockAppendSessionEvent = jest.fn().mockResolvedValue({
+      eventId: 'evt-memory-flush'
+    });
+
+    jest.isolateModules(() => {
+      jest.doMock('../../src/runtime/services/memory-docs.service', () => ({
+        appendEpisodicNoteBlock: jest.fn().mockResolvedValue({
+          status: 'updated',
+          changed: true
+        })
+      }));
+
+      jest.doMock('../../src/runtime/services/transcript-write.service', () => ({
+        appendSessionEvent: mockAppendSessionEvent
+      }));
+
+      jest.doMock('../../src/runtime/services/timezone-date.service', () => ({
+        getDateKeyInTimezone: jest.fn(() => '2026-04-27')
+      }));
+
+      jest.doMock('../../src/infra/supabase/client', () => ({
+        getSupabaseAdminClient: jest.fn(() => ({
+          from(table) {
+            if (table !== 'session_events') {
+              throw new Error(`Unexpected table ${table}`);
+            }
+
+            return {
+              select() {
+                return this;
+              },
+              eq() {
+                return this;
+              },
+              order() {
+                return this;
+              },
+              range() {
+                return this;
+              },
+              then(resolve, reject) {
+                return Promise.resolve({
+                  data: [
+                    {
+                      actor: 'user',
+                      event_type: 'user.message',
+                      payload: {
+                        message: 'I am ready.'
+                      },
+                      occurred_at: '2026-04-27T14:00:00.000Z'
+                    },
+                    {
+                      actor: 'assistant',
+                      event_type: 'assistant.notify',
+                      payload: {
+                        text: 'Let us begin.'
+                      },
+                      occurred_at: '2026-04-27T14:01:00.000Z'
+                    }
+                  ],
+                  error: null
+                }).then(resolve, reject);
+              }
+            };
+          }
+        }))
+      }));
+
+      ({ flushSessionMemoryToEpisodicDate } = require('../../src/runtime/services/session-memory-flush.service'));
+    });
+
+    await flushSessionMemoryToEpisodicDate({
+      userId: 'user-123',
+      sessionKey: 'user:user-123:main',
+      sessionId: 'session-123',
+      timezone: 'America/New_York',
+      messageCount: 2,
+      flushKind: 'pre_compaction',
+      currentCompactionCount: 1
+    });
+
+    expect(mockAppendSessionEvent).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-123',
+      sessionKey: 'user:user-123:main',
+      sessionId: 'session-123',
+      eventType: 'memory.flush.executed',
+      idempotencyKey: 'memory.flush_pre_compaction:session-123:1'
+    }));
+  });
 });

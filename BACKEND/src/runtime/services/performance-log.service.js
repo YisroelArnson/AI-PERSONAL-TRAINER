@@ -241,6 +241,7 @@ function updateRunMetrics(record) {
       const iteration = getOrCreateIterationMetrics(metrics, record.iteration);
       iteration.tools.push({
         toolName: record.toolName || 'unknown_tool',
+        toolQuery: record.toolQuery || null,
         durationMs: record.durationMs,
         outcome: record.outcome || 'ok',
         resultStatus: record.resultStatus || null
@@ -328,6 +329,7 @@ function buildRunSummaryLines(record) {
         + ` | ${formatDuration(tool.durationMs)}`
         + ` | outcome=${formatOutcome(tool.outcome)}`
         + (tool.resultStatus ? ` | status=${tool.resultStatus}` : '')
+        + (tool.toolQuery ? ` | query=${JSON.stringify(shortenValue(tool.toolQuery, 96))}` : '')
       );
     }
   }
@@ -384,7 +386,8 @@ function formatGenericLine(record) {
     case 'tool_call':
       return `${baseLabel} iter ${record.iteration} tool ${record.toolName || 'unknown_tool'} ${formatDuration(record.durationMs)}`
         + ` | outcome=${formatOutcome(record.outcome)}`
-        + (record.resultStatus ? ` | status=${record.resultStatus}` : '');
+        + (record.resultStatus ? ` | status=${record.resultStatus}` : '')
+        + (record.toolQuery ? ` | query=${JSON.stringify(shortenValue(record.toolQuery, 96))}` : '');
     case 'assistant_transcript_write':
       return `${baseLabel} transcript write ${formatDuration(record.durationMs)}`
         + ` | outcome=${formatOutcome(record.outcome)}`;

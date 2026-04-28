@@ -24,12 +24,18 @@ const {
 } = require('../../infra/queue/agent.queue');
 const { getRedisConnection } = require('../../infra/redis/connection');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
-const { flushSessionMemoryToEpisodicDate } = require('./session-memory-flush.service');
 const { resolveSessionContinuityPolicy } = require('./session-reset-policy.service');
-const { appendSessionEvent } = require('./transcript-write.service');
 const { listTranscriptEventsForSession } = require('./transcript-read.service');
 
 const inMemoryDebounceCache = new Map();
+
+function getSessionMemoryFlushService() {
+  return require('./session-memory-flush.service');
+}
+
+function getTranscriptWriteService() {
+  return require('./transcript-write.service');
+}
 
 /**
  * Gets Admin client or throw needed by this file.
@@ -270,6 +276,8 @@ async function flushPreCompactionMemory({
   messageCount,
   currentCompactionCount
 }) {
+  const { flushSessionMemoryToEpisodicDate } = getSessionMemoryFlushService();
+
   return flushSessionMemoryToEpisodicDate({
     userId,
     sessionKey,
@@ -341,6 +349,7 @@ async function compactSession({
     nextCompactionCount,
     events: snapshot.events
   });
+  const { appendSessionEvent } = getTranscriptWriteService();
 
   await appendSessionEvent({
     userId,

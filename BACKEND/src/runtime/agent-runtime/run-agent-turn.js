@@ -1211,7 +1211,10 @@ async function runAgentTurn(run, options = {}) {
             runId: run.run_id,
             userId: run.user_id,
             iteration,
-            toolName: toolCall.name
+            toolName: toolCall.name,
+            toolQuery: toolCall.name === 'memory_search'
+              ? String(toolCall.input && toolCall.input.query ? toolCall.input.query : '').trim()
+              : null
           });
           let toolResult;
 
@@ -1281,16 +1284,17 @@ async function runAgentTurn(run, options = {}) {
             });
           }
 
+          const toolResultMessage = adapter.buildToolResultMessage(toolCall, toolResult);
+
           if (toolBehavior.terminal && toolResult && toolResult.status === 'ok') {
             executedTerminalTool = {
               toolCall,
               toolResult,
-              messagePayload: completionMessagePayload
+              messagePayload: completionMessagePayload,
+              toolResultMessage
             };
             break;
           }
-
-          const toolResultMessage = adapter.buildToolResultMessage(toolCall, toolResult);
 
           if (toolResultMessage) {
             workingMessages.push(toolResultMessage);
@@ -1330,6 +1334,10 @@ async function runAgentTurn(run, options = {}) {
                 toolCallCount: normalizedOutput.toolCalls.length
               }
             });
+
+            if (executedTerminalTool.toolResultMessage) {
+              workingMessages.push(executedTerminalTool.toolResultMessage);
+            }
 
             workingMessages.push({
               role: 'user',

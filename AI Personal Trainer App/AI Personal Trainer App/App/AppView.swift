@@ -396,6 +396,7 @@ final class CoachSurfaceViewModel: ObservableObject {
     private var lastStreamEventID: String?
     private var runTraceOrder: [String] = []
     private var pendingUserMessages: [PendingUserFeedMessage] = []
+    private var confirmedUserMessageIDAliases: [String: String] = [:]
     private var pendingWorkoutCommands: [WorkoutPendingCommand] = []
     private var nextWorkoutClientSequence = 0
     private var isDrainingWorkoutCommandOutbox = false
@@ -528,8 +529,6 @@ final class CoachSurfaceViewModel: ObservableObject {
         let pendingToken = unresolvedPendingUserMessages.map { pendingMessage in
             [
                 pendingMessage.id,
-                pendingMessage.serverEventID ?? "",
-                pendingMessage.runID ?? "",
                 pendingMessage.text
             ].joined(separator: "|")
         }.joined(separator: "::")
@@ -584,6 +583,7 @@ final class CoachSurfaceViewModel: ObservableObject {
         toast = nil
         runTraces = [:]
         runTraceOrder = []
+        confirmedUserMessageIDAliases = [:]
         pollTask?.cancel()
         pollTask = nil
         cancelBackgroundRunObservation()
@@ -592,6 +592,12 @@ final class CoachSurfaceViewModel: ObservableObject {
 
     /// Handles Stable feed item ID for AppView.swift.
     private func stableFeedItemID(for item: CoachFeedItem) -> String {
+        if item.kind == "message",
+           item.role == "user",
+           let optimisticID = confirmedUserMessageIDAliases[item.id] {
+            return optimisticID
+        }
+
         guard item.kind == "message", item.role == "assistant", let itemTurnID = item.turnId ?? item.runId else {
             return item.id
         }
@@ -900,6 +906,7 @@ final class CoachSurfaceViewModel: ObservableObject {
             serverWorkout = nil
             optimisticWorkout = nil
             pendingUserMessages = []
+            confirmedUserMessageIDAliases = [:]
             pendingWorkoutCommands = []
             nextWorkoutClientSequence = 0
             isWorkoutActionInFlight = false
@@ -952,6 +959,7 @@ final class CoachSurfaceViewModel: ObservableObject {
                 serverWorkout = nil
                 optimisticWorkout = nil
                 pendingUserMessages = []
+                confirmedUserMessageIDAliases = [:]
                 pendingWorkoutCommands = []
                 nextWorkoutClientSequence = 0
                 isWorkoutActionInFlight = false
@@ -979,7 +987,9 @@ final class CoachSurfaceViewModel: ObservableObject {
         let trimmed = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        composerText = ""
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.86)) {
+            composerText = ""
+        }
 
         let didSend = await submitMessage(
             message: trimmed,
@@ -1059,18 +1069,32 @@ final class CoachSurfaceViewModel: ObservableObject {
     }
 
     /// Handles Run workout action for AppView.swift.
-    func runWorkoutAction(_ action: WorkoutDirectAction) async {
+    func runWorkoutAction(
+        _ action: WorkoutDirectAction,
+        workoutExerciseId: String? = nil,
+        setIndex: Int? = nil
+    ) async {
         guard let workout = effectiveWorkout else {
             toast = ToastData(message: "There is no live workout to update right now.", icon: "hand.raised.fill")
             return
         }
-        guard applyOptimisticWorkoutAction(action, to: workout) != nil else {
+        guard applyOptimisticWorkoutAction(
+            action,
+            to: workout,
+            workoutExerciseId: workoutExerciseId,
+            setIndex: setIndex
+        ) != nil else {
             toast = ToastData(message: "That workout action is not available right now.", icon: "hand.raised.fill")
             return
         }
 
         do {
-            let request = try buildWorkoutCommandRequest(for: action, workout: workout)
+            let request = try buildWorkoutCommandRequest(
+                for: action,
+                workout: workout,
+                workoutExerciseId: workoutExerciseId,
+                setIndex: setIndex
+            )
             pendingWorkoutCommands.append(
                 WorkoutPendingCommand(
                     request: request,
@@ -1092,7 +1116,9 @@ final class CoachSurfaceViewModel: ObservableObject {
     /// Builds a Workout command request used by this file.
     private func buildWorkoutCommandRequest(
         for action: WorkoutDirectAction,
-        workout: WorkoutSessionState
+        workout: WorkoutSessionState,
+        workoutExerciseId: String? = nil,
+        setIndex: Int? = nil
     ) throws -> WorkoutCommandRequest {
         let clientSequence = nextWorkoutClientSequence
         let buildOrigin = WorkoutCommandOrigin(
@@ -1118,8 +1144,15 @@ final class CoachSurfaceViewModel: ObservableObject {
                 llm: nil
             )
         case .completeCurrentSet:
-            guard let currentExercise = resolveCurrentExercise(in: workout),
-                  let currentSet = resolveCurrentSet(in: workout, exercise: currentExercise) else {
+            guard let currentExercise = resolveWorkoutExercise(
+                in: workout,
+                workoutExerciseId: workoutExerciseId
+            ),
+                  let currentSet = resolveWorkoutSet(
+                    in: workout,
+                    exercise: currentExercise,
+                    setIndex: setIndex
+                  ) else {
                 throw APIError.serverError(message: "No live workout set is available.", statusCode: nil)
             }
 
@@ -1139,7 +1172,10 @@ final class CoachSurfaceViewModel: ObservableObject {
                 llm: nil
             )
         case .skipCurrentExercise:
-            guard let currentExercise = resolveCurrentExercise(in: workout) else {
+            guard let currentExercise = resolveWorkoutExercise(
+                in: workout,
+                workoutExerciseId: workoutExerciseId
+            ) else {
                 throw APIError.serverError(message: "No live workout exercise is available.", statusCode: nil)
             }
 
@@ -1281,7 +1317,12 @@ final class CoachSurfaceViewModel: ObservableObject {
 
         for pendingCommand in pendingWorkoutCommands {
             guard let action = WorkoutDirectAction(commandType: pendingCommand.request.commandType),
-                  let updatedWorkout = applyOptimisticWorkoutAction(action, to: projectedWorkout) else {
+                  let updatedWorkout = applyOptimisticWorkoutAction(
+                    action,
+                    to: projectedWorkout,
+                    workoutExerciseId: pendingCommand.request.payload.workoutExerciseId,
+                    setIndex: pendingCommand.request.payload.setIndex
+                  ) else {
                 break
             }
 
@@ -1346,6 +1387,8 @@ final class CoachSurfaceViewModel: ObservableObject {
         serverEventID: String,
         runID: String
     ) {
+        confirmedUserMessageIDAliases[serverEventID] = pendingMessageID
+
         guard let pendingMessageIndex = pendingUserMessages.firstIndex(where: { $0.id == pendingMessageID }) else {
             return
         }
@@ -1409,8 +1452,8 @@ final class CoachSurfaceViewModel: ObservableObject {
                 cancelRunObservation(resetStreamState: true)
             }
 
-            surface = latestSurface
             reconcilePendingUserMessages(with: latestSurface.feed)
+            surface = latestSurface
             mergeIncomingWorkout(latestSurface.workout)
 
             if let activeRun = latestSurface.activeRun {
@@ -1505,7 +1548,9 @@ final class CoachSurfaceViewModel: ObservableObject {
 
         do {
             if shouldRenderPendingMessage {
-                isSending = true
+                withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                    isSending = true
+                }
             }
             let accessToken = try await freshAccessToken()
             let accepted = try await APIService.shared.sendMessage(
@@ -1546,7 +1591,9 @@ final class CoachSurfaceViewModel: ObservableObject {
                     streamPath: streamPath
                 )
             }
-            isSending = false
+            withAnimation(AppTheme.Animation.gentle) {
+                isSending = false
+            }
 
             Task { @MainActor [weak self] in
                 guard let self else { return }
@@ -1561,7 +1608,9 @@ final class CoachSurfaceViewModel: ObservableObject {
             showError(error.localizedDescription)
         }
 
-        isSending = false
+        withAnimation(AppTheme.Animation.gentle) {
+            isSending = false
+        }
         return false
     }
 
@@ -2009,6 +2058,31 @@ private func resolveCurrentSet(
     ?? exercise.sets.first(where: { $0.status == "pending" })
 }
 
+private func resolveWorkoutExercise(
+    in workout: WorkoutSessionState,
+    workoutExerciseId: String?
+) -> WorkoutExerciseState? {
+    if let workoutExerciseId,
+       let exercise = workout.exercises.first(where: { $0.workoutExerciseId == workoutExerciseId }) {
+        return exercise
+    }
+
+    return resolveCurrentExercise(in: workout)
+}
+
+private func resolveWorkoutSet(
+    in workout: WorkoutSessionState,
+    exercise: WorkoutExerciseState,
+    setIndex: Int?
+) -> WorkoutSetState? {
+    if let setIndex,
+       let set = exercise.sets.first(where: { $0.setIndex == setIndex }) {
+        return set
+    }
+
+    return resolveCurrentSet(in: workout, exercise: exercise)
+}
+
 /// Handles Recompute progress for AppView.swift.
 private func recomputeProgress(exercises: [WorkoutExerciseState]) -> WorkoutProgress {
     let completedExercises = exercises.filter { isTerminalExerciseStatus($0.status) }.count
@@ -2116,7 +2190,9 @@ private func activateWorkoutPosition(
 /// Applies Optimistic workout action to the current data.
 private func applyOptimisticWorkoutAction(
     _ action: WorkoutDirectAction,
-    to workout: WorkoutSessionState
+    to workout: WorkoutSessionState,
+    workoutExerciseId: String? = nil,
+    setIndex: Int? = nil
 ) -> WorkoutSessionState? {
     var updated = workout
     updated.stateVersion += 1
@@ -2132,9 +2208,14 @@ private func applyOptimisticWorkoutAction(
 
         activateWorkoutPosition(&updated, exercisePosition: exercisePosition, setPosition: setPosition)
     case .completeCurrentSet:
-        guard let exercisePosition = firstLiveExercisePosition(in: updated),
+        guard let exercisePosition = workoutExerciseId.flatMap({
+                id in updated.exercises.firstIndex(where: { $0.workoutExerciseId == id })
+            }) ?? firstLiveExercisePosition(in: updated),
               updated.exercises.indices.contains(exercisePosition),
-              let setPosition = firstPendingSetPosition(in: updated.exercises[exercisePosition]) else {
+              let setPosition = setIndex.flatMap({
+                targetSetIndex in updated.exercises[exercisePosition].sets.firstIndex(where: { $0.setIndex == targetSetIndex })
+              }) ?? firstPendingSetPosition(in: updated.exercises[exercisePosition]),
+              !isTerminalSetStatus(updated.exercises[exercisePosition].sets[setPosition].status) else {
             return nil
         }
 
@@ -2152,7 +2233,9 @@ private func applyOptimisticWorkoutAction(
             activateWorkoutPosition(&updated, exercisePosition: nextExercisePosition, setPosition: nextSetPosition)
         }
     case .skipCurrentExercise:
-        guard let exercisePosition = firstLiveExercisePosition(in: updated),
+        guard let exercisePosition = workoutExerciseId.flatMap({
+                id in updated.exercises.firstIndex(where: { $0.workoutExerciseId == id })
+            }) ?? firstLiveExercisePosition(in: updated),
               updated.exercises.indices.contains(exercisePosition) else {
             return nil
         }
@@ -2217,12 +2300,8 @@ private struct CoachSurfaceScreen: View {
     @State private var dictationSeedText = ""
     @FocusState private var composerIsFocused: Bool
 
-    private var composerHasText: Bool {
-        !viewModel.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     private var composerIsExpanded: Bool {
-        composerIsFocused || composerHasText || speechManager.isListening
+        composerIsFocused || speechManager.isListening
     }
 
     private var showsHomeSpotlight: Bool {
@@ -2312,19 +2391,6 @@ private struct CoachSurfaceScreen: View {
 
                 ScrollViewReader { proxy in
                     VStack(spacing: 0) {
-                        CoachSurfaceTopBar(
-                            title: "AI PT",
-                            isResettingSession: viewModel.isResettingSession,
-                            onMenuTap: {
-                                composerIsFocused = false
-                                Haptic.light()
-                                isUtilitySheetPresented = true
-                            }
-                        )
-                        .padding(.horizontal, 18)
-                        .padding(.top, 6)
-                        .padding(.bottom, 10)
-
                         ScrollView {
                             VStack(alignment: .leading, spacing: 24) {
                                 if let errorMessage = viewModel.errorMessage {
@@ -2383,7 +2449,6 @@ private struct CoachSurfaceScreen: View {
                             .frame(maxWidth: 720, alignment: .leading)
                             .frame(maxWidth: .infinity, alignment: .center)
                             .animation(AppTheme.Animation.slow, value: showsHomeSpotlight)
-                            .animation(AppTheme.Animation.slow, value: viewModel.visibleFeedItems.map(\.id).joined(separator: "|"))
                         }
                         .scrollIndicators(.hidden)
                         .scrollDismissesKeyboard(.interactively)
@@ -2419,14 +2484,20 @@ private struct CoachSurfaceScreen: View {
                                 .transition(.scale(scale: 0.92).combined(with: .opacity))
                             }
                         }
-                        .safeAreaInset(edge: .bottom, spacing: 12) {
+                        .safeAreaInset(edge: .bottom, spacing: 6) {
                             VStack(spacing: 10) {
                                 if let pinnedWorkout = viewModel.pinnedWorkout {
                                     PinnedWorkoutControlCard(
                                         workout: pinnedWorkout,
                                         bannerText: viewModel.workoutAgentBanner?.text
-                                    ) { action in
-                                        Task { await viewModel.runWorkoutAction(action) }
+                                    ) { action, exercise, set in
+                                        Task {
+                                            await viewModel.runWorkoutAction(
+                                                action,
+                                                workoutExerciseId: exercise?.workoutExerciseId,
+                                                setIndex: set?.setIndex
+                                            )
+                                        }
                                     }
                                 }
 
@@ -2446,9 +2517,21 @@ private struct CoachSurfaceScreen: View {
                                     onMicrophoneTap: handleMicrophoneTap
                                 )
                             }
-                            .padding(.horizontal, 16)
+                            .padding(.horizontal, 24)
                             .padding(.top, 8)
-                            .padding(.bottom, 10)
+                            .padding(.bottom, 4)
+                        }
+                        .overlay(alignment: .topLeading) {
+                            CoachSurfaceTopBar(
+                                isResettingSession: viewModel.isResettingSession,
+                                onMenuTap: {
+                                    composerIsFocused = false
+                                    Haptic.light()
+                                    isUtilitySheetPresented = true
+                                }
+                            )
+                            .padding(.horizontal, 18)
+                            .padding(.top, 6)
                         }
                         .sheet(isPresented: $isUtilitySheetPresented) {
                             VoiceUtilitySheet(
@@ -2560,9 +2643,11 @@ private struct CoachSurfaceScreen: View {
             stopListeningAndCommitCurrentTranscript()
         }
 
-        guard composerHasText else { return }
+        guard !viewModel.composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
 
-        composerIsFocused = false
+        withAnimation(.spring(response: 0.26, dampingFraction: 0.86)) {
+            composerIsFocused = false
+        }
         Task { await viewModel.submitComposer() }
     }
 
@@ -2744,41 +2829,22 @@ private struct QuickActionSheet: View {
 }
 
 private struct CoachSurfaceTopBar: View {
-    let title: String
     let isResettingSession: Bool
     let onMenuTap: () -> Void
 
     var body: some View {
-        ZStack {
-            HStack {
-                Button(action: onMenuTap) {
-                    Circle()
-                        .fill(Color.clear)
-                        .frame(width: 42, height: 42)
-                        .liquidGlassBackground(cornerRadius: 21, shadowOpacity: 0.05)
-                        .overlay {
-                            VStack(spacing: 4) {
-                                Capsule(style: .continuous)
-                                    .fill(AppTheme.Colors.primaryText)
-                                    .frame(width: 17, height: 2.5)
-
-                                Capsule(style: .continuous)
-                                    .fill(AppTheme.Colors.primaryText.opacity(0.88))
-                                    .frame(width: 11, height: 2.5)
-                            }
-                        }
-                }
-                .buttonStyle(PressableScaleButtonStyle())
-
-                Spacer(minLength: 0)
+        HStack {
+            Button(action: onMenuTap) {
+                Image(systemName: "line.3.horizontal")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(AppTheme.Colors.primaryText)
+                    .frame(width: 42, height: 42)
+                    .liquidGlassBackground(cornerRadius: 21, shadowOpacity: 0.1)
             }
+            .buttonStyle(PressableScaleButtonStyle())
+            .accessibilityLabel("Open chat actions")
 
-            Text(title)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(AppTheme.Colors.primaryText)
-                .padding(.horizontal, 18)
-                .padding(.vertical, 10)
-                .liquidGlassCapsule(shadowOpacity: 0.025)
+            Spacer(minLength: 0)
         }
         .opacity(isResettingSession ? 0.72 : 1)
     }
@@ -2839,14 +2905,11 @@ private struct HeaderCircleButton: View {
 
     var body: some View {
         Button(action: action) {
-            Circle()
-                .fill(AppTheme.Colors.surface)
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppTheme.Colors.primaryText)
                 .frame(width: 42, height: 42)
-                .overlay {
-                    Image(systemName: icon)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(AppTheme.Colors.primaryText)
-                }
+                .liquidGlassBackground(cornerRadius: 21, shadowOpacity: 0.08)
         }
         .buttonStyle(PressableScaleButtonStyle())
         .disabled(isDisabled)
@@ -3084,8 +3147,8 @@ private struct CoachFeedRow: View {
     }
 
     private var userMessageContent: some View {
-        HStack {
-            Spacer(minLength: 74)
+        HStack(alignment: .top) {
+            Spacer(minLength: 96)
 
             CoachMessageText(
                 text: item.text,
@@ -3093,12 +3156,21 @@ private struct CoachFeedRow: View {
                 foregroundColor: AppTheme.Colors.primaryText,
                 isProvisional: item.isProvisional
             )
-            .frame(maxWidth: 360, alignment: .leading)
-            .padding(.horizontal, 17)
-            .padding(.vertical, 14)
+            .multilineTextAlignment(.leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
             .liquidGlassBackground(cornerRadius: 24, shadowOpacity: 0.035)
-            .transition(.scale(scale: 0.98).combined(with: .opacity))
+            .frame(maxWidth: 318, alignment: .trailing)
         }
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .transition(
+            .asymmetric(
+                insertion: .offset(x: 0, y: 72)
+                    .combined(with: .scale(scale: 0.92, anchor: .bottomTrailing))
+                    .combined(with: .opacity),
+                removal: .opacity
+            )
+        )
     }
 }
 
@@ -3192,55 +3264,13 @@ private func pinnedWorkoutControlActions(for workout: WorkoutSessionState) -> [P
 private struct PinnedWorkoutControlCard: View {
     let workout: WorkoutSessionState
     let bannerText: String?
-    let onAction: (WorkoutDirectAction) -> Void
+    let onAction: (WorkoutDirectAction, WorkoutExerciseState?, WorkoutSetState?) -> Void
 
-    private var currentExercise: WorkoutExerciseState? {
-        resolveCurrentExercise(in: workout)
-    }
-
-    private var currentSet: WorkoutSetState? {
-        guard let currentExercise else { return nil }
-        return resolveCurrentSet(in: workout, exercise: currentExercise)
-    }
-
-    private var actions: [PinnedWorkoutControlAction] {
-        pinnedWorkoutControlActions(for: workout)
-    }
+    @State private var selectedExerciseId: String?
+    @GestureState private var dragTranslation: CGFloat = 0
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(workout.title ?? "Current workout")
-                        .font(.system(size: 15, weight: .bold, design: .rounded))
-                        .foregroundStyle(AppTheme.Colors.primaryText)
-
-                    Text(statusLine)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(AppTheme.Colors.secondaryText)
-                }
-
-                Spacer(minLength: 0)
-
-                VStack(alignment: .trailing, spacing: 6) {
-                    Text(progressText)
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(AppTheme.Colors.primaryText)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(AppTheme.Colors.surfaceHover)
-                        )
-                }
-            }
-
-            if let currentExerciseName = currentExercise?.displayName ?? currentExercise?.exerciseName {
-                Text(currentExerciseName)
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(AppTheme.Colors.primaryText)
-            }
-
             if let bannerText,
                !bannerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(bannerText)
@@ -3255,64 +3285,346 @@ private struct PinnedWorkoutControlCard: View {
                     )
             }
 
-            if let currentSet {
-                Text(setLine(for: currentSet))
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppTheme.Colors.secondaryText)
-            } else if workout.status == "paused" {
-                Text("Workout paused")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(AppTheme.Colors.secondaryText)
+            GeometryReader { proxy in
+                HStack(spacing: 0) {
+                    ForEach(orderedExercises, id: \.workoutExerciseId) { exercise in
+                        exercisePage(for: exercise)
+                            .frame(width: proxy.size.width, alignment: .leading)
+                    }
+                }
+                .offset(x: pageOffset(width: proxy.size.width))
+                .animation(.interactiveSpring(response: 0.28, dampingFraction: 0.84), value: selectedExerciseId)
+                .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.88), value: dragTranslation)
             }
+            .frame(height: 82)
+            .clipped()
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 10) {
-                    ForEach(actions) { action in
-                        Button(action: { onAction(action.action) }) {
-                            HStack(spacing: 8) {
-                                Image(systemName: action.icon)
-                                Text(action.label)
-                            }
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(action.isPrimary ? AppTheme.Colors.background : AppTheme.Colors.primaryText)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 11)
-                            .background(
-                                Capsule(style: .continuous)
-                                    .fill(action.isPrimary ? AppTheme.Colors.primaryText : AppTheme.Colors.surfaceHover)
-                            )
-                        }
-                        .buttonStyle(PressableScaleButtonStyle())
+            ZStack {
+                exerciseDots
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                HStack(spacing: 8) {
+                    Spacer(minLength: 0)
+
+                    iconActionButton(
+                        icon: primaryActionIcon,
+                        label: primaryActionLabel,
+                        isPrimary: true,
+                        isDisabled: !canRunPrimaryAction
+                    ) {
+                        runPrimaryAction()
                     }
                 }
             }
         }
         .padding(14)
         .liquidGlassBackground(cornerRadius: 22, shadowOpacity: 0.035)
-    }
-
-    private var progressText: String {
-        "\(workout.progress.completedSets)/\(workout.progress.totalSets) sets"
-    }
-
-    private var statusLine: String {
-        switch workout.status {
-        case "queued":
-            return "Ready to start"
-        case "paused":
-            return "Paused"
-        default:
-            let exerciseTotal = max(workout.progress.totalExercises, 1)
-            let exerciseIndex = (workout.currentExerciseIndex ?? 0) + 1
-            return "Exercise \(exerciseIndex) of \(exerciseTotal)"
+        .contentShape(Rectangle())
+        .gesture(swipeGesture)
+        .onAppear {
+            ensureSelectedExercise(preferCurrent: true)
+        }
+        .onChange(of: workout.currentExerciseId ?? "") { _, _ in
+            ensureSelectedExercise(preferCurrent: true)
+        }
+        .onChange(of: workout.stateVersion) { _, _ in
+            ensureSelectedExercise(preferCurrent: false)
         }
     }
 
-    /// Sets Line for later use.
-    private func setLine(for set: WorkoutSetState) -> String {
+    private var orderedExercises: [WorkoutExerciseState] {
+        workout.exercises.sorted { left, right in
+            left.orderIndex < right.orderIndex
+        }
+    }
+
+    private var selectedIndex: Int {
+        guard let selectedExerciseId,
+              let index = orderedExercises.firstIndex(where: { $0.workoutExerciseId == selectedExerciseId }) else {
+            return currentExerciseIndex ?? 0
+        }
+
+        return index
+    }
+
+    private var currentExerciseIndex: Int? {
+        if let currentExerciseId = workout.currentExerciseId,
+           let index = orderedExercises.firstIndex(where: { $0.workoutExerciseId == currentExerciseId }) {
+            return index
+        }
+
+        if let currentExerciseIndex = workout.currentExerciseIndex,
+           let index = orderedExercises.firstIndex(where: { $0.orderIndex == currentExerciseIndex }) {
+            return index
+        }
+
+        return orderedExercises.firstIndex(where: { !isTerminalExerciseStatus($0.status) })
+    }
+
+    private var selectedExercise: WorkoutExerciseState? {
+        guard orderedExercises.indices.contains(selectedIndex) else { return orderedExercises.first }
+        return orderedExercises[selectedIndex]
+    }
+
+    private var selectedSet: WorkoutSetState? {
+        guard let selectedExercise else { return nil }
+        return displaySet(for: selectedExercise)
+    }
+
+    private var primaryActionIcon: String {
+        if workout.status == "queued" || workout.currentPhase == "preview" {
+            return "play.fill"
+        }
+
+        if workout.status == "paused" {
+            return "play.fill"
+        }
+
+        return "checkmark"
+    }
+
+    private var primaryActionLabel: String {
+        if workout.status == "queued" || workout.currentPhase == "preview" {
+            return "Start workout"
+        }
+
+        if workout.status == "paused" {
+            return "Resume workout"
+        }
+
+        return "Complete set"
+    }
+
+    private var canRunPrimaryAction: Bool {
+        if workout.status == "queued" || workout.currentPhase == "preview" || workout.status == "paused" {
+            return true
+        }
+
+        guard let selectedSet else { return false }
+        return !isTerminalSetStatus(selectedSet.status)
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 16, coordinateSpace: .local)
+            .updating($dragTranslation) { value, state, _ in
+                state = value.translation.width
+            }
+            .onEnded { value in
+                handleSwipeEnd(value.translation.width)
+            }
+    }
+
+    private var exerciseDots: some View {
+        HStack(spacing: 7) {
+            ForEach(orderedExercises.indices, id: \.self) { index in
+                Circle()
+                    .fill(dotColor(for: index))
+                    .frame(width: dotSize(for: index), height: dotSize(for: index))
+                    .opacity(dotOpacity(for: index))
+                    .animation(.interactiveSpring(response: 0.22, dampingFraction: 0.82), value: dragTranslation)
+                    .animation(AppTheme.Animation.gentle, value: selectedIndex)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func exercisePage(for exercise: WorkoutExerciseState) -> some View {
+        let set = displaySet(for: exercise)
+
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(exercise.displayName.isEmpty ? exercise.exerciseName : exercise.displayName)
+                    .font(.system(size: 23, weight: .bold, design: .rounded))
+                    .foregroundStyle(AppTheme.Colors.primaryText)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.82)
+
+                Spacer(minLength: 8)
+
+                Text(setRatio(for: exercise, set: set))
+                    .font(.system(size: 17, weight: .bold, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(AppTheme.Colors.primaryText)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(AppTheme.Colors.surfaceHover)
+                    )
+            }
+
+            Text(set.map { setValueLine(for: $0) } ?? statusLine(for: exercise))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(AppTheme.Colors.secondaryText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.82)
+        }
+    }
+
+    private func iconActionButton(
+        icon: String,
+        label: String,
+        isPrimary: Bool,
+        isDisabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(isPrimary ? AppTheme.Colors.background : AppTheme.Colors.primaryText)
+                .frame(width: 42, height: 42)
+                .background(
+                    Circle()
+                        .fill(isPrimary ? AppTheme.Colors.primaryText : AppTheme.Colors.surfaceHover)
+                )
+        }
+        .buttonStyle(PressableScaleButtonStyle())
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.42 : 1)
+        .accessibilityLabel(label)
+    }
+
+    private func runPrimaryAction() {
+        if workout.status == "queued" || workout.currentPhase == "preview" {
+            onAction(.startWorkout, nil, nil)
+            return
+        }
+
+        if workout.status == "paused" {
+            onAction(.resumeWorkout, nil, nil)
+            return
+        }
+
+        onAction(.completeCurrentSet, selectedExercise, selectedSet)
+    }
+
+    private func displaySet(for exercise: WorkoutExerciseState) -> WorkoutSetState? {
+        if exercise.workoutExerciseId == workout.currentExerciseId || exercise.orderIndex == workout.currentExerciseIndex {
+            return resolveCurrentSet(in: workout, exercise: exercise)
+        }
+
+        return exercise.sets.first(where: { $0.status == "active" })
+        ?? exercise.sets.first(where: { !isTerminalSetStatus($0.status) })
+        ?? exercise.sets.sorted { $0.setIndex < $1.setIndex }.last
+    }
+
+    private func setRatio(for exercise: WorkoutExerciseState, set: WorkoutSetState?) -> String {
+        guard !exercise.sets.isEmpty else { return "--" }
+        let sortedSets = exercise.sets.sorted { $0.setIndex < $1.setIndex }
+        let index = set.flatMap { selectedSet in
+            sortedSets.firstIndex(where: { $0.workoutSetId == selectedSet.workoutSetId })
+        } ?? 0
+
+        return "\(index + 1)/\(sortedSets.count)"
+    }
+
+    private func setValueLine(for set: WorkoutSetState) -> String {
         let target = formatPinnedSetTarget(set.target)
-        let setOrdinal = "Set \(set.setIndex + 1)"
-        return [setOrdinal, target].filter { !$0.isEmpty }.joined(separator: " • ")
+        return target.isEmpty ? "Current set" : target
+    }
+
+    private func statusLine(for exercise: WorkoutExerciseState) -> String {
+        if workout.status == "paused" {
+            return "Paused"
+        }
+
+        if isTerminalExerciseStatus(exercise.status) {
+            return exercise.status.capitalized
+        }
+
+        return "Current set"
+    }
+
+    private func pageOffset(width: CGFloat) -> CGFloat {
+        -CGFloat(selectedIndex) * width + resistedDrag(width: width)
+    }
+
+    private func resistedDrag(width: CGFloat) -> CGFloat {
+        guard width > 0 else { return dragTranslation }
+        let isAtStart = selectedIndex == 0 && dragTranslation > 0
+        let isAtEnd = selectedIndex == orderedExercises.count - 1 && dragTranslation < 0
+        return dragTranslation * (isAtStart || isAtEnd ? 0.22 : 0.58)
+    }
+
+    private func handleSwipeEnd(_ translation: CGFloat) {
+        guard orderedExercises.count > 1 else { return }
+        let threshold: CGFloat = 74
+        let nextIndex: Int
+
+        if translation < -threshold {
+            nextIndex = min(selectedIndex + 1, orderedExercises.count - 1)
+        } else if translation > threshold {
+            nextIndex = max(selectedIndex - 1, 0)
+        } else {
+            nextIndex = selectedIndex
+        }
+
+        guard nextIndex != selectedIndex else { return }
+
+        selectedExerciseId = orderedExercises[nextIndex].workoutExerciseId
+        Haptic.selection()
+    }
+
+    private func dotColor(for index: Int) -> Color {
+        guard orderedExercises.indices.contains(index) else {
+            return AppTheme.Colors.tertiaryText
+        }
+
+        if orderedExercises[index].status == "completed" {
+            return AppTheme.Colors.orbSkyMid
+        }
+
+        return index == selectedIndex ? AppTheme.Colors.primaryText : AppTheme.Colors.tertiaryText
+    }
+
+    private func dotSize(for index: Int) -> CGFloat {
+        let progress = min(abs(dragTranslation) / 90, 1)
+        let incomingIndex = dragTranslation < 0 ? selectedIndex + 1 : selectedIndex - 1
+
+        if index == selectedIndex {
+            return 8.5 - (1.5 * progress)
+        }
+
+        if index == incomingIndex {
+            return 5.5 + (2.5 * progress)
+        }
+
+        return 5.5
+    }
+
+    private func dotOpacity(for index: Int) -> Double {
+        let progress = min(abs(dragTranslation) / 90, 1)
+        let incomingIndex = dragTranslation < 0 ? selectedIndex + 1 : selectedIndex - 1
+
+        if index == selectedIndex {
+            return 1 - (0.28 * progress)
+        }
+
+        if index == incomingIndex {
+            return 0.36 + (0.42 * progress)
+        }
+
+        return 0.34
+    }
+
+    private func ensureSelectedExercise(preferCurrent: Bool) {
+        guard !orderedExercises.isEmpty else {
+            selectedExerciseId = nil
+            return
+        }
+
+        if preferCurrent, let currentExerciseIndex {
+            selectedExerciseId = orderedExercises[currentExerciseIndex].workoutExerciseId
+            return
+        }
+
+        if let selectedExerciseId,
+           orderedExercises.contains(where: { $0.workoutExerciseId == selectedExerciseId }) {
+            return
+        }
+
+        let fallbackIndex = currentExerciseIndex ?? 0
+        selectedExerciseId = orderedExercises[fallbackIndex].workoutExerciseId
     }
 }
 
@@ -3328,11 +3640,19 @@ private func formatPinnedSetTarget(_ target: WorkoutSetTarget) -> String {
         parts.append("\(durationSec)s")
     }
 
+    if let distanceM = target.distanceM {
+        parts.append("\(distanceM)m")
+    }
+
+    if let rpe = target.rpe {
+        parts.append("RPE \(String(format: "%.1f", rpe))")
+    }
+
     if let load = target.load {
         if let unit = load.unit {
-            parts.append("@ \(Int(load.value.rounded())) \(unit)")
+            parts.append("at \(Int(load.value.rounded())) \(unit)")
         } else {
-            parts.append("@ \(Int(load.value.rounded()))")
+            parts.append("at \(Int(load.value.rounded()))")
         }
     }
 
@@ -3357,13 +3677,24 @@ private struct CoachAssistantTurnView: View {
         text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var traceText: String {
+        trace?.streamingText.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private var displayText: String {
+        traceText.isEmpty ? trimmedText : traceText
+    }
+
     private var shouldShowActivity: Bool {
         guard let trace else { return false }
 
-        return trace.isStreaming
-            || !trace.commentaryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || (isProvisional && trimmedText.isEmpty && !trace.streamingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-            || trace.errorMessage != nil
+        let hasActivityText = !trace.commentaryText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        if !displayText.isEmpty {
+            return trace.errorMessage != nil || (!trace.isStreaming && hasActivityText)
+        }
+
+        return trace.isStreaming || hasActivityText || trace.errorMessage != nil
     }
 
     var body: some View {
@@ -3371,18 +3702,26 @@ private struct CoachAssistantTurnView: View {
             if shouldShowActivity, let trace {
                 CoachRunTraceView(
                     trace: trace,
-                    showsArchivedStreamingText: trimmedText.isEmpty,
-                    keepsStreamingTextVisible: isProvisional && trimmedText.isEmpty
+                    showsArchivedStreamingText: false,
+                    keepsStreamingTextVisible: false
                 )
             }
 
-            if !trimmedText.isEmpty {
-                CoachMessageText(
-                    text: trimmedText,
-                    rendersMarkdown: true,
-                    foregroundColor: AppTheme.Colors.primaryText,
-                    isProvisional: isProvisional
-                )
+            if !displayText.isEmpty {
+                if trace != nil {
+                    SmoothStreamingText(
+                        text: displayText,
+                        foregroundColor: AppTheme.Colors.primaryText,
+                        isProvisional: isProvisional
+                    )
+                } else {
+                    CoachMessageText(
+                        text: displayText,
+                        rendersMarkdown: true,
+                        foregroundColor: AppTheme.Colors.primaryText,
+                        isProvisional: isProvisional
+                    )
+                }
             }
         }
     }
@@ -3417,9 +3756,8 @@ private struct CoachRunTraceView: View {
             if !streamingText.isEmpty {
                 SmoothStreamingText(
                     text: streamingText,
-                    font: .system(size: 16, weight: .regular),
                     foregroundColor: AppTheme.Colors.primaryText,
-                    lineSpacing: 5
+                    isProvisional: true
                 )
                 .transition(.opacity.combined(with: .move(edge: .bottom)))
             } else if activityLines.isEmpty {
@@ -3501,11 +3839,11 @@ private struct CoachRunTraceView: View {
                     }
 
                     if showsArchivedStreamingText && !streamingText.isEmpty {
-                        Text(streamingText)
-                            .font(.system(size: 15, weight: .regular))
-                            .foregroundStyle(AppTheme.Colors.primaryText)
-                            .lineSpacing(5)
-                            .fixedSize(horizontal: false, vertical: true)
+                        CoachMarkdownText(
+                            text: streamingText,
+                            foregroundColor: AppTheme.Colors.primaryText,
+                            isProvisional: true
+                        )
                     }
 
                     if let errorMessage = trace.errorMessage, !errorMessage.isEmpty {
@@ -3577,19 +3915,18 @@ private struct LiquidThinkingOrb: View {
 
 private struct SmoothStreamingText: View {
     let text: String
-    let font: Font
     let foregroundColor: Color
-    let lineSpacing: CGFloat
+    let isProvisional: Bool
 
     @State private var visibleText = ""
     @State private var revealTask: Task<Void, Never>?
 
     var body: some View {
-        Text(visibleText)
-            .font(font)
-            .foregroundStyle(foregroundColor)
-            .lineSpacing(lineSpacing)
-            .fixedSize(horizontal: false, vertical: true)
+        CoachMarkdownText(
+            text: visibleText,
+            foregroundColor: foregroundColor,
+            isProvisional: isProvisional
+        )
             .contentTransition(.opacity)
             .onAppear {
                 reveal(to: text)
@@ -3610,10 +3947,15 @@ private struct SmoothStreamingText: View {
             return
         }
 
-        guard target.hasPrefix(visibleText), visibleText.count < target.count else {
-            visibleText = target
+        if visibleText == target {
             return
         }
+
+        if !target.hasPrefix(visibleText) {
+            visibleText = String(target.commonPrefix(with: visibleText))
+        }
+
+        guard visibleText.count < target.count else { return }
 
         revealTask = Task { @MainActor in
             var rendered = visibleText
@@ -3945,8 +4287,12 @@ private struct CoachMarkdownText: View {
     }
 
     private func parsedInline(_ value: String) -> AttributedString {
+        let source = isProvisional
+            ? balanceStreamingInlineMarkdown(value)
+            : value
+
         if let parsed = try? AttributedString(
-            markdown: value,
+            markdown: source,
             options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
         ) {
             return parsed
@@ -3954,6 +4300,39 @@ private struct CoachMarkdownText: View {
 
         return AttributedString(value)
     }
+}
+
+private func balanceStreamingInlineMarkdown(_ value: String) -> String {
+    var balanced = value
+
+    if countNonOverlappingOccurrences(of: "**", in: balanced).isMultiple(of: 2) == false {
+        balanced += "**"
+    }
+
+    if countNonOverlappingOccurrences(of: "__", in: balanced).isMultiple(of: 2) == false {
+        balanced += "__"
+    }
+
+    if balanced.filter({ $0 == "`" }).count.isMultiple(of: 2) == false {
+        balanced += "`"
+    }
+
+    return balanced
+}
+
+private func countNonOverlappingOccurrences(of needle: String, in value: String) -> Int {
+    guard !needle.isEmpty else { return 0 }
+
+    var count = 0
+    var searchStart = value.startIndex
+
+    while searchStart < value.endIndex,
+          let range = value.range(of: needle, range: searchStart..<value.endIndex) {
+        count += 1
+        searchStart = range.upperBound
+    }
+
+    return count
 }
 
 private enum CoachMarkdownBlock {
@@ -4108,50 +4487,55 @@ private struct ComposerDock: View {
     let onMicrophoneTap: () -> Void
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 10) {
-            Button(action: onPlusTap) {
-                Image(systemName: "plus")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(AppTheme.Colors.primaryText)
-                    .frame(width: 36, height: 40)
-            }
-            .buttonStyle(PressableScaleButtonStyle())
+        HStack(alignment: .center, spacing: 10) {
+            plusButton
+                .frame(width: 30, height: 34)
 
             TextField(speechManager.isListening ? "Listening..." : placeholder, text: $text, axis: .vertical)
                 .font(.system(size: 17, weight: .regular))
-                .foregroundStyle(AppTheme.Colors.primaryText)
-                .lineLimit(isExpanded ? 6 : 1)
+                .foregroundStyle(Color.white)
+                .tint(Color.white)
+                .lineLimit(isExpanded ? 5 : 1)
                 .focused($isFocused)
                 .disabled(speechManager.isListening)
-                .padding(.vertical, isExpanded ? 13 : 10)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, isExpanded ? 7 : 0)
+                .frame(maxWidth: .infinity, minHeight: 36, alignment: .center)
+
+            Button(action: onMicrophoneTap) {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(Color(white: 0.6))
+                    .frame(width: 26, height: 34)
+            }
+            .buttonStyle(PressableScaleButtonStyle())
 
             Button(action: primaryAction) {
                 ZStack {
                     Circle()
-                        .fill(primaryButtonFill)
-                        .frame(width: 38, height: 38)
+                        .fill(Color.white)
+                        .frame(width: 34, height: 34)
 
                     primaryButtonIcon
                 }
             }
             .buttonStyle(PressableScaleButtonStyle())
-            .disabled(isSending)
-            .transition(.scale.combined(with: .opacity))
+            .disabled(isSending || !sendEnabled)
         }
-        .padding(.leading, 10)
-        .padding(.trailing, 8)
-        .padding(.vertical, 6)
-        .frame(maxWidth: 720)
-        .frame(minHeight: isExpanded ? 62 : 54)
-        .liquidGlassBackground(cornerRadius: 30, shadowOpacity: 0.055)
-        .contentShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+        .padding(.leading, 14)
+        .padding(.trailing, 7)
+        .padding(.vertical, isExpanded ? 4 : 3)
+        .frame(maxWidth: 680)
+        .frame(minHeight: isExpanded ? 48 : 46)
+        .background(composerBackground(cornerRadius: isExpanded ? 24 : 23))
+        .shadow(color: Color.black.opacity(0.34), radius: 15, y: 7)
+        .contentShape(RoundedRectangle(cornerRadius: isExpanded ? 24 : 23, style: .continuous))
         .onTapGesture {
             guard !speechManager.isListening else { return }
             isFocused = true
         }
         .animation(AppTheme.Animation.gentle, value: sendEnabled)
         .animation(AppTheme.Animation.gentle, value: speechManager.isListening)
+        .animation(.spring(response: 0.28, dampingFraction: 0.86), value: isExpanded)
     }
 
     private var sendEnabled: Bool {
@@ -4161,15 +4545,26 @@ private struct ComposerDock: View {
     private func primaryAction() {
         if sendEnabled {
             onSend()
-        } else {
-            onMicrophoneTap()
         }
     }
 
-    private var primaryButtonFill: Color {
-        sendEnabled || speechManager.isListening || isSending
-            ? AppTheme.Colors.primaryText
-            : AppTheme.Colors.surfaceHover
+    private var plusButton: some View {
+        Button(action: onPlusTap) {
+            Image(systemName: "plus")
+                .font(.system(size: 20, weight: .regular))
+                .foregroundStyle(Color.white)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .buttonStyle(PressableScaleButtonStyle())
+    }
+
+    private func composerBackground(cornerRadius: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            .fill(Color(red: 0.09, green: 0.09, blue: 0.09).opacity(0.96))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+            }
     }
 
     @ViewBuilder
@@ -4177,23 +4572,30 @@ private struct ComposerDock: View {
         if isSending {
             ProgressView()
                 .controlSize(.small)
-                .tint(AppTheme.Colors.background)
+                .tint(Color.black)
         } else if sendEnabled {
             Image(systemName: "arrow.up")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(AppTheme.Colors.background)
-        } else if speechManager.isListening {
-            WaveformView(
-                active: true,
-                activeColor: AppTheme.Colors.background,
-                inactiveColor: AppTheme.Colors.background.opacity(0.45)
-            )
-            .frame(width: 18, height: 14)
-            .clipped()
+                .foregroundStyle(Color.black)
         } else {
-            Image(systemName: "mic.fill")
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(AppTheme.Colors.secondaryText)
+            StaticVoiceWaveformIcon(color: Color.black)
+                .frame(width: 17, height: 14)
+        }
+    }
+}
+
+private struct StaticVoiceWaveformIcon: View {
+    let color: Color
+
+    private let heights: [CGFloat] = [6, 10, 14, 9, 7]
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 2) {
+            ForEach(Array(heights.enumerated()), id: \.offset) { _, height in
+                Capsule(style: .continuous)
+                    .fill(color)
+                    .frame(width: 2.5, height: height)
+            }
         }
     }
 }
@@ -4203,38 +4605,27 @@ private struct LiquidGlassBackgroundModifier: ViewModifier {
     let shadowOpacity: Double
 
     /// Builds and returns the SwiftUI view hierarchy for this type.
+    @ViewBuilder
     func body(content: Content) -> some View {
-        content
-            .background {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                            .fill(AppTheme.Colors.glassFill)
-                    }
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.95),
-                                AppTheme.Colors.glassStroke.opacity(0.52),
-                                Color.white.opacity(0.34)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
-            }
-            .overlay(alignment: .topLeading) {
-                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.34), lineWidth: 0.5)
-                    .blur(radius: 0.4)
-                    .padding(1)
-            }
-            .shadow(color: AppTheme.Colors.floatingShadow.opacity(shadowOpacity), radius: 24, y: 11)
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+
+        if #available(iOS 26.0, *) {
+            content
+                .contentShape(shape)
+                .glassEffect(.regular.tint(AppTheme.Colors.glassFill).interactive(), in: shape)
+                .liquidGlassDefinition(shape: shape, shadowOpacity: shadowOpacity)
+        } else {
+            content
+                .contentShape(shape)
+                .background {
+                    shape
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            shape.fill(AppTheme.Colors.glassFill.opacity(0.92))
+                        }
+                }
+                .liquidGlassDefinition(shape: shape, shadowOpacity: shadowOpacity)
+        }
     }
 }
 
@@ -4251,41 +4642,57 @@ private struct LiquidGlassCapsuleModifier: ViewModifier {
     let shadowOpacity: Double
 
     /// Builds and returns the SwiftUI view hierarchy for this type.
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let shape = Capsule(style: .continuous)
+
+        if #available(iOS 26.0, *) {
+            content
+                .contentShape(shape)
+                .glassEffect(.regular.tint(AppTheme.Colors.glassFill).interactive(), in: shape)
+                .liquidGlassDefinition(shape: shape, shadowOpacity: shadowOpacity)
+        } else {
+            content
+                .contentShape(shape)
+                .background {
+                    shape
+                        .fill(.ultraThinMaterial)
+                        .overlay {
+                            shape.fill(AppTheme.Colors.glassFill.opacity(0.92))
+                        }
+                }
+                .liquidGlassDefinition(shape: shape, shadowOpacity: shadowOpacity)
+        }
+    }
+}
+
+private struct LiquidGlassDefinitionModifier<S: InsettableShape>: ViewModifier {
+    let shape: S
+    let shadowOpacity: Double
+
     func body(content: Content) -> some View {
         content
-            .background {
-                Capsule(style: .continuous)
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        Capsule(style: .continuous)
-                            .fill(AppTheme.Colors.glassFill)
-                    }
-            }
             .overlay {
-                Capsule(style: .continuous)
-                    .stroke(
-                        LinearGradient(
-                            colors: [
-                                Color.white.opacity(0.96),
-                                AppTheme.Colors.glassStroke.opacity(0.56),
-                                Color.white.opacity(0.34)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1
-                    )
+                shape
+                    .stroke(Color.white.opacity(0.13), lineWidth: 1)
+                    .allowsHitTesting(false)
             }
-            .overlay {
-                Capsule(style: .continuous)
-                    .stroke(Color.white.opacity(0.28), lineWidth: 0.5)
-                    .padding(1)
+            .overlay(alignment: .topLeading) {
+                shape
+                    .inset(by: 1)
+                    .stroke(Color.white.opacity(0.07), lineWidth: 0.5)
+                    .allowsHitTesting(false)
             }
-            .shadow(color: AppTheme.Colors.floatingShadow.opacity(shadowOpacity), radius: 20, y: 9)
+            .shadow(color: AppTheme.Colors.floatingShadow.opacity(shadowOpacity), radius: 18, y: 8)
     }
 }
 
 private extension View {
+    /// Adds edge highlights and shadow that preserve the shape of floating glass controls.
+    func liquidGlassDefinition<S: InsettableShape>(shape: S, shadowOpacity: Double) -> some View {
+        modifier(LiquidGlassDefinitionModifier(shape: shape, shadowOpacity: shadowOpacity))
+    }
+
     /// Handles Liquid glass background for AppView.swift.
     func liquidGlassBackground(cornerRadius: CGFloat, shadowOpacity: Double = 0.08) -> some View {
         modifier(LiquidGlassBackgroundModifier(cornerRadius: cornerRadius, shadowOpacity: shadowOpacity))

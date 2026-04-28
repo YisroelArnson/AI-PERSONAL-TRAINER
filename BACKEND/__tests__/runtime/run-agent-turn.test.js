@@ -915,7 +915,14 @@ describe('run-agent-turn tool-only runtime', () => {
         rawText: '',
         assistantMessage: {
           role: 'assistant',
-          content: []
+          content: [
+            {
+              type: 'tool_use',
+              id: 'idle-1',
+              name: 'idle',
+              input: {}
+            }
+          ]
         },
         stopReason: 'end_turn',
         usage: {}
@@ -978,6 +985,28 @@ describe('run-agent-turn tool-only runtime', () => {
     }));
 
     const thirdRequestMessages = mockBuildRequest.mock.calls[2][0].messages;
+    const idleAssistantIndex = thirdRequestMessages.findIndex(message => (
+      message.role === 'assistant'
+      && Array.isArray(message.content)
+      && message.content.some(block => block.type === 'tool_use' && block.id === 'idle-1')
+    ));
+
+    expect(idleAssistantIndex).toBeGreaterThanOrEqual(0);
+    expect(thirdRequestMessages[idleAssistantIndex + 1]).toEqual({
+      role: 'user',
+      content: [
+        {
+          type: 'tool_result',
+          toolUseId: 'idle-1',
+          content: JSON.stringify({
+            status: 'ok',
+            output: {
+              reason: null
+            }
+          })
+        }
+      ]
+    });
     expect(thirdRequestMessages).toEqual(expect.arrayContaining([
       expect.objectContaining({
         role: 'user',

@@ -13,7 +13,10 @@
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 const { badRequest } = require('../../shared/errors');
 const { enqueueSessionIndexSyncIfNeeded } = require('./indexing-queue.service');
-const { enqueueSessionCompactionIfNeeded } = require('./session-compaction.service');
+
+function getSessionCompactionService() {
+  return require('./session-compaction.service');
+}
 
 /**
  * Gets Admin client or throw needed by this file.
@@ -79,6 +82,8 @@ async function enqueuePostAppendMaintenance({ userId, sessionKey, sessionId, sou
   }
 
   try {
+    const { enqueueSessionCompactionIfNeeded } = getSessionCompactionService();
+
     await enqueueSessionCompactionIfNeeded({
       userId,
       sessionKey,

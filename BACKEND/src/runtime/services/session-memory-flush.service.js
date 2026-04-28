@@ -14,13 +14,16 @@
  */
 
 const { appendEpisodicNoteBlock } = require('./memory-docs.service');
-const { appendSessionEvent } = require('./transcript-write.service');
 const { getDateKeyInTimezone } = require('./timezone-date.service');
 const { getSupabaseAdminClient } = require('../../infra/supabase/client');
 
 const SESSION_MEMORY_MARKER_PREFIX = 'session-memory-flush';
 const PAGE_SIZE = 100;
 const MAX_PAGES = 5;
+
+function getTranscriptWriteService() {
+  return require('./transcript-write.service');
+}
 
 /**
  * Builds a Session memory marker used by this file.
@@ -236,10 +239,12 @@ async function flushSessionMemoryToEpisodicDate({
   });
 
   try {
+    const { appendSessionEvent } = getTranscriptWriteService();
+
     await appendSessionEvent({
       userId,
       sessionKey,
-      sessionId: previousSessionId,
+      sessionId: targetSessionId,
       eventType: 'memory.flush.executed',
       actor: 'system',
       payload: {
