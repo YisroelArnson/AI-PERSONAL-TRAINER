@@ -4493,8 +4493,8 @@ private struct ComposerDock: View {
 
             TextField(speechManager.isListening ? "Listening..." : placeholder, text: $text, axis: .vertical)
                 .font(.system(size: 17, weight: .regular))
-                .foregroundStyle(Color.white)
-                .tint(Color.white)
+                .foregroundStyle(AppTheme.Colors.primaryText)
+                .tint(AppTheme.Colors.primaryText)
                 .lineLimit(isExpanded ? 5 : 1)
                 .focused($isFocused)
                 .disabled(speechManager.isListening)
@@ -4504,7 +4504,7 @@ private struct ComposerDock: View {
             Button(action: onMicrophoneTap) {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 17, weight: .medium))
-                    .foregroundStyle(Color(white: 0.6))
+                    .foregroundStyle(AppTheme.Colors.secondaryText)
                     .frame(width: 26, height: 34)
             }
             .buttonStyle(PressableScaleButtonStyle())
@@ -4512,7 +4512,7 @@ private struct ComposerDock: View {
             Button(action: primaryAction) {
                 ZStack {
                     Circle()
-                        .fill(Color.white)
+                        .fill(AppTheme.Colors.primaryText)
                         .frame(width: 34, height: 34)
 
                     primaryButtonIcon
@@ -4527,7 +4527,7 @@ private struct ComposerDock: View {
         .frame(maxWidth: 680)
         .frame(minHeight: isExpanded ? 48 : 46)
         .background(composerBackground(cornerRadius: isExpanded ? 24 : 23))
-        .shadow(color: Color.black.opacity(0.34), radius: 15, y: 7)
+        .shadow(color: AppTheme.Colors.floatingShadow.opacity(0.12), radius: 22, y: 5)
         .contentShape(RoundedRectangle(cornerRadius: isExpanded ? 24 : 23, style: .continuous))
         .onTapGesture {
             guard !speechManager.isListening else { return }
@@ -4552,7 +4552,7 @@ private struct ComposerDock: View {
         Button(action: onPlusTap) {
             Image(systemName: "plus")
                 .font(.system(size: 20, weight: .regular))
-                .foregroundStyle(Color.white)
+                .foregroundStyle(AppTheme.Colors.primaryText)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .buttonStyle(PressableScaleButtonStyle())
@@ -4560,10 +4560,14 @@ private struct ComposerDock: View {
 
     private func composerBackground(cornerRadius: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            .fill(Color(red: 0.09, green: 0.09, blue: 0.09).opacity(0.96))
+            .fill(.ultraThinMaterial)
             .overlay {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                    .fill(AppTheme.Colors.glassFill.opacity(0.92))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(AppTheme.Colors.glassStroke.opacity(0.72), lineWidth: 1)
             }
     }
 
@@ -4572,13 +4576,13 @@ private struct ComposerDock: View {
         if isSending {
             ProgressView()
                 .controlSize(.small)
-                .tint(Color.black)
+                .tint(AppTheme.Colors.background)
         } else if sendEnabled {
             Image(systemName: "arrow.up")
                 .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(Color.black)
+                .foregroundStyle(AppTheme.Colors.background)
         } else {
-            StaticVoiceWaveformIcon(color: Color.black)
+            StaticVoiceWaveformIcon(color: AppTheme.Colors.background)
                 .frame(width: 17, height: 14)
         }
     }
